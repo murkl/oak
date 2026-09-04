@@ -156,8 +156,10 @@ jobs:
           name: binary
           path: dist
 
-      # Skipped rather than failed when it exists, so re-running a half-finished
-      # run finishes it.
+      # Two ways in, one outcome. A tag pushed from a terminal has no release
+      # yet, so this writes one; a release published from the web page has the
+      # tag and the notes already, so this only hangs the binary on it. Either
+      # way the step can be run again on a half-finished run.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -165,12 +167,12 @@ jobs:
         run: |
           (cd dist && sha256sum -c ./*.sha256)
           if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "release $VERSION is already published"
-            exit 0
+            gh release upload "$VERSION" dist/* --clobber
+          else
+            gh release create "$VERSION" dist/* \
+              --title "Oak $VERSION" \
+              --generate-notes
           fi
-          gh release create "$VERSION" dist/* \
-            --title "Oak $VERSION" \
-            --generate-notes
 
       # Which commit and which run this file came out of, signed.
       - uses: actions/attest-build-provenance@v4

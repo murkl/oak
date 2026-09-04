@@ -36,12 +36,22 @@ flowchart TD
 
 ## Releasing
 
+A release is a `v*` tag on `main`. The tag is what starts it, from either end:
+
 ```
 git tag v1.2.0
 git push origin v1.2.0
 ```
 
+Or from the browser: **Releases** → **Draft a new release** → **Choose a tag**, type `v1.2.0`, **Create new tag on publish** → target `main` → **Publish release**.
+
+Both land in the same place. A pushed tag has no release yet, so CI writes one with generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green.
+
 The version comes out of `git describe`, so the tag is what the binary answers with. Nothing else has to be edited.
+
+**Note:** _The `v` is what CI watches for. A tag without it builds nothing and releases nothing._
+
+**Note:** _Published from the page, the release is visible for the few minutes the run takes and has no binary on it yet. Tagging from a terminal shows it only once there is something to download._
 
 **Note:** _Semantic versions. A change to what a product may declare is a minor version, a change that stops an existing product from loading is a major one._
 
