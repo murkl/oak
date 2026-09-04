@@ -5,14 +5,15 @@ name: CI
 
 on:
   push:
+    branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
 permissions: {}
 
-# Keyed so a branch and its pull request share one group: only the newer of the
-# two runs. On main and on a tag nothing is cancelled — that is the run that
-# releases.
+# One run per pull request: pushing again cancels the one still going. On main
+# and on a tag nothing is cancelled — that is the run that releases.
 concurrency:
   group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: ${{ github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}
@@ -33,7 +34,7 @@ jobs:
       - name: Make the checkout a repository
         run: pacman -Sy --needed --noconfirm git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           # git describe needs the tags to describe anything.
           fetch-depth: 0
@@ -69,7 +70,7 @@ jobs:
       - name: Make the checkout a repository
         run: pacman -Sy --needed --noconfirm git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/arch
         with:
@@ -104,7 +105,7 @@ jobs:
       - name: Make the checkout a repository
         run: pacman -Sy --needed --noconfirm git
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -148,7 +149,7 @@ jobs:
       id-token: write # the provenance below is signed
       attestations: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v8
         with:

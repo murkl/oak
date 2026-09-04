@@ -6,14 +6,16 @@ Oak is one binary and nothing else ships. Everything here follows from that: wha
 
 | Branch | Description |
 | --- | --- |
-| `feature/*` | Where work happens. Every push is checked |
+| `feature/*` | Where work happens. Opened as a pull request, and checked there |
 | `main` | What is released from. Merged into by pull request, squashed, so one change is one commit |
 
-## What a Push runs
+## What CI runs
+
+Once per pull request, once per push to `main`, and once more on a tag.
 
 ```mermaid
 flowchart TD
-    P["push"] --> C["check<br/><small>make check · race detector</small>"]
+    P["pull request · main · tag"] --> C["check<br/><small>make check · race detector</small>"]
     P --> S["security<br/><small>govulncheck · gitleaks</small>"]
     P --> B["build<br/><small>oak-linux-amd64 · checksum</small>"]
     C --> R
@@ -25,9 +27,9 @@ flowchart TD
 
 | Job | Where | Description |
 | --- | --- | --- |
-| `check` | every branch | `make check`, then the tests again under the race detector |
-| `security` | every branch | Vulnerabilities in what Oak imports, and a secret scan of the repository |
-| `build` | every branch | The binary and its checksum |
+| `check` | every run | `make check`, then the tests again under the race detector |
+| `security` | every run | Vulnerabilities in what Oak imports, and a secret scan of the repository |
+| `build` | every run | The binary and its checksum |
 | `release` | a `v*` tag | Publishes the artefact the three above produced, signed |
 
 `build` is the only job that compiles anything, and the release publishes that artefact rather than building again. What is downloaded is the file the checks ran against.
