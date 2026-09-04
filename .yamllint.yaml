@@ -1,0 +1,25 @@
+# What counts as sound yaml here, for `make lint`.
+#
+# Three of yamllint's defaults are switched off. Each is a convention of the
+# linter rather than a rule of the format, and each would ask for the source to
+# be rewritten for the tool's sake:
+#
+#   line-length  a product's declaration is prose. A sentence broken at column
+#                80 reads worse and diffs worse.
+#   truthy       `default: no` is an answer to an offer, not a boolean — Oak
+#                reads every scalar as the text it was written as (see
+#                internal/spec/scalar.go). check-keys off because a workflow's
+#                `on:` is a key, not a value.
+#   comments     a list is annotated one space out, so the comment sits against
+#                its entry rather than adrift of it.
+
+extends: default
+
+rules:
+  line-length: disable
+  document-start: disable
+  truthy:
+    allowed-values: ["true", "false", "yes", "no"]
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1

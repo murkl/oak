@@ -1,0 +1,24 @@
+# What this product is, in the four things no module can answer for its
+# neighbours: the name over the pages drawn before one has been opened, the one
+# colour the interface is built from, the wordmark it comes up out of, and what
+# this build of it is called.
+#
+# Which modules there are is not written down here. They are the folders in
+# modules/ beside this file, each holding its own declaration.
+
+name: Demo
+version: 0.1.0
+
+# Every colour on screen is derived from this one.
+accent: "#8fbcbb"
+
+# Above the blank line is the eyebrow, dimmed; below it the wordmark, in the
+# accent colour.
+logo: |
+  A product driven by
+
+  ██████  ███████ ███    ███  █████
+  ██   ██ ██      ████  ████ ██   ██
+  ██   ██ █████   ██ ████ ██ ██   ██
+  ██   ██ ██      ██  ██  ██ ██   ██
+  ██████  ███████ ██      ██  █████

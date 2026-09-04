@@ -1,0 +1,15 @@
+# Build output — see the Makefile. bin/ is the released binary, and the copy in
+# example/ is the same binary built beside the product it is developed against.
+bin/
+example/oak
+
+# What a run leaves beside itself: Oak's own answers, and one pair per module.
+example/*.conf
+example/*.conf.old
+example/*.log
+example/*.log.old
+example/greeting.txt
+
+# Editors / OS noise
+*.swp
+.DS_Store
