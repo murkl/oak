@@ -1,6 +1,8 @@
-<h1 align="center">Oak</h1>
-
 <div align="center">
+
+<img src="logo.svg" width="96" alt="">
+
+<h1>Oak</h1>
 
 <p><strong>One binary that turns YAML and shell scripts into a guided installer.</strong></p>
 
@@ -8,6 +10,8 @@
   <img src="https://img.shields.io/github/v/release/murkl/oak?style=for-the-badge&label=RELEASE&color=8fbcbb">
   <img src="https://img.shields.io/badge/License-GPL_3.0-blue?style=for-the-badge">
 </p>
+
+<img src="screenshots/splash.png" width="640" alt="Oak opening: the product's own wordmark">
 
 </div>
 
@@ -100,6 +104,11 @@ Oak asks for a language, then for the one question that is required and still un
 
 **Note:** _A working version of this is in **[example](../example)**. `oak --inspect` reads a product the way a run does and reports what it found, which is the check to put in a build script._
 
+<p align="center">
+  <img src="screenshots/question.png" width="49%" alt="The one question left to ask, on a page of its own">
+  <img src="screenshots/report.png" width="49%" alt="A milestone the run stops on, once the greeting is written">
+</p>
+
 ## What the Interface Does
 
 Each page appears only when it has something to show:
@@ -116,7 +125,13 @@ Each page appears only when it has something to show:
 | Running | The tasks, filling in from the top |
 | A failure | Which script, which line, which command, which exit code, and where the rest is logged |
 
-Four keys, one meaning each, on every page:
+That last page, in full:
+
+<p align="center">
+  <img src="screenshots/failure.png" width="640" alt="A failed task: the script, the line, the command and the exit code">
+</p>
+
+Five keys, three meanings, the same on every page:
 
 | Key | Meaning |
 | --- | --- |
@@ -158,5 +173,5 @@ GPL-3.0. See **[LICENSE](../LICENSE)**.
 
 Many thanks for these projects and the people behind them!
 
-- Bubble Tea by charm
-- gettext
+- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)** by charm
+- **[gettext](https://www.gnu.org/software/gettext)**
