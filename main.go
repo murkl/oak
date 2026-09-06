@@ -11,10 +11,13 @@
 // drives a different product by sitting next to a different oak.yaml and a
 // different set of modules.
 //
-// The command line is three options and nothing else: --version says what this
-// binary is, --module opens one of the folders outright, and --debug hands
-// every script DEBUG=true so a run can be watched without it touching anything.
-// What a product may declare is in the yaml beside the binary, never here.
+// The command line is five options and nothing else. Three are about a run:
+// --version says what this binary is, --module opens one of the folders
+// outright, and --debug hands every script DEBUG=true so a run can be watched
+// without it touching anything. Two are about the folder rather than the run,
+// for whoever is writing one: --inspect loads it the way a run does and reports
+// what it holds, and --strings writes a module's translation template. What a
+// product may declare is in the yaml beside the binary, never here.
 package main
 
 import (
@@ -26,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/murkl/oak/internal/i18n"
+	"github.com/murkl/oak/internal/inspect"
 	"github.com/murkl/oak/internal/logging"
 	"github.com/murkl/oak/internal/runner"
 	"github.com/murkl/oak/internal/spec"
@@ -62,6 +66,8 @@ const (
 	flagDebug   = "--debug"
 	flagVersion = "--version"
 	flagModule  = "--module"
+	flagInspect = "--inspect"
+	flagStrings = "--strings"
 )
 
 func main() {
@@ -100,16 +106,29 @@ func start(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Two questions about the folder rather than the run. Both are asked by
+	// whoever is writing a product and never by a machine being installed, so
+	// they answer on stdout and the interface is never drawn.
+	switch {
+	case cmd.inspect:
+		return inspect.Report(os.Stdout, rt, mods, locales.FS)
+	case cmd.strings:
+		return inspect.Template(os.Stdout, rt, mods)
+	}
 	return run(rt, mods, cmd.debug)
 }
 
 // command is a command line, read.
 type command struct {
 	// module is the module it named, or empty where it named none — which is
-	// the question the interface then asks.
+	// the question the interface then asks. The two below narrow to it as well:
+	// a report is about every module unless one was named, and a template
+	// belongs to exactly one.
 	module  string
 	debug   bool
 	version bool
+	inspect bool
+	strings bool
 }
 
 // parse reads one. Which module names exist is not decided here but by what is
@@ -125,6 +144,10 @@ func parse(args []string) (command, error) {
 			c.debug = true
 		case name == flagVersion && !valued:
 			c.version = true
+		case name == flagInspect && !valued:
+			c.inspect = true
+		case name == flagStrings && !valued:
+			c.strings = true
 		case name == flagModule && value != "":
 			if c.module != "" {
 				return c, fmt.Errorf("%s", i18n.T("One module at a time: %s or %s.", c.module, value))
@@ -135,7 +158,7 @@ func parse(args []string) (command, error) {
 		default:
 			return c, fmt.Errorf("%s\n%s",
 				i18n.T("%q is not something this program takes.", arg),
-				i18n.T("It takes %s.", strings.Join([]string{flagDebug, flagVersion, flagModule + "=<id>"}, ", ")))
+				i18n.T("It takes %s.", strings.Join([]string{flagDebug, flagVersion, flagModule + "=<id>", flagInspect, flagStrings}, ", ")))
 		}
 	}
 	return c, nil

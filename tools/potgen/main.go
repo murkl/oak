@@ -7,8 +7,7 @@
 // drift, because there is nothing to keep in step.
 //
 // Only string literals are taken. T(sp.UI.Title) is a message too, but it is
-// a module's rather than Oak's, and a module lists its own — see tools/strings
-// for that.
+// a module's rather than Oak's, and `oak --strings` lists those.
 package main
 
 import (

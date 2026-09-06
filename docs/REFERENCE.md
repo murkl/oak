@@ -285,14 +285,15 @@ Five keys, three meanings, the same on every page. Long lists narrow with `/`.
 
 ## Checking a product
 
-What a product holds is a question whoever writes one asks, and a machine being installed never does — so it is a tool rather than a flag on the binary:
+Two options that answer on stdout instead of drawing anything. They read the product beside the binary, the same one a run would open, and `--module=` narrows both to one of its modules:
 
 ```
-go run ./tools/inspect <product folder> [module]   # load it the way a run does, and report
-go run ./tools/strings <product folder> <module>   # write that module's translation template
+oak --inspect                    # load the product beside the binary, and report
+oak --inspect --module=setup     # just that one module
+oak --strings --module=setup     # write that module's translation template
 ```
 
-`inspect` loads a product exactly as a run does — every task ordered, every condition resolved — and prints what it found. **This is the check to put in a build script.** Two of its lines are about the gap between the yaml and the shell, in opposite directions:
+`--inspect` loads a product exactly as a run does — every task ordered, every condition resolved — and prints what it found. **This is the check to put in a build script.** Two of its lines are about the gap between the yaml and the shell, in opposite directions:
 
 | Line | Meaning |
 | --- | --- |
@@ -306,7 +307,7 @@ go run ./tools/strings <product folder> <module>   # write that module's transla
 The source string is the key. A line of yaml says `Your name` and a catalog answers with `Dein Name`; a catalog with nothing to say about a string leaves the English standing, which is what makes a half-finished translation useful from its first line.
 
 ```
-go run ./tools/strings . setup > modules/setup/locales/setup.pot
+./oak --strings --module=setup > modules/setup/locales/setup.pot
 cp modules/setup/locales/setup.pot modules/setup/locales/fr.po
 ```
 

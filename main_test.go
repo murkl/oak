@@ -261,31 +261,31 @@ func TestAModuleThatWillNotLoadSaysWhatIsWrongWithIt(t *testing.T) {
 	}
 }
 
-// The whole of what a command line says: three options, each spelled out, and
+// The whole of what a command line says: five options, each spelled out, and
 // nothing else on the line at all.
-func TestACommandLineIsThreeOptionsAndNothingElse(t *testing.T) {
+func TestACommandLineIsFiveOptionsAndNothingElse(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		args    []string
-		module  string
-		debug   bool
-		version bool
+		name string
+		args []string
+		want command
 	}{
 		{name: "nothing at all"},
-		{name: "a module named outright", args: []string{"--module=installer"}, module: "installer"},
-		{name: "in front of the module", args: []string{"--debug", "--module=installer"}, module: "installer", debug: true},
-		{name: "behind it", args: []string{"--module=installer", "--debug"}, module: "installer", debug: true},
-		{name: "the version on its own", args: []string{"--version"}, version: true},
-		{name: "two of them at once", args: []string{"--debug", "--version"}, debug: true, version: true},
+		{name: "a module named outright", args: []string{"--module=installer"}, want: command{module: "installer"}},
+		{name: "in front of the module", args: []string{"--debug", "--module=installer"}, want: command{module: "installer", debug: true}},
+		{name: "behind it", args: []string{"--module=installer", "--debug"}, want: command{module: "installer", debug: true}},
+		{name: "the version on its own", args: []string{"--version"}, want: command{version: true}},
+		{name: "two of them at once", args: []string{"--debug", "--version"}, want: command{debug: true, version: true}},
+		{name: "a report on the whole product", args: []string{"--inspect"}, want: command{inspect: true}},
+		{name: "a report on one module", args: []string{"--inspect", "--module=installer"}, want: command{module: "installer", inspect: true}},
+		{name: "one module's template", args: []string{"--strings", "--module=installer"}, want: command{module: "installer", strings: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parse(tc.args)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.module != tc.module || got.debug != tc.debug || got.version != tc.version {
-				t.Errorf("parse(%v) = %+v, want module %q, debug %v, version %v",
-					tc.args, got, tc.module, tc.debug, tc.version)
+			if got != tc.want {
+				t.Errorf("parse(%v) = %+v, want %+v", tc.args, got, tc.want)
 			}
 		})
 	}
@@ -301,7 +301,7 @@ func TestACommandLineThatCannotBeReadIsRefused(t *testing.T) {
 		{"a module with no name", []string{"--module"}, "needs the name of a module"},
 		{"a module with an empty name", []string{"--module="}, "needs the name of a module"},
 		{"a word that is not an option", []string{"installer"}, "is not something this program takes"},
-		{"an option nobody has", []string{"--inspect"}, "is not something this program takes"},
+		{"an option nobody has", []string{"--report"}, "is not something this program takes"},
 		{"a value where none is taken", []string{"--debug=true"}, "is not something this program takes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

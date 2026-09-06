@@ -196,12 +196,19 @@ The run stops and says where, in the words of the tool that failed. The rest is 
 
 ## The command line
 
-Three options, and nothing else:
+Five options, and nothing else. Three are about a run:
 
 ```
 oak --module=setup     # open that module outright, instead of asking which
 oak --debug            # hand every script DEBUG=true and touch nothing
 oak --version          # print Oak's own version — `oak v1.0.0` — and exit
+```
+
+Two are about the folder, for whoever is writing one. They print and draw nothing:
+
+```
+oak --inspect          # load the product the way a run does, and report what it holds
+oak --strings          # write a module's translation template
 ```
 
 Nothing on the command line is an answer. Questions are answered in the interface.

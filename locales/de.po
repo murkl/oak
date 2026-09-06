@@ -120,32 +120,32 @@ msgstr "Verbindung mit %s fehlgeschlagen."
 msgid "%s was joined, but there is still no internet."
 msgstr "%s ist verbunden, aber es gibt weiterhin keine Internetverbindung."
 
-#: main.go:130
+#: main.go:153
 #, c-format
 msgid "One module at a time: %s or %s."
 msgstr "Nur ein Modul auf einmal: %s oder %s."
 
-#: main.go:134
+#: main.go:157
 #, c-format
 msgid "%s needs the name of a module: %s=<id>."
 msgstr "%s braucht den Namen eines Moduls: %s=<id>."
 
-#: main.go:137
+#: main.go:160
 #, c-format
 msgid "%q is not something this program takes."
 msgstr "%q kennt dieses Programm nicht."
 
-#: main.go:138
+#: main.go:161
 #, c-format
 msgid "It takes %s."
 msgstr "Es kennt %s."
 
-#: main.go:158
+#: main.go:181
 #, c-format
 msgid "No module called %s."
 msgstr "Kein Modul namens %s."
 
-#: main.go:159
+#: main.go:182
 #, c-format
 msgid "This one offers %s."
 msgstr "Angeboten werden %s."

@@ -2,10 +2,8 @@
 //
 // The load is the same one a run does at startup, so everything it refuses
 // would have stopped the program too. What is left is to say what was found, or
-// to write one module's translation template. Both are questions about a folder
-// rather than things a machine being installed ever needs, which is why they
-// are tools beside the binary rather than options on it — see tools/inspect and
-// tools/strings.
+// to write one module's translation template — the two things --inspect and
+// --strings answer with, on stdout and without drawing anything.
 package inspect
 
 import (
@@ -171,29 +169,4 @@ func Template(w io.Writer, rt *spec.Runtime, mods []*spec.Module) error {
 		entries = append(entries, i18n.Entry{Text: m.Text, Note: m.Note, Refs: m.Files})
 	}
 	return i18n.Template(w, mod.ID(), entries)
-}
-
-// Open loads a product out of a folder and narrows it to the module that was
-// named, or to all of them where none was. It is what both tools here start
-// with: the same load a run does, from a folder given outright rather than from
-// wherever the binary happens to sit.
-func Open(dir, id string) (*spec.Runtime, []*spec.Module, error) {
-	rt, err := spec.LoadRuntime(dir)
-	if err != nil {
-		return nil, nil, err
-	}
-	mods, err := rt.LoadModules()
-	if err != nil {
-		return nil, nil, err
-	}
-	if id == "" {
-		return rt, mods, nil
-	}
-	for _, mod := range mods {
-		if mod.ID() == id {
-			return rt, []*spec.Module{mod}, nil
-		}
-	}
-	return nil, nil, fmt.Errorf("no module called %s — this product offers %s",
-		id, strings.Join(rt.Modules, ", "))
 }

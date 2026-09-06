@@ -60,11 +60,8 @@ run: example
 # resolved, every question checked against the tasks that read it. It is the one
 # check here that reads yaml rather than Go, so a change to what a product may
 # declare fails on a real product before it reaches anybody else's.
-#
-# A tool rather than a flag on the binary: what a product holds is a question
-# whoever writes one asks, and a machine being installed never does.
-inspect:
-	@go run ./tools/inspect $(EXAMPLE)
+inspect: example
+	@cd $(EXAMPLE) && ./$(APP) --inspect
 
 tidy:
 	go mod tidy
