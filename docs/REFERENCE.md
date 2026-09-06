@@ -24,11 +24,11 @@ logo: |
 | Key | Description |
 | --- | --- |
 | `title` | The product's name, over the pages drawn before a module is opened |
-| `version` | What this build of the product is called, under the wordmark and in the corner of every page. Left out, no version is shown |
+| `version` | What this build of the product is called, in the corner of every page. Left out, no version is shown |
 | `accent` | `#rrggbb`. The one colour the interface is built from |
 | `logo` | The wordmark. Everything above the first blank line is a dim eyebrow over it |
 
-`version` is the product's own. Oak's own is what `--version` answers, and it is never shown as though it belonged to the product.
+`version` is the product's own. Oak's own is what `--version` answers and what the splash signs off with — `powered by oak <version>`, under the wordmark — and it is never shown as though it belonged to the product.
 
 ## A module
 

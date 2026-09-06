@@ -96,6 +96,8 @@ curl -Lo oak https://github.com/murkl/oak/releases/latest/download/oak-linux-amd
 chmod +x oak
 ```
 
+`latest` is whatever is newest. A product that releases versions of its own pins the Oak it was built against instead — `releases/download/v1.0.0/oak-linux-amd64` — so the same tag builds the same thing twice. Which one drove it is under the wordmark on the way in: `powered by oak v1.0.0`.
+
 ### 2. Say what the product is — `oak.yaml`
 
 ```yaml
@@ -189,7 +191,7 @@ Three options, and nothing else:
 ```
 oak --module=hello     # open that module outright, instead of asking which
 oak --debug            # hand every script DEBUG=true and touch nothing
-oak --version          # print Oak's own version and exit
+oak --version          # print Oak's own version — `oak v1.0.0` — and exit
 ```
 
 Nothing on the command line is an answer. Questions are answered in the interface.

@@ -34,7 +34,8 @@ import (
 	"github.com/murkl/oak/tui"
 )
 
-// version is set by the build (see the Makefile).
+// version is set by the build (see the Makefile). It is this binary's own and
+// never a product's: what a product calls its own build is in its oak.yaml.
 var version = "dev"
 
 // The answers and the log live beside whoever started the program, never inside
@@ -43,10 +44,14 @@ var version = "dev"
 // their own; Oak's own answers are named after Oak, beside them, and hold what
 // is settled before any module has been chosen.
 const (
+	// program is what this binary is called: what it answers --version with,
+	// and what its own answers are named after.
+	program = "oak"
+
 	confExt = ".conf"
 	logExt  = ".log"
 
-	runtimeConf = "oak" + confExt
+	runtimeConf = program + confExt
 )
 
 // The whole command line. Every one of them is spelled out in full and given
@@ -79,7 +84,7 @@ func start(args []string) error {
 	// Answered before anything is loaded: a version is what this binary is,
 	// which is true of a binary standing on its own with no product beside it.
 	if cmd.version {
-		fmt.Println(version)
+		fmt.Println(program, version)
 		return nil
 	}
 
@@ -166,6 +171,7 @@ func run(rt *spec.Runtime, mods []*spec.Module, debug bool) error {
 
 	opening := &tui.Opening{
 		Runtime: rt, Modules: mods, Lang: lang, Langs: langs, Sources: sources,
+		Oak: version,
 	}
 	return tui.Run(opening, func(mod *spec.Module) (*tui.Program, error) {
 		return open(mod, debug)

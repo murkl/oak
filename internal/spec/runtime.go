@@ -42,13 +42,14 @@ type Runtime struct {
 	Accent string `yaml:"accent"`
 	Logo   string `yaml:"logo"`
 
-	// Version is what this product calls this build of itself, under the
-	// wordmark and in the corner of every page. It is the product's own and not
-	// the binary's: a release of the modules is what somebody downloads, and
-	// which Oak drove it is a dependency of that rather than its name.
+	// Version is what this product calls this build of itself, in the corner of
+	// every page. It is the product's own and not the binary's: a release of the
+	// modules is what somebody downloads, and which Oak drove it is a dependency
+	// of that rather than its name.
 	//
 	// Left out, no version is shown. Oak's own is what `oak --version` answers
-	// and is never put on screen as though it were the product's.
+	// and what the splash signs off with, and it is never put on screen as
+	// though it were the product's.
 	Version string `yaml:"version"`
 
 	// Modules is what this runtime offers, in the order it offers them: the

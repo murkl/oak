@@ -53,6 +53,10 @@ type Opening struct {
 	Lang    *store.Language
 	Langs   []i18n.Lang
 	Sources []fs.FS
+
+	// Oak is the binary's own version, the one thing on screen that belongs to
+	// the program rather than to the product it is driving.
+	Oak string
 }
 
 // Open opens one module, once it has been chosen. Nothing is opened before
@@ -79,11 +83,14 @@ type app struct {
 	store  *store.Store
 	runner *runner.Runner
 
-	// version is what the product calls this build of itself, under the
-	// wordmark and in the corner of every page. Empty where it names none: the
-	// binary's own version is what `oak --version` answers and is never put on
-	// screen as though it were the product's.
+	// version is what the product calls this build of itself, in the corner of
+	// every page. Empty where it names none.
 	version string
+
+	// oak is the binary's own version, which the splash signs off with. The two
+	// are never mixed up: a product's own build is in the corner of every page,
+	// and which Oak drove it is said once, on the way in.
+	oak string
 
 	// The languages on offer and where their catalogs come from. Kept because
 	// the language can be changed at any point in the run and every word on
@@ -116,7 +123,7 @@ func Run(o *Opening, open Open) error {
 	a := &app{
 		runtime: o.Runtime, modules: o.Modules, lang: o.Lang,
 		langs: o.Langs, sources: o.Sources,
-		open: open, version: o.Runtime.Version,
+		open: open, version: o.Runtime.Version, oak: o.Oak,
 	}
 	// The frame is dressed before there is a module to dress it with, and stays
 	// dressed that way afterwards: the wordmark and the colour are the runtime's,

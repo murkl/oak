@@ -13,9 +13,11 @@ import (
 // inside it — but the same program, because leaving the alternate screen and
 // entering it again would blink the shell through the middle of the start.
 //
-// Under the wordmark stands the version, not the title: the wordmark already
-// says the name. It fades in last, once the wordmark has settled, so the two
-// never compete for the eye.
+// Under the wordmark stands Oak's own version, not the title and not the
+// product's: the wordmark already says the name, and what the product calls
+// this build of itself is in the corner of every page behind the splash. It
+// fades in last, once the wordmark has settled, so the two never compete for
+// the eye.
 
 const (
 	// animEvery is one animation frame — the rate the wordmark sweeps in and
@@ -30,23 +32,23 @@ const (
 	// fadeFor is the handover — the splash divided by φ³, long enough to read
 	// as the logo giving way and short enough that nobody waits through it. It
 	// is spent four times: first as the wordmark sweeping into view, then as
-	// the pause held after the version has faded in — long enough to actually
+	// the pause held after the sign-off has faded in — long enough to actually
 	// read it, not just catch it going past — then as the last stretch of the
 	// splash dimming out, then as long again with the interface coming up.
 	fadeFor = 382 * time.Millisecond
 
-	// versionFor is how long the version takes to fade in once the wordmark
+	// signFor is how long the sign-off takes to fade in once the wordmark
 	// has settled — fadeFor again, divided by φ, since it is the smaller of
 	// the two things arriving and the last one to. It is not simultaneous
-	// with the wordmark: the version is the last word, not a caption reading
+	// with the wordmark: the sign-off is the last word, not a caption reading
 	// along beside it.
-	versionFor = 236 * time.Millisecond
+	signFor = 236 * time.Millisecond
 
-	// versionRest is how far past muted the version's resting colour sits,
-	// blended toward the field it sits on — a build number is the least
-	// important thing on the splash, dimmer even than the muted rows the rest
-	// of the interface uses for a footer or a breadcrumb.
-	versionRest = 0.3
+	// signRest is how far past muted the sign-off's resting colour sits,
+	// blended toward the field it sits on — which binary drew this is the
+	// least important thing on the splash, dimmer even than the muted rows the
+	// rest of the interface uses for a footer or a breadcrumb.
+	signRest = 0.3
 
 	// trailCols is how many columns behind the sweep's front a letter still
 	// carries a trace of it — cooling from the accent back to its row's own
@@ -94,20 +96,22 @@ type splashModel struct {
 	rows      []string
 	titleRows int
 
-	version string
+	// oak is the binary's own version, which the sign-off underneath is built
+	// from.
+	oak     string
 	total   time.Duration
 	elapsed time.Duration
 }
 
-func newSplash(logo, version string) *splashModel {
+func newSplash(logo, oak string) *splashModel {
 	rows := logoLines(logo)
 	title := 0
 	for title < len(rows) && strings.TrimSpace(rows[title]) != "" {
 		title++
 	}
 	// total runs one fadeFor past splashFor's own span: the reading pause held
-	// after the version arrives, on top of the time the wordmark itself gets.
-	return &splashModel{rows: rows, titleRows: title, version: version, total: splashFor + fadeFor}
+	// after the sign-off arrives, on top of the time the wordmark itself gets.
+	return &splashModel{rows: rows, titleRows: title, oak: oak, total: splashFor + fadeFor}
 }
 
 // advance moves the splash on one frame and reports whether it is over.
@@ -146,19 +150,19 @@ func (m *splashModel) revealed() float64 {
 	return float64(m.elapsed) / float64(fadeFor)
 }
 
-// versionShown is how far the version has faded in: 0 until the wordmark has
+// signShown is how far the sign-off has faded in: 0 until the wordmark has
 // long since settled, 1 a full fadeFor before the splash starts dimming out —
 // so that once it arrives it sits there and is actually read, rather than
 // fading in just as the handover to the interface begins.
-func (m *splashModel) versionShown() float64 {
-	start := m.total - 2*fadeFor - versionFor
+func (m *splashModel) signShown() float64 {
+	start := m.total - 2*fadeFor - signFor
 	switch t := m.elapsed - start; {
 	case t <= 0:
 		return 0
-	case t >= versionFor:
+	case t >= signFor:
 		return 1
 	default:
-		return float64(t) / float64(versionFor)
+		return float64(t) / float64(signFor)
 	}
 }
 
@@ -166,7 +170,7 @@ func (m *splashModel) View(width, height int) string {
 	return placeOnField(width, height, m.compose())
 }
 
-// compose draws the wordmark, row by row, and puts the version underneath.
+// compose draws the wordmark, row by row, and puts the sign-off underneath.
 func (m *splashModel) compose() string {
 	revealed := m.revealed()
 	front := revealed * float64(lipgloss.Width(m.rows[0]))
@@ -246,30 +250,33 @@ func sweepGlyph(r rune, t float64) string {
 	return glyphs.focus[int(t*float64(len(glyphs.focus)-1)+0.5)]
 }
 
-// sign puts the version under a block, centred, with gapS blank lines of its
+// sign puts the sign-off under a block, centred, with gapS blank lines of its
 // own — the same single line the logo itself uses to part the eyebrow from
-// the wordmark, so the version reads as its own caption underneath rather
-// than a third row of the mark itself.
+// the wordmark, so it reads as its own caption underneath rather than a third
+// row of the mark itself.
 //
-// Its colour comes from versionShown rather than mutedStyle outright: the
-// version fades in on its own, out of the field it sits on, the same way the
-// whole splash later dissolves into the interface — just the ink moving, not
-// the letters. Dimmed past muted by versionRest: this is a build number, the
-// least important thing on the screen, not a second line of copy competing
-// with the wordmark above it.
+// Its colour comes from signShown rather than mutedStyle outright: the line
+// fades in on its own, out of the field it sits on, the same way the whole
+// splash later dissolves into the interface — just the ink moving, not the
+// letters. Dimmed past muted by signRest: which binary drew this is the least
+// important thing on the screen, not a second line of copy competing with the
+// wordmark above it.
 func (m *splashModel) sign(block string) string {
-	line := baseStyle.Width(lipgloss.Width(block)).Align(lipgloss.Center)
+	text := labelPoweredBy(m.oak)
+	// Wide enough for whichever of the two is wider: a wordmark of a few
+	// letters would otherwise wrap the line underneath it mid-word.
+	line := baseStyle.Width(max(lipgloss.Width(block), lipgloss.Width(text))).Align(lipgloss.Center)
 
-	resting := blend(colors.muted, colors.bezel, versionRest)
-	shown := blend(resting, colors.bezel, 1-m.versionShown())
-	version := baseStyle.Foreground(fade(shown)).Render(m.version)
+	resting := blend(colors.muted, colors.bezel, signRest)
+	shown := blend(resting, colors.bezel, 1-m.signShown())
+	signature := baseStyle.Foreground(fade(shown)).Render(text)
 
 	parts := make([]string, 0, gapS+2)
 	parts = append(parts, block)
 	for range gapS {
 		parts = append(parts, line.Render(""))
 	}
-	parts = append(parts, line.Render(version))
+	parts = append(parts, line.Render(signature))
 
 	return lipgloss.JoinVertical(lipgloss.Center, parts...)
 }

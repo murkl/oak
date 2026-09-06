@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -313,6 +314,42 @@ func TestACommandLineThatCannotBeReadIsRefused(t *testing.T) {
 			}
 		})
 	}
+}
+
+// --version is the binary answering for itself, so it says which binary: a
+// number on its own beside a product's own number says nothing about whose it
+// is.
+func TestTheVersionNamesTheProgramItBelongsTo(t *testing.T) {
+	out := stdout(t, func() {
+		if err := start([]string{"--version"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if want := program + " " + version + "\n"; out != want {
+		t.Errorf("--version printed %q, want %q", out, want)
+	}
+}
+
+// stdout is whatever a call wrote to it.
+func stdout(t *testing.T, call func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	was := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = was }()
+
+	call()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
 }
 
 // The one wire between the command line and a script: --debug reaches every one

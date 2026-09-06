@@ -58,7 +58,7 @@ func newModel(a *app, logo string) *Model {
 		m.arrived = fadeFor
 		return m
 	}
-	m.splash = newSplash(logo, a.version)
+	m.splash = newSplash(logo, a.oak)
 	return m
 }
 
