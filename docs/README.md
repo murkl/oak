@@ -4,7 +4,7 @@
 
 <h1>Oak</h1>
 
-<p><strong>An installer runtime. You write YAML and shell — Oak is the program around it.</strong></p>
+<p><strong>An installer runtime for Linux. You write YAML and shell scripts — Oak is the program around it.</strong></p>
 
 <p>
   <img src="https://img.shields.io/github/v/release/murkl/oak?style=for-the-badge&label=RELEASE&color=8fbcbb" alt="">
