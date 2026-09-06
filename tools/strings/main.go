@@ -4,7 +4,7 @@
 // translation left empty. A catalog for a language is that file with the
 // right-hand side filled in.
 //
-//	go run ./tools/strings example hello > example/modules/hello/locales/hello.pot
+//	go run ./tools/strings example setup > example/modules/setup/locales/setup.pot
 package main
 
 import (

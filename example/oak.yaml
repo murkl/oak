@@ -6,19 +6,19 @@
 # Which modules there are is not written down here. They are the folders in
 # modules/ beside this file, each holding its own declaration.
 
-title: Demo
-version: 0.1.0
+title: Oak
+version: 1.0.0
 
 # Every colour on screen is derived from this one.
 accent: "#8fbcbb"
 
 # Above the blank line is the eyebrow, dimmed; below it the wordmark, in the
-# accent colour.
+# accent colour. Underneath, Oak signs the splash off with its own version.
 logo: |
-  A product driven by
+  The installer runtime
 
-  ██████  ███████ ███    ███  █████
-  ██   ██ ██      ████  ████ ██   ██
-  ██   ██ █████   ██ ████ ██ ██   ██
-  ██   ██ ██      ██  ██  ██ ██   ██
-  ██████  ███████ ██      ██  █████
+   █████   █████  ██   ██
+  ██   ██ ██   ██ ██  ██
+  ██   ██ ███████ █████
+  ██   ██ ██   ██ ██  ██
+   █████  ██   ██ ██   ██

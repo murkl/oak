@@ -1,0 +1,8 @@
+# The scripts here are sourced by Oak, never executed, so none of them carries a
+# shebang for shellcheck to read the dialect from.
+shell=bash
+
+# This module has no lib.sh: it is optional, like everything else in a module
+# folder except the declaration. An all-caps name shellcheck cannot resolve is
+# an environment variable, which is exactly right here — every answer arrives
+# as one.

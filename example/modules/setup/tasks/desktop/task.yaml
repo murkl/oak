@@ -1,0 +1,11 @@
+title: Install the desktop
+stage: install
+
+# Ordered after the base system, within this stage. Nothing lists the tasks
+# anywhere else: this line is the whole of what puts it second.
+needs: [base]
+
+# Left out of the run entirely when this does not hold — not run and skipped,
+# but never part of the list.
+conditions:
+  - TUX_DESKTOP != none

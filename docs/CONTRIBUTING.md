@@ -10,8 +10,8 @@ There is one long-lived branch, `main`. Work happens on a branch off it and come
 flowchart LR
     M["main"] -->|branch off| F["feature/*"]
     F -->|pull request| C["CI checks it"]
-    C -->|squash merge| M2["main<br/><small>one commit per change</small>"]
-    M2 -->|tag v1.0.0| R["Release<br/><small>artefacts of that commit</small>"]
+    C -->|squash merge| M2["main<br/>one commit per change"]
+    M2 -->|tag v1.0.0| R["Release<br/>artefacts of that commit"]
 
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
 ```
@@ -56,12 +56,12 @@ Once per pull request, once per push to `main`, and once more on a tag.
 
 ```mermaid
 flowchart TD
-    P["pull request · main · tag"] --> C["check<br/><small>make check · race detector</small>"]
-    P --> S["security<br/><small>govulncheck · gitleaks</small>"]
-    P --> B["build<br/><small>oak-linux-amd64 · checksum</small>"]
+    P["pull request · main · tag"] --> C["check<br/>make check · race detector"]
+    P --> S["security<br/>govulncheck · gitleaks"]
+    P --> B["build<br/>binary · checksum"]
     C --> R
     S --> R
-    B --> R["release<br/><small>only on a v* tag</small>"]
+    B --> R["release<br/>only on a v* tag"]
 
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
 ```
@@ -73,7 +73,7 @@ flowchart TD
 ```
 make check                   # everything that has to pass before a commit
 make run                     # Oak against the example product
-make run MODULE=hello        # opens one module directly
+make run MODULE=setup        # opens one module directly
 make run ARGS=--debug        # ...without touching anything
 make inspect                 # loads the example the way a run does
 make locales                 # the template, and every catalog brought up to it

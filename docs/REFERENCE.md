@@ -12,13 +12,13 @@ Two rules run through the whole file:
 Sits beside the binary and holds what no module can answer for its neighbours. Every key is optional.
 
 ```yaml
-title: Demo
-version: 0.1.0
+title: Tux Linux
+version: 1.0.0
 accent: "#8fbcbb"
 logo: |
   A product driven by
 
-  ██████  ███████ ███    ███  █████
+  ████████ ██    ██ ██   ██
 ```
 
 | Key | Description |
@@ -48,15 +48,15 @@ The folder name is the module's identity: what `oak --module=<name>` opens, and 
 ### The declaration
 
 ```yaml
-title: Demo Setup                        # the module's name on screen
-description: Write a greeting to a file. # shown where the modules are offered
-stages: [prepare, write]                 # the phases the work happens in, in order
+title: Tux Setup                         # the module's name on screen
+description: Set a machine up for Tux.   # shown where the modules are offered
+stages: [prepare, install]               # the phases the work happens in, in order
 
 confirm: |                               # the last thing shown before anything changes
-  A greeting for {{DEMO_NAME}} will be written to {{DEMO_TARGET}}.
+  {{TUX_HOST}} will be set up in {{TUX_TARGET}}.
 
-console: Run ./oak --module=hello to start it again.  # optional: read on the way out
-language: DEMO_LOCALE                    # optional: ties the interface language to one answer
+console: Run ./oak --module=setup to start it again.  # optional: read on the way out
+language: TUX_LOCALE                     # optional: ties the interface language to one answer
 ```
 
 | Key | Description |
@@ -76,13 +76,13 @@ One entry under `variables:` is one question and one environment variable.
 
 ```yaml
 variables:
-  - name: DEMO_NAME
-    title: Your name
-    description: Who the greeting is for.
-    group: Greeting
+  - name: TUX_HOST
+    title: Hostname
+    description: What the machine calls itself on the network.
+    group: System
     required: true
-    pattern: '^[A-Za-z][A-Za-z -]*$'
-    error: Letters, spaces and - only.
+    pattern: '^[a-z][a-z0-9-]*$'
+    error: Lower case letters, digits and - only.
 ```
 
 What is drawn follows from the declaration — there is no switch for it:
@@ -115,7 +115,7 @@ What is drawn follows from the declaration — there is no switch for it:
 
 **A secret** is the one required value that does not hold up the rest of the program. It is asked for immediately before the run that needs it, used, and forgotten — never written to the answer file or the log.
 
-**`apply:`** is for an answer that changes the machine the program is running on rather than the one being worked on — `apply: loadkeys "$DEMO_KEYMAP"`. It runs the moment the answer is given, and again at startup for an answer this run already had. A failure is logged as a warning and the answer still stands.
+**`apply:`** is for an answer that changes the machine the program is running on rather than the one being worked on — `apply: loadkeys "$TUX_KEYMAP"`. It runs the moment the answer is given, and again at startup for an answer this run already had. A failure is logged as a warning and the answer still stands.
 
 **`first: true`** puts a question before the network screen, the preflight and the presets, so a password can be typed on a keyboard layout that has already been settled. Use it sparingly: it is asked before the check that decides whether this machine can be worked on at all.
 
@@ -134,8 +134,8 @@ One condition, or a list where every one must hold:
 
 ```yaml
 conditions:
-  - DEMO_DESKTOP != none
-  - DEMO_DRIVER == nvidia
+  - TUX_DESKTOP != none
+  - TUX_DRIVER == nvidia
 ```
 
 `VAR == value` and `VAR != value`, and nothing else. Deliberately not an expression language: the two forms cover every guard an installer needs, and they are checked against the declared variables when the module loads — so a renamed variable is an error at startup rather than a task that silently never runs.
@@ -151,7 +151,7 @@ title: Install the graphics driver   # the line shown while the user waits
 stage: desktop                       # which stage this runs in
 needs: [desktop-gnome]               # ordered after these, within the same stage
 conditions:                          # every one must hold, or the task is skipped
-  - DEMO_DRIVER != none
+  - TUX_DRIVER != none
 ```
 
 Seven more keys change what a task **is** rather than what it does:
@@ -207,11 +207,11 @@ presets:
       - title: Desktop
         description: A full desktop.
         values:
-          DEMO_DESKTOP: gnome
+          TUX_DESKTOP: gnome
 
       - title: Online                  # a starting point fetched rather than written out
         description: Take the answers somebody shared.
-        asks: DEMO_CONFIG_SOURCE       # the one question this row asks
+        asks: TUX_CONFIG_SOURCE        # the one question this row asks
         apply: ./tasks/share/import.sh # shell that turns that answer into more answers
 ```
 

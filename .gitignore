@@ -8,7 +8,9 @@ example/*.conf
 example/*.conf.old
 example/*.log
 example/*.log.old
-example/greeting.txt
+
+# What the example's own module builds when it runs.
+example/tux/
 
 # Editors / OS noise
 *.swp

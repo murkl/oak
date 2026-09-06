@@ -1,7 +1,0 @@
-title: Write the greeting
-stage: write
-report: |
-  {{DEMO_TARGET}} is written.
-
-  Everything from here on is yours: this is where a real module would go on
-  installing something.

@@ -1,0 +1,68 @@
+# One module: what it is, what it asks, and the order its work happens in.
+#
+# The folder name is the module's identity. `oak --module=setup` opens it
+# outright, and its answers and its log are called setup.conf and setup.log.
+#
+# This one is an installer in miniature. It asks what an installer asks and
+# builds a small system tree out of the answers — in a folder, so the whole
+# thing can be run on the machine you are reading this on.
+
+title: Tux Setup
+description: Build a small Linux system tree, the way an installer would.
+
+# The phases the work happens in, in the order they happen. Every task names
+# one, which is what puts it in the run and where.
+stages: [prepare, install, finish]
+
+# The last thing read before the first task runs, with the answers filled in.
+confirm: |
+  {{TUX_HOST}} will be set up for {{TUX_USER}} in {{TUX_TARGET}}.
+
+  A real installer erases a disk at this point. This one writes files.
+
+# Shown on the terminal on the way out, once the interface is gone.
+console: Run ./oak --module=setup to start it again.
+
+variables:
+  # A suggestion rather than an answer: the box opens on it, and Oak still asks.
+  # A default: would settle the question outright and never show this page.
+  - name: TUX_HOST
+    title: Hostname
+    description: |
+      What the machine calls itself on the network.
+    group: System
+    required: true
+    prefill: echo tuxbox
+    pattern: '^[a-z][a-z0-9-]*$'
+    error: Lower case letters, digits and - only.
+
+  - name: TUX_USER
+    title: User name
+    description: |
+      The account you log in with.
+    group: System
+    required: true
+    prefill: echo tux
+    pattern: '^[a-z][a-z0-9-]*$'
+    error: Lower case letters, digits and - only.
+
+  # A list, because the answers are written down. Without them this would be a
+  # text box, and with a command: it would be a list built from what that
+  # command printed.
+  - name: TUX_DESKTOP
+    title: Desktop
+    description: |
+      Which desktop to install. Without one the system boots to a console.
+    group: System
+    required: true
+    values: [gnome, plasma, none]
+
+  # Answered before it is asked, so this one never gets a page of its own. It is
+  # still on the settings page, where anything already answered can be changed.
+  - name: TUX_TARGET
+    title: Target folder
+    description: |
+      Where the system tree is built. A real installer names a disk here.
+    group: Storage
+    required: true
+    default: ./tux

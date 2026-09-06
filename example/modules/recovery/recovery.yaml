@@ -1,0 +1,24 @@
+# A second module, and a second whole program out of the same binary. Its being
+# here is the only reason the interface asks which one to open: one folder under
+# modules/ is opened on the way in, two make a page.
+
+title: Tux Recovery
+description: Check a system tree that is already there.
+
+stages: [check]
+
+confirm: |
+  {{TUX_TARGET}} will be checked. Nothing is written.
+
+console: Run ./oak --module=recovery to check it again.
+
+variables:
+  # Its own answer, in its own file: recovery.conf sits beside setup.conf and
+  # neither module can see into the other.
+  - name: TUX_TARGET
+    title: System folder
+    description: |
+      The tree to check.
+    group: Storage
+    required: true
+    default: ./tux

@@ -1,0 +1,10 @@
+title: Create the user
+stage: finish
+
+# The run stops here, once, on a page of its own. The first paragraph is the
+# headline, and the braces are filled in from the answers.
+report: |
+  {{TUX_HOST}} is ready for {{TUX_USER}}.
+
+  The system tree is in {{TUX_TARGET}}. Everything from here on is yours: this
+  is where a real module would go on installing an operating system.

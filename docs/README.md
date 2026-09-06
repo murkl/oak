@@ -20,7 +20,7 @@ Every installer is the same program twice: a menu, a set of questions, somewhere
 
 Oak knows nothing about any operating system. Not a disk, not a package, not a bootloader. That half stays in shell, where you can read it.
 
-**[Arch OS](https://github.com/murkl/arch-os)** is a full Arch Linux installer built this way — a good place to see a real one. Or see **[example](../example)**.
+**[Arch OS](https://github.com/murkl/arch-os)** is a full Arch Linux installer built this way — a good place to see a real one. The **[example](../example)** in this repository is a small one you can run in a minute: every screenshot below comes out of it.
 
 ## What you get
 
@@ -47,7 +47,11 @@ modules/setup/            one module — everything below belongs to it
 modules/recovery/         another module, another program
 ```
 
-A **module** is one whole program. A **product** is the modules a binary ships with, under one name and one colour.
+A **module** is one whole program. A **product** is the modules a binary ships with, under one name and one colour. One folder under `modules/` is opened on the way in; a second is what turns that into a page.
+
+<p align="center">
+  <img src="screenshots/choice.png" width="640" alt="Two modules under modules/, offered as a page">
+</p>
 
 ```mermaid
 flowchart LR
@@ -74,14 +78,14 @@ Every page appears only when it has something to show. A module with no presets 
 
 ```mermaid
 flowchart TD
-    L["Language"] --> W["Which module"] --> Q1["Questions marked first:"]
+    L["Language"] --> W["Which module"] --> Q1["Questions marked first"]
     Q1 --> N["Network"] --> P["Preflight check"] --> PR["Presets"]
-    PR --> Q["The questions<br/><small>one per page, until nothing is open</small>"]
+    PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
     H --> SE["Settings"] --> H
-    H --> CF["Last warning"] --> R["The run<br/><small>tasks, top to bottom</small>"]
+    H --> CF["Last warning"] --> R["The run<br/>tasks, top to bottom"]
     R --> OK["Done"]
-    R --> ER["Failure<br/><small>script · line · command · exit code</small>"]
+    R --> ER["Failure<br/>script · line · command"]
 
     style ER fill:#bf616a,stroke:#bf616a,color:#eceff4
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
@@ -101,37 +105,39 @@ chmod +x oak
 ### 2. Say what the product is — `oak.yaml`
 
 ```yaml
-title: Demo
-version: 0.1.0
+title: Tux Linux
+version: 1.0.0
 accent: "#8fbcbb"
 ```
 
-### 3. Write a module — `modules/hello/hello.yaml`
+### 3. Write a module — `modules/setup/setup.yaml`
 
 ```yaml
-title: Demo Setup
-description: Write a greeting to a file.
-stages: [write]
+title: Tux Setup
+description: Set a machine up for Tux.
+stages: [install]
 
 variables:
-  - name: DEMO_NAME
-    title: Your name
+  - name: TUX_HOST
+    title: Hostname
+    description: What the machine calls itself on the network.
     required: true
 ```
 
-### 4. Add a task — `modules/hello/tasks/greet/`
+### 4. Add a task — `modules/setup/tasks/hostname/`
 
 `task.yaml` says where the step belongs:
 
 ```yaml
-title: Write the greeting
-stage: write
+title: Write the hostname
+stage: install
 ```
 
 `task.sh` does the work. No shebang, no `set -e`, no error handling — Oak wraps it:
 
 ```bash
-echo "Hello, ${DEMO_NAME}!" >./greeting.txt
+mkdir -p ./tux/etc
+echo "$TUX_HOST" >./tux/etc/hostname
 ```
 
 ### 5. Run it
@@ -140,13 +146,13 @@ echo "Hello, ${DEMO_NAME}!" >./greeting.txt
 ./oak
 ```
 
-Oak asks for a language, then for the one question that is required and still unanswered, then runs the task. A single module is opened on the way in rather than offered; a second folder under `modules/` is what turns that into a page. The answers land in `hello.conf`, everything the script printed in `hello.log`.
+Oak asks for a language, then for the one question that is required and still unanswered, then runs the task. The answers land in `setup.conf`, everything the script printed in `setup.log`.
 
-A working version of this is in **[example](../example)**.
+The **[example](../example)** is the same shape, filled out: two modules, three stages, a task that only runs under a condition, and a page the run stops on when it is done.
 
 <p align="center">
   <img src="screenshots/question.png" width="49%" alt="One question, on a page of its own">
-  <img src="screenshots/report.png" width="49%" alt="A milestone the run stops on">
+  <img src="screenshots/report.png" width="49%" alt="The page a run stops on when a task has something to say">
 </p>
 
 ## The pipeline
@@ -174,6 +180,10 @@ flowchart LR
     S1 --> S2 --> S3
 ```
 
+<p align="center">
+  <img src="screenshots/run.png" width="640" alt="The run, working down the tasks in order">
+</p>
+
 A task with `conditions:` that do not hold is left out of the run entirely. Everything is checked when the module loads, so a renamed variable or a cycle is an error at startup — never a step that silently never fires.
 
 ## When a step breaks
@@ -189,7 +199,7 @@ The run stops and says where, in the words of the tool that failed. The rest is 
 Three options, and nothing else:
 
 ```
-oak --module=hello     # open that module outright, instead of asking which
+oak --module=setup     # open that module outright, instead of asking which
 oak --debug            # hand every script DEBUG=true and touch nothing
 oak --version          # print Oak's own version — `oak v1.0.0` — and exit
 ```

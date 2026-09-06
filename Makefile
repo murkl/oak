@@ -24,7 +24,7 @@ GOFLAGS       := CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH)
 # and nowhere else, so it is built into that folder rather than run out of a
 # temporary one.
 #
-# MODULE opens one outright, the way `oak --module=hello` does on a machine;
+# MODULE opens one outright, the way `oak --module=setup` does on a machine;
 # without it the interface asks which. ARGS is whatever else that run takes —
 # `make run ARGS=--debug` for one that touches nothing.
 EXAMPLE := example
