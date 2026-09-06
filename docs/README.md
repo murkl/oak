@@ -20,7 +20,7 @@ Every installer is the same program twice: a menu, a set of questions, somewhere
 
 Oak knows nothing about any operating system. Not a disk, not a package, not a bootloader. That half stays in shell, where you can read it.
 
-**[Arch OS](https://github.com/murkl/arch-os)** is a full Arch Linux installer built this way — a good place to see a real one.
+**[Arch OS](https://github.com/murkl/arch-os)** is a full Arch Linux installer built this way — a good place to see a real one. Or see **[example](../example)**.
 
 ## What you get
 
