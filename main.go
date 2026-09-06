@@ -22,6 +22,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/murkl/oak/internal/i18n"
@@ -90,11 +91,11 @@ func start(args []string) error {
 	if err != nil {
 		return err
 	}
-	mod, err := pick(rt, mods, cmd.module)
+	mods, err = narrow(rt, mods, cmd.module)
 	if err != nil {
 		return err
 	}
-	return run(rt, only(mods, mod), cmd.debug)
+	return run(rt, mods, cmd.debug)
 }
 
 // command is a command line, read.
@@ -107,8 +108,8 @@ type command struct {
 }
 
 // parse reads one. Which module names exist is not decided here but by what is
-// in modules/, so a name nobody declared is refused by pick with everything on
-// offer under it — and adding a module stays a folder rather than a change
+// in modules/, so a name nobody declared is refused by narrow with everything
+// on offer under it — and adding a module stays a folder rather than a change
 // here.
 func parse(args []string) (command, error) {
 	var c command
@@ -135,30 +136,22 @@ func parse(args []string) (command, error) {
 	return c, nil
 }
 
-// pick is the module a command line named, or nil where it named none — which
-// is the question the interface then asks. A name no folder answers to is said
-// so, with everything on offer under it.
-func pick(rt *spec.Runtime, mods []*spec.Module, id string) (*spec.Module, error) {
+// narrow cuts a run down to the module the command line named, or leaves every
+// one of them where it named none — which is the question the interface then
+// asks. A name no folder answers to is said so, with everything on offer under
+// it.
+func narrow(rt *spec.Runtime, mods []*spec.Module, id string) ([]*spec.Module, error) {
 	if id == "" {
-		return nil, nil
+		return mods, nil
 	}
 	for _, mod := range mods {
 		if mod.ID() == id {
-			return mod, nil
+			return []*spec.Module{mod}, nil
 		}
 	}
 	return nil, fmt.Errorf("%s\n%s",
 		i18n.T("No module called %s.", id),
 		i18n.T("This one offers %s.", strings.Join(rt.Modules, ", ")))
-}
-
-// only narrows a run to the module it is about, or leaves every one of them
-// where none was named — which is the question the interface then asks.
-func only(mods []*spec.Module, mod *spec.Module) []*spec.Module {
-	if mod == nil {
-		return mods
-	}
-	return []*spec.Module{mod}
 }
 
 func run(rt *spec.Runtime, mods []*spec.Module, debug bool) error {
@@ -249,10 +242,8 @@ func catalogs(mods ...*spec.Module) []fs.FS {
 // otherwise the language everything is written in.
 func language(saved string, langs []i18n.Lang) string {
 	all := codes(langs)
-	for _, code := range all {
-		if code == saved && saved != "" {
-			return saved
-		}
+	if saved != "" && slices.Contains(all, saved) {
+		return saved
 	}
 	if code := i18n.Match(locale(), all); code != "" {
 		return code

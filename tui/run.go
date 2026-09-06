@@ -29,11 +29,6 @@ import (
 type runScreen struct {
 	app *app
 
-	// name is what this run is called, where the module gave it a name: its own
-	// `run:`, which is what the headline and the log are read in. Empty for a
-	// module that named none, which the runtime can only call an installation.
-	name string
-
 	steps []*spec.Task
 	state []mark
 
@@ -98,13 +93,14 @@ const (
 // yet would be answered by an enter meant for something else entirely.
 const settleFor = 618 * time.Millisecond
 
-func newRun(a *app, name string, steps []*spec.Task, then, back func() tea.Cmd) *runScreen {
-	return &runScreen{app: a, name: name, steps: steps, state: make([]mark, len(steps)), then: then, back: back}
+func newRun(a *app, steps []*spec.Task, then, back func() tea.Cmd) *runScreen {
+	return &runScreen{app: a, steps: steps, state: make([]mark, len(steps)), then: then, back: back}
 }
 
-// title is what this run is called in the log, which is the one place a name
-// has to stand on its own.
-func (s *runScreen) title() string { return s.name }
+// title is what this run is called: the module's own name, which is the only
+// one it has. The runtime has none to fall back on — it does not know whether
+// this module installs anything.
+func (s *runScreen) title() string { return s.app.module.Name() }
 
 func (s *runScreen) Title() string { return "" }
 
@@ -474,15 +470,13 @@ func (s *runScreen) headline() string {
 	return accentBold.Render(glyphs.ok) + field(" ") + boldStyle.Render(s.succeeded())
 }
 
-// The three things a run says about itself, each in the module's own name for
-// it. The runtime has no name of its own to fall back on: it does not know what
-// the module does.
+// The three things a run says about itself, each around the module's own name.
 func (s *runScreen) running() string {
-	return labelRunningFor(s.name, clock(s.elapsed()))
+	return labelRunningFor(s.title(), clock(s.elapsed()))
 }
 
-func (s *runScreen) succeeded() string { return labelRunDone(s.name, clock(s.took)) }
-func (s *runScreen) failed() string    { return labelRunFailed(s.name) }
+func (s *runScreen) succeeded() string { return labelRunDone(s.title(), clock(s.took)) }
+func (s *runScreen) failed() string    { return labelRunFailed(s.title()) }
 
 // question is what a task asked, with the answers filled into it, and the
 // two ways to answer under it.

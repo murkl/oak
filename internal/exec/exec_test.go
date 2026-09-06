@@ -102,16 +102,17 @@ func TestAFailingPipelineIsAFailure(t *testing.T) {
 	}
 }
 
-// A script's output must never reach the frame with escape sequences in it: a
-// package manager's progress bar would tear the interface apart.
+// What a script said is read inside the frame, so it must never arrive with
+// escape sequences in it: a package manager's progress bar would tear the
+// interface apart.
 func TestOutputIsStrippedOfControlSequences(t *testing.T) {
-	s := run(t, "printf '\\033[31mred\\033[0m and \\007plain\\n'\n")
-	lines := s.Tail(10)
-	if len(lines) == 0 {
-		t.Fatal("no output kept")
+	s := run(t, "printf '\\033[31mred\\033[0m and \\007plain\\n' >&2\nexit 1\n")
+	f, ok := s.Err().(*Failure)
+	if !ok {
+		t.Fatalf("err = %v, want a *Failure", s.Err())
 	}
-	if got := lines[len(lines)-1]; got != "red and plain" {
-		t.Errorf("line = %q, want it sanitized", got)
+	if f.Stderr != "red and plain" {
+		t.Errorf("stderr = %q, want it sanitized", f.Stderr)
 	}
 }
 
@@ -140,16 +141,23 @@ func TestRunReturnsWhatACommandPrinted(t *testing.T) {
 }
 
 // The environment a script sees is the environment it is handed, and nothing
-// else — this is how every answer reaches every stage.
+// else — this is how every answer reaches every task.
 func TestAScriptSeesTheEnvironmentItWasGiven(t *testing.T) {
-	s, err := sh.Start("Test", script(t, "echo \"disk=$DISK\"\n"), Env{"DISK=/dev/sda"})
+	seen := filepath.Join(t.TempDir(), "seen")
+	s, err := sh.Start("Test", script(t, "echo \"disk=$DISK\" >"+seen+"\n"), Env{"DISK=/dev/sda"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	<-s.Done()
-	got := s.Tail(1)
-	if len(got) != 1 || got[0] != "disk=/dev/sda" {
-		t.Errorf("output = %q", got)
+	if err := s.Err(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(seen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(got)) != "disk=/dev/sda" {
+		t.Errorf("the script saw %q", got)
 	}
 }
 

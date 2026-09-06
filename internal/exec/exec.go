@@ -21,10 +21,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Scrollback caps the lines a Session keeps in memory. The whole of the output
-// is in the log; this is only what a failure report can still reach for.
-const Scrollback = 2000
-
 // Env is the variable set handed to every script, as KEY=value entries.
 type Env []string
 
@@ -140,11 +136,10 @@ func (r Runner) Lines(s string, env Env) ([]string, error) {
 	return lines, nil
 }
 
-// Session is a running script. Its combined output is mirrored to the log raw
-// and kept, sanitized, for a failure report.
+// Session is a running script. Everything it prints goes to the log; what it
+// said on stderr is kept as well, because that is what a failure report reads.
 type Session struct {
 	mu     sync.Mutex
-	lines  []string
 	stderr []string
 	done   chan struct{}
 	err    error
@@ -160,10 +155,10 @@ func (r Runner) Start(unit, path string, env Env) (*Session, error) {
 	}
 	s := &Session{done: make(chan struct{}), cmd: cmd, unit: unit}
 
-	out := &sessionWriter{sink: s.write}
-	errw := &sessionWriter{sink: func(l string) { s.write(l); s.writeErr(l) }}
-	// The log gets the raw bytes; the report gets them sanitized (see write).
-	cmd.Stdout = io.MultiWriter(logging.External(), out)
+	// The log gets the raw bytes of both channels; the failure report gets
+	// stderr, sanitized — see writeErr.
+	errw := &sessionWriter{sink: s.writeErr}
+	cmd.Stdout = logging.External()
 	cmd.Stderr = io.MultiWriter(logging.External(), errw)
 
 	if err := cmd.Start(); err != nil {
@@ -173,7 +168,6 @@ func (r Runner) Start(unit, path string, env Env) (*Session, error) {
 	go func() {
 		raw := drain(cmd, report)
 		err := cmd.Wait()
-		out.flush()
 		errw.flush()
 		s.err = s.failure(err, raw)
 		close(s.done) // only after every line has been collected
@@ -262,25 +256,6 @@ func (s *Session) Kill() {
 	s.cmd.Process.Kill()
 }
 
-// Tail copies the last n lines of output.
-func (s *Session) Tail(n int) []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if n < 0 || len(s.lines) <= n {
-		return append([]string(nil), s.lines...)
-	}
-	return append([]string(nil), s.lines[len(s.lines)-n:]...)
-}
-
-func (s *Session) write(line string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.lines = append(s.lines, sanitize(line))
-	if len(s.lines) > Scrollback {
-		s.lines = s.lines[len(s.lines)-Scrollback:]
-	}
-}
-
 // writeErr keeps the tail of stderr, which is where a failing tool says why.
 func (s *Session) writeErr(line string) {
 	s.mu.Lock()
@@ -300,8 +275,8 @@ func (s *Session) lastErr() string {
 	return strings.Join(s.stderr, "\n")
 }
 
-// sanitize strips what a script's output must not carry into the frame it is
-// rendered in: raw colour and cursor sequences would corrupt the TUI.
+// sanitize strips what a line must not carry into the frame it is rendered in:
+// raw colour and cursor sequences would corrupt the interface.
 func sanitize(line string) string {
 	line = ansi.Strip(line)
 	return strings.Map(func(r rune) rune {

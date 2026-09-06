@@ -4,50 +4,90 @@
 
 <h1>Oak</h1>
 
-<p><strong>One binary that turns YAML and shell scripts into a guided installer.</strong></p>
+<p><strong>An installer runtime. You write YAML and shell — Oak is the program around it.</strong></p>
 
 <p>
-  <img src="https://img.shields.io/github/v/release/murkl/oak?style=for-the-badge&label=RELEASE&color=8fbcbb">
-  <img src="https://img.shields.io/badge/License-GPL_3.0-blue?style=for-the-badge">
+  <img src="https://img.shields.io/github/v/release/murkl/oak?style=for-the-badge&label=RELEASE&color=8fbcbb" alt="">
+  <img src="https://img.shields.io/badge/License-GPL_3.0-blue?style=for-the-badge" alt="">
+  <img src="https://img.shields.io/badge/Linux-x86__64-2e3440?style=for-the-badge" alt="">
 </p>
 
-<img src="screenshots/splash.png" width="640" alt="Oak opening: the product's own wordmark">
+<img src="screenshots/splash.png" width="640" alt="Oak opening on a product's own wordmark">
 
 </div>
 
-Every installer is the same program twice: a menu, a set of questions, somewhere to keep the answers, a list of steps and a way to say which one broke. Oak is that program, written once. What is left for you is the part that is actually yours.
+Every installer is the same program twice: a menu, a set of questions, somewhere to keep the answers, a list of steps and a way to say which one broke. **Oak is that program, written once.** You supply the part that is actually yours — the questions, in YAML, and the work, in shell.
 
-- **Declare, do not draw.** A question is a few lines of YAML. Oak decides what it looks like
-- **Shell stays shell.** A step is a script that does one thing. No framework, no API, no bindings
-- **Nothing is lost.** Every answer is written down the moment it is given, so an interrupted run picks up where it left off
-- **Reproducible.** That answer file is plain shell. Copy it to the next machine and every question it answers is skipped
-- **One file to ship.** A static binary with no dependencies, your declaration and your scripts beside it
+Oak knows nothing about any operating system. Not a disk, not a package, not a bootloader. That half stays in shell, where you can read it.
 
-**Note:** _Oak knows nothing about any operating system. Not a disk, not a package, not a bootloader. That half is yours, and it stays in shell where you can read it._
+**[Arch OS](https://github.com/murkl/arch-os)** is a full Arch Linux installer built this way — a good place to see a real one.
 
-## How it Works
+## What you get
+
+- **One config file per installer.** Questions, stages, the last warning before anything changes — all in one YAML file next to your scripts
+- **A task pipeline.** A task is a folder with `task.yaml` and `task.sh`. The order comes out of what each task declares, so there is no list of steps to keep in step
+- **Error handling you did not write.** A script that fails is caught, and the frame names the file, the line, the command and the exit code
+- **Answers that survive.** Every answer is written down the moment it is given, as plain shell. An interrupted run picks up where it left off; copy the file to the next machine and every question it answers is skipped
+- **Modular.** A module is one whole program. Ship an installer and a recovery from the same binary, or add a third by adding a folder
+- **One file to ship.** A static binary, your YAML and your scripts beside it. Bash is the only thing it expects of the machine
+
+## How it works
 
 Oak looks next to itself, and nowhere else:
 
 ```
-oak                 the binary
-oak.yaml            what the product is called and what it looks like
-modules/setup/      one module: setup.yaml and the folders beside it
-modules/repair/     another one
+oak                       the binary
+oak.yaml                  the product: name, colour, version, wordmark
+modules/setup/            one module — everything below belongs to it
+  setup.yaml              what it asks and what order it works in
+  tasks/disk/task.yaml    where this step belongs
+  tasks/disk/task.sh      what it does
+  hooks/preflight.sh      optional: can this machine be worked on at all
+  lib.sh                  optional: shell every script of this module gets
+modules/recovery/         another module, another program
 ```
 
-A **module** is one whole program: what it asks, in what order it works, and the shell it runs. A **product** is the modules a binary is shipped with, under one name and one colour.
+A **module** is one whole program. A **product** is the modules a binary ships with, under one name and one colour.
 
-| You want to | Write |
-| --- | --- |
-| Ask a question | A few lines under `variables:` |
-| Do something | A folder with a `task.yaml` and a `task.sh` in it |
-| Add a second program | Another folder under `modules/` |
-| Rename or recolour the whole thing | Three keys in `oak.yaml` |
+```mermaid
+flowchart LR
+    subgraph Y["What you write"]
+        direction TB
+        C["oak.yaml<br/>module.yaml"]
+        S["task.sh<br/>hooks"]
+    end
+    subgraph O["What Oak does"]
+        direction TB
+        A["Ask"] --> K["Keep"] --> R["Run"] --> F["Report"]
+    end
+    C --> O
+    S --> O
+    O --> U["Terminal interface"]
 
-Nothing lists the tasks anywhere. The folder is the list, and the order reads like a pipeline: top to bottom through the stages, and across one stage through what each task says it needs.
+    style Y fill:#eceff4,stroke:#8fbcbb,color:#2e3440
+    style O fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
+```
 
-## Quick Start
+### A run, in order
+
+Every page appears only when it has something to show. A module with no presets never shows a page offering none.
+
+```mermaid
+flowchart TD
+    L["Language"] --> W["Which module"] --> Q1["Questions marked first:"]
+    Q1 --> N["Network"] --> P["Preflight check"] --> PR["Presets"]
+    PR --> Q["The questions<br/><small>one per page, until nothing is open</small>"]
+    Q --> H["Menu"]
+    H --> SE["Settings"] --> H
+    H --> CF["Last warning"] --> R["The run<br/><small>tasks, top to bottom</small>"]
+    R --> OK["Done"]
+    R --> ER["Failure<br/><small>script · line · command · exit code</small>"]
+
+    style ER fill:#bf616a,stroke:#bf616a,color:#eceff4
+    style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
+```
+
+## Build one
 
 ### 1. Get Oak
 
@@ -56,21 +96,17 @@ curl -Lo oak https://github.com/murkl/oak/releases/latest/download/oak-linux-amd
 chmod +x oak
 ```
 
-### 2. Say what the Product is
+### 2. Say what the product is — `oak.yaml`
 
-`oak.yaml`, beside the binary:
-
-```
+```yaml
 title: Demo
 version: 0.1.0
 accent: "#8fbcbb"
 ```
 
-### 3. Write a Module
+### 3. Write a module — `modules/hello/hello.yaml`
 
-`modules/hello/hello.yaml`:
-
-```
+```yaml
 title: Demo Setup
 description: Write a greeting to a file.
 stages: [write]
@@ -81,37 +117,74 @@ variables:
     required: true
 ```
 
-`modules/hello/tasks/greet/task.yaml`:
+### 4. Add a task — `modules/hello/tasks/greet/`
 
-```
+`task.yaml` says where the step belongs:
+
+```yaml
 title: Write the greeting
 stage: write
 ```
 
-`modules/hello/tasks/greet/task.sh`:
+`task.sh` does the work. No shebang, no `set -e`, no error handling — Oak wraps it:
 
-```
+```bash
 echo "Hello, ${DEMO_NAME}!" >./greeting.txt
 ```
 
-### 4. Run it
+### 5. Run it
 
 ```
 ./oak
 ```
 
-Oak asks for a language, then for the one question that is required and still unanswered, then runs the task. A single module is opened on the way in rather than offered; a second folder under `modules/` is what makes that a page. The answers land in `hello.conf`, everything the script printed in `hello.log`.
+Oak asks for a language, then for the one question that is required and still unanswered, then runs the task. A single module is opened on the way in rather than offered; a second folder under `modules/` is what turns that into a page. The answers land in `hello.conf`, everything the script printed in `hello.log`.
 
-**Note:** _A working version of this is in **[example](../example)**._
+A working version of this is in **[example](../example)**.
 
 <p align="center">
-  <img src="screenshots/question.png" width="49%" alt="The one question left to ask, on a page of its own">
-  <img src="screenshots/report.png" width="49%" alt="A milestone the run stops on, once the greeting is written">
+  <img src="screenshots/question.png" width="49%" alt="One question, on a page of its own">
+  <img src="screenshots/report.png" width="49%" alt="A milestone the run stops on">
 </p>
 
-### 5. The Command Line
+## The pipeline
 
-Three options, and nothing else on the line:
+Nothing lists the tasks anywhere. The folder is the list, and the order follows two rules:
+
+- A task runs after every task of an **earlier stage**
+- Inside its stage, it runs after whatever it named in **`needs:`**
+
+```mermaid
+flowchart LR
+    subgraph S1["stage: prepare"]
+        direction TB
+        P1["partition"] --> P2["format"]
+    end
+    subgraph S2["stage: install"]
+        direction TB
+        B["base"] --> D["desktop"]
+        B --> G["graphics"]
+    end
+    subgraph S3["stage: finish"]
+        direction TB
+        U["users"]
+    end
+    S1 --> S2 --> S3
+```
+
+A task with `conditions:` that do not hold is left out of the run entirely. Everything is checked when the module loads, so a renamed variable or a cycle is an error at startup — never a step that silently never fires.
+
+## When a step breaks
+
+The run stops and says where, in the words of the tool that failed. The rest is in the log.
+
+<p align="center">
+  <img src="screenshots/failure.png" width="640" alt="A failed task: the script, the line, the command and the exit code">
+</p>
+
+## The command line
+
+Three options, and nothing else:
 
 ```
 oak --module=hello     # open that module outright, instead of asking which
@@ -119,73 +192,23 @@ oak --debug            # hand every script DEBUG=true and touch nothing
 oak --version          # print Oak's own version and exit
 ```
 
-`--debug` and `--module` combine: `oak --debug --module=hello` walks the whole module without changing anything. A script reads `[ "$DEBUG" = true ]` and returns early — that variable and `MODULE_CONF`, the answer file, are the only two Oak puts into a script's environment.
-
-## What the Interface Does
-
-Each page appears only when it has something to show:
-
-| Page | When |
-| --- | --- |
-| Language | More than one is available |
-| What to do | The product offers more than one module |
-| Network | The module defines an `online.sh` hook |
-| The check | The module defines a `preflight.sh` hook. A failure here is a hard stop |
-| Presets | The module declares starting points, and this machine has answered nothing yet |
-| The questions | One per page, for what is required, meaningful and still unanswered |
-| Settings | Every answer on one page, once nothing is left to ask |
-| Running | The tasks, filling in from the top |
-| A failure | Which script, which line, which command, which exit code, and where the rest is logged |
-
-That last page, in full:
-
-<p align="center">
-  <img src="screenshots/failure.png" width="640" alt="A failed task: the script, the line, the command and the exit code">
-</p>
-
-Five keys, three meanings, the same on every page:
-
-| Key | Meaning |
-| --- | --- |
-| `enter` | Confirm |
-| `esc`, `backspace` | Back |
-| `q`, `ctrl+c` | Ask to leave |
-
-**Note:** _Arrow keys only move a cursor, since an arrow key is also what a mouse wheel sends._
-
-## Everything Else
-
-**[➜ See Reference](REFERENCE.md)** for the whole of what a product may declare: questions, presets, tasks, conditions, hooks, the script contract and translations.
+Nothing on the command line is an answer. Questions are answered in the interface.
 
 ## Built with Oak
 
-**[Arch OS](https://github.com/murkl/arch-os)** is a reproducible Arch Linux installation: an installer and a recovery, both modules, on one bootable image. It is the reference implementation and a good place to read a real product.
+**[Arch OS](https://github.com/murkl/arch-os)** — a reproducible Arch Linux installation: an installer and a recovery, both modules, on one bootable image.
 
-## Development
+## Everything else
 
-```
-make run          # Oak against the example product
-make check        # everything that has to pass before a commit
-make release      # bin/oak-linux-amd64, plus its checksum
-```
+**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, conditions, hooks, the script contract and translations.
 
-`go run ./tools/inspect example` loads a product the way a run does and reports what it found, without running any of it. That is the check to put in a build script, and `make check` runs it against the example.
-
-Install the required packages:
-
-```
-sudo pacman -S --needed go make shellcheck shfmt staticcheck yamllint actionlint gettext
-```
-
-**[➜ See Contributing](CONTRIBUTING.md)**
+**[➜ Contributing](CONTRIBUTING.md)** — how to work on Oak itself.
 
 ## License
 
 GPL-3.0. See **[LICENSE](../LICENSE)**.
 
 ## Credits
-
-Many thanks for these projects and the people behind them!
 
 - **[Bubble Tea](https://github.com/charmbracelet/bubbletea)** by charm
 - **[gettext](https://www.gnu.org/software/gettext)**

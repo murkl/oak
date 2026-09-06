@@ -3,6 +3,7 @@ package spec
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -56,16 +57,16 @@ func (u Unread) String() string {
 // shell — and there is nothing to compare against: those run whatever the
 // answers say, so the question is answered by definition.
 func (s *Module) Unread() ([]Unread, error) {
-	free, byTask, err := s.readers()
+	sh, err := s.scan()
 	if err != nil {
 		return nil, err
 	}
 	var out []Unread
 	for _, v := range s.Vars {
-		if free[v.Name] {
+		if sh.free[v.Name] {
 			continue
 		}
-		tasks := byTask[v.Name]
+		tasks := s.readers(sh, v.Name)
 		if len(tasks) == 0 {
 			out = append(out, Unread{Var: v.Name})
 			continue
@@ -104,42 +105,17 @@ func (s *Module) unreachable(v *Variable, tasks []*Task) (Unread, bool) {
 	return first, true
 }
 
-// readers is where each declared variable is named as a value: the tasks whose
-// own files name it, and whether anything outside a task does.
-func (s *Module) readers() (free map[string]bool, byTask map[string][]*Task, err error) {
-	free, byTask = map[string]bool{}, map[string][]*Task{}
-	declared := map[string]bool{}
-	for _, v := range s.Vars {
-		declared[v.Name] = true
-	}
-
-	for _, path := range s.everywhere() {
-		names, err := named(path, declared)
-		if err != nil {
-			return nil, nil, err
-		}
-		for name := range names {
-			free[name] = true
-		}
-	}
-
-	// And each task, whole: its script, where it says it belongs, and every
-	// file it ships with.
+// readers is the tasks that read one variable: the ones whose own files name
+// it, and the ones that consume it by declaring it — a guard, an `asks:`, a
+// `shows:`.
+func (s *Module) readers(sh *shell, name string) []*Task {
+	var out []*Task
 	for _, t := range s.Tasks {
-		names, err := namedUnder(filepath.Dir(t.Path()), declared)
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, name := range t.reads() {
-			if declared[name] {
-				names[name] = true
-			}
-		}
-		for name := range names {
-			byTask[name] = append(byTask[name], t)
+		if sh.tasks[t][name] || slices.Contains(t.reads(), name) {
+			out = append(out, t)
 		}
 	}
-	return free, byTask, nil
+	return out
 }
 
 // everywhere is every file of this module that runs whatever the answers say:
@@ -170,45 +146,68 @@ func (t *Task) reads() []string {
 	return append(out, t.Asks, t.Shows)
 }
 
+// shell is a module's own shell, read: which names each part of it reaches for,
+// and which names it gives itself along the way. Both reports here are
+// questions about the same files, so there is one pass that answers them.
+type shell struct {
+	// free is what runs whatever the answers say. tasks is each task's own
+	// folder, which runs only where that task does.
+	free  names
+	tasks map[*Task]names
+
+	// sets is every name the module's shell puts a value into, wherever it did
+	// so: a name a task reads and lib.sh assigns is answered by the module.
+	sets names
+}
+
+// names is a set of variable names, as the shell wrote them.
+type names map[string]bool
+
+// scan reads every file the module's shell lives in, once.
+func (s *Module) scan() (*shell, error) {
+	sh := &shell{free: names{}, tasks: map[*Task]names{}, sets: names{}}
+	if err := sh.read(sh.free, s.everywhere()); err != nil {
+		return nil, err
+	}
+	for _, t := range s.Tasks {
+		found := names{}
+		paths, err := filesUnder(filepath.Dir(t.Path()))
+		if err != nil {
+			return nil, err
+		}
+		if err := sh.read(found, paths); err != nil {
+			return nil, err
+		}
+		sh.tasks[t] = found
+	}
+	return sh, nil
+}
+
+// read takes a set of files into one bucket of reads. What they assign goes to
+// the module-wide set, because a name is answered wherever the module set it.
+func (sh *shell) read(into names, paths []string) error {
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(raw)
+		for _, m := range reference.FindAllStringSubmatch(text, -1) {
+			into[m[1]+m[2]] = true // one alternative matched, the other is empty
+		}
+		for _, re := range []*regexp.Regexp{assignment, binding} {
+			for _, m := range re.FindAllStringSubmatch(text, -1) {
+				sh.sets[m[1]] = true
+			}
+		}
+	}
+	return nil
+}
+
 // reference is a variable being read rather than written down: shell's $NAME
 // and ${NAME}, and the {{NAME}} a sentence is filled in by. A bare word is a
 // name being declared or a condition naming one, and neither is a read.
 var reference = regexp.MustCompile(`\$\{?([A-Za-z_][A-Za-z0-9_]*)|\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}`)
-
-// named is the declared variables one file reads.
-func named(path string, declared map[string]bool) (map[string]bool, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	out := map[string]bool{}
-	for _, m := range reference.FindAllStringSubmatch(string(raw), -1) {
-		name := m[1] + m[2] // one of the two alternatives matched, the other is empty
-		if declared[name] {
-			out[name] = true
-		}
-	}
-	return out, nil
-}
-
-// namedUnder is the same for a whole folder, which is what a task is.
-func namedUnder(dir string, declared map[string]bool) (map[string]bool, error) {
-	out := map[string]bool{}
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		names, err := named(path, declared)
-		if err != nil {
-			return err
-		}
-		for name := range names {
-			out[name] = true
-		}
-		return nil
-	})
-	return out, err
-}
 
 // String renders a condition the way the yaml wrote it, which is how it has to
 // read back in a report: somebody is about to go and find that line.
@@ -241,35 +240,21 @@ func (c *condition) String() string {
 // shell has kept, and treating either of those as a missing answer would bury
 // the line that matters.
 func (s *Module) Unset() ([]string, error) {
-	read, own := map[string]bool{}, map[string]bool{}
-	files := s.everywhere()
-	for _, t := range s.Tasks {
-		under, err := filesUnder(filepath.Dir(t.Path()))
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, under...)
+	sh, err := s.scan()
+	if err != nil {
+		return nil, err
 	}
-	for _, path := range files {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		text := string(raw)
-		for _, m := range reference.FindAllStringSubmatch(text, -1) {
-			if name := m[1] + m[2]; shouted.MatchString(name) {
-				read[name] = true
-			}
-		}
-		for _, re := range []*regexp.Regexp{assignment, binding} {
-			for _, m := range re.FindAllStringSubmatch(text, -1) {
-				own[m[1]] = true
-			}
-		}
+	read := names{}
+	maps.Copy(read, sh.free)
+	for _, found := range sh.tasks {
+		maps.Copy(read, found)
 	}
 	var out []string
 	for name := range read {
-		if own[name] || bashOwn[name] || s.byName[name] != nil || runtimeVar(name) {
+		if !shouted.MatchString(name) {
+			continue
+		}
+		if sh.sets[name] || bashOwn[name] || s.byName[name] != nil || runtimeVar(name) {
 			continue
 		}
 		out = append(out, name)

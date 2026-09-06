@@ -66,7 +66,5 @@ func startInstall(a *app, next int) screen {
 	// system was installed was a task of the last stage and has been offered.
 	// Enter on the result leaves. A failed one lands back on the hub, which is
 	// where a wrong answer is corrected.
-	return newRun(a, a.module.Name(), a.runner.Tasks(),
-		leave,
-		func() tea.Cmd { return reset(newHub(a)) })
+	return newRun(a, a.runner.Tasks(), leave, func() tea.Cmd { return reset(newHub(a)) })
 }

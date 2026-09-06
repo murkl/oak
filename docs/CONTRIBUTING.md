@@ -1,13 +1,54 @@
 # Contributing
 
-Oak is one binary and nothing else ships. Everything here follows from that: what is checked lives in the `Makefile`, CI runs the same commands, and a release is a tag on a commit those commands already passed.
+Oak is one binary and nothing else ships. What is checked lives in the `Makefile`, CI runs the same commands, and a release is a tag on a commit those commands already passed.
 
 ## Branches
 
-| Branch | Description |
+There is one long-lived branch, `main`. Work happens on a branch off it and comes back through a pull request.
+
+```mermaid
+flowchart LR
+    M["main"] -->|branch off| F["feature/*"]
+    F -->|pull request| C["CI checks it"]
+    C -->|squash merge| M2["main<br/><small>one commit per change</small>"]
+    M2 -->|tag v1.0.0| R["Release<br/><small>artefacts of that commit</small>"]
+
+    style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
+```
+
+- Branch off `main`, name it `feature/<what>`
+- Open a pull request. CI checks it
+- **Merge with squash.** One pull request is one commit, so `main` stays a straight line and its title is what ends up in the history
+
+**Repository settings this relies on** — Settings → General → Pull Requests:
+
+| Setting | Value |
 | --- | --- |
-| `feature/*` | Where work happens. Opened as a pull request, and checked there |
-| `main` | What is released from. Merged into by pull request, squashed, so one change is one commit |
+| Allow merge commits | off |
+| Allow squash merging | on |
+| Allow rebase merging | off |
+| Require linear history (branch protection on `main`) | on |
+
+## Releasing
+
+A release is a `v*` tag on `main`. It publishes the artefacts of the commit it points at — nothing is rebuilt for it.
+
+Draft it in the browser: **Releases** → **Draft a new release** → **Choose a tag**, type `v1.0.0`, **Create new tag on publish** → target `main` → **Publish release**.
+
+Or from a terminal:
+
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Both land in the same place. A pushed tag has no release yet, so CI writes one with generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green.
+
+The version comes out of `git describe`, so the tag is what the binary answers with. Nothing else has to be edited.
+
+**Note:** _The `v` is what CI watches for. A tag without it builds nothing and releases nothing._
+
+**Note:** _Semantic versions. A change to what a product may declare is a minor version; a change that stops an existing product from loading is a major one._
 
 ## What CI runs
 
@@ -20,42 +61,14 @@ flowchart TD
     P --> B["build<br/><small>oak-linux-amd64 · checksum</small>"]
     C --> R
     S --> R
-    B --> R["release<br/><small>only on a tag</small>"]
+    B --> R["release<br/><small>only on a v* tag</small>"]
 
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
 ```
 
-| Job | Where | Description |
-| --- | --- | --- |
-| `check` | every run | `make check`, then the tests again under the race detector |
-| `security` | every run | Vulnerabilities in what Oak imports, and a secret scan of the repository |
-| `build` | every run | The binary and its checksum |
-| `release` | a `v*` tag | Publishes the artefact the three above produced, signed |
-
 `build` is the only job that compiles anything, and the release publishes that artefact rather than building again. What is downloaded is the file the checks ran against.
 
-## Releasing
-
-A release is a `v*` tag on `main`. The tag is what starts it, from either end:
-
-```
-git tag v1.2.0
-git push origin v1.2.0
-```
-
-Or from the browser: **Releases** → **Draft a new release** → **Choose a tag**, type `v1.2.0`, **Create new tag on publish** → target `main` → **Publish release**.
-
-Both land in the same place. A pushed tag has no release yet, so CI writes one with generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green.
-
-The version comes out of `git describe`, so the tag is what the binary answers with. Nothing else has to be edited.
-
-**Note:** _The `v` is what CI watches for. A tag without it builds nothing and releases nothing._
-
-**Note:** _Published from the page, the release is visible for the few minutes the run takes and has no binary on it yet. Tagging from a terminal shows it only once there is something to download._
-
-**Note:** _Semantic versions. A change to what a product may declare is a minor version, a change that stops an existing product from loading is a major one._
-
-## Doing the Work
+## Doing the work
 
 ```
 make check                   # everything that has to pass before a commit
@@ -75,7 +88,7 @@ sudo pacman -S --needed go gcc make shellcheck shfmt staticcheck yamllint action
 
 **Note:** _CI installs the same packages and runs the same commands in an Arch container. There is no second definition of green._
 
-## The Boundary
+## The boundary
 
 Oak draws, asks, keeps and runs. It knows nothing about what is being installed.
 
@@ -83,7 +96,7 @@ If a change would put the word `pacman`, `btrfs`, `GNOME` or `LUKS` anywhere in 
 
 **Note:** _Oak must not know a module by name either. `installer` and `recovery` are folder names in somebody's product, not words in this code._
 
-## Words on Screen
+## Words on screen
 
 Every sentence Oak shows is translatable and the English sentence is its own key, so writing one is writing the source text and the key at once. Reword it and the old translation is marked fuzzy rather than dropped.
 

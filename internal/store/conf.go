@@ -63,11 +63,6 @@ func (s *Store) Exists() bool {
 // Secrets are not written. Not masked, not empty-but-present: absent, so there
 // is no line to wonder about.
 func (s *Store) Save() error {
-	if dir := filepath.Dir(s.path); dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", i18n.T("Answers for %s. Can be edited by hand.", s.mod.Name()))
 	group := ""
@@ -87,13 +82,27 @@ func (s *Store) Save() error {
 		// the question.
 		entry(&b, v.Name, s.val[v.Name], v.Label())
 	}
-	// Written whole and replaced in one step: a run interrupted mid-write must
-	// not leave a half-file that reads as a machine having answered nothing.
-	tmp := s.path + ".new"
-	if err := os.WriteFile(tmp, []byte(b.String()), 0o600); err != nil {
+	return write(s.path, b.String())
+}
+
+// write puts an answer file on disk: whole, and replaced in one step. A run
+// interrupted mid-write must not leave a half-file that reads as a machine
+// having answered nothing.
+//
+// 0600 because a module is free to ask for something an answer file has no
+// business showing the rest of the machine, and the file it is written into is
+// the same one either way.
+func write(path, content string) error {
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	tmp := path + ".new"
+	if err := os.WriteFile(tmp, []byte(content), 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path)
+	return os.Rename(tmp, path)
 }
 
 // entry writes one line: the name, the value quoted so any character survives,

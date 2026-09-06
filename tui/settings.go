@@ -11,9 +11,9 @@ import (
 // what it is currently set to.
 //
 // Not a hand-written page: it is the folder's own list of variables, in the
-// order the folder declared them, grouped by the headings it named. A variable
-// added to installer.yaml is on this page the moment it exists, and there is no
-// second list anywhere that could fall out of step with the first.
+// order the module declared them, grouped by the headings it named. A variable
+// added to the declaration is on this page the moment it exists, and there is
+// no second list anywhere that could fall out of step with the first.
 //
 // A row shows a name and a value and nothing else. What the value is *for* is a
 // sentence, and a sentence belongs on the page that asks the question — which

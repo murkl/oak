@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/murkl/oak/internal/i18n"
@@ -20,9 +19,9 @@ import (
 // only the top level counts — everything below it belongs to a part of the
 // module that is found by its own name.
 //
-// Two of them is refused rather than resolved: a folder holding an
-// installer.yaml and a recovery.yaml is two modules in one place, and picking
-// one would be the runtime deciding which of them somebody meant.
+// Two of them is refused rather than resolved: a folder holding a setup.yaml
+// and a repair.yaml is two modules in one place, and picking one would be the
+// runtime deciding which of them somebody meant.
 func Declaration(dir string) (string, error) {
 	switch found := declarations(dir); len(found) {
 	case 1:
@@ -168,9 +167,10 @@ func loadHooks(dir string) (map[string]string, error) {
 	return out, nil
 }
 
-// loadTasks reads every tasks/<id>/task.yaml. The folder name is the task's
-// identity — what another task's `needs` points at — and no more than that:
-// what runs when is settled by order.
+// loadTasks reads every tasks/<id>/task.yaml, in name order, which is what
+// order falls back on for two tasks nothing separates. The folder name is the
+// task's identity — what another task's `needs` points at — and no more than
+// that: what runs when is settled by order.
 //
 // A subfolder without one is an authoring mistake rather than an opt-out: it is
 // an error, not a unit quietly dropped from the installation.
@@ -183,8 +183,6 @@ func loadTasks(dir string) ([]*Task, error) {
 		}
 		return nil, err
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
-
 	var out []*Task
 	for _, entry := range entries {
 		id := entry.Name()

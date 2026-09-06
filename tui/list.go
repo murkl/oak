@@ -17,7 +17,6 @@ import (
 
 // item is one line of a list.
 type item struct {
-	icon     string
 	title    string
 	value    string // the right column: what this row is currently set to
 	heading  bool   // a category label rather than something to choose
@@ -323,23 +322,18 @@ func (p *picker) line(it item, cursor bool, titleW, valueW int) string {
 		lead = cursorStyle.Render(glyphs.cursor)
 	}
 
-	// Only the title is cut, never the icon in front of it: the icon is a
-	// styled string, and slicing runes off one would cut an escape sequence in
-	// half and spill colour across the rest of the frame.
-	//
 	// A space is held back off the value column so the two never touch on the
 	// row carrying the longest value in the list, which is the row where both
 	// columns are full at once.
-	title := truncate(it.title, titleW-gapS-lipgloss.Width(it.icon))
+	title := truncate(it.title, titleW-gapS)
 	switch {
 	case it.disabled:
-		title = dimStyle.Render(title)
+		title = mutedStyle.Render(title)
 	case cursor:
 		title = accentBold.Render(title)
 	default:
 		title = textStyle.Render(title)
 	}
-	title = it.icon + title
 
 	// The value is pinned to the right edge, a small margin short of it, so the
 	// left edge stays a clean column of names to read down and the right edge is

@@ -28,7 +28,6 @@ var (
 	failStyle   lipgloss.Style
 	alertStyle  lipgloss.Style
 	ruleStyle   lipgloss.Style
-	dimStyle    lipgloss.Style
 )
 
 // buildStyles reads the palette at whatever level it is currently showing, so
@@ -55,6 +54,10 @@ func buildStyles() {
 	textStyle = baseStyle.Foreground(ink)
 	boldStyle = textStyle.Bold(true)
 	softStyle = baseStyle.Foreground(fade(colors.soft))
+
+	// Also what a row that cannot be chosen is drawn in: dimmed rather than
+	// hidden, because knowing an entry exists and is out of reach beats it
+	// silently not being there.
 	mutedStyle = baseStyle.Foreground(fade(colors.muted))
 	headStyle = baseStyle.Foreground(fade(colors.head)).Bold(true)
 	infoStyle = baseStyle.Foreground(fade(colors.info))
@@ -67,10 +70,6 @@ func buildStyles() {
 	alertStyle = baseStyle.Foreground(fade(colors.warn)).Bold(true)
 
 	ruleStyle = baseStyle.Foreground(fade(colors.sunk))
-
-	// A row that cannot be chosen yet is dimmed rather than hidden: knowing an
-	// entry exists and why it is out of reach beats it silently not being there.
-	dimStyle = baseStyle.Foreground(fade(colors.muted))
 
 	// NormalBorder, not RoundedBorder: the rounded corners are missing from
 	// several monospace fonts and fall back to a box that does not line up.

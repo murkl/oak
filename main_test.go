@@ -182,18 +182,19 @@ func TestEveryModuleOfARuntimeIsRead(t *testing.T) {
 func TestNamingAModuleNarrowsTheRunToIt(t *testing.T) {
 	rt, mods := product(t, runtime(t, runtimeDecl, "installer", "recovery"))
 
-	got, err := pick(rt, mods, "recovery")
+	got, err := narrow(rt, mods, "recovery")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got == nil || got.UI.Title != "recovery" {
-		t.Fatalf("pick() = %v, want the one that was named", got)
+	if len(got) != 1 || got[0].UI.Title != "recovery" {
+		t.Fatalf("narrow() = %v, want only the one that was named", got)
 	}
-	if only(mods, got)[0] != got || len(only(mods, got)) != 1 {
-		t.Error("the run was not narrowed to the module that was named")
+	all, err := narrow(rt, mods, "")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(only(mods, nil)) != 2 {
-		t.Error("a run that named none was narrowed anyway")
+	if len(all) != 2 {
+		t.Error("a run that named no module was narrowed anyway")
 	}
 }
 
@@ -202,7 +203,7 @@ func TestNamingAModuleNarrowsTheRunToIt(t *testing.T) {
 func TestAModuleNobodyDeclaredIsRefusedByName(t *testing.T) {
 	rt, mods := product(t, runtime(t, runtimeDecl, "installer"))
 
-	_, err := pick(rt, mods, "manager")
+	_, err := narrow(rt, mods, "manager")
 	if err == nil {
 		t.Fatal("a module nobody declared was opened")
 	}

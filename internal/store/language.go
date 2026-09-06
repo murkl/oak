@@ -3,7 +3,6 @@ package store
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/murkl/oak/internal/i18n"
@@ -52,17 +51,8 @@ func (l *Language) Set(code string) { l.code = code }
 // Save writes the runtime's answers, whole and in one step, the way a module's
 // are written.
 func (l *Language) Save() error {
-	if dir := filepath.Dir(l.path); dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", i18n.T("Answers kept for every module. Can be edited by hand."))
 	entry(&b, LangVar, l.code, i18n.T("Interface language"))
-	tmp := l.path + ".new"
-	if err := os.WriteFile(tmp, []byte(b.String()), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, l.path)
+	return write(l.path, b.String())
 }

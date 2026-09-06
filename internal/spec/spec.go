@@ -24,10 +24,10 @@ import (
 // leaving the file or folder out rather than by declaring anything.
 //
 // The declaration is the one yaml in the folder's top level, whatever it is
-// called. The convention is the module's own name — modules/installer/installer.yaml,
-// modules/recovery/recovery.yaml — which is what lets two sit open in an editor
-// and still be told apart, and there is nothing to configure because a folder
-// holds one.
+// called. The convention is the module's own name — modules/setup/setup.yaml,
+// modules/repair/repair.yaml — which is what lets two sit open in an editor and
+// still be told apart, and there is nothing to configure because a folder holds
+// one.
 const (
 	Ext        = ".yaml"     // the declaration: what the module is, asks, and does
 	FileLib    = "lib.sh"    // shell put in front of every script
@@ -82,7 +82,7 @@ func runtimeVar(name string) bool { return name == DebugVar || name == ConfVar }
 // beside the binary declares about itself.
 type Module struct {
 	Dir  string // absolute, and never written to
-	File string // the declaration in it, e.g. installer.yaml
+	File string // the declaration in it, e.g. setup.yaml
 
 	UI      UI
 	Presets []*Preset
