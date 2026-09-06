@@ -61,22 +61,22 @@ var HookNames = []string{
 	HookRestart, HookShutdown,
 }
 
-// The runtime's own names, which no module may declare. Neither is something a
-// module's data can own: the words the interface is read in are settled before
-// a module has been chosen and are the same in every one of them, and whether a
-// run only pretends to work is how it was started rather than something it was
-// told.
+// The two names Oak puts into a script's environment, and the whole of what it
+// puts there. Neither is something a module's data can own: whether a run only
+// pretends to work is how it was started rather than something it was told, and
+// where the answers live is settled by whoever started the program.
+//
+// Everything else a script needs it works out for itself. A module's own folder
+// is where its lib.sh was sourced from, and what a script is told is every
+// answer under its own name.
 const (
-	LangVar  = "OAK_LANG" // the language, written into the answer file
-	DebugVar = "DEBUG"    // --debug, handed to every script
+	DebugVar = "DEBUG"       // true under --debug, absent otherwise
+	ConfVar  = "MODULE_CONF" // the answer file, which is also how a script answers
 )
-
-// RuntimeVars is every name the runtime keeps in a module's answer file.
-var RuntimeVars = []string{LangVar}
 
 // runtimeVar reports whether a name is the runtime's, and so not a module's to
 // declare.
-func runtimeVar(name string) bool { return name == LangVar || name == DebugVar }
+func runtimeVar(name string) bool { return name == DebugVar || name == ConfVar }
 
 // Module is one whole program the runtime can run: everything one folder
 // beside the binary declares about itself.
@@ -128,19 +128,18 @@ type Module struct {
 // one wordmark and one colour belong to the runtime, not to any module in it.
 // See Runtime.
 type UI struct {
+	// Title is what this module is called, and it is the only name it has. It
+	// is read on the page that asks which of the programs beside the binary to
+	// open, and again wherever the interface says what is happening — the row
+	// that starts a run, the last warning, the clock while it runs. A second
+	// name for the run itself would be the same thing said twice, and the
+	// runtime has no name of its own to fall back on: it does not know whether
+	// this module installs anything.
 	Title string `yaml:"title"`
 
-	// Description is what this program is, in one sentence, and Run what one
-	// run of it is called.
-	//
-	// The description is read on the page that asks which of the programs beside
-	// the binary to open; the name is read wherever the interface says what is
-	// happening — the row that starts it, the last warning, the clock while it
-	// runs. A module that names no run is an installation as far as the runtime
-	// is concerned, which is right for one kind of module and wrong for every
-	// other.
+	// Description is what this module is, in one sentence, read under its title
+	// on the page that offers it.
 	Description string `yaml:"description"`
-	Run         string `yaml:"run"`
 
 	// Console is the sentence read on the way out of the interface, where the
 	// machine keeps running. What the module is called out there is something
@@ -149,10 +148,6 @@ type UI struct {
 	// there is nothing behind the interface.
 	Console string `yaml:"console"`
 }
-
-// RunName is what one run of this module is called, translated. Empty where the
-// module did not say, which the runtime can only read as an installation.
-func (s *Module) RunName() string { return i18n.T(s.UI.Run) }
 
 // Help is what this module is, in one sentence: the line under its row on the
 // page that asks which of them to open.
@@ -195,7 +190,6 @@ func (s *Module) ConsoleHelp() string { return i18n.T(s.UI.Console) }
 // A module may declare several, each a page of its own, asked in the order
 // they are declared.
 type Preset struct {
-	ID          string          `yaml:"id"`
 	Title       string          `yaml:"title"`
 	Description string          `yaml:"description"`
 	Options     []*PresetOption `yaml:"options"`
@@ -205,7 +199,6 @@ type Preset struct {
 // Nothing else about it survives being chosen — it is a set of answers, not a
 // mode the module stays in.
 type PresetOption struct {
-	ID          string            `yaml:"id"`
 	Title       string            `yaml:"title"`
 	Description string            `yaml:"description"`
 	Values      map[string]Scalar `yaml:"values"`
@@ -239,11 +232,11 @@ func (o *PresetOption) Help() string  { return i18n.T(o.Description) }
 // does it.
 //
 // It says where it belongs rather than when it runs — a stage, and what it
-// needs from its own stage — and the order follows from that. Nothing keeps a
+// needs from that same stage — and the order follows from that. Nothing keeps a
 // list of the installation's steps: adding a folder adds a step, and the two
 // can never disagree.
 type Task struct {
-	Name       string     `yaml:"name"`
+	Title      string     `yaml:"title"`
 	Stage      string     `yaml:"stage"`
 	Needs      []string   `yaml:"needs"`
 	Conditions Conditions `yaml:"conditions"`
@@ -308,7 +301,7 @@ type Task struct {
 	cond []*condition
 }
 
-func (t *Task) Label() string { return i18n.T(t.Name) }
+func (t *Task) Label() string { return i18n.T(t.Title) }
 
 // ID is the folder this task was read from, which is also the name other tasks
 // reach it by in their needs.
@@ -392,15 +385,13 @@ type Variable struct {
 	// It is a promise a module should make sparingly. Every question here is a
 	// question asked before the check that says this machine cannot be installed
 	// onto at all.
+	//
+	// A list asked this early carries its narrowing box open from the first
+	// frame and cannot close it, because the key that would open one is typed
+	// on a layout nobody has chosen yet — a box nobody can find the key to open
+	// is no box at all. Nothing declares that: being asked first is the
+	// declaration.
 	First bool `yaml:"first"`
-
-	// Blind marks the one first question whose own answer is what loadkeys is
-	// about to run. Until it is answered, no key on this machine is known to
-	// print what it looks like it does — not even the / that would otherwise
-	// open the box narrowing its list. So that box is shown from the first
-	// frame instead of waited for, and does not close: a box nobody can find
-	// the key to open is no box at all.
-	Blind bool `yaml:"blind"`
 
 	// Where the answers come from, when there is a set of them: written out, or
 	// printed by a command one per line. A variable with neither is free text.
@@ -551,17 +542,16 @@ func (s *Module) Messages() []Message {
 	}
 
 	decl := s.File
-	add(decl, "what this program is called", s.UI.Title)
+	add(decl, "what this program is called, and what one run of it is called", s.UI.Title)
 	add(decl, "what it is, in one sentence, on the page that offers it", s.UI.Description)
-	add(decl, "what one run of it is called", s.UI.Run)
 	add(decl, "how to get back in, read on the way out to the console", s.UI.Console)
 	add(decl, "the last thing read before the first task runs", s.Confirm)
 	for _, p := range s.Presets {
-		add(decl, "starting point "+p.ID+": the question", p.Title)
-		add(decl, "starting point "+p.ID+": what it means", p.Description)
+		add(decl, "a starting point: the question", p.Title)
+		add(decl, "starting point "+p.Title+": what it means", p.Description)
 		for _, o := range p.Options {
-			add(decl, "starting point "+p.ID+", "+o.ID+": the row", o.Title)
-			add(decl, "starting point "+p.ID+", "+o.ID+": what choosing it does", o.Description)
+			add(decl, "starting point "+p.Title+": a row", o.Title)
+			add(decl, "starting point "+p.Title+", "+o.Title+": what choosing it does", o.Description)
 		}
 	}
 	for _, v := range s.Vars {
@@ -573,7 +563,7 @@ func (s *Module) Messages() []Message {
 	}
 	for _, t := range s.Tasks {
 		file := path.Join(DirTasks, t.ID(), FileTask)
-		add(file, "the step, as the run lists it", t.Name)
+		add(file, "the step, as the run lists it", t.Title)
 		add(file, "asked before the step runs", t.Confirm)
 		add(file, "read once the step is done, and held on until somebody has", t.Report)
 	}

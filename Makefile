@@ -24,9 +24,9 @@ GOFLAGS       := CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH)
 # and nowhere else, so it is built into that folder rather than run out of a
 # temporary one.
 #
-# MODULE opens one outright, the way `oak hello` does on a machine; without it
-# the interface asks which. ARGS is whatever else that run takes — `make run
-# ARGS=--debug` for one that touches nothing.
+# MODULE opens one outright, the way `oak --module=hello` does on a machine;
+# without it the interface asks which. ARGS is whatever else that run takes —
+# `make run ARGS=--debug` for one that touches nothing.
 EXAMPLE := example
 MODULE  ?=
 ARGS    ?=
@@ -54,14 +54,17 @@ example:
 	go build -ldflags="$(LDFLAGS_RUN)" -o $(EXAMPLE)/$(APP) $(PKG)
 
 run: example
-	cd $(EXAMPLE) && ./$(APP) $(MODULE) $(ARGS)
+	cd $(EXAMPLE) && ./$(APP) $(if $(MODULE),--module=$(MODULE)) $(ARGS)
 
 # The example loaded the way a run loads it: every task ordered, every condition
 # resolved, every question checked against the tasks that read it. It is the one
 # check here that reads yaml rather than Go, so a change to what a product may
 # declare fails on a real product before it reaches anybody else's.
-inspect: example
-	@cd $(EXAMPLE) && ./$(APP) --inspect
+#
+# A tool rather than a flag on the binary: what a product holds is a question
+# whoever writes one asks, and a machine being installed never does.
+inspect:
+	@go run ./tools/inspect $(EXAMPLE)
 
 tidy:
 	go mod tidy

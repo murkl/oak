@@ -22,10 +22,10 @@ type filter struct {
 	input textinput.Model
 	open  bool
 
-	// permanent is set for the one question asked before loadkeys has run:
-	// its box opens already open and never closes, because the key that
-	// would otherwise open or close it is typed on a layout nobody has
-	// chosen yet.
+	// permanent is set for a question asked before anything else — before the
+	// keyboard layout has been settled. Its box opens already open and never
+	// closes, because the key that would otherwise open or close it is typed
+	// on a layout nobody has chosen yet.
 	permanent bool
 }
 
@@ -34,15 +34,15 @@ type filter struct {
 // what a terminal has meant by "narrow this" since long before this program.
 const filterKey = "/"
 
-// newFilter builds the box closed, the shape every list but one wants. blind
-// is the one exception — see permanent — and opens it already focused.
-func newFilter(blind bool) *filter {
-	f := &filter{permanent: blind}
+// newFilter builds the box closed, the shape almost every list wants. permanent
+// is the exception — see the field of that name — and opens it already focused.
+func newFilter(permanent bool) *filter {
+	f := &filter{permanent: permanent}
 	f.input = textinput.New()
 	f.input.Placeholder = labelFilterPlaceholder()
 	f.input.CharLimit = 64
 	styleInput(&f.input)
-	if blind {
+	if permanent {
 		f.open = true
 		f.input.Focus()
 	}
@@ -142,7 +142,7 @@ func filterHint(base string, f *filter) string {
 	case f == nil:
 		return base
 	case f.permanent:
-		return labelHintFilterBlind()
+		return labelHintFilterPermanent()
 	case f.open:
 		return labelHintFilter()
 	}

@@ -31,7 +31,7 @@ func consistent(files map[string]string) map[string]string {
 		// The helper's own task, left out: these tests write their own.
 		"tasks/do/task.yaml":      "",
 		"tasks/do/task.sh":        "",
-		"tasks/desktop/task.yaml": "name: Desktop\nstage: go\nconditions: DESKTOP == gnome\n",
+		"tasks/desktop/task.yaml": "title: Desktop\nstage: go\nconditions: DESKTOP == gnome\n",
 		"tasks/desktop/task.sh":   "echo \"$EXTRAS\"\n",
 	}
 	maps.Copy(out, files)
@@ -100,7 +100,7 @@ func TestATaskGuardedOnTheAnswerItselfReadsIt(t *testing.T) {
 		treeFile:                widened,
 		"tasks/desktop/task.sh": "echo desktop\n",
 	})
-	maps.Copy(files, unit("extras", "name: Extras\nstage: go\nconditions: EXTRAS == true\n"))
+	maps.Copy(files, unit("extras", "title: Extras\nstage: go\nconditions: EXTRAS == true\n"))
 	if got := unread(t, files); len(got) != 0 {
 		t.Errorf("Unread() = %v, want nothing", got)
 	}
@@ -108,7 +108,7 @@ func TestATaskGuardedOnTheAnswerItselfReadsIt(t *testing.T) {
 
 func TestOneTaskThatCanRunAnywhereIsEnough(t *testing.T) {
 	files := consistent(map[string]string{treeFile: widened})
-	maps.Copy(files, unit("always", "name: Always\nstage: go\n"))
+	maps.Copy(files, unit("always", "title: Always\nstage: go\n"))
 	files["tasks/always/task.sh"] = "echo \"$EXTRAS\"\n"
 	if got := unread(t, files); len(got) != 0 {
 		t.Errorf("Unread() = %v, want nothing: one task reads it wherever it is asked", got)
@@ -149,8 +149,64 @@ func TestAValueATaskAsksForOrShowsIsReadByThatTask(t *testing.T) {
     title: Link
 `
 	files := consistent(map[string]string{treeFile: declared})
-	maps.Copy(files, unit("work", "name: Work\nstage: go\nasks: PICK\nshows: LINK\nreport: |\n  Done\n\n  It worked.\n"))
+	maps.Copy(files, unit("work", "title: Work\nstage: go\nasks: PICK\nshows: LINK\nreport: |\n  Done\n\n  It worked.\n"))
 	if got := unread(t, files); len(got) != 0 {
 		t.Errorf("Unread() = %v, want nothing", got)
+	}
+}
+
+// ─── The other direction: a read nothing answers ──────────────────────────────
+
+// unset runs that check over a module and hands back what it found.
+func unset(t *testing.T, files map[string]string) []string {
+	t.Helper()
+	sp, err := Load(module(t, files))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found, err := sp.Unset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
+}
+
+// A module written against an older Oak reads names nothing hands it any more.
+// In shell that is an empty string rather than an error, so this line is the
+// only place it is visible at all.
+func TestANameNothingAnswersIsReported(t *testing.T) {
+	got := unset(t, consistent(map[string]string{
+		"tasks/do/task.yaml": "title: Do\nstage: go\n",
+		"tasks/do/task.sh":   "echo \"$PRODUCT_VERSION\" >\"$MODULE_DIR/out\"\n",
+	}))
+	if strings.Join(got, " ") != "MODULE_DIR PRODUCT_VERSION" {
+		t.Errorf("Unset() = %v, want both names the module reads and nothing sets", got)
+	}
+}
+
+// The fix silences it: a name the module works out for itself is answered by
+// the module, which is the whole point of the line.
+func TestANameTheModuleSetsItselfIsNotReported(t *testing.T) {
+	got := unset(t, consistent(map[string]string{
+		"lib.sh":             "MODULE_DIR=\"$(dirname \"${BASH_SOURCE[0]}\")\"\n",
+		"tasks/do/task.yaml": "title: Do\nstage: go\n",
+		"tasks/do/task.sh":   "echo \"$MODULE_DIR\"\n",
+	}))
+	if len(got) != 0 {
+		t.Errorf("Unset() = %v, want nothing", got)
+	}
+}
+
+// What a module declares and what Oak sets are answers by definition, and a
+// script's own working values are lower case and none of this check's business.
+func TestWhatIsAnsweredIsNotReported(t *testing.T) {
+	got := unset(t, consistent(map[string]string{
+		"tasks/do/task.yaml": "title: Do\nstage: go\n",
+		"tasks/do/task.sh": "target=\"$DESKTOP\"\n" +
+			"[ \"$DEBUG\" = true ] && echo \"$target\" >>\"$MODULE_CONF\"\n" +
+			"echo \"${BASH_SOURCE[0]}\"\n",
+	}))
+	if len(got) != 0 {
+		t.Errorf("Unset() = %v, want nothing — every one of those is answered", got)
 	}
 }

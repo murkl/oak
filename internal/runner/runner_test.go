@@ -41,11 +41,11 @@ func setup(t *testing.T, variables string, tasks map[string]string) (*spec.Modul
 	if err != nil {
 		t.Fatal(err)
 	}
-	st := store.New(sp, filepath.Join(t.TempDir(), "installer.conf"))
+	st := store.New(sp, filepath.Join(t.TempDir(), "installer.conf"), false)
 	return sp, st, New(sp, st)
 }
 
-var oneTask = map[string]string{"go": "name: Go\nstage: go\n"}
+var oneTask = map[string]string{"go": "title: Go\nstage: go\n"}
 
 // A bool answers itself, in the interface's own language, so a folder never has
 // to spell out what true and false are called.
@@ -127,8 +127,8 @@ variables:
 // ruled itself out is not in it.
 func TestTasksAreOnlyTheOnesThatWillRun(t *testing.T) {
 	_, st, r := setup(t, "variables:\n  - name: DESKTOP\n    title: D\n    type: bool\n", map[string]string{
-		"always":  "name: Always\nstage: go\n",
-		"desktop": "name: Desktop\nstage: go\nconditions: DESKTOP == true\n",
+		"always":  "title: Always\nstage: go\n",
+		"desktop": "title: Desktop\nstage: go\nconditions: DESKTOP == true\n",
 	})
 	if got := names(r.Tasks()); strings.Join(got, ",") != "Always" {
 		t.Errorf("tasks = %v", got)
@@ -150,7 +150,7 @@ func TestPreflightCarriesWhatTheHookSaid(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
 		treeFile:             "title: T\nstages: [go]\nvariables: []\n",
-		"tasks/go/task.yaml": "name: Go\nstage: go\n",
+		"tasks/go/task.yaml": "title: Go\nstage: go\n",
 		"tasks/go/task.sh":   "true\n",
 		"hooks/preflight.sh": "echo Set the boot mode to UEFI. >&2\nexit 1\n",
 	}
@@ -167,7 +167,7 @@ func TestPreflightCarriesWhatTheHookSaid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st := store.New(sp, filepath.Join(t.TempDir(), "c"))
+	st := store.New(sp, filepath.Join(t.TempDir(), "c"), false)
 	err = New(sp, st).Preflight()
 	if err == nil {
 		t.Fatal("a failing check passed")
@@ -179,8 +179,8 @@ func TestPreflightCarriesWhatTheHookSaid(t *testing.T) {
 
 func TestStartRunsAnTaskAndReportsIt(t *testing.T) {
 	sp, _, r := setup(t, "variables: []\n", map[string]string{
-		"good": "name: Good\nstage: go\n",
-		"bad":  "name: Bad\nstage: go\nneeds: [good]\n",
+		"good": "title: Good\nstage: go\n",
+		"bad":  "title: Bad\nstage: go\nneeds: [good]\n",
 	})
 	// The failing one is written over the script setup laid down for it.
 	if err := os.WriteFile(sp.Tasks[1].Path(), []byte("echo why not >&2\nexit 1\n"), 0o644); err != nil {
@@ -211,7 +211,7 @@ func TestStartRunsAnTaskAndReportsIt(t *testing.T) {
 func names(units []*spec.Task) []string {
 	out := make([]string, len(units))
 	for i, e := range units {
-		out[i] = e.Name
+		out[i] = e.Title
 	}
 	return out
 }
@@ -311,7 +311,6 @@ func TestAnImportedConfigurationBecomesTheAnswers(t *testing.T) {
 		"  - name: DISK\n    title: Disk\n"+
 		"  - name: KEYMAP\n    title: Keymap\n    apply: touch \"$APPLIED\"\n", nil)
 	t.Setenv("APPLIED", applied)
-	st.SetFacts("test", false)
 
 	shell := "printf \"DISK='/dev/sdz'\\nKEYMAP='de'\\n\" >>\"$MODULE_CONF\""
 	if err := r.Import(shell)(); err != nil {

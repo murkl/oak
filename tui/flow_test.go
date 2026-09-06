@@ -48,17 +48,14 @@ title: Test Installer
 confirm: Erasing {{DISK}}.
 stages: [go, finish]
 presets:
-  - id: system
-    title: Setup
+  - title: Setup
     description: Choose what kind of system to install.
     options:
-      - id: full
-        title: Full
+      - title: Full
         description: Everything at once.
         values:
           EXTRAS: "true"
-      - id: bare
-        title: Bare
+      - title: Bare
         description: Nothing at all.
         values:
           EXTRAS: "false"
@@ -92,11 +89,11 @@ variables:
 
 // The three tasks, as the files they are made of.
 var testTasks = map[string]string{
-	"tasks/a-first/task.yaml":  "name: First\nstage: go\n",
+	"tasks/a-first/task.yaml":  "title: First\nstage: go\n",
 	"tasks/a-first/task.sh":    "echo ran\n",
-	"tasks/b-second/task.yaml": "name: Second\nstage: go\n",
+	"tasks/b-second/task.yaml": "title: Second\nstage: go\n",
 	"tasks/b-second/task.sh":   "echo ran\n",
-	"tasks/c-extras/task.yaml": "name: Only with extras\nstage: go\nconditions: EXTRAS == true\n",
+	"tasks/c-extras/task.yaml": "title: Only with extras\nstage: go\nconditions: EXTRAS == true\n",
 	"tasks/c-extras/task.sh":   "echo ran\n",
 }
 
@@ -143,8 +140,7 @@ func openModule(t *testing.T) Open {
 	t.Helper()
 	answers := t.TempDir()
 	return func(mod *spec.Module) (*Program, error) {
-		st := store.New(mod, filepath.Join(answers, mod.ID()+".conf"))
-		st.SetFacts("test", false)
+		st := store.New(mod, filepath.Join(answers, mod.ID()+".conf"), false)
 		// The catalogs the module brought, discovered the way the program
 		// discovers them — so a test that writes one is testing what ships.
 		var sources []fs.FS
@@ -160,7 +156,7 @@ func openModule(t *testing.T) Open {
 
 // The runtime the flow tests run inside: a name over the modules, and nothing
 // else it needs to say for a test with no terminal to dress.
-var testRuntime = &spec.Runtime{Name: "Test OS", Modules: []string{"installer", "recovery"}}
+var testRuntime = &spec.Runtime{Title: "Test OS", Modules: []string{"installer", "recovery"}}
 
 // start brings the interface up around one or more modules, exactly as Run
 // does.
@@ -477,14 +473,14 @@ func TestAnAnsweredFirstQuestionIsNotAskedAgain(t *testing.T) {
 	h.wants("There is no internet connection.").refuses("Language and formats")
 }
 
-// A question marked `blind` is asked before loadkeys has run, so even the key
-// that would normally open the filter is typed on a layout nobody has chosen
-// yet. Its box is up from the first frame, and typing narrows straight away —
-// no / needed first.
-func TestABlindQuestionOpensItsFilterFromTheStart(t *testing.T) {
+// A question asked first is asked before loadkeys has run, so even the key that
+// would normally open the filter is typed on a layout nobody has chosen yet.
+// Its box is up from the first frame, and typing narrows straight away — no /
+// needed first, and nothing in the yaml to say so.
+func TestAQuestionAskedFirstOpensItsFilterFromTheStart(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
-			"  - name: KEYMAP\n    title: Console keyboard\n    required: true\n    first: true\n    blind: true\n    values: [us, de]\n",
+			"  - name: KEYMAP\n    title: Console keyboard\n    required: true\n    first: true\n    values: [us, de]\n",
 	})
 	h.wants("Console keyboard", "Filter …")
 	h.typeIn("de")
@@ -499,7 +495,6 @@ func TestABlindQuestionOpensItsFilterFromTheStart(t *testing.T) {
 // and what the run is called from there on.
 const testRecovery = `
 title: Test Recovery
-run: Recovery
 description: Open a system already on a disk.
 confirm: Opening {{DISK}}.
 stages: [open]
@@ -521,7 +516,7 @@ func both(t *testing.T) []*spec.Module {
 	dir := t.TempDir()
 	installer := writeModule(t, filepath.Join(dir, "installer"), map[string]string{
 		treeFile: strings.Replace(testInstaller, "title: Test Installer",
-			"title: Test Installer\nrun: Installation\ndescription: Put a system on this machine.", 1),
+			"title: Test Installer\ndescription: Put a system on this machine.", 1),
 	})
 	recovery := writeModule(t, filepath.Join(dir, "recovery"), map[string]string{
 		treeFile:                   "",
@@ -532,7 +527,7 @@ func both(t *testing.T) []*spec.Module {
 		"tasks/b-second/task.sh":   "",
 		"tasks/c-extras/task.yaml": "",
 		"tasks/c-extras/task.sh":   "",
-		"tasks/d-open/task.yaml":   "name: Open the disk\nstage: open\n",
+		"tasks/d-open/task.yaml":   "title: Open the disk\nstage: open\n",
 		"tasks/d-open/task.sh":     "echo opened\n",
 	})
 	return []*spec.Module{loadModule(t, installer), loadModule(t, recovery)}
@@ -548,10 +543,10 @@ func TestChoosingAProgramSettlesTheQuestionsTheWarningAndTheRun(t *testing.T) {
 
 	// The hub, the warning and the run are all read in that module's own name for
 	// a run of it, and only its own tasks run.
-	h.wants("Recovery", "Open a system already on a disk.").enter()
-	h.wants("Ready to start", "Opening /dev/sda.", "Start Recovery").enter()
+	h.wants("Test Recovery", "Open a system already on a disk.").enter()
+	h.wants("Ready to start", "Opening /dev/sda.", "Start Test Recovery").enter()
 	h.ran()
-	h.wants("Recovery complete in", "Open the disk")
+	h.wants("Test Recovery complete in", "Open the disk")
 	h.refuses("First")
 }
 
@@ -569,7 +564,7 @@ func TestTheOtherProgramsQuestionsAreNotAsked(t *testing.T) {
 // gave itself.
 func TestTheQuestionOfWhichModuleIsHeadedByTheRuntime(t *testing.T) {
 	h := start(t, both(t)...)
-	h.wants(testRuntime.Name, "What to do")
+	h.wants(testRuntime.Title, "What to do")
 }
 
 // And the language comes in front of that: it belongs to the runtime rather
@@ -610,10 +605,10 @@ func TestAPresetIsOnlyOfferedOnce(t *testing.T) {
 	h := newHarness(t, nil)
 	h.wants("Setup", "Full", "Bare")
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.wants("Install", "Settings")
+	h.wants("Test Installer", "Settings")
 
 	h.restart()
-	h.wants("Install", "Settings").refuses("Full", "Bare")
+	h.wants("Test Installer", "Settings").refuses("Full", "Bare")
 }
 
 // A preset fills in answers, and an answer is an answer whether it was typed or
@@ -757,8 +752,8 @@ func TestAModuleCanTieTheInterfaceToOneOfItsOwnAnswers(t *testing.T) {
 	// as one: de_DE is German.
 	h.enter()
 	h.wants("Einrichtung")
-	if got := h.a.store.Get(spec.LangVar); got != "de" {
-		t.Errorf("%s = %q, want the language the answer came closest to", spec.LangVar, got)
+	if got := h.a.lang.Code(); got != "de" {
+		t.Errorf("the language kept = %q, want the one the answer came closest to", got)
 	}
 }
 
@@ -804,7 +799,7 @@ func TestTheOpeningRunsPresetThenQuestionsThenHub(t *testing.T) {
 	h.wants("Disk", "2 of 2", "/dev/sda  1TB")
 
 	h.enter()
-	h.wants("Install", "Settings")
+	h.wants("Test Installer", "Settings")
 }
 
 // A preset is a set of answers and nothing more.
@@ -957,7 +952,7 @@ func TestEscClosesTheSettingsFilterBeforeItLeavesThePage(t *testing.T) {
 	h.typeIn("/disk").esc()
 	h.wants("User name", "Disk")
 	h.esc()
-	h.wants("Install", "Settings")
+	h.wants("Test Installer", "Settings")
 }
 
 // The query is how the row was found, so changing its value does not throw it
@@ -986,7 +981,7 @@ func TestTurningOnASettingAsksForWhatItNowRequiresOnTheWayOut(t *testing.T) {
 	h.esc().esc() // close the filter, then leave settings
 	h.wants("Driver", "mesa", "nvidia").refuses("Settings")
 	h.enter() // mesa, the focused row
-	h.wants("Install", "Settings")
+	h.wants("Test Installer", "Settings")
 }
 
 // ─── Installing ──────────────────────────────────────────────────────────────
@@ -995,7 +990,7 @@ func TestTheConfirmationNamesTheDiskItIsAbout(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter() // Install
-	h.wants("Ready to install", "Erasing /dev/sda.", "Start installation")
+	h.wants("Ready to start", "Erasing /dev/sda.", "Start Test Installer")
 }
 
 func TestTheSecretIsAskedForTwiceAndOnlyThenTheRunBegins(t *testing.T) {
@@ -1011,7 +1006,7 @@ func TestTheSecretIsAskedForTwiceAndOnlyThenTheRunBegins(t *testing.T) {
 
 	h.typeIn("hunter2").enter().typeIn("hunter2").enter()
 	h.ran()
-	h.wants("Installation complete", "First", "Second").refuses("Only with extras")
+	h.wants("Test Installer complete", "First", "Second").refuses("Only with extras")
 }
 
 func TestAFailedTaskStopsTheRunAndSaysWhereItBroke(t *testing.T) {
@@ -1022,14 +1017,14 @@ func TestAFailedTaskStopsTheRunAndSaysWhereItBroke(t *testing.T) {
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
 	h.ran()
-	h.wants("Installation failed", "not/here", "Script", "Command", "Exit code")
+	h.wants("Test Installer failed", "not/here", "Script", "Command", "Exit code")
 }
 
 // A task may ask before it runs, which is how a module offers something
 // rather than does it. Declining skips that one and the run carries on.
 func TestAnTaskThatAsksIsOfferedRatherThanRun(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"tasks/d-reboot/task.yaml": "name: Reboot\nstage: finish\nconfirm: Restart {{DISK}} now?\n",
+		"tasks/d-reboot/task.yaml": "title: Reboot\nstage: finish\nconfirm: Restart {{DISK}} now?\n",
 		"tasks/d-reboot/task.sh":   "echo never\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
@@ -1042,7 +1037,7 @@ func TestAnTaskThatAsksIsOfferedRatherThanRun(t *testing.T) {
 	// No: the row keeps its place in the list, marked as passed over.
 	h.down().enter()
 	h.ran()
-	h.wants("Installation complete", "First", "Second", "Reboot")
+	h.wants("Test Installer complete", "First", "Second", "Reboot")
 }
 
 // An offer opens on yes unless the task says otherwise, and one that says `no`
@@ -1050,7 +1045,7 @@ func TestAnTaskThatAsksIsOfferedRatherThanRun(t *testing.T) {
 // the run is over, and the offer under it is an extra.
 func TestAnOfferCanOpenOnNo(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"tasks/d-shell/task.yaml": "name: Shell\nstage: finish\nconfirm: Open a shell?\ndefault: no\n",
+		"tasks/d-shell/task.yaml": "title: Shell\nstage: finish\nconfirm: Open a shell?\ndefault: no\n",
 		// Would fail the run if it were ever started.
 		"tasks/d-shell/task.sh": "exit 1\n",
 	})
@@ -1063,7 +1058,7 @@ func TestAnOfferCanOpenOnNo(t *testing.T) {
 
 	h.enter()
 	h.ran()
-	h.wants("Installation complete", "Shell")
+	h.wants("Test Installer complete", "Shell")
 }
 
 // A value that could not have been known before the work started: the run
@@ -1078,7 +1073,7 @@ func TestATaskCanAskForAValueInTheMiddleOfTheRun(t *testing.T) {
     required: true
     command: printf 'one\ntwo\n'
 `,
-		"tasks/d-roll/task.yaml": "name: Roll back\nstage: finish\nasks: SNAPSHOT\nconfirm: Replace @ with {{SNAPSHOT}}?\n",
+		"tasks/d-roll/task.yaml": "title: Roll back\nstage: finish\nasks: SNAPSHOT\nconfirm: Replace @ with {{SNAPSHOT}}?\n",
 		"tasks/d-roll/task.sh":   "echo rolled\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
@@ -1098,7 +1093,7 @@ func TestATaskCanAskForAValueInTheMiddleOfTheRun(t *testing.T) {
 
 	h.enter()
 	h.ran()
-	h.wants("Installation complete", "Roll back")
+	h.wants("Test Installer complete", "Roll back")
 }
 
 // A question the run stopped for that turns out to have no answers is the end
@@ -1110,14 +1105,14 @@ func TestAskingForSomethingThatIsNotThereEndsTheRun(t *testing.T) {
     title: Snapshot
     command: "true"
 `,
-		"tasks/d-roll/task.yaml": "name: Roll back\nstage: finish\nasks: SNAPSHOT\n",
+		"tasks/d-roll/task.yaml": "title: Roll back\nstage: finish\nasks: SNAPSHOT\n",
 		"tasks/d-roll/task.sh":   "echo never\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
 	h.ran()
-	h.wants("Installation failed", "there is nothing to choose from")
+	h.wants("Test Installer failed", "there is nothing to choose from")
 }
 
 // Nothing typed while a run is going may dismiss its result, and nothing said
@@ -1192,7 +1187,7 @@ func TestAFailureReportFitsTheSmallestTerminal(t *testing.T) {
 	h.ran()
 	h.send(tea.WindowSizeMsg{Width: 80, Height: 24})
 	view := h.screen()
-	for _, want := range []string{"Installation failed", "Script", "Command", "Exit code"} {
+	for _, want := range []string{"Test Installer failed", "Script", "Command", "Exit code"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the report is missing %q at 80x24:\n%s", want, view)
 		}
@@ -1205,7 +1200,7 @@ func TestAFailureReportFitsTheSmallestTerminal(t *testing.T) {
 func TestTheSmallestTreeStillWorks(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile:                   "title: Test Installer\nstages: [go]\nvariables:\n  - name: USER\n    title: User name\n    required: true\n",
-		"tasks/a-first/task.yaml":  "name: Do it\nstage: go\n",
+		"tasks/a-first/task.yaml":  "title: Do it\nstage: go\n",
 		"tasks/b-second/task.yaml": "",
 		"tasks/b-second/task.sh":   "",
 		"tasks/c-extras/task.yaml": "",
@@ -1214,12 +1209,12 @@ func TestTheSmallestTreeStillWorks(t *testing.T) {
 	// Straight to the one question: no preset page, because there are no presets.
 	h.wants("User name", "1 of 1")
 	h.typeIn("moritz").enter()
-	h.wants("Install", "Settings")
+	h.wants("Test Installer", "Settings")
 
 	// No confirmation sentence to show, and no secret to ask for.
-	h.enter().wants("Ready to install", "Start installation")
+	h.enter().wants("Ready to start", "Start Test Installer")
 	h.enter().ran()
-	h.wants("Installation complete", "Do it")
+	h.wants("Test Installer complete", "Do it")
 
 	// Nothing follows a finished installation: enter on the result leaves.
 	h.enter()
@@ -1243,7 +1238,7 @@ func leaveTree(restart, shutdown string) map[string]string {
 func TestQuittingAsksWhatToDoWithTheMachine(t *testing.T) {
 	h := newHarness(t, leaveTree("true", "true"))
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.wants("Install", "Settings")
+	h.wants("Test Installer", "Settings")
 
 	h.typeIn("q")
 	h.wants("Restart", "Shut down").refuses("Exit")
@@ -1253,7 +1248,7 @@ func TestQuittingAsksWhatToDoWithTheMachine(t *testing.T) {
 
 	// And it is a question like any other: esc is the way back to the hub.
 	h.esc()
-	h.wants("Install", "Settings")
+	h.wants("Test Installer", "Settings")
 }
 
 // Where the module says there is a console behind the installer, there is a third
@@ -1319,7 +1314,7 @@ func TestAFinishedInstallationEndsOnTheWayOut(t *testing.T) {
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
 	h.ran()
-	h.wants("Installation complete")
+	h.wants("Test Installer complete")
 
 	h.enter()
 	h.wants("Restart", "Shut down")
@@ -1338,7 +1333,7 @@ func TestAskingToLeaveDuringARunDoesNotStopIt(t *testing.T) {
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
-	h.wants("Installing for")
+	h.wants("Test Installer · 00:0")
 
 	h.esc()
 	h.wants("Restart", "Shut down", "continues behind this page")
@@ -1347,7 +1342,7 @@ func TestAskingToLeaveDuringARunDoesNotStopIt(t *testing.T) {
 	}
 
 	h.esc()
-	h.wants("Installing for").refuses("Restart")
+	h.wants("Test Installer · 00:0").refuses("Restart")
 
 	h.ctrlC()
 	h.wants("Restart", "Shut down")
@@ -1363,7 +1358,7 @@ func TestChoosingAWayOutStopsTheRun(t *testing.T) {
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
-	h.wants("Installing for")
+	h.wants("Test Installer · 00:0")
 
 	run, ok := h.m.top().(*runScreen)
 	if !ok || run.session == nil {
@@ -1393,7 +1388,7 @@ func TestTheHeadlineCarriesTheClock(t *testing.T) {
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
 	h.ran()
-	h.wants("Installation complete in 00:0")
+	h.wants("Test Installer complete in 00:0")
 }
 
 func TestClockReadsAsAClock(t *testing.T) {
@@ -1510,7 +1505,7 @@ func TestQIsACharacterWhereSomethingIsBeingTyped(t *testing.T) {
 // means everywhere, and the run is still standing on it afterwards.
 func TestAQuestionInARunIsLeftRatherThanBackedOutOf(t *testing.T) {
 	files := leaveTree("true", "true")
-	files["tasks/d-reboot/task.yaml"] = "name: Reboot\nstage: finish\nconfirm: Restart now?\n"
+	files["tasks/d-reboot/task.yaml"] = "title: Reboot\nstage: finish\nconfirm: Restart now?\n"
 	files["tasks/d-reboot/task.sh"] = "echo never\n"
 	h := newHarness(t, files)
 	h.down().enter().typeIn("moritz").enter().enter()
@@ -1538,7 +1533,7 @@ func TestATaskCanReportWhatItProduced(t *testing.T) {
   - name: LINK
     title: Shared at
 `,
-		"tasks/d-share/task.yaml": "name: Share\nstage: finish\nshows: LINK\nreport: |\n  Installed on {{DISK}}\n\n  Everything after this is offered rather than needed.\n",
+		"tasks/d-share/task.yaml": "title: Share\nstage: finish\nshows: LINK\nreport: |\n  Installed on {{DISK}}\n\n  Everything after this is offered rather than needed.\n",
 		// A script answers by writing one line of the answer file, which is the
 		// only channel there is and the same one a person editing it uses.
 		"tasks/d-share/task.sh": `printf "LINK='https://example.test/abc'\n" >>"$MODULE_CONF"` + "\n",
@@ -1561,7 +1556,7 @@ func TestATaskCanReportWhatItProduced(t *testing.T) {
 
 	h.enter()
 	h.ran()
-	h.wants("Installation complete", "Share")
+	h.wants("Test Installer complete", "Share")
 }
 
 // A task that produced nothing still says what it has to say. Not being able to
@@ -1573,7 +1568,7 @@ func TestAReportWithNothingToShowIsStillShown(t *testing.T) {
   - name: LINK
     title: Shared at
 `,
-		"tasks/d-share/task.yaml": "name: Share\nstage: finish\nshows: LINK\nreport: Installed on {{DISK}}\n",
+		"tasks/d-share/task.yaml": "title: Share\nstage: finish\nshows: LINK\nreport: Installed on {{DISK}}\n",
 		"tasks/d-share/task.sh":   "echo 'it did not work' >&2\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
@@ -1608,7 +1603,7 @@ func TestAPresetCanFetchItsAnswers(t *testing.T) {
 
 	// Everything the code stood for is an answer now, and with nothing left
 	// open the hub is what follows.
-	h.wants("Install", "Settings")
+	h.wants("Test Installer", "Settings")
 	for name, want := range map[string]string{"USER": "moritz", "DISK": "/dev/sdb", "EXTRAS": "false"} {
 		if got := h.a.store.Get(name); got != want {
 			t.Errorf("%s = %q, want %q", name, got, want)
@@ -1638,8 +1633,7 @@ func TestAPresetThatCannotFetchSaysWhyAndStaysPut(t *testing.T) {
 // asks for a code and runs the given shell to make something of it.
 func presetFetches(apply string) map[string]string {
 	declared := strings.Replace(testInstaller, "\nvariables:", `
-      - id: shared
-        title: Online
+      - title: Online
         description: Take the answers from somewhere else.
         asks: SOURCE
         apply: `+apply+`

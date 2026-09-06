@@ -18,7 +18,7 @@ func writeModule(t *testing.T, declaration string, extra map[string]string) stri
 	dir := t.TempDir()
 	files := map[string]string{
 		"installer.yaml":        declaration,
-		"tasks/first/task.yaml": "name: First\nstage: go\n",
+		"tasks/first/task.yaml": "title: First\nstage: go\n",
 		"tasks/first/task.sh":   "true\n",
 	}
 	maps.Copy(files, extra)
@@ -37,7 +37,7 @@ func writeModule(t *testing.T, declaration string, extra map[string]string) stri
 // runtimeDecl is a product with nothing to say about itself but its name: what
 // it offers is the folders beside it, so a test that is not about the runtime
 // writes no more than this.
-const runtimeDecl = "name: Test OS\n"
+const runtimeDecl = "title: Test OS\n"
 
 // runtime lays a whole product out: an oak.yaml over a modules folder, each
 // module in it the smallest one that will load.
@@ -84,7 +84,7 @@ func product(t *testing.T, dir string) (*spec.Runtime, []*spec.Module) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mods, err := load(rt)
+	mods, err := rt.LoadModules()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestEveryModuleOfARuntimeIsRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := load(rt)
+	got, err := rt.LoadModules()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestARuntimeHoldingABrokenModuleWillNotStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := load(rt); err == nil {
+	if _, err := rt.LoadModules(); err == nil {
 		t.Fatal("a runtime with a module that declares no stages was read as sound")
 	}
 }
@@ -254,15 +254,14 @@ func TestAModuleThatWillNotLoadSaysWhatIsWrongWithIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := load(rt); err == nil {
+	if _, err := rt.LoadModules(); err == nil {
 		t.Fatal("a module with no title loaded; it must not")
 	}
 }
 
-// The whole of what a command line says: which module to open, and the two
-// words that are not one. A module is written as a word or with the dashes an
-// option would carry, and may stand anywhere among them.
-func TestACommandLineIsAModuleAndTheRuntimesOwnTwoWords(t *testing.T) {
+// The whole of what a command line says: three options, each spelled out, and
+// nothing else on the line at all.
+func TestACommandLineIsThreeOptionsAndNothingElse(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		args    []string
@@ -271,13 +270,11 @@ func TestACommandLineIsAModuleAndTheRuntimesOwnTwoWords(t *testing.T) {
 		version bool
 	}{
 		{name: "nothing at all"},
-		{name: "a bare word", args: []string{"installer"}, module: "installer"},
-		{name: "the same word with dashes", args: []string{"--installer"}, module: "installer"},
-		{name: "one dash is the same request", args: []string{"-installer"}, module: "installer"},
-		{name: "in front of the module", args: []string{"--debug", "installer"}, module: "installer", debug: true},
-		{name: "behind it", args: []string{"installer", "--debug"}, module: "installer", debug: true},
+		{name: "a module named outright", args: []string{"--module=installer"}, module: "installer"},
+		{name: "in front of the module", args: []string{"--debug", "--module=installer"}, module: "installer", debug: true},
+		{name: "behind it", args: []string{"--module=installer", "--debug"}, module: "installer", debug: true},
 		{name: "the version on its own", args: []string{"--version"}, version: true},
-		{name: "both of the runtime's own", args: []string{"--debug", "--version"}, debug: true, version: true},
+		{name: "two of them at once", args: []string{"--debug", "--version"}, debug: true, version: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parse(tc.args)
@@ -298,8 +295,12 @@ func TestACommandLineThatCannotBeReadIsRefused(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"two modules", []string{"installer", "recovery"}, "One module at a time"},
-		{"a dash on its own", []string{"-"}, "names nothing"},
+		{"two modules", []string{"--module=installer", "--module=recovery"}, "One module at a time"},
+		{"a module with no name", []string{"--module"}, "needs the name of a module"},
+		{"a module with an empty name", []string{"--module="}, "needs the name of a module"},
+		{"a word that is not an option", []string{"installer"}, "is not something this program takes"},
+		{"an option nobody has", []string{"--inspect"}, "is not something this program takes"},
+		{"a value where none is taken", []string{"--debug=true"}, "is not something this program takes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := parse(tc.args)
@@ -313,58 +314,20 @@ func TestACommandLineThatCannotBeReadIsRefused(t *testing.T) {
 	}
 }
 
-// The two words are the runtime's wherever they turn up, so a folder named
-// after one of them is a module nobody could ever open — said at startup rather
-// than found out by typing it.
-func TestAModuleNamedAfterTheRuntimesOwnWordsWillNotStart(t *testing.T) {
-	dir := runtime(t, runtimeDecl, "installer", "debug")
-	rt, err := spec.LoadRuntime(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := load(rt); err == nil {
-		t.Fatal("a module called debug loaded; nothing could ever open it")
-	}
-}
-
 // The one wire between the command line and a script: --debug reaches every one
-// of them as DEBUG, and a run without it says so rather than saying nothing.
+// of them as DEBUG, and a run without it hands over nothing at all.
 func TestDebugOnTheCommandLineReachesEveryScript(t *testing.T) {
 	for _, debug := range []bool{false, true} {
 		mod := loaded(t, writeModule(t, "title: T\nstages: [go]\n", nil))
 		t.Chdir(t.TempDir())
 
-		p, err := open(mod, "1.0", debug)
+		p, err := open(mod, debug)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := spec.DebugVar + "=" + spec.BoolFalse
-		if debug {
-			want = spec.DebugVar + "=" + spec.BoolTrue
+		env := strings.Join(p.Store.Env(), "\n")
+		if got := strings.Contains(env, spec.DebugVar+"="+spec.BoolTrue); got != debug {
+			t.Errorf("open(debug=%v) hands a script DEBUG=true: %v", debug, got)
 		}
-		if env := strings.Join(p.Store.Env(), "\n"); !strings.Contains(env, want) {
-			t.Errorf("open(debug=%v) hands a script no %q", debug, want)
-		}
-	}
-}
-
-// The version on screen belongs to the product, not to this binary: a release
-// of the modules is what somebody downloaded, and which Oak drove it is a
-// dependency of that. A product that names none has nothing else to show.
-func TestTheVersionShownIsTheProductsOwn(t *testing.T) {
-	for _, tc := range []struct {
-		name        string
-		declaration string
-		want        string
-	}{
-		{"the product names one", "name: Test OS\nversion: 1.4.0\n", "1.4.0"},
-		{"the product names none", runtimeDecl, version},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			rt, _ := product(t, runtime(t, tc.declaration, "installer"))
-			if got := shown(rt); got != tc.want {
-				t.Errorf("shown() = %q, want %q", got, tc.want)
-			}
-		})
 	}
 }

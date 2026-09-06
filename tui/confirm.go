@@ -21,12 +21,7 @@ type confirmScreen struct {
 
 func newConfirm(a *app) *confirmScreen { return &confirmScreen{app: a} }
 
-func (s *confirmScreen) Title() string {
-	if name := s.app.module.RunName(); name != "" {
-		return name
-	}
-	return labelInstall()
-}
+func (s *confirmScreen) Title() string { return s.app.module.Name() }
 
 func (s *confirmScreen) Hint() string { return labelHintStart() }
 
@@ -45,14 +40,9 @@ func (s *confirmScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 }
 
 func (s *confirmScreen) View(width, height int) string {
-	// Named after what is about to happen where the module has a name for it, and
-	// after the only thing an installer does where it has not.
-	ready, start := labelReady(), labelStartInstall()
-	if name := s.app.module.RunName(); name != "" {
-		ready, start = labelReadyToStart(), labelStartNamed(name)
-	}
+	start := labelStartNamed(s.app.module.Name())
 	var b strings.Builder
-	b.WriteString(alertStyle.Render(ready) + "\n\n")
+	b.WriteString(alertStyle.Render(labelReadyToStart()) + "\n\n")
 	if text := s.app.module.ConfirmText(s.app.store.Get); text != "" {
 		b.WriteString(paragraph(text, width) + "\n")
 	}
@@ -76,7 +66,7 @@ func startInstall(a *app, next int) screen {
 	// system was installed was a task of the last stage and has been offered.
 	// Enter on the result leaves. A failed one lands back on the hub, which is
 	// where a wrong answer is corrected.
-	return newRun(a, a.module.RunName(), a.runner.Tasks(),
+	return newRun(a, a.module.Name(), a.runner.Tasks(),
 		leave,
 		func() tea.Cmd { return reset(newHub(a)) })
 }

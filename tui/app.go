@@ -75,9 +75,14 @@ type app struct {
 	// them are read in, settled before any of them is opened.
 	lang *store.Language
 
-	module  *spec.Module
-	store   *store.Store
-	runner  *runner.Runner
+	module *spec.Module
+	store  *store.Store
+	runner *runner.Runner
+
+	// version is what the product calls this build of itself, under the
+	// wordmark and in the corner of every page. Empty where it names none: the
+	// binary's own version is what `oak --version` answers and is never put on
+	// screen as though it were the product's.
 	version string
 
 	// The languages on offer and where their catalogs come from. Kept because
@@ -103,7 +108,7 @@ type app struct {
 // and a fade cannot cross a program boundary — the terminal would drop out of
 // the alternate screen in between. Choosing which module to open happens inside
 // it for the same reason.
-func Run(o *Opening, open Open, version string) error {
+func Run(o *Opening, open Open) error {
 	// Which kind of terminal this is has to be settled here: the question is put
 	// to the terminal itself, and from the next line on there is a key reader
 	// running that would take the answer for somebody typing.
@@ -111,7 +116,7 @@ func Run(o *Opening, open Open, version string) error {
 	a := &app{
 		runtime: o.Runtime, modules: o.Modules, lang: o.Lang,
 		langs: o.Langs, sources: o.Sources,
-		open: open, version: version,
+		open: open, version: o.Runtime.Version,
 	}
 	// The frame is dressed before there is a module to dress it with, and stays
 	// dressed that way afterwards: the wordmark and the colour are the runtime's,
@@ -162,7 +167,7 @@ func (a *app) enter(mod *spec.Module) error {
 // module to open — belong to none of them, so they wear the runtime's own name.
 func (a *app) brand() string {
 	if a.module == nil {
-		return a.runtime.Name
+		return a.runtime.Title
 	}
 	return a.module.Name()
 }
@@ -174,8 +179,8 @@ func (a *app) leaves() bool { return a.module != nil && a.module.Leaves() }
 
 // speak puts the whole interface in a language and remembers the choice. It is
 // the runtime's answer rather than a module's — it is settled before one is
-// opened and it holds for all of them — and it is written into whichever module
-// is open as well, so every script it runs is told what is on screen.
+// opened and it holds for all of them — so it is kept in Oak's own file and in
+// no module's.
 //
 // Every word on screen is read through i18n at draw time, so there is nothing
 // to rebuild: the next frame is simply in the new language.
@@ -186,11 +191,7 @@ func (a *app) speak(code string) tea.Cmd {
 		logging.Error("%s", err)
 		return flashBad(err.Error())
 	}
-	if a.store == nil {
-		return nil
-	}
-	a.store.Set(spec.LangVar, code)
-	return a.save()
+	return nil
 }
 
 // speakLike puts the interface in whatever language an answer comes closest to,
@@ -214,7 +215,6 @@ func (a *app) speakLike(value string) {
 	if err := a.lang.Save(); err != nil {
 		logging.Error("%s", err)
 	}
-	a.store.Set(spec.LangVar, code)
 }
 
 // adopt takes a starting point: its values become answers, and the ones that

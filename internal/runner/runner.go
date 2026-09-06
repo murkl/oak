@@ -186,14 +186,14 @@ func (r *Runner) Tasks() []*spec.Task {
 // Start runs one task in the background. Its output goes to the log and
 // nowhere else; what comes back here is whether it worked.
 func (r *Runner) Start(t *spec.Task) (*exec.Session, error) {
-	logging.Info("%s", t.Name)
+	logging.Info("%s", t.Title)
 	return r.sh.Start(t.Label(), t.Path(), r.store.Env())
 }
 
 // Terminal is a task that takes the terminal over, built but not started —
 // the interface has to stand aside first, and only it knows how.
 func (r *Runner) Terminal(t *spec.Task) *osexec.Cmd {
-	logging.Info("%s", t.Name)
+	logging.Info("%s", t.Title)
 	return r.sh.Terminal(t.Path(), r.store.Env())
 }
 

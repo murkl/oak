@@ -6,7 +6,7 @@
 # Which modules there are is not written down here. They are the folders in
 # modules/ beside this file, each holding its own declaration.
 
-name: Demo
+title: Demo
 version: 0.1.0
 
 # Every colour on screen is derived from this one.

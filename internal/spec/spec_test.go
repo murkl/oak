@@ -23,7 +23,7 @@ func module(t *testing.T, files map[string]string) string {
 	dir := t.TempDir()
 	base := map[string]string{
 		treeFile:             head("variables:\n  - name: DISK\n    title: Disk\n    required: true\n"),
-		"tasks/do/task.yaml": "name: Do it\nstage: go\n",
+		"tasks/do/task.yaml": "title: Do it\nstage: go\n",
 		"tasks/do/task.sh":   "echo hi\n",
 	}
 	for name, body := range files {
@@ -78,15 +78,13 @@ variables:
     title: Disk
     required: true
 presets:
-  - id: start
-    title: Start
+  - title: Start
     options:
-      - id: full
-        title: Full
+      - title: Full
         values:
           DISK: /dev/sda
 `,
-		"tasks/reboot/task.yaml": "name: Reboot\nstage: done\nconfirm: Restart now?\nquits: true\n",
+		"tasks/reboot/task.yaml": "title: Reboot\nstage: done\nconfirm: Restart now?\nquits: true\n",
 		"tasks/reboot/task.sh":   "echo bye\n",
 	})
 	sp, err := Load(dir)
@@ -125,11 +123,11 @@ func TestOrderFollowsStagesThenNeeds(t *testing.T) {
 		map[string]string{
 			treeFile: "title: T\nstages: [first, second]\n",
 			// The default task is removed: this test owns the whole list.
-			"tasks/do/task.yaml": "name: Do\nstage: first\n",
+			"tasks/do/task.yaml": "title: Do\nstage: first\n",
 		},
-		unit("zulu", "name: Zulu\nstage: first\n"),
-		unit("alpha", "name: Alpha\nstage: first\nneeds: [zulu]\n"),
-		unit("later", "name: Later\nstage: second\n"),
+		unit("zulu", "title: Zulu\nstage: first\n"),
+		unit("alpha", "title: Alpha\nstage: first\nneeds: [zulu]\n"),
+		unit("later", "title: Later\nstage: second\n"),
 	))
 	sp, err := Load(dir)
 	if err != nil {
@@ -156,34 +154,46 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 	}{
 		{
 			name:  "a stage nothing declared",
-			files: unit("do", "name: Do\nstage: nowhere\n"),
+			files: unit("do", "title: Do\nstage: nowhere\n"),
 			want:  "no such stage",
 		},
 		{
 			name:  "a need pointing at nothing",
-			files: unit("do", "name: Do\nstage: go\nneeds: [ghost]\n"),
+			files: unit("do", "title: Do\nstage: go\nneeds: [ghost]\n"),
 			want:  "needs unknown task",
 		},
 		{
 			name: "a need on a later stage, which could never be waited for",
 			files: units(
 				map[string]string{treeFile: "title: T\nstages: [go, later]\n"},
-				unit("do", "name: Do\nstage: go\nneeds: [after]\n"),
-				unit("after", "name: After\nstage: later\n"),
+				unit("do", "title: Do\nstage: go\nneeds: [after]\n"),
+				unit("after", "title: After\nstage: later\n"),
 			),
-			want: "later stage",
+			want: "needs orders tasks within one stage",
+		},
+		{
+			// It says nothing: the stages have already put the two in that
+			// order, and a line that cannot change anything is a line somebody
+			// will read as though it could.
+			name: "a need on an earlier stage, which the stages already settled",
+			files: units(
+				map[string]string{treeFile: "title: T\nstages: [early, go]\n"},
+				unit("do", "title: Do\nstage: go\nneeds: [before]\n"),
+				unit("before", "title: Before\nstage: early\n"),
+			),
+			want: "needs orders tasks within one stage",
 		},
 		{
 			name: "two tasks waiting for each other",
 			files: units(
-				unit("do", "name: Do\nstage: go\nneeds: [other]\n"),
-				unit("other", "name: Other\nstage: go\nneeds: [do]\n"),
+				unit("do", "title: Do\nstage: go\nneeds: [other]\n"),
+				unit("other", "title: Other\nstage: go\nneeds: [do]\n"),
 			),
 			want: "wait on each other",
 		},
 		{
 			name:  "a task with no stage at all",
-			files: unit("do", "name: Do\n"),
+			files: unit("do", "title: Do\n"),
 			want:  "stage is required",
 		},
 		{
@@ -193,7 +203,7 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 		},
 		{
 			name:  "a task yaml with no script beside it",
-			files: map[string]string{"tasks/half/task.yaml": "name: Half\nstage: go\n"},
+			files: map[string]string{"tasks/half/task.yaml": "title: Half\nstage: go\n"},
 			want:  "missing " + FileScript,
 		},
 	}
@@ -302,42 +312,42 @@ func TestLoadRefuses(t *testing.T) {
 	}{
 		{
 			name:  "a condition naming a variable nobody declared",
-			files: unit("do", "name: Do\nstage: go\nconditions: NOPE == true\n"),
+			files: unit("do", "title: Do\nstage: go\nconditions: NOPE == true\n"),
 			want:  "no such variable",
 		},
 		{
 			name:  "a condition that is not three words",
-			files: unit("do", "name: Do\nstage: go\nconditions: DISK\n"),
+			files: unit("do", "title: Do\nstage: go\nconditions: DISK\n"),
 			want:  "bad condition",
 		},
 		{
-			name:  "a task with no name",
+			name:  "a task with no title",
 			files: unit("do", "stage: go\n"),
-			want:  "name is required",
+			want:  "title is required",
 		},
 		{
 			name:  "an offer opening on an answer it does not have",
-			files: unit("do", "name: Do\nstage: go\nconfirm: Really?\ndefault: maybe\n"),
+			files: unit("do", "title: Do\nstage: go\nconfirm: Really?\ndefault: maybe\n"),
 			want:  "yes or no",
 		},
 		{
 			name:  "an answer to an offer that was never made",
-			files: unit("do", "name: Do\nstage: go\ndefault: no\n"),
+			files: unit("do", "title: Do\nstage: go\ndefault: no\n"),
 			want:  "no confirm for it to answer",
 		},
 		{
 			name:  "a preset filling in a variable nobody declared",
-			files: map[string]string{treeFile: head("presets:\n  - id: p\n    title: P\n    options:\n      - id: o\n        title: O\n        values:\n          NOPE: x\n")},
+			files: map[string]string{treeFile: head("presets:\n  - title: P\n    options:\n      - title: O\n        values:\n          NOPE: x\n")},
 			want:  "no such variable",
 		},
 		{
 			name:  "a preset page with nothing to choose on it",
-			files: map[string]string{treeFile: head("presets:\n  - id: p\n    title: P\n")},
+			files: map[string]string{treeFile: head("presets:\n  - title: P\n")},
 			want:  "no options",
 		},
 		{
 			name:  "a preset option with no title",
-			files: map[string]string{treeFile: head("presets:\n  - id: p\n    title: P\n    options:\n      - id: o\n")},
+			files: map[string]string{treeFile: head("presets:\n  - title: P\n    options:\n      - description: nothing\n")},
 			want:  "title is required",
 		},
 		{
@@ -366,11 +376,6 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "cannot also be asked first",
 		},
 		{
-			name:  "blind on a question that is not asked first",
-			files: map[string]string{treeFile: head("variables:\n  - name: KEYMAP\n    title: K\n    blind: true\n    values: [us, de]\n")},
-			want:  "blind only matters for a question asked first",
-		},
-		{
 			name:  "a secret with a default, which would be a stored password",
 			files: map[string]string{treeFile: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    default: hunter2\n")},
 			want:  "cannot have a default",
@@ -388,12 +393,20 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a key that is a typo, silently ignored by a lesser reader",
 			files: map[string]string{treeFile: head("variables:\n  - name: DISK\n    title: D\n    requird: true\n")},
-			want:  "field requird not found",
+			want:  "requird is not a key here",
 		},
 		{
 			name:  "a key that is a typo in a task",
-			files: unit("do", "name: Do\nstage: go\nquites: true\n"),
-			want:  "field quites not found",
+			files: unit("do", "title: Do\nstage: go\nquites: true\n"),
+			want:  "quites is not a key here",
+		},
+		{
+			// A file written for an older Oak fails on the key itself and is
+			// told what to write instead, so the refusal is the whole of what
+			// somebody needs in order to fix it.
+			name:  "a key a product used to be able to declare",
+			files: map[string]string{treeFile: head("run: Installation\n")},
+			want:  "run is not a key here — a module is named once, by its title",
 		},
 		{
 			name:  "a language tied to a variable nobody declared",
@@ -401,8 +414,11 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "no such variable",
 		},
 		{
-			name:  "the runtime's own variable, redeclared",
-			files: map[string]string{treeFile: head("variables:\n  - name: " + LangVar + "\n    title: L\n")},
+			// The answer file is handed to every script under this name, so a
+			// module that declared it would be overwriting the one thing it
+			// answers questions back through.
+			name:  "the answer file's own name, redeclared",
+			files: map[string]string{treeFile: head("variables:\n  - name: " + ConfVar + "\n    title: C\n")},
 			want:  "belongs to the runtime",
 		},
 		{
@@ -424,48 +440,48 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "asks naming a variable nobody declared",
-			files: unit("do", "name: Do\nstage: go\nasks: NOPE\n"),
+			files: unit("do", "title: Do\nstage: go\nasks: NOPE\n"),
 			want:  "no such variable",
 		},
 		{
 			name:  "asks on a free text value, which is not a question the frame can put mid-run",
-			files: unit("do", "name: Do\nstage: go\nasks: DISK\n"),
+			files: unit("do", "title: Do\nstage: go\nasks: DISK\n"),
 			want:  "no answers to choose from",
 		},
 		{
 			name: "asks on a secret, which is already asked at the only safe moment",
 			files: units(
 				map[string]string{treeFile: head("variables:\n  - name: PW\n    title: P\n    type: secret\n")},
-				unit("do", "name: Do\nstage: go\nasks: PW\n"),
+				unit("do", "title: Do\nstage: go\nasks: PW\n"),
 			),
 			want: "is a secret",
 		},
 		{
 			name:  "a value shown on a page that does not exist",
-			files: unit("do", "name: Do\nstage: go\nshows: DISK\n"),
+			files: unit("do", "title: Do\nstage: go\nshows: DISK\n"),
 			want:  "no report for it to appear on",
 		},
 		{
 			name:  "a report showing a variable nobody declared",
-			files: unit("do", "name: Do\nstage: go\nreport: Done\nshows: NOPE\n"),
+			files: unit("do", "title: Do\nstage: go\nreport: Done\nshows: NOPE\n"),
 			want:  "no such variable",
 		},
 		{
 			name: "a report showing a secret",
 			files: units(
 				map[string]string{treeFile: head("variables:\n  - name: PW\n    title: Password\n    type: secret\n")},
-				unit("do", "name: Do\nstage: go\nreport: Done\nshows: PW\n"),
+				unit("do", "title: Do\nstage: go\nreport: Done\nshows: PW\n"),
 			),
 			want: "is a secret",
 		},
 		{
 			name:  "a starting point asking for a variable nobody declared",
-			files: map[string]string{treeFile: head("presets:\n  - id: p\n    title: P\n    options:\n      - id: o\n        title: O\n        asks: NOPE\n")},
+			files: map[string]string{treeFile: head("presets:\n  - title: P\n    options:\n      - title: O\n        asks: NOPE\n")},
 			want:  "no such variable",
 		},
 		{
 			name:  "a starting point with shell and nothing to run it on",
-			files: map[string]string{treeFile: head("presets:\n  - id: p\n    title: P\n    options:\n      - id: o\n        title: O\n        apply: echo hi\n")},
+			files: map[string]string{treeFile: head("presets:\n  - title: P\n    options:\n      - title: O\n        apply: echo hi\n")},
 			want:  "no asks for it to work from",
 		},
 		{
@@ -496,10 +512,10 @@ func TestConditionsDecideWhatBelongs(t *testing.T) {
 	dir := module(t, units(
 		map[string]string{
 			treeFile:             head("variables:\n  - name: DESKTOP\n    title: Desktop\n    type: bool\n"),
-			"tasks/do/task.yaml": "name: Always\nstage: go\n",
+			"tasks/do/task.yaml": "title: Always\nstage: go\n",
 		},
-		unit("with", "name: Only with a desktop\nstage: go\nconditions: DESKTOP == true\n"),
-		unit("without", "name: Only without one\nstage: go\nconditions: DESKTOP != true\n"),
+		unit("with", "title: Only with a desktop\nstage: go\nconditions: DESKTOP == true\n"),
+		unit("without", "title: Only without one\nstage: go\nconditions: DESKTOP != true\n"),
 	))
 	sp, err := Load(dir)
 	if err != nil {
@@ -521,7 +537,7 @@ func TestConditionsDecideWhatBelongs(t *testing.T) {
 		var names []string
 		for _, e := range sp.Tasks {
 			if e.Applies(get) {
-				names = append(names, e.Name)
+				names = append(names, e.Title)
 			}
 		}
 		want := []string{"Always", tc.want}
@@ -613,12 +629,10 @@ func TestStringsIsEveryWordTheTreeSays(t *testing.T) {
 		treeFile: head(`
 confirm: Careful.
 presets:
-  - id: p
-    title: Setup
+  - title: Setup
     description: What kind.
     options:
-      - id: o
-        title: Full
+      - title: Full
         description: Everything.
 variables:
   - name: DISK
@@ -627,7 +641,7 @@ variables:
     group: Storage
     error: Pick one.
 `),
-		"tasks/do/task.yaml": "name: Do it\nstage: go\nconfirm: Really?\n",
+		"tasks/do/task.yaml": "title: Do it\nstage: go\nconfirm: Really?\n",
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -693,7 +707,7 @@ func TestTwoDeclarationsAreRefused(t *testing.T) {
 func TestSeveralConditionsAllHaveToHold(t *testing.T) {
 	dir := module(t, map[string]string{
 		treeFile:             head("variables:\n  - name: DESKTOP\n    title: D\n    type: bool\n  - name: DRIVER\n    title: G\n"),
-		"tasks/do/task.yaml": "name: Driver\nstage: go\nconditions:\n  - DESKTOP == true\n  - DRIVER != none\n",
+		"tasks/do/task.yaml": "title: Driver\nstage: go\nconditions:\n  - DESKTOP == true\n  - DRIVER != none\n",
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -718,7 +732,7 @@ func TestSeveralConditionsAllHaveToHold(t *testing.T) {
 }
 
 func TestConditionsRefuseAnythingButAConditionOrAListOfThem(t *testing.T) {
-	_, err := Load(module(t, unit("do", "name: Do\nstage: go\nconditions:\n  DISK: yes\n")))
+	_, err := Load(module(t, unit("do", "title: Do\nstage: go\nconditions:\n  DISK: yes\n")))
 	if err == nil || !strings.Contains(err.Error(), "conditions takes a condition") {
 		t.Errorf("err = %v", err)
 	}
@@ -732,11 +746,9 @@ func TestBeingNamedIsWhatDefersAValue(t *testing.T) {
 	dir := module(t, units(
 		map[string]string{
 			treeFile: head(`presets:
-  - id: p
-    title: P
+  - title: P
     options:
-      - id: o
-        title: O
+      - title: O
         asks: SOURCE
         apply: echo hi
 variables:
@@ -749,7 +761,7 @@ variables:
     title: Configuration code
 `),
 		},
-		unit("do", "name: Do\nstage: go\nreport: Done\nshows: LINK\n"),
+		unit("do", "title: Do\nstage: go\nreport: Done\nshows: LINK\n"),
 	))
 	sp, err := Load(dir)
 	if err != nil {
@@ -768,7 +780,7 @@ variables:
 // The first paragraph of a report is its headline, the way the first block of
 // the opening logo is its eyebrow — one idiom, and nothing extra to declare.
 func TestAReportsFirstParagraphIsItsHeadline(t *testing.T) {
-	dir := module(t, unit("do", "name: Do\nstage: go\nreport: |\n  Installed on {{DISK}}\n\n  And here is what that means.\n"))
+	dir := module(t, unit("do", "title: Do\nstage: go\nreport: |\n  Installed on {{DISK}}\n\n  And here is what that means.\n"))
 	sp, err := Load(dir)
 	if err != nil {
 		t.Fatal(err)

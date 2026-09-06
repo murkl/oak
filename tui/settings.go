@@ -1,7 +1,8 @@
 package tui
 
 import (
-	"github.com/murkl/oak/internal/spec"
+	"github.com/murkl/oak/internal/i18n"
+	"github.com/murkl/oak/internal/store"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -77,7 +78,7 @@ func (s *settingsScreen) collect() []settingRow {
 		rows = append(rows, settingRow{item: item{
 			title: labelLanguage(),
 			value: s.languageName(),
-			key:   spec.LangVar,
+			key:   store.LangVar,
 		}})
 	}
 	for _, v := range s.app.store.Visible() {
@@ -146,7 +147,7 @@ func (s *settingsScreen) layout() {
 // languageName is what the current language calls itself, which is how it is
 // listed and so how it should read here.
 func (s *settingsScreen) languageName() string {
-	code := s.app.store.Get(spec.LangVar)
+	code := i18n.Current()
 	for _, l := range s.app.langs {
 		if l.Code == code {
 			return l.Name
@@ -203,7 +204,7 @@ func (s *settingsScreen) open(name string) tea.Cmd {
 	switch {
 	case name == "":
 		return nil
-	case name == spec.LangVar:
+	case name == store.LangVar:
 		return push(newLanguage(s.app, pop))
 	}
 	v := s.app.module.Var(name)

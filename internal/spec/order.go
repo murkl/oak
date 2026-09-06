@@ -8,10 +8,14 @@ import (
 // order settles what runs when.
 //
 // Two rules, and no third: a task runs after every task of an earlier stage,
-// and after whatever it named in `needs`. Everything else about the order is
-// nobody's business — units that neither the stages nor a need put in sequence
-// are independent, and they run in folder order so that the same module always
-// produces the same list.
+// and after whatever it named in `needs`. The stages are the run read from top
+// to bottom, `needs` is the order across one of them, and between them they are
+// the whole of what a module may rely on.
+//
+// Two tasks that neither a stage nor a `needs` separates are independent. The
+// same module always produces the same list — a run has to be repeatable — but
+// which of the two comes first is not something to build on: it is what `needs`
+// is for, and a folder renamed is a folder renamed and nothing else.
 //
 // Working it out here rather than keeping a list of steps somewhere means the
 // two can never disagree: a folder added is a step added, and its place comes
@@ -45,8 +49,13 @@ func order(units []*Task, stages []string) ([]*Task, error) {
 			if n == u.id {
 				return nil, fmt.Errorf("%s: needs itself", u.id)
 			}
-			if rank[dep.Stage] > rank[u.Stage] {
-				return nil, fmt.Errorf("%s (stage %s) needs %s from the later stage %s",
+			// One axis each. The stages are the run read top to bottom and
+			// `needs` is the order across one of them, so a need that reaches
+			// into another stage either contradicts the stages or repeats
+			// them — and neither is worth leaving in a file to be read as
+			// though it did something.
+			if dep.Stage != u.Stage {
+				return nil, fmt.Errorf("%s (stage %s) needs %s from stage %s: needs orders tasks within one stage, the stages order the rest",
 					u.id, u.Stage, n, dep.Stage)
 			}
 			waits[u.id][n] = true
@@ -71,8 +80,7 @@ func order(units []*Task, stages []string) ([]*Task, error) {
 	return out, nil
 }
 
-// ready is the next unit that can run: the first one, in folder order, that is
-// waiting for nothing any more.
+// ready is the next unit that can run: the first one still waiting for nothing.
 //
 // Stages need no comparing here. A unit of a later stage waits on every unit of
 // every earlier one, so it cannot come up while any of those are still open —

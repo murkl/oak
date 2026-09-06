@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/murkl/oak/internal/i18n"
-	"github.com/murkl/oak/internal/spec"
 )
 
 // The answer file is shell, not yaml, and that is on purpose. It is the one
@@ -38,10 +36,6 @@ func (s *Store) Load() error {
 	for line := range strings.SplitSeq(string(raw), "\n") {
 		name, value, ok := parseLine(line)
 		if !ok {
-			continue
-		}
-		if slices.Contains(spec.RuntimeVars, name) {
-			s.val[name] = value
 			continue
 		}
 		v := s.mod.Var(name)
@@ -76,7 +70,6 @@ func (s *Store) Save() error {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", i18n.T("Answers for %s. Can be edited by hand.", s.mod.Name()))
-	entry(&b, spec.LangVar, s.val[spec.LangVar], i18n.T("Interface language"))
 	group := ""
 	for _, v := range s.mod.Vars {
 		if v.Secret() {

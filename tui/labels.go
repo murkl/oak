@@ -69,9 +69,9 @@ func labelHintFilter() string {
 	return say("type to filter · ↑↓ move · ⏎ select · esc close")
 }
 
-// labelHintFilterBlind is the permanent box's own hint: esc means back rather
-// than close, because there is no box left to close first.
-func labelHintFilterBlind() string {
+// labelHintFilterPermanent is the permanent box's own hint: esc means back
+// rather than close, because there is no box left to close first.
+func labelHintFilterPermanent() string {
 	return say("type to filter · ↑↓ move · ⏎ select · esc back")
 }
 
@@ -100,9 +100,6 @@ func labelChoice() string { return say("What to do") }
 // what the page already says.
 func labelCounter(at, of int) string { return say("%d of %d", at, of) }
 
-func labelInstall() string     { return say("Install") }
-func labelInstallHelp() string { return say("Start the installation with the answers below.") }
-
 func labelSettings() string { return say("Settings") }
 
 // TRANSLATORS: %s is the name of the module whose values these are.
@@ -113,12 +110,13 @@ func labelSettingsHelp(name string) string {
 func labelPasswordRepeat() string   { return say("Repeat") }
 func labelPasswordMismatch() string { return say("The entries do not match.") }
 
-func labelReady() string        { return say("Ready to install") }
-func labelStartInstall() string { return say("Start installation") }
-
-// The same two, where the module named what is about to happen. An installer is
-// the only thing an unnamed run can be; a named one is whatever it says it is,
-// and the runtime supplies the sentence around the name and nothing else.
+// What a run is called is the module's own title, and the runtime supplies the
+// sentence around it and nothing else. It has no name of its own to fall back
+// on: whether this module installs anything is not something it knows.
+//
+// The clock is on three of them. How long a run has been going is the one thing
+// somebody watching a list of tasks actually wants to know and cannot work out
+// for themselves, and how long it took is the same answer once it is over.
 func labelReadyToStart() string          { return say("Ready to start") }
 func labelStartNamed(name string) string { return say("Start %s", name) }
 func labelRunFailed(name string) string  { return say("%s failed", name) }
@@ -128,18 +126,6 @@ func labelRunningFor(name, elapsed string) string {
 func labelRunDone(name, elapsed string) string {
 	return say("%s complete in %s", name, elapsed)
 }
-
-// The installation, with the clock on it. How long it has been going is the one
-// thing somebody watching a list of tasks actually wants to know and cannot work
-// out for themselves, and how long it took is the same answer once it is over.
-func labelInstalling() string { return say("Installing") }
-func labelInstallingFor(elapsed string) string {
-	return say("Installing for %s", elapsed)
-}
-func labelSucceededIn(elapsed string) string {
-	return say("Installation complete in %s", elapsed)
-}
-func labelFailed() string { return say("Installation failed") }
 func labelLogHint(path string) string {
 	return say("The full log is in %s.", path)
 }

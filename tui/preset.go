@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strconv"
+
 	"github.com/murkl/oak/internal/spec"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,8 +29,11 @@ type presetScreen struct {
 func newPreset(a *app, p *spec.Preset, done func() tea.Cmd) *presetScreen {
 	s := &presetScreen{app: a, preset: p, done: done}
 	items := make([]item, 0, len(p.Options))
-	for _, o := range p.Options {
-		items = append(items, item{title: o.Label(), detail: o.Help(), key: o.ID})
+	// Keyed by where the row sits, because that is the whole of an option's
+	// identity: a starting point is a set of answers, and nothing anywhere
+	// points at one.
+	for i, o := range p.Options {
+		items = append(items, item{title: o.Label(), detail: o.Help(), key: strconv.Itoa(i)})
 	}
 	s.picker = newPicker(items)
 	s.picker.describe(p.Help())
@@ -46,16 +51,11 @@ func (s *presetScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	}
 	switch {
 	case confirms(key):
-		id := s.picker.selected()
-		if id == "" {
+		at, err := strconv.Atoi(s.picker.selected())
+		if err != nil || at >= len(s.preset.Options) {
 			return s, nil
 		}
-		for _, o := range s.preset.Options {
-			if o.ID == id {
-				return s, s.take(o)
-			}
-		}
-		return s, nil
+		return s, s.take(s.preset.Options[at])
 	case backs(key):
 		return s, pop()
 	}

@@ -59,8 +59,11 @@ type fieldScreen struct {
 // NUL prefix cannot collide with a value, which is what any other row is.
 const keyFieldFree = "\x00free"
 
+// A question asked first gets its narrowing box from the first frame rather
+// than on a keypress: nothing on this machine is known to print what it looks
+// like it does yet, the / included.
 func newField(a *app, v *spec.Variable, done func() tea.Cmd) *fieldScreen {
-	return &fieldScreen{app: a, v: v, done: done, loading: true, filter: newFilter(v.Blind)}
+	return &fieldScreen{app: a, v: v, done: done, loading: true, filter: newFilter(v.First)}
 }
 
 // counted marks this question as one of a numbered run.

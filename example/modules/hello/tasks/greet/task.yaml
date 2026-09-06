@@ -1,6 +1,5 @@
-name: Write the greeting
+title: Write the greeting
 stage: write
-needs: [folder]
 report: |
   {{DEMO_TARGET}} is written.
 

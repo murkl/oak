@@ -45,7 +45,7 @@ A **module** is one whole program: what it asks, in what order it works, and the
 | Add a second program | Another folder under `modules/` |
 | Rename or recolour the whole thing | Three keys in `oak.yaml` |
 
-Nothing lists the tasks anywhere. The folder is the list, and the order comes out of the stages they name and what each says it needs.
+Nothing lists the tasks anywhere. The folder is the list, and the order reads like a pipeline: top to bottom through the stages, and across one stage through what each task says it needs.
 
 ## Quick Start
 
@@ -61,7 +61,7 @@ chmod +x oak
 `oak.yaml`, beside the binary:
 
 ```
-name: Demo
+title: Demo
 version: 0.1.0
 accent: "#8fbcbb"
 ```
@@ -84,7 +84,7 @@ variables:
 `modules/hello/tasks/greet/task.yaml`:
 
 ```
-name: Write the greeting
+title: Write the greeting
 stage: write
 ```
 
@@ -102,12 +102,24 @@ echo "Hello, ${DEMO_NAME}!" >./greeting.txt
 
 Oak asks for a language, then for the one question that is required and still unanswered, then runs the task. A single module is opened on the way in rather than offered; a second folder under `modules/` is what makes that a page. The answers land in `hello.conf`, everything the script printed in `hello.log`.
 
-**Note:** _A working version of this is in **[example](../example)**. `oak --inspect` reads a product the way a run does and reports what it found, which is the check to put in a build script._
+**Note:** _A working version of this is in **[example](../example)**._
 
 <p align="center">
   <img src="screenshots/question.png" width="49%" alt="The one question left to ask, on a page of its own">
   <img src="screenshots/report.png" width="49%" alt="A milestone the run stops on, once the greeting is written">
 </p>
+
+### 5. The Command Line
+
+Three options, and nothing else on the line:
+
+```
+oak --module=hello     # open that module outright, instead of asking which
+oak --debug            # hand every script DEBUG=true and touch nothing
+oak --version          # print Oak's own version and exit
+```
+
+`--debug` and `--module` combine: `oak --debug --module=hello` walks the whole module without changing anything. A script reads `[ "$DEBUG" = true ]` and returns early — that variable and `MODULE_CONF`, the answer file, are the only two Oak puts into a script's environment.
 
 ## What the Interface Does
 
@@ -156,6 +168,8 @@ make run          # Oak against the example product
 make check        # everything that has to pass before a commit
 make release      # bin/oak-linux-amd64, plus its checksum
 ```
+
+`go run ./tools/inspect example` loads a product the way a run does and reports what it found, without running any of it. That is the check to put in a build script, and `make check` runs it against the example.
 
 Install the required packages:
 

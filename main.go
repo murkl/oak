@@ -11,10 +11,10 @@
 // drives a different product by sitting next to a different oak.yaml and a
 // different set of modules.
 //
-// That goes for the command line as well. Four words are Oak's own — --debug,
-// --version, --inspect and --strings — and every other word on it is the name
-// of a module to open, which is what makes adding one a folder rather than a
-// change here.
+// The command line is three options and nothing else: --version says what this
+// binary is, --module opens one of the folders outright, and --debug hands
+// every script DEBUG=true so a run can be watched without it touching anything.
+// What a product may declare is in the yaml beside the binary, never here.
 package main
 
 import (
@@ -22,11 +22,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/murkl/oak/internal/i18n"
-	"github.com/murkl/oak/internal/inspect"
 	"github.com/murkl/oak/internal/logging"
 	"github.com/murkl/oak/internal/runner"
 	"github.com/murkl/oak/internal/spec"
@@ -50,22 +48,15 @@ const (
 	runtimeConf = "oak" + confExt
 )
 
-// The words on a command line that are Oak's own. They are written with dashes
-// or without, one or two, because everything else on the line is a module and a
-// module is written either way too.
-//
-// The last two answer questions about a folder rather than run anything in it,
-// which is what a build script asks and a machine being installed never does.
+// The whole command line. Every one of them is spelled out in full and given
+// its value with an equals sign, because a machine being installed is a machine
+// somebody is reading a line off a screen onto, and there is nothing here worth
+// abbreviating.
 const (
-	flagDebug   = "debug"
-	flagVersion = "version"
-	flagInspect = "inspect"
-	flagStrings = "strings"
+	flagDebug   = "--debug"
+	flagVersion = "--version"
+	flagModule  = "--module"
 )
-
-// reserved is every one of them, so a module folder that could never be opened
-// is refused at startup rather than quietly ignored.
-var reserved = []string{flagDebug, flagVersion, flagInspect, flagStrings}
 
 func main() {
 	if err := start(os.Args[1:]); err != nil {
@@ -95,7 +86,7 @@ func start(args []string) error {
 	if err != nil {
 		return err
 	}
-	mods, err := load(rt)
+	mods, err := rt.LoadModules()
 	if err != nil {
 		return err
 	}
@@ -103,61 +94,50 @@ func start(args []string) error {
 	if err != nil {
 		return err
 	}
-	switch {
-	case cmd.inspect:
-		return inspect.Report(os.Stdout, rt, only(mods, mod), locales.FS)
-	case cmd.strings:
-		return inspect.Template(os.Stdout, rt, only(mods, mod))
-	}
 	return run(rt, only(mods, mod), cmd.debug)
 }
 
-// command is a command line, read: the module it named, and the two words that
-// are not one.
+// command is a command line, read.
 type command struct {
 	// module is the module it named, or empty where it named none — which is
 	// the question the interface then asks.
 	module  string
 	debug   bool
 	version bool
-	inspect bool
-	strings bool
 }
 
-// parse reads one.
-//
-// A module may be written as a word or with the dashes an option would carry —
-// `oak installer` and `oak --installer` are the same request — and it may stand
-// anywhere on the line. Whether the word names a module at all is not decided
-// here but by what is in modules/, which is what keeps the list of them out of
-// this program: anything that is not one of Oak's own words is the module, and
-// a name nobody declared is refused by pick with everything on offer under it.
+// parse reads one. Which module names exist is not decided here but by what is
+// in modules/, so a name nobody declared is refused by pick with everything on
+// offer under it — and adding a module stays a folder rather than a change
+// here.
 func parse(args []string) (command, error) {
 	var c command
 	for _, arg := range args {
-		switch name := strings.TrimLeft(arg, "-"); name {
-		case flagDebug:
+		name, value, valued := strings.Cut(arg, "=")
+		switch {
+		case name == flagDebug && !valued:
 			c.debug = true
-		case flagVersion:
+		case name == flagVersion && !valued:
 			c.version = true
-		case flagInspect:
-			c.inspect = true
-		case flagStrings:
-			c.strings = true
-		case "":
-			return c, fmt.Errorf("%s", i18n.T("%q names nothing.", arg))
-		default:
+		case name == flagModule && value != "":
 			if c.module != "" {
-				return c, fmt.Errorf("%s", i18n.T("One module at a time: %s or %s.", c.module, name))
+				return c, fmt.Errorf("%s", i18n.T("One module at a time: %s or %s.", c.module, value))
 			}
-			c.module = name
+			c.module = value
+		case name == flagModule:
+			return c, fmt.Errorf("%s", i18n.T("%s needs the name of a module: %s=<id>.", flagModule, flagModule))
+		default:
+			return c, fmt.Errorf("%s\n%s",
+				i18n.T("%q is not something this program takes.", arg),
+				i18n.T("It takes %s.", strings.Join([]string{flagDebug, flagVersion, flagModule + "=<id>"}, ", ")))
 		}
 	}
 	return c, nil
 }
 
-// pick is the module a command line named, or nil where it named none. A word
-// that is not one of them is said to be, with everything on offer under it.
+// pick is the module a command line named, or nil where it named none — which
+// is the question the interface then asks. A name no folder answers to is said
+// so, with everything on offer under it.
 func pick(rt *spec.Runtime, mods []*spec.Module, id string) (*spec.Module, error) {
 	if id == "" {
 		return nil, nil
@@ -181,28 +161,6 @@ func only(mods []*spec.Module, mod *spec.Module) []*spec.Module {
 	return []*spec.Module{mod}
 }
 
-// load reads every module the runtime offers, in the order it offers them.
-//
-// All of them, whichever one a run turns out to be about. A word on the command
-// line is only a module because a folder of that name is there, so the folders
-// have to be read before the line can be answered. A release ships its modules
-// together anyway, so one that will not load is a broken release, and saying so
-// at startup beats a row that fails when somebody chooses it.
-func load(rt *spec.Runtime) ([]*spec.Module, error) {
-	out := make([]*spec.Module, 0, len(rt.Modules))
-	for _, name := range rt.Modules {
-		if slices.Contains(reserved, name) {
-			return nil, fmt.Errorf("%s: --%s is Oak's own word and cannot open a module", name, name)
-		}
-		mod, err := spec.Load(rt.Path(name))
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", name, err)
-		}
-		out = append(out, mod)
-	}
-	return out, nil
-}
-
 func run(rt *spec.Runtime, mods []*spec.Module, debug bool) error {
 	// The language is asked before a module is opened, so it is offered in every
 	// language any of them speaks and their catalogs are laid over the runtime's
@@ -213,26 +171,12 @@ func run(rt *spec.Runtime, mods []*spec.Module, debug bool) error {
 	lang := saved()
 	i18n.Activate(language(lang.Code(), langs), sources...)
 
-	shown := shown(rt)
 	opening := &tui.Opening{
 		Runtime: rt, Modules: mods, Lang: lang, Langs: langs, Sources: sources,
 	}
 	return tui.Run(opening, func(mod *spec.Module) (*tui.Program, error) {
-		return open(mod, shown, debug)
-	}, shown)
-}
-
-// shown is the version on screen and in every script's environment: the
-// product's own, or this binary's where the product does not name one.
-//
-// They are two different facts. `oak --version` is always the binary answering
-// about itself; everything inside a run belongs to the product, which is what
-// somebody downloaded and what a bug report is about.
-func shown(rt *spec.Runtime) string {
-	if rt.Version != "" {
-		return rt.Version
-	}
-	return version
+		return open(mod, debug)
+	})
 }
 
 // saved is the runtime's own answers: the language, kept for every module.
@@ -251,36 +195,30 @@ func saved() *store.Language {
 // survive in, the log, and the runner that joins the module to the answers.
 // Everything here is named after the module, which is why none of it happens
 // before one has been chosen.
-func open(mod *spec.Module, version string, debug bool) (*tui.Program, error) {
+func open(mod *spec.Module, debug bool) (*tui.Program, error) {
 	// What this module's answers and log are called, after the module itself.
 	conf, err := filepath.Abs(mod.ID() + confExt)
 	if err != nil {
 		return nil, err
 	}
 
-	st := store.New(mod, conf)
-	st.SetFacts(version, debug)
+	st := store.New(mod, conf, debug)
 	if err := st.Load(); err != nil {
 		return nil, err
 	}
 
 	// Opened before the first page of this module is drawn — and only now,
 	// because where it goes follows where the answers go.
-	logPath := filepath.Join(filepath.Dir(conf), mod.ID()+logExt)
-	if err := logging.Init(logPath); err != nil {
+	if err := logging.Init(filepath.Join(filepath.Dir(conf), mod.ID()+logExt)); err != nil {
 		return nil, err
 	}
-	st.SetFact(store.ModuleLogVar, logPath)
-	logging.Info("%s %s", mod.UI.Title, version)
+	logging.Info("%s", mod.UI.Title)
 
 	// This module's catalogs are laid over the runtime's, so a module may reword
-	// anything. The language itself is the runtime's and is already settled: it
-	// is written into these answers so that every script gets it, not asked
-	// again.
+	// anything. The language itself is the runtime's and is already settled.
 	sources := catalogs(mod)
 	langs := i18n.Discover(sources...)
 	i18n.Activate(i18n.Current(), sources...)
-	st.Set(spec.LangVar, i18n.Current())
 
 	// The answers survived a restart in the file; their effect on the live system
 	// did not.

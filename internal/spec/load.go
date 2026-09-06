@@ -2,6 +2,7 @@ package spec
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -75,11 +76,9 @@ type declaration struct {
 	Console  string `yaml:"console"`
 	Language string `yaml:"language"`
 
-	// What this installer is and what it does: one sentence about the program,
-	// the name of one run of it, the last warning before that run starts, and the
-	// phases it happens in.
+	// What this module is and what it does: one sentence about the program, the
+	// last warning before a run starts, and the phases that run happens in.
 	Description string   `yaml:"description"`
-	Run         string   `yaml:"run"`
 	Confirm     string   `yaml:"confirm"`
 	Stages      []string `yaml:"stages"`
 
@@ -104,10 +103,7 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, file), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{
-		Title: head.Title, Console: head.Console,
-		Description: head.Description, Run: head.Run,
-	}
+	s.UI = UI{Title: head.Title, Description: head.Description, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Confirm, s.Stages = head.Confirm, head.Stages
 	if len(s.Stages) == 0 {
@@ -172,7 +168,9 @@ func loadHooks(dir string) (map[string]string, error) {
 	return out, nil
 }
 
-// loadTasks reads every tasks/<id>/task.yaml, in folder order.
+// loadTasks reads every tasks/<id>/task.yaml. The folder name is the task's
+// identity — what another task's `needs` points at — and no more than that:
+// what runs when is settled by order.
 //
 // A subfolder without one is an authoring mistake rather than an opt-out: it is
 // an error, not a unit quietly dropped from the installation.
@@ -220,9 +218,50 @@ func read(path string, into any) error {
 	dec := yaml.NewDecoder(bytes.NewReader(raw))
 	dec.KnownFields(true)
 	if err := dec.Decode(into); err != nil {
-		return fmt.Errorf("%s: %w", filepath.Base(path), err)
+		return refused(path, err)
 	}
 	return nil
+}
+
+// retired is a key a product used to be able to declare, and what to write
+// instead. Each of them was dropped because the same thing was already said
+// somewhere else, so there is always a sentence to point at.
+//
+// It is not a compatibility layer: the file is still refused. It is the
+// refusal saying what to do about itself, which is all a message that stops a
+// build is for.
+var retired = map[string]string{
+	"run":   "a module is named once, by its title, and that is what one run of it is called",
+	"blind": "a question asked first opens its filter by itself",
+	"id":    "a starting point is named by its title, and nothing anywhere points at one",
+	"name":  "a title is what a person reads; a name only ever names a variable",
+}
+
+// unknownField is how the decoder says a key is not one of them. It names the
+// Go type it was decoding into, which is true and of no use to anybody holding
+// the yaml.
+var unknownField = regexp.MustCompile(`^line (\d+): field (\w+) not found in type \S+$`)
+
+// refused says what is wrong with a file in the file's own terms.
+func refused(path string, err error) error {
+	var typed *yaml.TypeError
+	if !errors.As(err, &typed) {
+		return fmt.Errorf("%s: %w", filepath.Base(path), err)
+	}
+	said := make([]string, 0, len(typed.Errors))
+	for _, e := range typed.Errors {
+		m := unknownField.FindStringSubmatch(strings.TrimSpace(e))
+		if m == nil {
+			said = append(said, strings.TrimSpace(e))
+			continue
+		}
+		line := fmt.Sprintf("line %s: %s is not a key here", m[1], m[2])
+		if instead, ok := retired[m[2]]; ok {
+			line += " — " + instead
+		}
+		said = append(said, line)
+	}
+	return fmt.Errorf("%s: %s", filepath.Base(path), strings.Join(said, "\n"))
 }
 
 func (s *Module) check(tasks []*Task) error {
@@ -244,8 +283,8 @@ func (s *Module) check(tasks []*Task) error {
 func (s *Module) checkTasks(tasks []*Task) error {
 	for _, t := range tasks {
 		where := DirTasks + "/" + t.id
-		if t.Name == "" {
-			return fmt.Errorf("%s: name is required", where)
+		if t.Title == "" {
+			return fmt.Errorf("%s: title is required", where)
 		}
 		if t.Stage == "" {
 			return fmt.Errorf("%s: stage is required", where)
@@ -347,7 +386,7 @@ func (s *Module) checkAsks(t *Task) error {
 //
 // A blank line survives, because that is the one break that was meant.
 func (s *Module) normalize(tasks []*Task) {
-	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Run, &s.UI.Console, &s.Confirm}
+	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Console, &s.Confirm}
 	for _, p := range s.Presets {
 		fields = append(fields, &p.Title, &p.Description)
 		for _, o := range p.Options {
@@ -358,7 +397,7 @@ func (s *Module) normalize(tasks []*Task) {
 		fields = append(fields, &v.Title, &v.Description, &v.Group, &v.Free, &v.Error)
 	}
 	for _, t := range tasks {
-		fields = append(fields, &t.Name, &t.Confirm, &t.Report)
+		fields = append(fields, &t.Title, &t.Confirm, &t.Report)
 	}
 	for _, f := range fields {
 		*f = reflow(*f)
@@ -410,9 +449,6 @@ func (s *Module) checkVars() error {
 		if v.Secret() && v.First {
 			return fmt.Errorf("%s: a secret is asked for immediately before the run that needs it, so it cannot also be asked first", v.Name)
 		}
-		if v.Blind && !v.First {
-			return fmt.Errorf("%s: blind only matters for a question asked first — anything later is typed on a keyboard already loaded", v.Name)
-		}
 		if len(v.Values) > 0 && v.Command != "" {
 			return fmt.Errorf("%s: values and command are two answers to the same question", v.Name)
 		}
@@ -447,41 +483,32 @@ func (s *Module) checkVars() error {
 	return nil
 }
 
+// checkPresets settles the starting points. A preset is named by its title and
+// nothing else: it is a page with rows on it, and there is nothing about it a
+// module ever has to point at from somewhere else.
 func (s *Module) checkPresets() error {
-	seen := map[string]bool{}
-	for _, p := range s.Presets {
+	for i, p := range s.Presets {
+		where := fmt.Sprintf("preset %d", i+1)
 		switch {
-		case p.ID == "":
-			return fmt.Errorf("a preset needs an id")
-		case seen[p.ID]:
-			return fmt.Errorf("preset %s is declared twice", p.ID)
 		case p.Title == "":
-			return fmt.Errorf("preset %s: title is required", p.ID)
+			return fmt.Errorf("%s: title is required", where)
 		case len(p.Options) == 0:
 			// A page with nothing on it to choose would be a page nobody can
 			// get past, which is an authoring mistake rather than a way of
 			// turning the page off: leaving the whole preset out is that.
-			return fmt.Errorf("preset %s: no options", p.ID)
+			return fmt.Errorf("%s: no options", p.Title)
 		}
-		seen[p.ID] = true
-		chosen := map[string]bool{}
-		for _, o := range p.Options {
-			switch {
-			case o.ID == "":
-				return fmt.Errorf("preset %s: an option needs an id", p.ID)
-			case chosen[o.ID]:
-				return fmt.Errorf("preset %s: option %s is declared twice", p.ID, o.ID)
-			case o.Title == "":
-				return fmt.Errorf("preset %s: option %s: title is required", p.ID, o.ID)
+		for j, o := range p.Options {
+			if o.Title == "" {
+				return fmt.Errorf("%s: option %d: title is required", p.Title, j+1)
 			}
-			chosen[o.ID] = true
 			for name := range o.Values {
 				if s.byName[name] == nil {
-					return fmt.Errorf("preset %s: option %s: no such variable: %s", p.ID, o.ID, name)
+					return fmt.Errorf("%s: %s: no such variable: %s", p.Title, o.Title, name)
 				}
 			}
 			if err := s.checkFetch(o); err != nil {
-				return fmt.Errorf("preset %s: option %s: %w", p.ID, o.ID, err)
+				return fmt.Errorf("%s: %s: %w", p.Title, o.Title, err)
 			}
 		}
 	}

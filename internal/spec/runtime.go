@@ -32,9 +32,9 @@ const (
 // different name, a different colour and a different folder of modules is a
 // different product, out of the same binary.
 type Runtime struct {
-	// Name is the product, over the page that asks which of its modules to
+	// Title is the product, over the page that asks which of its modules to
 	// open. Not translated: it is a name, and the same one in every language.
-	Name string `yaml:"name"`
+	Title string `yaml:"title"`
 
 	// Accent is the one colour everything on screen is built from, #rrggbb, and
 	// Logo the wordmark the interface comes up out of — everything above the
@@ -47,9 +47,8 @@ type Runtime struct {
 	// the binary's: a release of the modules is what somebody downloads, and
 	// which Oak drove it is a dependency of that rather than its name.
 	//
-	// Left out, the interface falls back to the version of the binary — which is
-	// the right answer while a product is being written and there is nothing
-	// else to show.
+	// Left out, no version is shown. Oak's own is what `oak --version` answers
+	// and is never put on screen as though it were the product's.
 	Version string `yaml:"version"`
 
 	// Modules is what this runtime offers, in the order it offers them: the
@@ -130,6 +129,24 @@ func missing(detail string) error {
 
 // Path is where a module's folder is.
 func (r *Runtime) Path(id string) string { return filepath.Join(r.Dir, DirModules, id) }
+
+// LoadModules reads every module this runtime offers, in the order it offers
+// them.
+//
+// All of them, whichever one a run turns out to be about. A release ships its
+// modules together, so one that will not load is a broken release, and saying
+// so at startup beats a row that fails when somebody chooses it.
+func (r *Runtime) LoadModules() ([]*Module, error) {
+	out := make([]*Module, 0, len(r.Modules))
+	for _, id := range r.Modules {
+		mod, err := Load(r.Path(id))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", id, err)
+		}
+		out = append(out, mod)
+	}
+	return out, nil
+}
 
 // root is where a run looks for everything it was shipped with: the folder
 // named outright, or the one the binary is in.

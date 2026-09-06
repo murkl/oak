@@ -17,7 +17,7 @@ const treeFile = "installer.yaml"
 // inside a temporary directory of its own.
 func setup(t *testing.T, variables string) *Store {
 	t.Helper()
-	return New(load(t, "title: T\nstages: [go]\n"+variables), filepath.Join(t.TempDir(), "installer.conf"))
+	return New(load(t, "title: T\nstages: [go]\n"+variables), filepath.Join(t.TempDir(), "installer.conf"), false)
 }
 
 // load writes the smallest module that will load — the given installer.yaml and
@@ -27,7 +27,7 @@ func load(t *testing.T, installer string) *spec.Module {
 	dir := t.TempDir()
 	files := map[string]string{
 		treeFile:             installer,
-		"tasks/go/task.yaml": "name: Go\nstage: go\n",
+		"tasks/go/task.yaml": "title: Go\nstage: go\n",
 		"tasks/go/task.sh":   "true\n",
 	}
 	for name, body := range files {
@@ -150,7 +150,7 @@ func TestAnswersSurviveTheRoundTrip(t *testing.T) {
 
 	// A second store over the same file, to prove the values come back from the
 	// file rather than from memory.
-	back := New(s.mod, s.Path())
+	back := New(s.mod, s.Path(), false)
 	if err := back.Load(); err != nil {
 		t.Fatal(err)
 	}
@@ -193,8 +193,8 @@ func TestALeftoverKeyIsNotAnError(t *testing.T) {
 }
 
 func TestApplyingAPresetIsJustSettingValues(t *testing.T) {
-	sp := load(t, "title: T\nstages: [go]\npresets:\n  - id: start\n    title: Start\n    options:\n      - id: full\n        title: Full\n        values:\n          HOST: server\n"+twoVars)
-	s := New(sp, filepath.Join(t.TempDir(), "c"))
+	sp := load(t, "title: T\nstages: [go]\npresets:\n  - title: Start\n    options:\n      - title: Full\n        values:\n          HOST: server\n"+twoVars)
+	s := New(sp, filepath.Join(t.TempDir(), "c"), false)
 	s.Apply(sp.Presets[0].Options[0])
 	if got := s.Get("HOST"); got != "server" {
 		t.Errorf("HOST = %q", got)
@@ -205,28 +205,45 @@ func TestApplyingAPresetIsJustSettingValues(t *testing.T) {
 // read one without first checking whether the question was ever asked.
 func TestEveryVariableReachesAScript(t *testing.T) {
 	s := setup(t, twoVars)
-	s.SetFacts("1.0", false)
 	s.Set("USER", "moritz")
 	env := strings.Join(s.Env(), "\n")
-	for _, want := range []string{"USER=moritz", "HOST=workstation", "PRODUCT_VERSION=1.0", "MODULE_CONF="} {
+	for _, want := range []string{"USER=moritz", "HOST=workstation"} {
 		if !strings.Contains(env, want) {
 			t.Errorf("env is missing %q", want)
 		}
 	}
 }
 
-// A script testing whether this run only pretends to work must never be testing
-// an empty string, so the answer is handed over either way.
-func TestHowTheRunWasStartedReachesEveryScript(t *testing.T) {
+// The answer file is the one thing Oak tells a script about itself, because it
+// is also how a script answers a question back.
+func TestTheAnswerFileReachesAScript(t *testing.T) {
+	s := setup(t, twoVars)
+	if want := spec.ConfVar + "=" + s.Path(); !strings.Contains(strings.Join(s.Env(), "\n"), want) {
+		t.Errorf("env is missing %q", want)
+	}
+}
+
+// A run that touches nothing says so, and one that does not says nothing at
+// all: there is one value to test for and no second one to remember.
+func TestDebugReachesAScriptOnlyWhenItWasAskedFor(t *testing.T) {
 	for _, debug := range []bool{false, true} {
-		s := setup(t, twoVars)
-		s.SetFacts("1.0", debug)
-		want := spec.DebugVar + "=" + spec.BoolFalse
-		if debug {
-			want = spec.DebugVar + "=" + spec.BoolTrue
+		s := New(load(t, "title: T\nstages: [go]\n"+twoVars), filepath.Join(t.TempDir(), "c"), debug)
+		got := strings.Contains(strings.Join(s.Env(), "\n"), spec.DebugVar+"=")
+		if got != debug {
+			t.Errorf("DEBUG in the environment = %v, want %v", got, debug)
 		}
-		if env := strings.Join(s.Env(), "\n"); !strings.Contains(env, want) {
-			t.Errorf("env is missing %q", want)
+	}
+}
+
+// Everything else a script used to be handed it can work out for itself, and
+// what Oak hands over is a promise it has to keep across releases — so the list
+// is written down here as well as in the reference.
+func TestOakAddsNothingElseToTheEnvironment(t *testing.T) {
+	s := setup(t, twoVars)
+	env := strings.Join(s.Env(), "\n")
+	for _, gone := range []string{"MODULE_DIR=", "MODULE_LOG=", "PRODUCT_VERSION=", "OAK_LANG="} {
+		if strings.Contains(env, gone) {
+			t.Errorf("env still carries %q", gone)
 		}
 	}
 }
@@ -348,7 +365,7 @@ variables:
 `)
 	// Being named by a task's `asks:` is what defers a variable; the module above
 	// has no such task, so it is deferred here the way the loader would.
-	s := New(sp, filepath.Join(t.TempDir(), "installer.conf"))
+	s := New(sp, filepath.Join(t.TempDir(), "installer.conf"), false)
 
 	if got := names(s.Visible()); strings.Join(got, ",") != "DISK,SNAPSHOT" {
 		t.Errorf("visible = %v, want DISK and SNAPSHOT — EXTRA's condition does not hold", got)

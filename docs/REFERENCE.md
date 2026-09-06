@@ -2,12 +2,14 @@
 
 Everything a product may declare. Nothing here is compiled into Oak: a different `oak.yaml` with a different set of modules beside it is a different program out of the same binary.
 
+Two rules run through the whole file. `title:` is always what a person reads; `name:` only ever names a variable. And nothing is written down twice — what modules there are is the folders under `modules/`, what tasks there are is the folders under `tasks/`, and what a module says is the words in its own yaml.
+
 ## The Product
 
 `oak.yaml` sits beside the binary and holds what no module can answer for its neighbours.
 
 ```
-name: Demo               # over the pages drawn before a module is opened
+title: Demo              # over the pages drawn before a module is opened
 version: 0.1.0           # what this build of the product is called
 accent: "#8fbcbb"        # the one colour the interface is built from
 logo: |                  # everything above the blank line is a dim eyebrow
@@ -16,9 +18,9 @@ logo: |                  # everything above the blank line is a dim eyebrow
   ██████  ███████ ███    ███  █████    # the wordmark, in the accent colour
 ```
 
-Every key is optional but `name`. Which modules exist is not written down: they are the folders under `modules/`, in name order. Adding one is a folder, removing one is deleting it.
+Every key is optional. Which modules exist is not written down: they are the folders under `modules/`, in name order. Adding one is a folder, removing one is deleting it.
 
-**Note:** _`version` is the product's own, shown under the wordmark and in the corner of every page. Left out, Oak shows its own version instead, which is the right answer while a product is still being written._
+**Note:** _`version` is the product's own, shown under the wordmark and in the corner of every page. Left out, no version is shown — Oak's own is what `--version` answers and is never put on screen as though it belonged to the product._
 
 ## A Module
 
@@ -35,14 +37,13 @@ locales/<code>.po        one catalog per language
 
 The declaration is the one `.yaml` file at the top level, whatever it is called. Two of them in one folder is refused rather than resolved.
 
-The folder name is the module's identity. It is what `oak <name>` opens, and what its answer file and log are called: `setup` writes `setup.conf` and `setup.log`.
+The folder name is the module's identity. It is what `oak --module=<name>` opens, and what its answer file and log are called: `setup` writes `setup.conf` and `setup.log`.
 
 ### The Declaration
 
 ```
-title: Demo Setup                       # the module's name on screen
+title: Demo Setup                        # the module's name on screen
 description: Write a greeting to a file. # shown where the modules are offered
-run: Setup                              # what one run of it is called
 
 language: DEMO_LOCALE   # optional: ties the interface language to one answer
 
@@ -51,12 +52,12 @@ stages: [prepare, write]   # the phases the work happens in, in order
 confirm: |                 # the last thing shown before anything changes
   A greeting for {{DEMO_NAME}} will be written to {{DEMO_TARGET}}.
 
-console: Run ./oak hello to start it again.   # optional: shown on the way out
+console: Run ./oak --module=hello to start it again.   # optional: on the way out
 ```
 
-`confirm` is filled in from the answers, so it names the real target rather than describing things in the abstract.
+`title` is the module's only name: it heads the row that starts a run, the last warning, and the clock while it runs — "Start Demo Setup", "Demo Setup complete in 04:12". Oak has no name of its own to fall back on, because it does not know whether this module installs anything.
 
-**Note:** _`description` is what the module **is**. `run` is what one **run** of it is called, read out wherever the interface reports what is happening. A module that leaves `run` out defaults to "Installation"._
+`confirm` is filled in from the answers, so it names the real target rather than describing things in the abstract.
 
 ## Questions
 
@@ -88,11 +89,10 @@ The other fields:
 
 | Field | Description |
 | --- | --- |
-| `default` | Any scalar: `true`, `8`, `pc105` |
-| `prefill` | Shell that prints a suggested answer into the box |
+| `default` | The answer to start from. Any scalar: `true`, `8`, `pc105` |
+| `prefill` | Shell that prints a suggestion into the box. A suggestion is not an answer: it does not stop Oak asking |
 | `apply` | Shell run when the answer takes effect |
 | `first` | Asked before everything else |
-| `blind` | Opens with the filter box already up, for a question asked before any keyboard layout is settled. Only meaningful with `first` |
 | `free` | Label of a text box under a list, for a value the list only suggests |
 | `conditions` | See below |
 
@@ -108,7 +108,7 @@ apply: loadkeys "$DEMO_KEYMAP"
 
 It runs the moment the answer is given, and again at startup for an answer this run already had, so a restart picks up where the last one left off. A failure here is logged as a warning and the answer still stands.
 
-**`first: true`** puts a question before everything else: before the network screen, before the preflight, before the presets. It is what lets a password be typed on a keyboard layout that has already been settled rather than guessed.
+**`first: true`** puts a question before everything else: before the network screen, before the preflight, before the presets. It is what lets a password be typed on a keyboard layout that has already been settled rather than guessed. A list asked this early carries its narrowing box open from the first frame, because the `/` that would otherwise open one is itself typed on a layout nobody has chosen yet.
 
 **Note:** _Use `first` sparingly. Every question marked `first` is asked before the check that decides whether this machine can be worked on at all._
 
@@ -140,7 +140,7 @@ This is deliberately not an expression language. The two forms cover every guard
 A folder under `tasks/` with two files in it.
 
 ```
-name: Install the graphics driver    # the line shown while the user waits
+title: Install the graphics driver   # the line shown while the user waits
 stage: desktop                       # which stage this runs in
 needs: [desktop-gnome]               # ordered after these, within the same stage
 conditions:                          # every one must hold, or the task is skipped
@@ -169,7 +169,16 @@ Seven more keys change what a task **is** rather than what it does:
 printf "MY_LINK='%s'\n" "$url" >>"$MODULE_CONF"
 ```
 
-**Note:** _A cycle, an unknown stage or a `needs:` pointing at nothing produces an error at startup._
+### The Order
+
+The run reads top to bottom through `stages:` and left to right through `needs:`, and those two are the whole of it:
+
+- A task runs after every task of an earlier stage
+- Within its stage, it runs after whatever it named in `needs:`
+
+Two tasks that neither a stage nor a `needs` separates are independent. Their order is stable from run to run, but it is not something to build on and the folder name is not a way to steer it — that is what `needs:` is for. The folder name is the task's identity and nothing else: it is what another task points at.
+
+`needs:` orders tasks **within one stage** and nowhere else. A need that reaches into another stage either contradicts the stages or repeats them, so it is refused at startup — as are a cycle, an unknown stage and a `needs:` pointing at nothing.
 
 ## Presets
 
@@ -177,22 +186,21 @@ Pages of starting points, offered once on a machine that has answered nothing ye
 
 ```
 presets:
-  - id: system
-    title: Setup
+  - title: Setup
     description: What kind of system to install.
     options:
-      - id: desktop
-        title: Desktop
+      - title: Desktop
         description: A full desktop.
         values:
           DEMO_DESKTOP: gnome
 
-      - id: shared
-        title: Online                 # a starting point fetched rather than written out here
+      - title: Online                # a starting point fetched rather than written out here
         description: Take the answers somebody shared.
-        asks: DEMO_CONFIG_SOURCE      # the one question this row asks
+        asks: DEMO_CONFIG_SOURCE     # the one question this row asks
         apply: ./tasks/share/import.sh # shell that turns that answer into more answers
 ```
+
+A preset is named by its title and nothing else. Nothing anywhere points at one, so there is no id to keep unique.
 
 ## Hooks
 
@@ -220,16 +228,20 @@ Whatever the preflight writes to stderr is what the user reads.
 
 ## What a Script Receives
 
-Every declared variable under its own name, answered or not, plus:
+Every declared variable under its own name, answered or not, and two names of Oak's own:
 
 | Variable | Description |
 | --- | --- |
-| `MODULE_DIR` | The module's folder, as an absolute path |
-| `MODULE_CONF` | Its answer file |
-| `MODULE_LOG` | Its log |
-| `OAK_LANG` | The language currently on screen |
-| `PRODUCT_VERSION` | The version the interface is showing |
-| `DEBUG` | Whether this run is only simulating, see `--debug` |
+| `MODULE_CONF` | The answer file. It is also how a script answers a question back: append `KEY='value'` to it |
+| `DEBUG` | `true` when the run was started with `--debug`. Absent otherwise |
+
+That is the whole list, and it is meant to stay that way. Anything else a script needs it works out for itself — its own folder, for instance, is where `lib.sh` was sourced from:
+
+```
+MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+```
+
+A name the module sets that way is answered by the module, so it stops appearing on `inspect`'s `unset` line. That line is how a script still reaching for something Oak no longer hands it is found.
 
 Scripts are **sourced** into a shell that already has an `ERR` trap and, if the module declares one, `lib.sh`. They need no preamble: no shebang, no `set -e`, no error handling. If a command fails, the task fails and the user is shown the file, the line, the command and the exit code.
 
@@ -257,29 +269,38 @@ Beside wherever the program was started, never inside a module, which may be a r
 ## The Command Line
 
 ```
-oak [<module>] [--debug] [--version] [--inspect] [--strings]
+oak [--module=<id>] [--debug] [--version]
 ```
 
-| Flag | Description |
+| Option | Description |
 | --- | --- |
-| `--debug` | Pass `DEBUG=true` to every script |
+| `--module=<id>` | Open that module outright, instead of asking which |
+| `--debug` | Hand every script `DEBUG=true`, so a run can be watched without it touching anything |
 | `--version` | Print Oak's own version and exit |
-| `--inspect` | Load the product and report what it holds, without running anything |
-| `--strings` | Write one module's translation template to stdout |
 
-Everything else on the line names the module to open. Whether a word names one depends on what is in `modules/` at that moment, which is what keeps the list of modules out of the binary.
+That is the whole command line. Anything else on it is refused rather than guessed at, and the two flags may stand in any order beside `--module`.
 
-- A module may be written as a bare word or with dashes: `oak setup` and `oak --setup` are the same request
-- It may appear anywhere on the line
-- A folder named after one of the four flags is refused at startup, since nothing could ever open it
+**Note:** _Nothing on the command line is treated as an answer. Questions are answered in the interface and stored in the answer file beside it._
 
-**`--inspect`** loads a product exactly as a run does — every task ordered, every condition resolved — and prints what it found. It also refuses a question asked where no task that reads the answer can run, which is the one authoring mistake a module's shape does not rule out on its own. This is the check to put in a build script:
+### Checking a Product
+
+What a product holds is a question whoever writes one asks, and a machine being installed never does, so it is a tool in this repository rather than a flag on the binary:
 
 ```
-./oak --inspect
+go run ./tools/inspect <product folder> [module]   # load it the way a run does, and report
+go run ./tools/strings <product folder> <module>   # write that module's translation template
 ```
 
-**Note:** _Nothing else on the command line is treated as an answer. Questions are answered in the interface and stored in the answer file beside it._
+`inspect` loads a product exactly as a run does — every task ordered, every condition resolved — and prints what it found. This is the check to put in a build script.
+
+Two of its lines are about the gap between the yaml and the shell, in opposite directions:
+
+| Line | Meaning |
+| --- | --- |
+| `unread` | A question asked where no task that reads the answer can run. **This fails the check** — it is the one authoring mistake a module's shape does not rule out on its own |
+| `unset` | A name in capitals the module's shell reads that nothing here answers: not a declared variable, not one Oak sets, not one the module gives itself. A description, not a verdict |
+
+`unset` is where a name that used to arrive and no longer does becomes visible. In shell an unset name is an empty string rather than an error, so nothing else would ever say so. `$HOME` and `$PATH` belong on that line and are perfectly sound; what does not belong there is the point.
 
 ## Translations
 
@@ -288,13 +309,13 @@ The source string is the key. A line of yaml says `Your name` and a catalog answ
 Two catalogs are merged: Oak's own, compiled into the binary, and the module's own under `locales/` beside its declaration.
 
 ```
-./oak --strings setup > modules/setup/locales/setup.pot   # the template, out of the module
+go run ./tools/strings . setup > modules/setup/locales/setup.pot
 cp modules/setup/locales/setup.pot modules/setup/locales/fr.po
 ```
 
 A catalog names its own language as the translation of `English`, and that is what the language picker lists, so a language is always shown in its own words.
 
-The language is chosen on the first page of every run and can be changed afterwards in the settings. It opens on whatever `oak.conf` last recorded, or on whatever `LC_ALL`, `LC_MESSAGES` or `LANG` comes closest to.
+The language is chosen on the first page of every run and can be changed afterwards in the settings. It opens on whatever `oak.conf` last recorded, or on whatever `LC_ALL`, `LC_MESSAGES` or `LANG` comes closest to. It is Oak's own answer and no module's: it is never written into a module's answer file and never reaches a script, because what a script does is the same in every language.
 
 **`language:`** in a module's declaration ties the interface language to one of its own answers. The value is matched against the catalogs the way a machine's own locale would be (`de_DE` is German), so a module that asks where a machine is has effectively also asked which language it speaks.
 

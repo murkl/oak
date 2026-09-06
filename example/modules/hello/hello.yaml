@@ -1,11 +1,10 @@
 # One module: what it is, what it asks, and the order its work happens in.
 #
-# The folder name is the module's identity. `oak hello` opens it outright, and
-# its answers and its log are called hello.conf and hello.log.
+# The folder name is the module's identity. `oak --module=hello` opens it
+# outright, and its answers and its log are called hello.conf and hello.log.
 
 title: Demo Setup
 description: Write a greeting to a file.
-run: Setup
 
 # The phases the work happens in, in the order they happen. Every task names
 # one, which is what puts it in the run and where.
@@ -16,7 +15,7 @@ confirm: |
   A greeting for {{DEMO_NAME}} will be written to {{DEMO_TARGET}}.
 
 # Shown on the terminal on the way out, once the interface is gone.
-console: Run ./oak hello to start it again.
+console: Run ./oak --module=hello to start it again.
 
 variables:
   - name: DEMO_NAME

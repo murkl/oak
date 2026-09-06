@@ -28,23 +28,23 @@ func writeRuntime(t *testing.T, declaration string, modules ...string) string {
 			}
 		}
 		write(name+Ext, "title: The "+name+"\nstages: [go]\n")
-		write(filepath.Join(DirTasks, "do", FileTask), "name: Do it\nstage: go\n")
+		write(filepath.Join(DirTasks, "do", FileTask), "title: Do it\nstage: go\n")
 		write(filepath.Join(DirTasks, "do", FileScript), "echo hi\n")
 	}
 	return dir
 }
 
-const testRuntime = "name: Test OS\n"
+const testRuntime = "title: Test OS\n"
 
 func TestLoadRuntimeReadsWhatEveryModuleShares(t *testing.T) {
-	dir := writeRuntime(t, "name: Test OS\naccent: \"#1793d1\"\nlogo: |\n  Test\n", "installer")
+	dir := writeRuntime(t, "title: Test OS\naccent: \"#1793d1\"\nlogo: |\n  Test\n", "installer")
 
 	rt, err := LoadRuntime(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rt.Name != "Test OS" {
-		t.Errorf("name = %q, want Test OS", rt.Name)
+	if rt.Title != "Test OS" {
+		t.Errorf("name = %q, want Test OS", rt.Title)
 	}
 	if rt.Accent != "#1793d1" {
 		t.Errorf("accent = %q", rt.Accent)
@@ -96,7 +96,7 @@ func TestARuntimeThatOffersNothingWillNotStart(t *testing.T) {
 }
 
 func TestLoadRuntimeRefusesAnAccentThatIsNotAColour(t *testing.T) {
-	dir := writeRuntime(t, "name: Test OS\naccent: blue\n", "installer")
+	dir := writeRuntime(t, "title: Test OS\naccent: blue\n", "installer")
 
 	if _, err := LoadRuntime(dir); err == nil {
 		t.Fatal("blue was accepted as a colour")

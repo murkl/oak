@@ -7,8 +7,12 @@ import (
 	"strings"
 
 	"github.com/murkl/oak/internal/i18n"
-	"github.com/murkl/oak/internal/spec"
 )
+
+// LangVar is what the language is called in Oak's own answer file. It is not a
+// module's variable and never reaches a script: what a script does is the same
+// in every language.
+const LangVar = "OAK_LANG"
 
 // Language is the one answer that belongs to the runtime rather than to any of
 // its modules: the words all of them are read in.
@@ -31,7 +35,7 @@ func NewLanguage(path string) *Language {
 		return l
 	}
 	for line := range strings.SplitSeq(string(raw), "\n") {
-		if name, value, ok := parseLine(line); ok && name == spec.LangVar {
+		if name, value, ok := parseLine(line); ok && name == LangVar {
 			l.code = value
 		}
 	}
@@ -55,7 +59,7 @@ func (l *Language) Save() error {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", i18n.T("Answers kept for every module. Can be edited by hand."))
-	entry(&b, spec.LangVar, l.code, i18n.T("Interface language"))
+	entry(&b, LangVar, l.code, i18n.T("Interface language"))
 	tmp := l.path + ".new"
 	if err := os.WriteFile(tmp, []byte(b.String()), 0o600); err != nil {
 		return err

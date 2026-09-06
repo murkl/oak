@@ -14,7 +14,7 @@ import (
 
 // productDecl is a product with nothing to say about itself but its name: what
 // it offers is the folders beside it.
-const productDecl = "name: Test OS\n"
+const productDecl = "title: Test OS\n"
 
 // writeModule writes the smallest module that will load, plus whatever extra
 // files a test needs, and answers with the folder it put them in.
@@ -23,7 +23,7 @@ func writeModule(t *testing.T, declaration string, extra map[string]string) stri
 	dir := t.TempDir()
 	files := map[string]string{
 		"installer.yaml":        declaration,
-		"tasks/first/task.yaml": "name: First\nstage: go\n",
+		"tasks/first/task.yaml": "title: First\nstage: go\n",
 		"tasks/first/task.sh":   "true\n",
 	}
 	maps.Copy(files, extra)
@@ -152,7 +152,7 @@ variables:
 // would show rather than the binary's.
 func TestTheReportNamesTheVersionTheProductDeclares(t *testing.T) {
 	dir := around(t, writeModule(t, "title: T\nstages: [go]\n", nil))
-	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte("name: Test OS\nversion: 1.4.0\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte("title: Test OS\nversion: 1.4.0\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	rt, mods := product(t, dir)

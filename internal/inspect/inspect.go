@@ -1,15 +1,11 @@
 // Package inspect answers what a build script asks about a folder of modules.
 //
-// The product is already loaded by the time anything here is called — the same
-// load a run does at startup, so everything it refuses would have stopped the
-// program too. What is left is to say what was found, or to write one module's
-// translation template. Both are questions about a folder rather than things a
-// machine being installed ever needs, which is why they are behind flags of
-// their own.
-//
-//	oak --inspect              # every module of the product beside the binary
-//	oak --inspect installer    # just that one
-//	oak --strings installer > locales/installer.pot
+// The load is the same one a run does at startup, so everything it refuses
+// would have stopped the program too. What is left is to say what was found, or
+// to write one module's translation template. Both are questions about a folder
+// rather than things a machine being installed ever needs, which is why they
+// are tools beside the binary rather than options on it — see tools/inspect and
+// tools/strings.
 package inspect
 
 import (
@@ -33,7 +29,9 @@ func Report(w io.Writer, rt *spec.Runtime, mods []*spec.Module, base fs.FS) erro
 	reportRuntime(w, rt)
 	unread := 0
 	for _, mod := range mods {
-		report(w, mod, base)
+		if err := report(w, mod, base); err != nil {
+			return err
+		}
 		n, err := reportUnread(w, mod)
 		if err != nil {
 			return err
@@ -64,7 +62,7 @@ func reportUnread(w io.Writer, mod *spec.Module) (int, error) {
 // reportRuntime is what the product says about itself, printed.
 func reportRuntime(w io.Writer, rt *spec.Runtime) {
 	fmt.Fprintf(w, "%s\n", rt.File)
-	fmt.Fprintf(w, "  name       %s\n", rt.Name)
+	fmt.Fprintf(w, "  title      %s\n", rt.Title)
 	fmt.Fprintf(w, "  version    %s\n", rt.Version)
 	fmt.Fprintf(w, "  accent     %s\n", rt.Accent)
 	fmt.Fprintf(w, "  logo       %d lines\n", len(strings.Split(strings.TrimRight(rt.Logo, "\n"), "\n")))
@@ -72,7 +70,7 @@ func reportRuntime(w io.Writer, rt *spec.Runtime) {
 }
 
 // report is what one module holds, printed.
-func report(w io.Writer, mod *spec.Module, base fs.FS) {
+func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	required, secret := 0, 0
 	for _, v := range mod.Vars {
 		if v.Required {
@@ -97,6 +95,18 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) {
 	fmt.Fprintf(w, "  hooks      %s\n", strings.Join(hooks(mod), " "))
 	fmt.Fprintf(w, "  languages  %s\n", strings.Join(names, " "))
 
+	// What the module's shell reaches for and nothing here answers. Not a
+	// verdict — $HOME belongs on this line — but the only place a name that
+	// used to arrive from Oak and no longer does is visible at all, since in
+	// shell it is an empty string rather than an error. See spec.Unset.
+	unset, err := mod.Unset()
+	if err != nil {
+		return err
+	}
+	if len(unset) > 0 {
+		fmt.Fprintf(w, "  unset      %s\n", strings.Join(unset, " "))
+	}
+
 	// The order they run in is worked out rather than written down anywhere.
 	for i, t := range mod.Tasks {
 		fmt.Fprintf(w, "  %2d. %-10s %s\n", i+1, t.Stage, t.ID())
@@ -119,6 +129,7 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) {
 		}
 		fmt.Fprintf(w, "  %-10s %d of %d strings translated\n", l.Code, done, len(msgs))
 	}
+	return nil
 }
 
 // hooks is which of them this module actually has, so one that is not being
@@ -160,4 +171,29 @@ func Template(w io.Writer, rt *spec.Runtime, mods []*spec.Module) error {
 		entries = append(entries, i18n.Entry{Text: m.Text, Note: m.Note, Refs: m.Files})
 	}
 	return i18n.Template(w, mod.ID(), entries)
+}
+
+// Open loads a product out of a folder and narrows it to the module that was
+// named, or to all of them where none was. It is what both tools here start
+// with: the same load a run does, from a folder given outright rather than from
+// wherever the binary happens to sit.
+func Open(dir, id string) (*spec.Runtime, []*spec.Module, error) {
+	rt, err := spec.LoadRuntime(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		return nil, nil, err
+	}
+	if id == "" {
+		return rt, mods, nil
+	}
+	for _, mod := range mods {
+		if mod.ID() == id {
+			return rt, []*spec.Module{mod}, nil
+		}
+	}
+	return nil, nil, fmt.Errorf("no module called %s — this product offers %s",
+		id, strings.Join(rt.Modules, ", "))
 }

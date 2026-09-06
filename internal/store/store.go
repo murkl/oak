@@ -25,14 +25,15 @@ import (
 type Store struct {
 	mod   *spec.Module
 	val   map[string]string
-	facts map[string]string
 	path  string // where the answers are written
+	debug bool
 }
 
 // New builds a store from the folder's declarations, already carrying every
-// default. path is the answer file, read by Load and written by Save.
-func New(mod *spec.Module, path string) *Store {
-	s := &Store{mod: mod, val: map[string]string{}, facts: map[string]string{}, path: path}
+// default. path is the answer file, read by Load and written by Save, and
+// debug is whether this run only pretends to work.
+func New(mod *spec.Module, path string, debug bool) *Store {
+	s := &Store{mod: mod, val: map[string]string{}, path: path, debug: debug}
 	for _, v := range mod.Vars {
 		s.val[v.Name] = v.Default.String()
 	}
@@ -42,60 +43,26 @@ func New(mod *spec.Module, path string) *Store {
 // Path is the answer file this store reads and writes.
 func (s *Store) Path() string { return s.path }
 
-// Get reads a value. Runtime facts answer here too, so a script can find the
-// folder it belongs to without anything having had to declare a variable
-// nothing ever sets.
-func (s *Store) Get(name string) string {
-	if v, ok := s.val[name]; ok {
-		return v
-	}
-	return s.facts[name]
-}
+// Get reads a value.
+func (s *Store) Get(name string) string { return s.val[name] }
 
 // Set records an answer. It does not save — the caller decides when the file is
 // written, because a value being tried out and a value being settled are not
 // the same thing.
 func (s *Store) Set(name, value string) { s.val[name] = value }
 
-// SetFacts records what the run knows about itself. These are not variables —
-// nothing declares them and nothing may prompt for them — but every script gets
-// them, so a script can reach the folder it came from, its own log, and the
-// answers it was given.
-//
-// What belongs to the module carries its name and what belongs to the runtime
-// carries the runtime's, so a script never has to work out which of the two it
-// is reading.
-//
-// Whether this run only pretends to work is one of them. It is settled by the
-// command line and is the same for every module, so a script is handed it
-// whether --debug was given or not and never has to test an empty string.
-func (s *Store) SetFacts(version string, debug bool) {
-	s.facts[ModuleDirVar] = s.mod.Dir
-	s.facts[ModuleConfVar] = s.path
-	s.facts[VersionVar] = version
-	s.facts[spec.DebugVar] = spec.BoolFalse
-	if debug {
-		s.facts[spec.DebugVar] = spec.BoolTrue
-	}
-}
-
-// The facts every script is handed, by name. A module reaches its own folder,
-// its own answers and its own log through these, and the version of the product
-// it belongs to through the last.
-const (
-	ModuleDirVar  = "MODULE_DIR"
-	ModuleConfVar = "MODULE_CONF"
-	ModuleLogVar  = "MODULE_LOG"
-	VersionVar    = "PRODUCT_VERSION"
-)
-
-// SetFact records one further fact, for what is only known later — the log
-// path, which exists once logging has opened it.
-func (s *Store) SetFact(name, value string) { s.facts[name] = value }
-
 // Env is what a script sees: the process environment, then every declared
-// variable, then the runtime facts. Later entries win, so a variable always
-// carries the value the store holds and never a stale inherited one.
+// variable, and then the two names Oak keeps for itself. Later entries win, so
+// a variable always carries the value the store holds and never a stale
+// inherited one.
+//
+// Those two are the whole of what Oak adds. MODULE_CONF is the answer file,
+// which is the one channel in both directions — a script reads its answers from
+// the environment and writes one back by appending a line to that file, exactly
+// as somebody editing it by hand would. DEBUG is there only when the run was
+// started with --debug, so `[ "$DEBUG" = true ]` is the whole test and there is
+// no second value to remember. Everything else a script used to be handed it
+// can work out for itself: its own folder is where lib.sh was sourced from.
 //
 // Secrets are in here like anything else — that is the whole reason they are
 // asked for. They reach one bash process and go no further: not to the answer
@@ -105,9 +72,9 @@ func (s *Store) Env() exec.Env {
 	for _, v := range s.mod.Vars {
 		env = append(env, v.Name+"="+s.val[v.Name])
 	}
-	env = append(env, spec.LangVar+"="+i18n.Current())
-	for k, v := range s.facts {
-		env = append(env, k+"="+v)
+	env = append(env, spec.ConfVar+"="+s.path)
+	if s.debug {
+		env = append(env, spec.DebugVar+"="+spec.BoolTrue)
 	}
 	return env
 }
