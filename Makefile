@@ -1,3 +1,8 @@
+# Recipes are bash, and they stop at the first command that fails — including
+# inside a loop and inside a pipe, where a check otherwise passes quietly.
+SHELL       := bash
+.SHELLFLAGS := -eu -o pipefail -c
+
 APP     := oak
 PKG     := .
 BIN_DIR := bin
@@ -5,19 +10,14 @@ BIN_DIR := bin
 # The version: the tag this commit carries, or the nearest one with the distance
 # and the short SHA after it. `make run` appends "-dev" so it is obvious a binary
 # did not come from a build of an actual release.
-VERSION     := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-VERSION_DEV := $(VERSION)-dev
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
+# One binary, for the one platform an installer runs on. Named after neither the
+# version nor the host: a stable name keeps download links and the builds that
+# follow them working across releases, and the version lives inside the file.
 GOOS   ?= linux
-GOARCH ?= $(shell go env GOARCH)
-
-# The version lives inside the binary, not in the filename: a stable name keeps
-# download links and the builds that follow them working across releases.
-BIN := $(BIN_DIR)/$(APP)-$(GOOS)-$(GOARCH)
-
-LDFLAGS_BUILD := -s -w -X main.version=$(VERSION)
-LDFLAGS_RUN   := -X main.version=$(VERSION_DEV)
-GOFLAGS       := CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH)
+GOARCH ?= amd64
+BIN    := $(BIN_DIR)/$(APP)-$(GOOS)-$(GOARCH)
 
 # The product this is developed against: the smallest whole thing Oak can drive,
 # an oak.yaml with a modules folder beside it. The binary looks next to itself
@@ -31,27 +31,31 @@ EXAMPLE := example
 MODULE  ?=
 ARGS    ?=
 
+# The shell the example is made of. Oak sources it and never executes it, so
+# none of it carries a shebang: the dialect is in the .shellcheckrc beside it
+# and the indent is in .editorconfig, which is where shfmt reads it from.
+SCRIPTS := $(shell find $(EXAMPLE) -name '*.sh')
+
 # The template every catalog here is filled in from, and the catalogs
 # themselves. Both are generated: the template out of the Go sources, the
 # catalogs out of the template.
 POT      := locales/$(APP).pot
 CATALOGS := $(wildcard locales/*.po)
 
-.PHONY: all build release example run inspect lint tidy tidy-check test test-race vet staticcheck vuln fmt fmt-check locales locales-check check clean
+.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln fmt fmt-check locales locales-check version-check check clean
 
 all: build
 
-build: $(BIN_DIR)
-	$(GOFLAGS) go build -trimpath -ldflags="$(LDFLAGS_BUILD)" -o $(BIN) $(PKG)
+# What ships, and what `make check` builds on the way through: the release
+# artefact itself, so the file the checks ran against is the file published.
+build:
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
+		go build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o $(BIN) $(PKG)
 	cd $(BIN_DIR) && sha256sum $(notdir $(BIN)) > $(notdir $(BIN)).sha256
 
-# What a release holds: one binary, for the one platform an installer runs on.
-release:
-	$(MAKE) build GOOS=linux GOARCH=amd64
-
-# Straight from source, into the example product.
+# Straight from source, into the example product, for this machine.
 example:
-	go build -ldflags="$(LDFLAGS_RUN)" -o $(EXAMPLE)/$(APP) $(PKG)
+	go build -ldflags="-X main.version=$(VERSION)-dev" -o $(EXAMPLE)/$(APP) $(PKG)
 
 run: example
 	cd $(EXAMPLE) && ./$(APP) $(if $(MODULE),--module=$(MODULE)) $(ARGS)
@@ -109,25 +113,41 @@ locales-check:
 		|| { echo "$(POT) is out of date — run 'make locales'" >&2; exit 1; }
 	@for po in $(CATALOGS); do \
 		printf '%s: ' "$$po"; \
-		msgfmt --check-format --statistics -o /dev/null "$$po" || exit 1; \
+		msgfmt --check-format --statistics -o /dev/null "$$po"; \
 	done
 
 fmt:
 	gofmt -s -w .
+	shfmt -w $(SCRIPTS)
 
-# gofmt asked as a question rather than made as an edit, so a branch that was
-# never formatted fails here instead of arriving later as a diff nobody wrote.
+# The same, asked as a question rather than made as an edit, so a branch that
+# was never formatted fails here instead of arriving later as a diff nobody
+# wrote.
 fmt-check:
 	@unformatted="$$(gofmt -s -l .)"; \
 	[ -z "$$unformatted" ] || { echo "not gofmt'd:" >&2; echo "$$unformatted" >&2; exit 1; }
+	shfmt -d $(SCRIPTS)
 
-# The scripts of the example product are sourced, never executed, so they are
-# checked the way Oak runs them: as bash, with lib.sh already in scope.
 lint:
-	shellcheck -x $(wildcard $(EXAMPLE)/modules/*/lib.sh) $(shell find $(EXAMPLE) -name 'task.sh')
-	shfmt -d -i 4 $(shell find $(EXAMPLE) -name '*.sh')
+	shellcheck -x $(SCRIPTS)
 	yamllint .
 	actionlint
+
+# What a tag is allowed to release. The version is `git describe` and there is
+# no second place to keep in step with it, so what can still go wrong is a tag
+# whose binary does not answer to it: a tag moved after the fact, a clone too
+# shallow to describe one, a tree with edits in it. Any of those would publish
+# a version nothing inside the file agrees with.
+#
+#   make version-check TAG=v1.0.0                     against what build wrote
+#   make version-check TAG=v1.0.0 BIN=dist/oak-...    against what CI will ship
+version-check:
+	@[[ "$(TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] \
+		|| { echo "not a release tag: '$(TAG)' — a release is vMAJOR.MINOR.PATCH" >&2; exit 1; }
+	@said="$$(./$(BIN) --version)"; \
+	[ "$$said" = "$(APP) $(TAG)" ] \
+		|| { echo "$(BIN) answers '$$said' — the tag says '$(TAG)'" >&2; exit 1; }
+	@echo "$(BIN) is $(TAG)"
 
 # What has to pass before anything is committed.
 check: fmt-check tidy-check vet staticcheck locales-check lint test build inspect
@@ -138,6 +158,3 @@ check: fmt-check tidy-check vet staticcheck locales-check lint test build inspec
 
 clean:
 	rm -rf $(BIN_DIR) $(EXAMPLE)/$(APP)
-
-$(BIN_DIR):
-	mkdir -p $@

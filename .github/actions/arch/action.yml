@@ -1,4 +1,5 @@
-# The toolchain every job runs on, and the cache that keeps fetching it cheap.
+# The toolchain every job runs on, and the caches that keep a run cheap: the
+# packages it is assembled from, and what Go leaves behind between builds.
 #
 # Everything runs on Arch: every tool this project checks itself with is a
 # package there. CI ends up running the literal commands from the Makefile
@@ -39,3 +40,14 @@ runs:
         # which git reads as somebody else's repository. The version comes out
         # of `git describe`, so it has to be able to.
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+    # Every job here compiles the module, so every job wants what the last one
+    # left. It belongs with the toolchain rather than beside each job, so there
+    # is one definition of what a job arrives with.
+    - uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: go-${{ github.job }}-${{ hashFiles('go.sum') }}-${{ github.run_id }}
+        restore-keys: go-${{ github.job }}-${{ hashFiles('go.sum') }}-

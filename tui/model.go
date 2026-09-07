@@ -90,7 +90,7 @@ func (m *Model) turn() tea.Cmd {
 type spinMsg struct{}
 
 func spinTick() tea.Cmd {
-	return tea.Tick(spinEvery, func(time.Time) tea.Msg { return spinMsg{} })
+	return after(spinEvery, func(time.Time) tea.Msg { return spinMsg{} })
 }
 
 // animate runs the one clock the opening has: the light going round and the

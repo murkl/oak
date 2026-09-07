@@ -44,7 +44,14 @@ git push origin v1.0.0
 
 Both land in the same place. A pushed tag has no release yet, so CI writes one with generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green.
 
-The version comes out of `git describe`, so the tag is what the binary answers with. Nothing else has to be edited.
+The version comes out of `git describe`, so the tag is what the binary answers with. Nothing else has to be edited, and there is nowhere it can be edited wrongly.
+
+What that leaves is a tag pointing somewhere the build cannot follow — moved after the fact, or cut from a tree with edits still in it — and then a release would carry a version its own binary disagrees with. The last step before a download link exists refuses that: the tag has to read `vMAJOR.MINOR.PATCH`, and the binary about to be published under it has to answer to exactly that. Ask the same question before pushing the tag:
+
+```
+make build
+make version-check TAG=v1.0.0
+```
 
 **Note:** _The `v` is what CI watches for. A tag without it builds nothing and releases nothing._
 
@@ -56,17 +63,15 @@ Once per pull request, once per push to `main`, and once more on a tag.
 
 ```mermaid
 flowchart TD
-    P["pull request · main · tag"] --> C["check<br/>make check · race detector"]
+    P["pull request · main · tag"] --> C["check<br/>make check · race detector<br/>binary · checksum"]
     P --> S["security<br/>govulncheck · gitleaks"]
-    P --> B["build<br/>binary · checksum"]
     C --> R
-    S --> R
-    B --> R["release<br/>only on a v* tag"]
+    S --> R["release<br/>only on a v* tag<br/>version-check · publish"]
 
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
 ```
 
-`build` is the only job that compiles anything, and the release publishes that artefact rather than building again. What is downloaded is the file the checks ran against.
+`make check` builds the release artefact on its way through, so the binary the checks ran against is the binary uploaded, and the release publishes that file rather than building a second one. What is downloaded is what was checked, because there was only ever one of them.
 
 ## Doing the work
 
@@ -77,7 +82,9 @@ make run MODULE=setup        # opens one module directly
 make run ARGS=--debug        # ...without touching anything
 make inspect                 # loads the example the way a run does
 make locales                 # the template, and every catalog brought up to it
-make release                 # bin/oak-linux-amd64, plus its checksum
+make fmt                     # format the Go and the shell
+make build                   # bin/oak-linux-amd64, plus its checksum
+make version-check TAG=v1.0.0  # would that tag be allowed to release this?
 ```
 
 Install the required packages:

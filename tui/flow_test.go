@@ -15,6 +15,7 @@ import (
 	"github.com/murkl/oak/internal/spec"
 	"github.com/murkl/oak/internal/store"
 
+	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -214,10 +215,25 @@ func (h *harness) run(cmd tea.Cmd) {
 	}()
 }
 
+// The interface's clocks, fired the moment a page sets one. What a page does
+// when its clock goes off is what these tests are about; the stretch of time in
+// front of it is not, and waiting those out was what the suite spent its run on.
+func init() {
+	after = func(_ time.Duration, fire func(time.Time) tea.Msg) tea.Cmd {
+		return func() tea.Msg { return fire(time.Now()) }
+	}
+	// The one clock bubbles owns: a blinking cursor is a command that sits
+	// there for half a second and answers with a redraw nothing asserts on.
+	cursorMode = cursor.CursorStatic
+}
+
 // quiet is how long the loop waits on a command that is still out there before
-// it takes the interface to have settled anyway. It is the clocks this is for —
-// a tick re-arms itself and never stops being outstanding — and it is only ever
-// waited out when something really is in flight.
+// it takes the interface to have settled anyway.
+//
+// With the clocks stopped this is only ever the installation: a page reacting
+// answers in microseconds, and what is left taking real time is a task, which
+// is a real process. A test watching a run needs the screen while that is still
+// going, so this is the one thing here deliberately not waited out.
 const quiet = 60 * time.Millisecond
 
 // drain handles everything waiting, and everything that arrives while it is
@@ -229,8 +245,7 @@ func (h *harness) drain() {
 		case msg = <-h.msgs:
 		default:
 			// Nothing queued. With nothing out there either, this is as
-			// settled as it is going to get, and waiting would only be a
-			// keystroke costing a tenth of a second for no reason.
+			// settled as it is going to get.
 			if h.inflight.Load() == 0 {
 				return
 			}

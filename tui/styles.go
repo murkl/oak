@@ -106,4 +106,5 @@ func styleInput(m *textinput.Model) {
 	m.PlaceholderStyle = mutedStyle
 	m.Cursor.Style = cursorStyle
 	m.Cursor.TextStyle = textStyle
+	m.Cursor.SetMode(cursorMode)
 }

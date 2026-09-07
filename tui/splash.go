@@ -62,7 +62,7 @@ const (
 type animMsg struct{}
 
 func animTick() tea.Cmd {
-	return tea.Tick(animEvery, func(time.Time) tea.Msg { return animMsg{} })
+	return after(animEvery, func(time.Time) tea.Msg { return animMsg{} })
 }
 
 // logoLines squares off a block of text. Trailing spaces do not survive every

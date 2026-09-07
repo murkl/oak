@@ -20,7 +20,9 @@ concurrency:
 
 jobs:
   # `make check` and nothing this file adds to it: what is checked lives in the
-  # Makefile, so a rule that holds in CI holds at a desk.
+  # Makefile, so a rule that holds in CI holds at a desk. The binary it builds
+  # on the way through is the one the release publishes — checked and shipped
+  # are the same bytes because they are the same build.
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -30,27 +32,22 @@ jobs:
       contents: read
     steps:
       # Before the checkout: without git, actions/checkout falls back to a
-      # tarball, and then there is no history for a version to come from.
+      # tarball, and then there is no history for a version to come from. A
+      # full upgrade rather than a refresh, because installing against a
+      # database newer than the system is the one thing Arch does not carry.
       - name: Make the checkout a repository
-        run: pacman -Sy --needed --noconfirm git
+        run: pacman -Syu --needed --noconfirm git
 
       - uses: actions/checkout@v7
         with:
           # git describe needs the tags to describe anything.
           fetch-depth: 0
+          persist-credentials: false
 
       # gcc is for the race detector below, which is built on cgo.
       - uses: ./.github/actions/arch
         with:
           packages: go gcc make shellcheck shfmt staticcheck yamllint actionlint gettext diffutils
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: go-${{ github.job }}-${{ hashFiles('go.sum') }}-${{ github.run_id }}
-          restore-keys: go-${{ github.job }}-${{ hashFiles('go.sum') }}-
 
       - run: make check
 
@@ -59,72 +56,8 @@ jobs:
       - name: Tests under the race detector
         run: make test-race
 
-  security:
-    name: Security
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    container: archlinux:latest
-    permissions:
-      contents: read
-    steps:
-      - name: Make the checkout a repository
-        run: pacman -Sy --needed --noconfirm git
-
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/arch
-        with:
-          packages: go make govulncheck gitleaks
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: go-${{ github.job }}-${{ hashFiles('go.sum') }}-${{ github.run_id }}
-          restore-keys: go-${{ github.job }}-${{ hashFiles('go.sum') }}-
-
-      - name: Vulnerabilities
-        run: make vuln
-
-      # A binary built here is downloaded and run by other projects' builds. A
-      # credential that reached this repository would travel with it.
-      - name: Secrets in the repository
-        run: gitleaks dir . --redact --no-banner
-
-  # The only job that compiles anything. The release below publishes this
-  # artefact rather than building again.
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    container: archlinux:latest
-    permissions:
-      contents: read
-    steps:
-      - name: Make the checkout a repository
-        run: pacman -Sy --needed --noconfirm git
-
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - uses: ./.github/actions/arch
-        with:
-          packages: go make
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: go-${{ github.job }}-${{ hashFiles('go.sum') }}-${{ github.run_id }}
-          restore-keys: go-${{ github.job }}-${{ hashFiles('go.sum') }}-
-
-      - run: make release
-
-      # What ships is what the checks ran against. A binary with nothing beside
-      # it can still answer for itself, which is the whole of what this asks.
+      # A binary with nothing beside it can still answer for itself, which is
+      # the whole of what this asks.
       - name: The binary is whole and says what it is
         run: |
           cd bin && sha256sum -c ./*.sha256
@@ -136,11 +69,38 @@ jobs:
           path: bin/
           retention-days: 7
 
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: archlinux:latest
+    permissions:
+      contents: read
+    steps:
+      - name: Make the checkout a repository
+        run: pacman -Syu --needed --noconfirm git
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/arch
+        with:
+          packages: go make govulncheck gitleaks
+
+      - name: Vulnerabilities
+        run: make vuln
+
+      # A binary built here is downloaded and run by other projects' builds. A
+      # credential that reached this repository would travel with it.
+      - name: Secrets in the repository
+        run: gitleaks dir . --redact --no-banner
+
   # Nothing is built here. A tag publishes the artefact the jobs above checked
   # and built — the same bytes, under a version.
   release:
     name: Release
-    needs: [check, security, build]
+    needs: [check, security]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -150,11 +110,28 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/download-artifact@v8
         with:
           name: binary
           path: dist
+
+      # The last thing between a tag and a download link. The tag has to be a
+      # release tag, and the binary about to be published under it has to
+      # answer to exactly that — the same rule `make version-check` applies at
+      # a desk before the tag is ever pushed.
+      - name: The tag is the version the binary answers to
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          (cd dist && sha256sum -c ./*.sha256)
+
+          # An artefact comes back without the bit it went up with: uploading
+          # does not carry file permissions, and the next line runs the file.
+          chmod +x dist/oak-linux-amd64
+          make version-check TAG="$VERSION" BIN=dist/oak-linux-amd64
 
       # Two ways in, one outcome. A tag pushed from a terminal has no release
       # yet, so this writes one; a release published from the web page has the
@@ -165,7 +142,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ github.ref_name }}
         run: |
-          (cd dist && sha256sum -c ./*.sha256)
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" dist/* --clobber
           else

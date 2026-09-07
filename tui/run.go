@@ -312,7 +312,7 @@ func (s *runScreen) finish(err error) tea.Cmd {
 // settle starts the clock that makes what is on screen answerable.
 func (s *runScreen) settle() tea.Cmd {
 	s.settled = false
-	return tea.Tick(settleFor, func(time.Time) tea.Msg { return settleMsg{} })
+	return after(settleFor, func(time.Time) tea.Msg { return settleMsg{} })
 }
 
 // stop kills the task that is running, and everything it started. Reached only
