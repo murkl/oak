@@ -84,13 +84,15 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	for i, l := range langs {
 		names[i] = l.Code
 	}
-	fmt.Fprintf(w, "%s\n", filepath.Join(mod.Dir, mod.File))
+	fmt.Fprintf(w, "%s\n", filepath.Join(mod.Dir, spec.FileModule))
 	fmt.Fprintf(w, "  title      %s\n", mod.UI.Title)
 	fmt.Fprintf(w, "  variables  %d (%d required, %d secret)\n", len(mod.Vars), required, secret)
 	fmt.Fprintf(w, "  presets    %d\n", len(mod.Presets))
 	fmt.Fprintf(w, "  stages     %s\n", strings.Join(mod.Stages, " "))
 	fmt.Fprintf(w, "  tasks      %d\n", len(mod.Tasks))
-	fmt.Fprintf(w, "  hooks      %s\n", strings.Join(hooks(mod), " "))
+	if stages := systemStages(mod); len(stages) > 0 {
+		fmt.Fprintf(w, "  system     %s\n", strings.Join(stages, " "))
+	}
 	fmt.Fprintf(w, "  languages  %s\n", strings.Join(names, " "))
 
 	// What the module's shell reaches for and nothing here answers. Not a
@@ -105,9 +107,15 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 		fmt.Fprintf(w, "  unset      %s\n", strings.Join(unset, " "))
 	}
 
+	// What loaded and still says something that can never take effect. A
+	// description rather than a verdict, so it is reported and the run goes on.
+	for _, warning := range mod.Warnings {
+		fmt.Fprintf(w, "  %-10s %s\n", "needs", warning)
+	}
+
 	// The order they run in is worked out rather than written down anywhere.
 	for i, t := range mod.Tasks {
-		fmt.Fprintf(w, "  %2d. %-10s %s\n", i+1, t.Stage, t.ID())
+		fmt.Fprintf(w, "  %2d. %-10s %s\n", i+1, t.Stage(), t.ID())
 	}
 
 	// A catalog whose keys have drifted from the yaml shows up here as a
@@ -130,13 +138,14 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	return nil
 }
 
-// hooks is which of them this module actually has, so one that is not being
-// called because of a typo in its name is visible as one missing from this line.
-func hooks(mod *spec.Module) []string {
+// systemStages is which of the runtime's own stages this module fills, so one
+// that is not being run because of a typo in a folder name is visible as one
+// missing from this line.
+func systemStages(mod *spec.Module) []string {
 	var out []string
-	for _, name := range spec.HookNames {
-		if mod.Hook(name) != "" {
-			out = append(out, name)
+	for _, stage := range spec.SystemStages {
+		if n := len(mod.System(stage)); n > 0 {
+			out = append(out, fmt.Sprintf("%s(%d)", stage, n))
 		}
 	}
 	return out

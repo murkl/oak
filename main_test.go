@@ -18,9 +18,9 @@ func writeModule(t *testing.T, declaration string, extra map[string]string) stri
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		"installer.yaml":        declaration,
-		"tasks/first/task.yaml": "title: First\nstage: go\n",
-		"tasks/first/task.sh":   "true\n",
+		spec.FileModule:            declaration,
+		"tasks/go/first/task.yaml": "title: First\n",
+		"tasks/go/first/task.sh":   "true\n",
 	}
 	maps.Copy(files, extra)
 	for name, body := range files {
@@ -318,14 +318,15 @@ func TestACommandLineThatCannotBeReadIsRefused(t *testing.T) {
 
 // --version is the binary answering for itself, so it says which binary: a
 // number on its own beside a product's own number says nothing about whose it
-// is.
+// is. It is written the way a release names its own files, name and version as
+// one word.
 func TestTheVersionNamesTheProgramItBelongsTo(t *testing.T) {
 	out := stdout(t, func() {
 		if err := start([]string{"--version"}); err != nil {
 			t.Fatal(err)
 		}
 	})
-	if want := program + " " + version + "\n"; out != want {
+	if want := program + "-" + version + "\n"; out != want {
 		t.Errorf("--version printed %q, want %q", out, want)
 	}
 }

@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/murkl/oak/internal/exec"
-	"github.com/murkl/oak/internal/i18n"
 	"github.com/murkl/oak/internal/logging"
 	"github.com/murkl/oak/internal/spec"
 	"github.com/murkl/oak/internal/store"
@@ -26,12 +25,12 @@ type Runner struct {
 }
 
 func New(mod *spec.Module, st *store.Store) *Runner {
-	sh := exec.Runner{Lib: mod.Lib}
+	sh := exec.Runner{Shell: mod.Shell}
 	cfg := wlan.Config{
-		Online:   spec.Source(mod.Hook(spec.HookOnline)),
-		Device:   spec.Source(mod.Hook(spec.HookDevice)),
-		Networks: spec.Source(mod.Hook(spec.HookNetworks)),
-		Connect:  spec.Source(mod.Hook(spec.HookConnect)),
+		Online:   mod.SystemShell(spec.StageOnline),
+		Device:   mod.SystemShell(spec.StageDevice),
+		Networks: mod.SystemShell(spec.StageNetworks),
+		Connect:  mod.SystemShell(spec.StageConnect),
 	}
 	return &Runner{mod: mod, store: st, sh: sh, radio: wlan.New(cfg, sh, st.Env)}
 }
@@ -187,52 +186,62 @@ func (r *Runner) Tasks() []*spec.Task {
 // nowhere else; what comes back here is whether it worked.
 func (r *Runner) Start(t *spec.Task) (*exec.Session, error) {
 	logging.Info("%s", t.Title)
-	return r.sh.Start(t.Label(), t.Path(), r.store.Env())
+	return r.sh.Start(t.Label(), script(t), r.store.Env())
 }
 
 // Terminal is a task that takes the terminal over, built but not started —
 // the interface has to stand aside first, and only it knows how.
 func (r *Runner) Terminal(t *spec.Task) *osexec.Cmd {
 	logging.Info("%s", t.Title)
-	return r.sh.Terminal(t.Path(), r.store.Env())
+	return r.sh.Terminal(script(t), r.store.Env())
+}
+
+// script is one task as the shell layer takes it: the file it lives in, or the
+// shell its yaml wrote outright.
+func script(t *spec.Task) exec.Script {
+	return exec.Script{File: t.File(), Shell: t.Script}
 }
 
 // Leave carries out one of the two ways this module says a machine is put down,
-// and blocks until it has. What comes back is whether the hook worked — which
+// and blocks until it has. What comes back is whether the stage worked — which
 // on a machine that is genuinely restarting is a question nothing lives long
 // enough to ask, and on one that is not is the only thing worth knowing.
 //
-// A module with no such hook has nothing to carry out and says so, so the
-// interface never offers a row that would do nothing.
+// A module with nothing in that stage has nothing to carry out and says so, so
+// the interface never offers a row that would do nothing.
 func (r *Runner) Leave(restart bool) error {
-	name := spec.HookShutdown
+	stage := spec.StageShutdown
 	if restart {
-		name = spec.HookRestart
+		stage = spec.StageRestart
 	}
-	path := r.mod.Hook(name)
-	if path == "" {
+	script := r.mod.SystemShell(stage)
+	if script == "" {
 		return nil
 	}
-	logging.Info("leaving: %s", name)
-	_, err := r.sh.Run(spec.Source(path), r.store.Env())
+	logging.Info("leaving: %s", stage)
+	_, err := r.sh.Run(script, r.store.Env())
 	return err
 }
 
-// Preflight runs the module's own check that this machine can be installed onto
-// at all, and blocks until it has an answer. A module without the hook passes.
+// Preflight runs the module's own checks that this machine can be installed
+// onto at all, in order, and blocks until they have answered. A module with
+// nothing in that stage passes, and one with several checks in it stops at the
+// first that says no.
 //
 // It runs before anything is asked bar the few questions a module marks `first`,
 // which is the whole point: being told the firmware is wrong is worth very
 // little after twenty questions.
 func (r *Runner) Preflight() error {
-	path := r.mod.Hook(spec.HookPreflight)
-	if path == "" {
-		return nil
+	for _, t := range r.mod.System(spec.StagePreflight) {
+		logging.Info("%s", t.Title)
+		session, err := r.sh.Start(t.Label(), script(t), r.store.Env())
+		if err != nil {
+			return err
+		}
+		<-session.Done()
+		if err := session.Err(); err != nil {
+			return err
+		}
 	}
-	session, err := r.sh.Start(i18n.T("System check"), path, r.store.Env())
-	if err != nil {
-		return err
-	}
-	<-session.Done()
-	return session.Err()
+	return nil
 }

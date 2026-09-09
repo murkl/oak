@@ -9,10 +9,6 @@ import (
 	"github.com/murkl/oak/internal/spec"
 )
 
-// What a test module's declaration is called: the runtime takes whichever yaml
-// it finds in the folder, and these tests use the name the real ones use.
-const treeFile = "installer.yaml"
-
 // setup builds a store over a module written for the test, with the answer file
 // inside a temporary directory of its own.
 func setup(t *testing.T, variables string) *Store {
@@ -20,15 +16,15 @@ func setup(t *testing.T, variables string) *Store {
 	return New(load(t, "title: T\nstages: [go]\n"+variables), filepath.Join(t.TempDir(), "installer.conf"), false)
 }
 
-// load writes the smallest module that will load — the given installer.yaml and
+// load writes the smallest module that will load — the given declaration and
 // one task — and reads it back.
 func load(t *testing.T, installer string) *spec.Module {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		treeFile:             installer,
-		"tasks/go/task.yaml": "title: Go\nstage: go\n",
-		"tasks/go/task.sh":   "true\n",
+		spec.FileModule:          installer,
+		"tasks/go/run/task.yaml": "title: Go\n",
+		"tasks/go/run/task.sh":   "true\n",
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, name)

@@ -23,43 +23,53 @@ import (
 // else is found by its own name, so a module turns a part of the program off by
 // leaving the file or folder out rather than by declaring anything.
 //
-// The declaration is the one yaml in the folder's top level, whatever it is
-// called. The convention is the module's own name — modules/setup/setup.yaml,
-// modules/repair/repair.yaml — which is what lets two sit open in an editor and
-// still be told apart, and there is nothing to configure because a folder holds
-// one.
+// One folder holds one module, so every part of it has the name it has here.
+// Nothing is configured and nothing points at anything: module.yaml is the
+// module, module.sh is the shell it puts in front of everything it runs, and a
+// step is a folder under the stage it belongs to.
 const (
-	Ext        = ".yaml"     // the declaration: what the module is, asks, and does
-	FileLib    = "lib.sh"    // shell put in front of every script
-	DirTasks   = "tasks"     // the work, one folder per step
-	DirHooks   = "hooks"     // everything around it, one script per hook
-	DirLocales = "locales"   // one catalog per language the module speaks
-	FileTask   = "task.yaml" // where a step belongs
-	FileScript = "task.sh"   // what it does
+	FileModule = "module.yaml" // the declaration: what the module is, asks, and does
+	FileShell  = "module.sh"   // shell put in front of every script this module runs
+	DirTasks   = "tasks"       // the work, one folder per stage and one per step in it
+	DirLocales = "locales"     // one catalog per language the module speaks
+	FileTask   = "task.yaml"   // what a step is
+	FileScript = "task.sh"     // what it does, where its yaml does not say so itself
 	ScriptExt  = ".sh"
 )
 
-// The hooks, each a bash script in hooks/ called by its own name. This is
-// everything the runtime does around the work: nothing here installs anything,
-// and a module that leaves one out simply does not get that part.
+// The stages the runtime runs itself, each at its own moment and for its own
+// reason. They are stages like any other — a folder under tasks/ with steps in
+// it — and the mark in front of the name is what says the runtime decides when
+// they run rather than the module: a name a module declares can never collide
+// with one of these, and a listing shows them apart at a glance.
+//
+// Nothing declares them. A folder under one of these names is the declaration,
+// and a module that leaves one out simply does not get that part of the
+// program.
 const (
-	HookPreflight = "preflight"     // can this machine be installed onto at all
-	HookOnline    = "online"        // is there internet
-	HookDevice    = "wlan-device"   // the wireless device to use
-	HookNetworks  = "wlan-networks" // the networks in range, one per line
-	HookConnect   = "wlan-connect"  // join one
-	HookRestart   = "restart"       // put this machine down and start it again
-	HookShutdown  = "shutdown"      // switch it off
+	SystemMark = "@"
+
+	StagePreflight = SystemMark + "preflight"     // can this machine be worked on at all
+	StageOnline    = SystemMark + "online"        // is there internet
+	StageDevice    = SystemMark + "wlan-device"   // the wireless device to use
+	StageNetworks  = SystemMark + "wlan-networks" // the networks in range, one per line
+	StageConnect   = SystemMark + "wlan-connect"  // join one
+	StageRestart   = SystemMark + "restart"       // put this machine down and start it again
+	StageShutdown  = SystemMark + "shutdown"      // switch it off
 )
 
-// HookNames is every hook there is. A file in hooks/ that is not one of them is
-// refused when the module loads, the way a misspelled yaml key is: a hook that is
-// never called because its name has a typo in it is the worst kind of
-// authoring bug, since everything loads and nothing happens.
-var HookNames = []string{
-	HookPreflight, HookOnline, HookDevice, HookNetworks, HookConnect,
-	HookRestart, HookShutdown,
+// SystemStages is every one of them. A folder under tasks/ carrying the mark
+// and not on this list is refused when the module loads, the way a misspelled
+// yaml key is: work that never runs because its folder has a typo in its name
+// is the worst kind of authoring bug, since everything loads and nothing
+// happens.
+var SystemStages = []string{
+	StagePreflight, StageOnline, StageDevice, StageNetworks, StageConnect,
+	StageRestart, StageShutdown,
 }
+
+// system reports whether a stage is one of the runtime's own.
+func system(stage string) bool { return strings.HasPrefix(stage, SystemMark) }
 
 // The two names Oak puts into a script's environment, and the whole of what it
 // puts there. Neither is something a module's data can own: whether a run only
@@ -67,7 +77,7 @@ var HookNames = []string{
 // where the answers live is settled by whoever started the program.
 //
 // Everything else a script needs it works out for itself. A module's own folder
-// is where its lib.sh was sourced from, and what a script is told is every
+// is where its module.sh was sourced from, and what a script is told is every
 // answer under its own name.
 const (
 	DebugVar = "DEBUG"       // true under --debug, absent otherwise
@@ -81,8 +91,7 @@ func runtimeVar(name string) bool { return name == DebugVar || name == ConfVar }
 // Module is one whole program the runtime can run: everything one folder
 // beside the binary declares about itself.
 type Module struct {
-	Dir  string // absolute, and never written to
-	File string // the declaration in it, e.g. setup.yaml
+	Dir string // absolute, and never written to
 
 	UI      UI
 	Presets []*Preset
@@ -93,20 +102,30 @@ type Module struct {
 	// be erased.
 	Confirm string
 
-	// Stages are the phases the work happens in, in the order they happen. Every
-	// task names one, which is what puts it in the run and where.
+	// Stages are the phases the work happens in, in the order they happen. Each
+	// is a folder under tasks/, and the steps in it are what puts them in the
+	// run and where.
 	Stages []string
 
 	// Tasks, already in the order they run: by stage, and inside a stage by what
 	// they declared they need. Sorted once when the module is loaded, so there is
 	// one order and everything downstream reads it rather than works it out
 	// again.
+	//
+	// The runtime's own stages are not in it. They are run at their own moment
+	// rather than as part of the work — see System.
 	Tasks []*Task
 
-	// Lib is the shell every script of this module is given before its own, and
-	// Locales the folder its catalogs live in. Both are whatever FileLib and
+	// Warnings is what loaded but says something that can never take effect. A
+	// module that behaves is not a module that refuses to start, so these are
+	// reported — by `--inspect`, and in the log when the module is opened —
+	// rather than raised.
+	Warnings []string
+
+	// Shell is what every script of this module is given before its own, and
+	// Locales the folder its catalogs live in. Both are whatever FileShell and
 	// DirLocales turned out to be, or empty where the module has neither.
-	Lib     string
+	Shell   string
 	Locales string
 
 	// Language names the variable whose answer also settles the words this
@@ -119,7 +138,7 @@ type Module struct {
 	// on the way in.
 	Language string
 
-	hooks  map[string]string
+	system map[string][]*Task
 	byName map[string]*Variable
 }
 
@@ -159,24 +178,28 @@ func (s *Module) ConfirmText(get func(string) string) string {
 	return strings.TrimSpace(Expand(i18n.T(s.Confirm), get))
 }
 
-// Hook is the script this module put in hooks/ under that name, absolute, or
-// empty where it has none.
-func (s *Module) Hook(name string) string { return s.hooks[name] }
+// System is what this module put in one of the runtime's own stages, in the
+// order it runs, or nothing where it declares that stage at all.
+func (s *Module) System(stage string) []*Task { return s.system[stage] }
 
-// Source is the shell that runs a script file, for the places that take shell
-// rather than a path. Empty in, empty out — a hook a module does not have.
-func Source(path string) string {
-	if path == "" {
-		return ""
+// SystemShell is that stage as one piece of shell: every step in it, in order.
+// Empty where the module has none, which is how it says it does not do that.
+func (s *Module) SystemShell(stage string) string {
+	steps := make([]string, 0, len(s.system[stage]))
+	for _, t := range s.system[stage] {
+		steps = append(steps, t.Shell())
 	}
-	return "source " + quote(path)
+	return strings.Join(steps, "\n")
 }
+
+// source is the shell that runs a script file.
+func source(path string) string { return "source " + quote(path) }
 
 // Leaves reports whether this machine can be left at all: a module that says
 // how is saying the machine booted to run it, so every way out of the interface
 // asks what to do with the machine instead of quitting.
 func (s *Module) Leaves() bool {
-	return s.Hook(HookRestart) != "" || s.Hook(HookShutdown) != "" || s.UI.Console != ""
+	return s.SystemShell(StageRestart) != "" || s.SystemShell(StageShutdown) != "" || s.UI.Console != ""
 }
 
 // ConsoleHelp is the sentence under the row that leaves the machine running:
@@ -228,18 +251,27 @@ func (p *Preset) Help() string  { return i18n.T(p.Description) }
 func (o *PresetOption) Label() string { return i18n.T(o.Title) }
 func (o *PresetOption) Help() string  { return i18n.T(o.Description) }
 
-// Task is one unit of work: a folder holding what it is, and the script that
-// does it.
+// Task is one unit of work: a folder under the stage it belongs to, holding
+// what it is and the script that does it.
 //
-// It says where it belongs rather than when it runs — a stage, and what it
-// needs from that same stage — and the order follows from that. Nothing keeps a
-// list of the installation's steps: adding a folder adds a step, and the two
-// can never disagree.
+// Where it belongs is where it sits — tasks/<stage>/<task> — and what it needs
+// from that same stage is all it says about when it runs. The order follows
+// from those two. Nothing keeps a list of the installation's steps: adding a
+// folder adds a step, and the two can never disagree.
 type Task struct {
 	Title      string     `yaml:"title"`
-	Stage      string     `yaml:"stage"`
 	Needs      []string   `yaml:"needs"`
 	Conditions Conditions `yaml:"conditions"`
+
+	// Script is what this task does, where saying it outright is shorter than
+	// keeping a file for it: shell written here, or a single line beginning
+	// with ./ or ../ naming a file beside this yaml. Left out, the task.sh in
+	// the same folder is what runs — the same rule the rest of the module
+	// follows, where being there is the declaration.
+	//
+	// Once the module has loaded, exactly one of Script and File holds what the
+	// task does: the shell as it was written, or the file it named.
+	Script string `yaml:"script"`
 
 	// Asks names a variable whose answer is not knowable before this point: the
 	// snapshot to go back to, once the disk holding it is open. The run stops and
@@ -296,19 +328,38 @@ type Task struct {
 	// that was just installed.
 	TTY bool `yaml:"tty"`
 
-	id   string
-	path string
-	cond []*condition
+	id    string
+	stage string
+	dir   string
+	file  string
+	cond  []*condition
 }
 
 func (t *Task) Label() string { return i18n.T(t.Title) }
 
 // ID is the folder this task was read from, which is also the name other tasks
-// reach it by in their needs.
+// in the same stage reach it by in their needs.
 func (t *Task) ID() string { return t.id }
 
-// Path is the script it runs, absolute.
-func (t *Task) Path() string { return t.path }
+// Stage is the folder holding it, which is the phase it runs in.
+func (t *Task) Stage() string { return t.stage }
+
+// Dir is its own folder, absolute: everything it ships with is in there.
+func (t *Task) Dir() string { return t.dir }
+
+// File is the script it runs, absolute, or empty where its yaml wrote the shell
+// outright.
+func (t *Task) File() string { return t.file }
+
+// Shell is what it does, as one piece of shell: its file sourced, or what its
+// yaml wrote. For the places that only run it — a stage the runtime runs itself
+// — and never report on where it broke.
+func (t *Task) Shell() string {
+	if t.file != "" {
+		return source(t.file)
+	}
+	return t.Script
+}
 
 // Confirms reports whether this one is offered rather than simply run.
 func (t *Task) Confirms() bool { return t.Confirm != "" }
@@ -541,7 +592,7 @@ func (s *Module) Messages() []Message {
 		out = append(out, Message{Text: text, Note: note, Files: []string{file}})
 	}
 
-	decl := s.File
+	decl := FileModule
 	add(decl, "what this program is called, and what one run of it is called", s.UI.Title)
 	add(decl, "what it is, in one sentence, on the page that offers it", s.UI.Description)
 	add(decl, "how to get back in, read on the way out to the console", s.UI.Console)
@@ -562,10 +613,16 @@ func (s *Module) Messages() []Message {
 		add(decl, v.Name+": what a wrong answer is told", v.Error)
 	}
 	for _, t := range s.Tasks {
-		file := path.Join(DirTasks, t.ID(), FileTask)
+		file := path.Join(DirTasks, t.Stage(), t.ID(), FileTask)
 		add(file, "the step, as the run lists it", t.Title)
 		add(file, "asked before the step runs", t.Confirm)
 		add(file, "read once the step is done, and held on until somebody has", t.Report)
+	}
+	// A step of the runtime's own stages is never listed, and only the check
+	// has a name that reaches the screen: the one that said no.
+	for _, t := range s.System(StagePreflight) {
+		file := path.Join(DirTasks, StagePreflight, t.ID(), FileTask)
+		add(file, "the check, read where it is the one that failed", t.Title)
 	}
 	return out
 }

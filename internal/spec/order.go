@@ -5,74 +5,39 @@ import (
 	"strings"
 )
 
-// order settles what runs when.
+// order settles what runs when inside one stage.
 //
 // Two rules, and no third: a task runs after every task of an earlier stage,
 // and after whatever it named in `needs`. The stages are the run read from top
-// to bottom, `needs` is the order across one of them, and between them they are
-// the whole of what a module may rely on.
+// to bottom and are settled by the folders the tasks sit in, so all that is
+// left here is the order across one stage.
 //
-// Two tasks that neither a stage nor a `needs` separates are independent. The
-// same module always produces the same list — a run has to be repeatable — but
-// which of the two comes first is not something to build on: it is what `needs`
-// is for, and a folder renamed is a folder renamed and nothing else.
+// Two tasks that no `needs` separates are independent. The same module always
+// produces the same list — a run has to be repeatable — but which of the two
+// comes first is not something to build on: it is what `needs` is for, and a
+// folder renamed is a folder renamed and nothing else.
 //
 // Working it out here rather than keeping a list of steps somewhere means the
 // two can never disagree: a folder added is a step added, and its place comes
 // out of what it says about itself.
-func order(units []*Task, stages []string) ([]*Task, error) {
-	rank := make(map[string]int, len(stages))
-	for i, s := range stages {
-		if _, dup := rank[s]; dup {
-			return nil, fmt.Errorf("stage %q is listed twice", s)
-		}
-		rank[s] = i
-	}
-	byID := make(map[string]*Task, len(units))
-	for _, u := range units {
-		if _, ok := rank[u.Stage]; !ok {
-			return nil, fmt.Errorf("%s: no such stage: %s", u.id, u.Stage)
-		}
-		byID[u.id] = u
-	}
-
-	// Both rules as one thing to wait for, so a single pass settles them
-	// together: what a unit needs, plus everything that came before its stage.
-	waits := make(map[string]map[string]bool, len(units))
-	for _, u := range units {
-		waits[u.id] = map[string]bool{}
-		for _, n := range u.Needs {
-			dep, ok := byID[n]
-			if !ok {
-				return nil, fmt.Errorf("%s: needs unknown task: %s", u.id, n)
+func order(tasks []*Task) ([]*Task, error) {
+	waits := make(map[string]map[string]bool, len(tasks))
+	for _, t := range tasks {
+		waits[t.id] = map[string]bool{}
+		for _, n := range t.Needs {
+			if n == t.id {
+				return nil, fmt.Errorf("%s: needs itself", t.id)
 			}
-			if n == u.id {
-				return nil, fmt.Errorf("%s: needs itself", u.id)
-			}
-			// One axis each. The stages are the run read top to bottom and
-			// `needs` is the order across one of them, so a need that reaches
-			// into another stage either contradicts the stages or repeats
-			// them — and neither is worth leaving in a file to be read as
-			// though it did something.
-			if dep.Stage != u.Stage {
-				return nil, fmt.Errorf("%s (stage %s) needs %s from stage %s: needs orders tasks within one stage, the stages order the rest",
-					u.id, u.Stage, n, dep.Stage)
-			}
-			waits[u.id][n] = true
-		}
-		for _, other := range units {
-			if rank[other.Stage] < rank[u.Stage] {
-				waits[u.id][other.id] = true
-			}
+			waits[t.id][n] = true
 		}
 	}
 
-	out := make([]*Task, 0, len(units))
+	out := make([]*Task, 0, len(tasks))
 	done := map[string]bool{}
-	for len(out) < len(units) {
-		next := ready(units, waits, done)
+	for len(out) < len(tasks) {
+		next := ready(tasks, waits, done)
 		if next == nil {
-			return nil, fmt.Errorf("tasks wait on each other: %s", strings.Join(waiting(units, done), ", "))
+			return nil, fmt.Errorf("tasks wait on each other: %s", strings.Join(cycle(tasks, waits, done), " → "))
 		}
 		out = append(out, next)
 		done[next.id] = true
@@ -80,18 +45,14 @@ func order(units []*Task, stages []string) ([]*Task, error) {
 	return out, nil
 }
 
-// ready is the next unit that can run: the first one still waiting for nothing.
-//
-// Stages need no comparing here. A unit of a later stage waits on every unit of
-// every earlier one, so it cannot come up while any of those are still open —
-// the stage order falls out of the same rule that orders needs.
-func ready(units []*Task, waits map[string]map[string]bool, done map[string]bool) *Task {
-	for _, u := range units {
-		if done[u.id] {
+// ready is the next task that can run: the first one still waiting for nothing.
+func ready(tasks []*Task, waits map[string]map[string]bool, done map[string]bool) *Task {
+	for _, t := range tasks {
+		if done[t.id] {
 			continue
 		}
-		if satisfied(waits[u.id], done) {
-			return u
+		if satisfied(waits[t.id], done) {
+			return t
 		}
 	}
 	return nil
@@ -106,14 +67,54 @@ func satisfied(waits map[string]bool, done map[string]bool) bool {
 	return true
 }
 
-// waiting names what is left when nothing can run any more, which is the only
-// way a cycle shows itself.
-func waiting(units []*Task, done map[string]bool) []string {
-	var left []string
-	for _, u := range units {
-		if !done[u.id] {
-			left = append(left, u.id)
+// cycle is the ring the tasks that are left are waiting round, named in the
+// order they wait: a → b → c → a. Nothing can run any more, so what is left
+// holds at least one, and following any name into it arrives at it.
+//
+// A list of the ones still waiting would say the same thing and leave whoever
+// reads it to work the ring out by hand, which is the whole of what there is to
+// do about it.
+func cycle(tasks []*Task, waits map[string]map[string]bool, done map[string]bool) []string {
+	left := map[string]bool{}
+	for _, t := range tasks {
+		if !done[t.id] {
+			left[t.id] = true
 		}
 	}
-	return left
+	// Any name still waiting leads into a ring: follow one need at a time until
+	// somewhere is arrived at twice, and the ring is what came after it.
+	var path []string
+	seen := map[string]int{}
+	for at := first(tasks, left); at != ""; {
+		if i, round := seen[at]; round {
+			return append(path[i:], at)
+		}
+		seen[at] = len(path)
+		path = append(path, at)
+		at = firstNeed(waits[at], left)
+	}
+	return path
+}
+
+// first is the task still waiting that comes first in the stage's own order, so
+// the same module always reports the same ring.
+func first(tasks []*Task, left map[string]bool) string {
+	for _, t := range tasks {
+		if left[t.id] {
+			return t.id
+		}
+	}
+	return ""
+}
+
+// firstNeed is one thing a task is still waiting for, by name so the walk is
+// the same on every run.
+func firstNeed(waits map[string]bool, left map[string]bool) string {
+	best := ""
+	for id := range waits {
+		if left[id] && (best == "" || id < best) {
+			best = id
+		}
+	}
+	return best
 }

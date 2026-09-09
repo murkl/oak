@@ -19,7 +19,7 @@ func writeRuntime(t *testing.T, declaration string, modules ...string) string {
 	}
 	for _, name := range modules {
 		sub := filepath.Join(dir, DirModules, name)
-		if err := os.MkdirAll(filepath.Join(sub, DirTasks, "do"), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(sub, DirTasks, "go", "do"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		write := func(path, body string) {
@@ -27,9 +27,9 @@ func writeRuntime(t *testing.T, declaration string, modules ...string) string {
 				t.Fatal(err)
 			}
 		}
-		write(name+Ext, "title: The "+name+"\nstages: [go]\n")
-		write(filepath.Join(DirTasks, "do", FileTask), "title: Do it\nstage: go\n")
-		write(filepath.Join(DirTasks, "do", FileScript), "echo hi\n")
+		write(FileModule, "title: The "+name+"\nstages: [go]\n")
+		write(filepath.Join(DirTasks, "go", "do", FileTask), "title: Do it\n")
+		write(filepath.Join(DirTasks, "go", "do", FileScript), "echo hi\n")
 	}
 	return dir
 }

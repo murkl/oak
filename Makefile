@@ -10,7 +10,10 @@ BIN_DIR := bin
 # The version: the tag this commit carries, or the nearest one with the distance
 # and the short SHA after it. `make run` appends "-dev" so it is obvious a binary
 # did not come from a build of an actual release.
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+#
+# The tag's leading `v` is dropped here: it belongs to the tag and to nothing
+# else, and what the binary answers is oak-1.0.0.
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)
 
 # One binary, for the one platform an installer runs on. Named after neither the
 # version nor the host: a stable name keeps download links and the builds that
@@ -145,7 +148,7 @@ version-check:
 	@[[ "$(TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] \
 		|| { echo "not a release tag: '$(TAG)' — a release is vMAJOR.MINOR.PATCH" >&2; exit 1; }
 	@said="$$(./$(BIN) --version)"; \
-	[ "$$said" = "$(APP) $(TAG)" ] \
+	[ "$$said" = "$(APP)-$(TAG:v%=%)" ] \
 		|| { echo "$(BIN) answers '$$said' — the tag says '$(TAG)'" >&2; exit 1; }
 	@echo "$(BIN) is $(TAG)"
 

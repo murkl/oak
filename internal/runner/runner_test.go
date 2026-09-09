@@ -11,22 +11,18 @@ import (
 	"github.com/murkl/oak/internal/store"
 )
 
-// What a test module's declaration is called: the runtime takes whichever yaml
-// it finds in the folder, and these tests use the name the real ones use.
-const treeFile = "installer.yaml"
-
-// setup writes a module: installer.yaml from the given variables and tasks,
-// plus whatever extra files a test asked for.
+// setup writes a module: its declaration from the given variables, its tasks in
+// the one stage there is, plus whatever extra files a test asked for.
 func setup(t *testing.T, variables string, tasks map[string]string) (*spec.Module, *store.Store, *Runner) {
 	t.Helper()
 	dir := t.TempDir()
-	files := map[string]string{treeFile: "title: T\nstages: [go]\n" + variables}
+	files := map[string]string{spec.FileModule: "title: T\nstages: [go]\n" + variables}
 	if len(tasks) == 0 {
 		tasks = oneTask
 	}
 	for id, yaml := range tasks {
-		files["tasks/"+id+"/task.yaml"] = yaml
-		files["tasks/"+id+"/task.sh"] = "echo ran\n"
+		files["tasks/go/"+id+"/task.yaml"] = yaml
+		files["tasks/go/"+id+"/task.sh"] = "echo ran\n"
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, name)
@@ -45,7 +41,7 @@ func setup(t *testing.T, variables string, tasks map[string]string) (*spec.Modul
 	return sp, st, New(sp, st)
 }
 
-var oneTask = map[string]string{"go": "title: Go\nstage: go\n"}
+var oneTask = map[string]string{"go": "title: Go\n"}
 
 // A bool answers itself, in the interface's own language, so a folder never has
 // to spell out what true and false are called.
@@ -127,8 +123,8 @@ variables:
 // ruled itself out is not in it.
 func TestTasksAreOnlyTheOnesThatWillRun(t *testing.T) {
 	_, st, r := setup(t, "variables:\n  - name: DESKTOP\n    title: D\n    type: bool\n", map[string]string{
-		"always":  "title: Always\nstage: go\n",
-		"desktop": "title: Desktop\nstage: go\nconditions: DESKTOP == true\n",
+		"always":  "title: Always\n",
+		"desktop": "title: Desktop\nconditions: DESKTOP == true\n",
 	})
 	if got := names(r.Tasks()); strings.Join(got, ",") != "Always" {
 		t.Errorf("tasks = %v", got)
@@ -146,13 +142,13 @@ func TestPreflightPassesWhenTheTreeHasNoHook(t *testing.T) {
 	}
 }
 
-func TestPreflightCarriesWhatTheHookSaid(t *testing.T) {
+func TestPreflightCarriesWhatTheCheckSaid(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
-		treeFile:             "title: T\nstages: [go]\nvariables: []\n",
-		"tasks/go/task.yaml": "title: Go\nstage: go\n",
-		"tasks/go/task.sh":   "true\n",
-		"hooks/preflight.sh": "echo Set the boot mode to UEFI. >&2\nexit 1\n",
+		spec.FileModule:          "title: T\nstages: [go]\nvariables: []\n",
+		"tasks/go/run/task.yaml": "title: Go\n",
+		"tasks/go/run/task.sh":   "true\n",
+		"tasks/" + spec.StagePreflight + "/firmware/task.yaml": "title: Firmware\nscript: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n",
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, name)
@@ -179,11 +175,11 @@ func TestPreflightCarriesWhatTheHookSaid(t *testing.T) {
 
 func TestStartRunsAnTaskAndReportsIt(t *testing.T) {
 	sp, _, r := setup(t, "variables: []\n", map[string]string{
-		"good": "title: Good\nstage: go\n",
-		"bad":  "title: Bad\nstage: go\nneeds: [good]\n",
+		"good": "title: Good\n",
+		"bad":  "title: Bad\nneeds: [good]\n",
 	})
 	// The failing one is written over the script setup laid down for it.
-	if err := os.WriteFile(sp.Tasks[1].Path(), []byte("echo why not >&2\nexit 1\n"), 0o644); err != nil {
+	if err := os.WriteFile(sp.Tasks[1].File(), []byte("echo why not >&2\nexit 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	good, err := r.Start(sp.Tasks[0])

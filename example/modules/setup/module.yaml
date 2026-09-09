@@ -2,6 +2,8 @@
 #
 # The folder name is the module's identity. `oak --module=setup` opens it
 # outright, and its answers and its log are called setup.conf and setup.log.
+# Everything else in the folder has the name Oak knows it by — module.sh,
+# tasks/, locales/ — so nothing here points at anything.
 #
 # This one is an installer in miniature. It asks what an installer asks and
 # builds a small system tree out of the answers — in a folder, so the whole
@@ -10,8 +12,8 @@
 title: Tux Setup
 description: Build a small Linux system tree, the way an installer would.
 
-# The phases the work happens in, in the order they happen. Every task names
-# one, which is what puts it in the run and where.
+# The phases the work happens in, in the order they happen. Each is a folder
+# under tasks/, and the steps in it are what puts them in the run and where.
 stages: [prepare, install, finish]
 
 # The last thing read before the first task runs, with the answers filled in.

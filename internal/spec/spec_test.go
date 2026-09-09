@@ -7,11 +7,6 @@ import (
 	"testing"
 )
 
-// What a test module's declaration is called. Any name would do — the runtime
-// takes whichever yaml it finds — and these tests use the one the modules in this
-// repository use.
-const treeFile = "installer.yaml"
-
 // module writes a minimal but complete module and returns its path. Each
 // test starts from a working one and breaks exactly the thing it is about, so a
 // failure names the rule that was broken rather than a missing file three rules
@@ -22,9 +17,9 @@ func module(t *testing.T, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
 	base := map[string]string{
-		treeFile:             head("variables:\n  - name: DISK\n    title: Disk\n    required: true\n"),
-		"tasks/do/task.yaml": "title: Do it\nstage: go\n",
-		"tasks/do/task.sh":   "echo hi\n",
+		FileModule:              head("variables:\n  - name: DISK\n    title: Disk\n    required: true\n"),
+		"tasks/go/do/task.yaml": "title: Do it\n",
+		"tasks/go/do/task.sh":   "echo hi\n",
 	}
 	for name, body := range files {
 		base[name] = body
@@ -48,11 +43,12 @@ func module(t *testing.T, files map[string]string) string {
 // the test is actually about after them.
 func head(body string) string { return "title: Test Installer\nstages: [go]\n" + body }
 
-// unit is one task folder, as the two files it is made of.
-func unit(id, yaml string) map[string]string {
+// unit is one task folder under its stage, as the two files it is made of.
+func unit(stage, id, yaml string) map[string]string {
+	at := "tasks/" + stage + "/" + id
 	return map[string]string{
-		"tasks/" + id + "/task.yaml": yaml,
-		"tasks/" + id + "/task.sh":   "echo " + id + "\n",
+		at + "/task.yaml": yaml,
+		at + "/task.sh":   "echo " + id + "\n",
 	}
 }
 
@@ -69,7 +65,7 @@ func units(all ...map[string]string) map[string]string {
 
 func TestLoadReadsAWholeTree(t *testing.T) {
 	dir := module(t, map[string]string{
-		treeFile: `
+		FileModule: `
 title: Test Installer
 confirm: Erasing {{DISK}}.
 stages: [go, done]
@@ -84,8 +80,8 @@ presets:
         values:
           DISK: /dev/sda
 `,
-		"tasks/reboot/task.yaml": "title: Reboot\nstage: done\nconfirm: Restart now?\nquits: true\n",
-		"tasks/reboot/task.sh":   "echo bye\n",
+		"tasks/done/reboot/task.yaml": "title: Reboot\nconfirm: Restart now?\nquits: true\n",
+		"tasks/done/reboot/task.sh":   "echo bye\n",
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -103,8 +99,8 @@ presets:
 	if len(sp.Tasks) != 2 {
 		t.Fatalf("tasks = %d, want 2", len(sp.Tasks))
 	}
-	if !strings.HasSuffix(sp.Tasks[0].Path(), filepath.Join("do", FileScript)) {
-		t.Errorf("script = %q", sp.Tasks[0].Path())
+	if !strings.HasSuffix(sp.Tasks[0].File(), filepath.Join("do", FileScript)) {
+		t.Errorf("script = %q", sp.Tasks[0].File())
 	}
 	last := sp.Tasks[1]
 	if !last.Quits || !last.Confirms() {
@@ -121,13 +117,17 @@ presets:
 func TestOrderFollowsStagesThenNeeds(t *testing.T) {
 	dir := module(t, units(
 		map[string]string{
-			treeFile: "title: T\nstages: [first, second]\n",
-			// The default task is removed: this test owns the whole list.
-			"tasks/do/task.yaml": "title: Do\nstage: first\n",
+			FileModule: "title: T\nstages: [first, second]\n",
+			// The default task moves into the first stage: this test owns the
+			// whole list.
+			"tasks/go/do/task.yaml":    "",
+			"tasks/go/do/task.sh":      "",
+			"tasks/first/do/task.yaml": "title: Do\n",
+			"tasks/first/do/task.sh":   "echo do\n",
 		},
-		unit("zulu", "title: Zulu\nstage: first\n"),
-		unit("alpha", "title: Alpha\nstage: first\nneeds: [zulu]\n"),
-		unit("later", "title: Later\nstage: second\n"),
+		unit("first", "zulu", "title: Zulu\n"),
+		unit("first", "alpha", "title: Alpha\nneeds: [zulu]\n"),
+		unit("second", "later", "title: Later\n"),
 	))
 	sp, err := Load(dir)
 	if err != nil {
@@ -146,6 +146,30 @@ func TestOrderFollowsStagesThenNeeds(t *testing.T) {
 	}
 }
 
+// `needs` orders tasks across one stage and the stages order the rest, so a
+// need reaching into another stage says nothing that has not been said. It is
+// dropped with a word about it rather than refused: a module that behaves is
+// not a module that refuses to start.
+func TestANeedReachingIntoAnotherStageIsAWarning(t *testing.T) {
+	dir := module(t, units(
+		map[string]string{FileModule: "title: T\nstages: [go, later]\n"},
+		unit("later", "after", "title: After\nneeds: [do]\n"),
+	))
+	sp, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sp.Warnings) != 1 || !strings.Contains(sp.Warnings[0], "needs do, which is in go") {
+		t.Fatalf("warnings = %v, want one naming the stage the need is in", sp.Warnings)
+	}
+	// And it is dropped, so nothing downstream tries to wait for it.
+	for _, task := range sp.Tasks {
+		if task.ID() == "after" && len(task.Needs) != 0 {
+			t.Errorf("needs = %v, want none left", task.Needs)
+		}
+	}
+}
+
 func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -153,58 +177,53 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 		want  string
 	}{
 		{
-			name:  "a stage nothing declared",
-			files: unit("do", "title: Do\nstage: nowhere\n"),
+			name:  "a stage folder nothing declared",
+			files: unit("nowhere", "do", "title: Do\n"),
 			want:  "no such stage",
 		},
 		{
+			name:  "a stage folder carrying the runtime's mark that is not one of its own",
+			files: unit(SystemMark+"nowhere", "do", "title: Do\n"),
+			want:  "a stage the runtime runs itself",
+		},
+		{
 			name:  "a need pointing at nothing",
-			files: unit("do", "title: Do\nstage: go\nneeds: [ghost]\n"),
+			files: unit("go", "do", "title: Do\nneeds: [ghost]\n"),
 			want:  "needs unknown task",
 		},
 		{
-			name: "a need on a later stage, which could never be waited for",
+			// The ring itself, because a list of what is left would leave
+			// whoever reads it to work it out by hand.
+			name: "tasks waiting for each other",
 			files: units(
-				map[string]string{treeFile: "title: T\nstages: [go, later]\n"},
-				unit("do", "title: Do\nstage: go\nneeds: [after]\n"),
-				unit("after", "title: After\nstage: later\n"),
+				unit("go", "do", "title: Do\nneeds: [other]\n"),
+				unit("go", "other", "title: Other\nneeds: [do]\n"),
 			),
-			want: "needs orders tasks within one stage",
+			want: "wait on each other: do → other → do",
 		},
-		{
-			// It says nothing: the stages have already put the two in that
-			// order, and a line that cannot change anything is a line somebody
-			// will read as though it could.
-			name: "a need on an earlier stage, which the stages already settled",
-			files: units(
-				map[string]string{treeFile: "title: T\nstages: [early, go]\n"},
-				unit("do", "title: Do\nstage: go\nneeds: [before]\n"),
-				unit("before", "title: Before\nstage: early\n"),
-			),
-			want: "needs orders tasks within one stage",
-		},
-		{
-			name: "two tasks waiting for each other",
-			files: units(
-				unit("do", "title: Do\nstage: go\nneeds: [other]\n"),
-				unit("other", "title: Other\nstage: go\nneeds: [do]\n"),
-			),
-			want: "wait on each other",
-		},
-		{
-			name:  "a task with no stage at all",
-			files: unit("do", "title: Do\n"),
-			want:  "stage is required",
-		},
+
 		{
 			name:  "a task folder with no yaml in it",
-			files: map[string]string{"tasks/half/task.sh": "echo\n"},
+			files: map[string]string{"tasks/go/half/task.sh": "echo\n"},
 			want:  FileTask,
 		},
 		{
-			name:  "a task yaml with no script beside it",
-			files: map[string]string{"tasks/half/task.yaml": "title: Half\nstage: go\n"},
-			want:  "missing " + FileScript,
+			name:  "a task that says nothing about what it does",
+			files: map[string]string{"tasks/go/half/task.yaml": "title: Half\n"},
+			want:  "no " + FileScript,
+		},
+		{
+			name: "a task saying twice what it does",
+			files: map[string]string{
+				"tasks/go/half/task.yaml": "title: Half\nscript: echo hi\n",
+				"tasks/go/half/task.sh":   "echo hi\n",
+			},
+			want: "a task runs one thing",
+		},
+		{
+			name:  "a script naming a file that is not there",
+			files: map[string]string{"tasks/go/half/task.yaml": "title: Half\nscript: ./gone.sh\n"},
+			want:  "no such script",
 		},
 	}
 	for _, tc := range cases {
@@ -220,39 +239,83 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 	}
 }
 
-// Nothing declares the hooks: a script in hooks/ under a name the runtime
-// knows is the declaration, and every other name there is a typo rather than
-// something to ignore.
-func TestHooksAreFoundByTheirName(t *testing.T) {
-	sp, err := Load(module(t, map[string]string{
-		"hooks/" + HookPreflight + ScriptExt: "exit 0\n",
-		"hooks/" + HookRestart + ScriptExt:   "reboot\n",
-	}))
+// Nothing declares the stages the runtime runs itself: a folder under one of
+// their names is the declaration, and any other name carrying the mark is a
+// typo rather than something to ignore.
+func TestSystemStagesAreFoundByTheirFolder(t *testing.T) {
+	sp, err := Load(module(t, units(
+		unit(StagePreflight, "root", "title: Running as root\n"),
+		unit(StageRestart, "reboot", "title: Reboot\n"),
+	)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(sp.Hook(HookPreflight), "preflight.sh") {
-		t.Errorf("preflight hook = %q", sp.Hook(HookPreflight))
+	if got := sp.System(StagePreflight); len(got) != 1 || got[0].ID() != "root" {
+		t.Errorf("preflight = %+v, want the one task in it", got)
 	}
-	if got := Source(sp.Hook(HookRestart)); !strings.HasPrefix(got, "source ") {
-		t.Errorf("Source() = %q, want it to source the file", got)
+	if got := sp.SystemShell(StageRestart); !strings.HasPrefix(got, "source ") {
+		t.Errorf("SystemShell() = %q, want it to source the task's file", got)
 	}
-	if sp.Hook(HookShutdown) != "" {
-		t.Errorf("shutdown hook = %q, want none", sp.Hook(HookShutdown))
+	if sp.SystemShell(StageShutdown) != "" {
+		t.Errorf("shutdown = %q, want none", sp.SystemShell(StageShutdown))
+	}
+	// A system stage runs at its own moment, so nothing in it is part of the
+	// work: the run is the one task the module has of its own.
+	if len(sp.Tasks) != 1 || sp.Tasks[0].ID() != "do" {
+		t.Errorf("tasks = %+v, want only the module's own work", sp.Tasks)
 	}
 	if !sp.Leaves() {
-		t.Error("Leaves() = false, want true: there is a restart hook")
+		t.Error("Leaves() = false, want true: there is a restart stage")
 	}
 }
 
-func TestATreeWithoutHooksHasNone(t *testing.T) {
+// Every task in one runs in order, so a module may split a check into the
+// several things it actually checks.
+func TestASystemStageRunsEveryTaskInIt(t *testing.T) {
+	sp, err := Load(module(t, units(
+		unit(StagePreflight, "root", "title: Root\n"),
+		unit(StagePreflight, "network", "title: Network\nneeds: [root]\n"),
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := sp.System(StagePreflight)
+	if len(steps) != 2 || steps[0].ID() != "root" || steps[1].ID() != "network" {
+		t.Fatalf("preflight = %+v, want root then network", steps)
+	}
+	if lines := strings.Count(sp.SystemShell(StagePreflight), "\n"); lines != 1 {
+		t.Errorf("SystemShell() runs %d step(s), want both", lines+1)
+	}
+}
+
+// Most of what a task may say has nothing to answer to in a stage the runtime
+// runs itself: it is never listed, offered or reported on. Saying it anyway is
+// a line that can never take effect.
+func TestASystemTaskRefusesWhatItCannotMean(t *testing.T) {
+	for key, line := range map[string]string{
+		"conditions": "conditions: DISK != none\n",
+		"confirm":    "confirm: Really?\n",
+		"report":     "report: Done\n",
+		"quits":      "quits: true\n",
+		"tty":        "tty: true\n",
+	} {
+		t.Run(key, func(t *testing.T) {
+			_, err := Load(module(t, unit(StagePreflight, "check", "title: Check\n"+line)))
+			if err == nil || !strings.Contains(err.Error(), key) {
+				t.Errorf("err = %v, want it to name %s", err, key)
+			}
+		})
+	}
+}
+
+func TestAModuleWithoutSystemStagesHasNone(t *testing.T) {
 	sp, err := Load(module(t, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range HookNames {
-		if sp.Hook(name) != "" {
-			t.Errorf("%s = %q, want none", name, sp.Hook(name))
+	for _, stage := range SystemStages {
+		if sp.SystemShell(stage) != "" {
+			t.Errorf("%s = %q, want none", stage, sp.SystemShell(stage))
 		}
 	}
 	if sp.Leaves() {
@@ -260,18 +323,46 @@ func TestATreeWithoutHooksHasNone(t *testing.T) {
 	}
 }
 
-// lib.sh and locales/ are found the same way, so a module turns them on by
+// A task says what it does in its own yaml or in the file beside it, and the
+// two are told apart because a failure in a file names the file.
+func TestATaskRunsItsFileOrTheShellItsYamlWrote(t *testing.T) {
+	sp, err := Load(module(t, units(
+		map[string]string{
+			"tasks/go/inline/task.yaml": "title: Inline\nscript: echo hi\n",
+			"tasks/go/named/task.yaml":  "title: Named\nscript: ./other.sh\n",
+			"tasks/go/named/other.sh":   "echo other\n",
+		},
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	by := map[string]*Task{}
+	for _, task := range sp.Tasks {
+		by[task.ID()] = task
+	}
+	if got := by["inline"]; got.File() != "" || got.Script != "echo hi" {
+		t.Errorf("inline = %q / %q, want the shell it wrote", got.File(), got.Script)
+	}
+	if got := by["named"]; !strings.HasSuffix(got.File(), "other.sh") || got.Script != "" {
+		t.Errorf("named = %q / %q, want the file it named", got.File(), got.Script)
+	}
+	if got := by["do"]; !strings.HasSuffix(got.File(), FileScript) {
+		t.Errorf("do = %q, want the %s beside it", got.File(), FileScript)
+	}
+}
+
+// module.sh and locales/ are found the same way, so a module turns them on by
 // having them and off by not.
-func TestLibAndLocalesAreFoundBesideTheInstallerFile(t *testing.T) {
+func TestTheModuleShellAndLocalesAreFoundBesideTheDeclaration(t *testing.T) {
 	sp, err := Load(module(t, map[string]string{
-		FileLib:               "helper() { echo hi; }\n",
+		FileShell:             "helper() { echo hi; }\n",
 		DirLocales + "/de.po": "msgid \"English\"\nmsgstr \"Deutsch\"\n",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(sp.Lib, FileLib) {
-		t.Errorf("lib = %q", sp.Lib)
+	if !strings.HasSuffix(sp.Shell, FileShell) {
+		t.Errorf("shell = %q", sp.Shell)
 	}
 	if !strings.HasSuffix(sp.Locales, DirLocales) {
 		t.Errorf("locales = %q", sp.Locales)
@@ -280,8 +371,8 @@ func TestLibAndLocalesAreFoundBesideTheInstallerFile(t *testing.T) {
 	if sp, err = Load(module(t, nil)); err != nil {
 		t.Fatal(err)
 	}
-	if sp.Lib != "" || sp.Locales != "" {
-		t.Errorf("lib = %q, locales = %q, want neither", sp.Lib, sp.Locales)
+	if sp.Shell != "" || sp.Locales != "" {
+		t.Errorf("shell = %q, locales = %q, want neither", sp.Shell, sp.Locales)
 	}
 }
 
@@ -289,7 +380,7 @@ func TestLibAndLocalesAreFoundBesideTheInstallerFile(t *testing.T) {
 // everything else it says.
 func TestConsoleIsTranslatable(t *testing.T) {
 	sp, err := Load(module(t, map[string]string{
-		treeFile: head("console: Type installer to start again.\n"),
+		FileModule: head("console: Type installer to start again.\n"),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -312,92 +403,92 @@ func TestLoadRefuses(t *testing.T) {
 	}{
 		{
 			name:  "a condition naming a variable nobody declared",
-			files: unit("do", "title: Do\nstage: go\nconditions: NOPE == true\n"),
+			files: unit("go", "do", "title: Do\nconditions: NOPE == true\n"),
 			want:  "no such variable",
 		},
 		{
 			name:  "a condition that is not three words",
-			files: unit("do", "title: Do\nstage: go\nconditions: DISK\n"),
+			files: unit("go", "do", "title: Do\nconditions: DISK\n"),
 			want:  "bad condition",
 		},
 		{
 			name:  "a task with no title",
-			files: unit("do", "stage: go\n"),
+			files: unit("go", "do", "needs: []\n"),
 			want:  "title is required",
 		},
 		{
 			name:  "an offer opening on an answer it does not have",
-			files: unit("do", "title: Do\nstage: go\nconfirm: Really?\ndefault: maybe\n"),
+			files: unit("go", "do", "title: Do\nconfirm: Really?\ndefault: maybe\n"),
 			want:  "yes or no",
 		},
 		{
 			name:  "an answer to an offer that was never made",
-			files: unit("do", "title: Do\nstage: go\ndefault: no\n"),
+			files: unit("go", "do", "title: Do\ndefault: no\n"),
 			want:  "no confirm for it to answer",
 		},
 		{
 			name:  "a preset filling in a variable nobody declared",
-			files: map[string]string{treeFile: head("presets:\n  - title: P\n    options:\n      - title: O\n        values:\n          NOPE: x\n")},
+			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: O\n        values:\n          NOPE: x\n")},
 			want:  "no such variable",
 		},
 		{
 			name:  "a preset page with nothing to choose on it",
-			files: map[string]string{treeFile: head("presets:\n  - title: P\n")},
+			files: map[string]string{FileModule: head("presets:\n  - title: P\n")},
 			want:  "no options",
 		},
 		{
 			name:  "a preset option with no title",
-			files: map[string]string{treeFile: head("presets:\n  - title: P\n    options:\n      - description: nothing\n")},
+			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - description: nothing\n")},
 			want:  "title is required",
 		},
 		{
 			name:  "two variables of the same name",
-			files: map[string]string{treeFile: head("variables:\n  - name: DISK\n    title: A\n  - name: DISK\n    title: B\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: A\n  - name: DISK\n    title: B\n")},
 			want:  "declared twice",
 		},
 		{
 			name:  "a variable with no title",
-			files: map[string]string{treeFile: head("variables:\n  - name: DISK\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n")},
 			want:  "title is required",
 		},
 		{
 			name:  "a type nobody has heard of",
-			files: map[string]string{treeFile: head("variables:\n  - name: DISK\n    title: D\n    type: colour\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    type: colour\n")},
 			want:  "unknown type",
 		},
 		{
 			name:  "a bool with values of its own",
-			files: map[string]string{treeFile: head("variables:\n  - name: DISK\n    title: D\n    type: bool\n    values: [a, b]\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    type: bool\n    values: [a, b]\n")},
 			want:  "has no values of its own",
 		},
 		{
 			name:  "a secret asked first, which is a question that would never be asked",
-			files: map[string]string{treeFile: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    first: true\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    first: true\n")},
 			want:  "cannot also be asked first",
 		},
 		{
 			name:  "a secret with a default, which would be a stored password",
-			files: map[string]string{treeFile: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    default: hunter2\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    default: hunter2\n")},
 			want:  "cannot have a default",
 		},
 		{
 			name:  "both a list and a command for the same question",
-			files: map[string]string{treeFile: head("variables:\n  - name: DISK\n    title: D\n    values: [a]\n    command: ls\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    values: [a]\n    command: ls\n")},
 			want:  "two answers to the same question",
 		},
 		{
 			name:  "a pattern that is not a pattern",
-			files: map[string]string{treeFile: head("variables:\n  - name: DISK\n    title: D\n    pattern: '['\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    pattern: '['\n")},
 			want:  "pattern",
 		},
 		{
 			name:  "a key that is a typo, silently ignored by a lesser reader",
-			files: map[string]string{treeFile: head("variables:\n  - name: DISK\n    title: D\n    requird: true\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    requird: true\n")},
 			want:  "requird is not a key here",
 		},
 		{
 			name:  "a key that is a typo in a task",
-			files: unit("do", "title: Do\nstage: go\nquites: true\n"),
+			files: unit("go", "do", "title: Do\nquites: true\n"),
 			want:  "quites is not a key here",
 		},
 		{
@@ -405,12 +496,12 @@ func TestLoadRefuses(t *testing.T) {
 			// told what to write instead, so the refusal is the whole of what
 			// somebody needs in order to fix it.
 			name:  "a key a product used to be able to declare",
-			files: map[string]string{treeFile: head("run: Installation\n")},
+			files: map[string]string{FileModule: head("run: Installation\n")},
 			want:  "run is not a key here — a module is named once, by its title",
 		},
 		{
 			name:  "a language tied to a variable nobody declared",
-			files: map[string]string{treeFile: head("language: NOPE\nvariables:\n  - name: DISK\n    title: D\n")},
+			files: map[string]string{FileModule: head("language: NOPE\nvariables:\n  - name: DISK\n    title: D\n")},
 			want:  "no such variable",
 		},
 		{
@@ -418,81 +509,71 @@ func TestLoadRefuses(t *testing.T) {
 			// module that declared it would be overwriting the one thing it
 			// answers questions back through.
 			name:  "the answer file's own name, redeclared",
-			files: map[string]string{treeFile: head("variables:\n  - name: " + ConfVar + "\n    title: C\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: " + ConfVar + "\n    title: C\n")},
 			want:  "belongs to the runtime",
 		},
 		{
 			// It is handed to every script by the runtime, so a module that
 			// declared it would be asking a question nothing reads the answer of.
 			name:  "the switch that simulates a run, redeclared",
-			files: map[string]string{treeFile: head("variables:\n  - name: " + DebugVar + "\n    title: D\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: " + DebugVar + "\n    title: D\n")},
 			want:  "belongs to the runtime",
 		},
 		{
 			name:  "no stages at all",
-			files: map[string]string{treeFile: "title: T\nstages: []\n"},
+			files: map[string]string{FileModule: "title: T\nstages: []\n"},
 			want:  "no stages",
 		},
 		{
 			name:  "a stage listed twice",
-			files: map[string]string{treeFile: "title: T\nstages: [go, go]\n"},
+			files: map[string]string{FileModule: "title: T\nstages: [go, go]\n"},
 			want:  "listed twice",
 		},
 		{
 			name:  "asks naming a variable nobody declared",
-			files: unit("do", "title: Do\nstage: go\nasks: NOPE\n"),
+			files: unit("go", "do", "title: Do\nasks: NOPE\n"),
 			want:  "no such variable",
 		},
 		{
 			name:  "asks on a free text value, which is not a question the frame can put mid-run",
-			files: unit("do", "title: Do\nstage: go\nasks: DISK\n"),
+			files: unit("go", "do", "title: Do\nasks: DISK\n"),
 			want:  "no answers to choose from",
 		},
 		{
 			name: "asks on a secret, which is already asked at the only safe moment",
 			files: units(
-				map[string]string{treeFile: head("variables:\n  - name: PW\n    title: P\n    type: secret\n")},
-				unit("do", "title: Do\nstage: go\nasks: PW\n"),
+				map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n")},
+				unit("go", "do", "title: Do\nasks: PW\n"),
 			),
 			want: "is a secret",
 		},
 		{
 			name:  "a value shown on a page that does not exist",
-			files: unit("do", "title: Do\nstage: go\nshows: DISK\n"),
+			files: unit("go", "do", "title: Do\nshows: DISK\n"),
 			want:  "no report for it to appear on",
 		},
 		{
 			name:  "a report showing a variable nobody declared",
-			files: unit("do", "title: Do\nstage: go\nreport: Done\nshows: NOPE\n"),
+			files: unit("go", "do", "title: Do\nreport: Done\nshows: NOPE\n"),
 			want:  "no such variable",
 		},
 		{
 			name: "a report showing a secret",
 			files: units(
-				map[string]string{treeFile: head("variables:\n  - name: PW\n    title: Password\n    type: secret\n")},
-				unit("do", "title: Do\nstage: go\nreport: Done\nshows: PW\n"),
+				map[string]string{FileModule: head("variables:\n  - name: PW\n    title: Password\n    type: secret\n")},
+				unit("go", "do", "title: Do\nreport: Done\nshows: PW\n"),
 			),
 			want: "is a secret",
 		},
 		{
 			name:  "a starting point asking for a variable nobody declared",
-			files: map[string]string{treeFile: head("presets:\n  - title: P\n    options:\n      - title: O\n        asks: NOPE\n")},
+			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: O\n        asks: NOPE\n")},
 			want:  "no such variable",
 		},
 		{
 			name:  "a starting point with shell and nothing to run it on",
-			files: map[string]string{treeFile: head("presets:\n  - title: P\n    options:\n      - title: O\n        apply: echo hi\n")},
+			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: O\n        apply: echo hi\n")},
 			want:  "no asks for it to work from",
-		},
-		{
-			name:  "a hook whose name is a typo",
-			files: map[string]string{"hooks/preflght.sh": "exit 0\n"},
-			want:  "not a hook",
-		},
-		{
-			name:  "a hook with no .sh after it",
-			files: map[string]string{"hooks/preflight": "exit 0\n"},
-			want:  "not a hook",
 		},
 	}
 	for _, tc := range cases {
@@ -511,11 +592,11 @@ func TestLoadRefuses(t *testing.T) {
 func TestConditionsDecideWhatBelongs(t *testing.T) {
 	dir := module(t, units(
 		map[string]string{
-			treeFile:             head("variables:\n  - name: DESKTOP\n    title: Desktop\n    type: bool\n"),
-			"tasks/do/task.yaml": "title: Always\nstage: go\n",
+			FileModule:              head("variables:\n  - name: DESKTOP\n    title: Desktop\n    type: bool\n"),
+			"tasks/go/do/task.yaml": "title: Always\n",
 		},
-		unit("with", "title: Only with a desktop\nstage: go\nconditions: DESKTOP == true\n"),
-		unit("without", "title: Only without one\nstage: go\nconditions: DESKTOP != true\n"),
+		unit("go", "with", "title: Only with a desktop\nconditions: DESKTOP == true\n"),
+		unit("go", "without", "title: Only without one\nconditions: DESKTOP != true\n"),
 	))
 	sp, err := Load(dir)
 	if err != nil {
@@ -552,7 +633,7 @@ func TestConditionsDecideWhatBelongs(t *testing.T) {
 // path run as a command, or a command looked for as a file.
 func TestShellFieldsTellCodeFromFiles(t *testing.T) {
 	dir := module(t, map[string]string{
-		treeFile: head(`
+		FileModule: head(`
 variables:
   - name: DISK
     title: Disk
@@ -576,7 +657,7 @@ variables:
 
 func TestReflowKeepsOnlyTheBreaksThatWereMeant(t *testing.T) {
 	dir := module(t, map[string]string{
-		treeFile: head("variables:\n  - name: DISK\n    title: Disk\n    description: |\n      One sentence\n      wrapped by an editor.\n\n      A second paragraph.\n"),
+		FileModule: head("variables:\n  - name: DISK\n    title: Disk\n    description: |\n      One sentence\n      wrapped by an editor.\n\n      A second paragraph.\n"),
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -611,7 +692,7 @@ func TestExpandFillsInAnswers(t *testing.T) {
 // Every answer is a string in the end, but nobody writes `default: "true"`.
 func TestScalarReadsWhateverShapeItWasWrittenIn(t *testing.T) {
 	dir := module(t, map[string]string{
-		treeFile: head("variables:\n  - name: A\n    title: A\n    default: true\n  - name: B\n    title: B\n    default: 8\n  - name: C\n    title: C\n    default: pc105\n"),
+		FileModule: head("variables:\n  - name: A\n    title: A\n    default: true\n  - name: B\n    title: B\n    default: 8\n  - name: C\n    title: C\n    default: pc105\n"),
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -626,7 +707,7 @@ func TestScalarReadsWhateverShapeItWasWrittenIn(t *testing.T) {
 
 func TestStringsIsEveryWordTheTreeSays(t *testing.T) {
 	dir := module(t, map[string]string{
-		treeFile: head(`
+		FileModule: head(`
 confirm: Careful.
 presets:
   - title: Setup
@@ -641,7 +722,7 @@ variables:
     group: Storage
     error: Pick one.
 `),
-		"tasks/do/task.yaml": "title: Do it\nstage: go\nconfirm: Really?\n",
+		"tasks/go/do/task.yaml": "title: Do it\nconfirm: Really?\n",
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -660,7 +741,7 @@ variables:
 			t.Errorf("%q has no origin: %+v", m.Text, m)
 		}
 	}
-	if m := sp.Messages()[len(sp.Messages())-1]; m.Files[0] != "tasks/do/task.yaml" {
+	if m := sp.Messages()[len(sp.Messages())-1]; m.Files[0] != "tasks/go/do/task.yaml" {
 		t.Errorf("%q was read from %v, want the task it is in", m.Text, m.Files)
 	}
 }
@@ -674,31 +755,11 @@ func texts(sp *Module) []string {
 	return out
 }
 
-// Whatever it is called: a module names its declaration after what it declares,
-// and the runtime takes the one yaml it finds in the folder.
-func TestAModuleIsFoundByAnyName(t *testing.T) {
-	dir := module(t, map[string]string{treeFile: "", "recovery.yaml": head("")})
-	sp, err := Load(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sp.File != "recovery.yaml" {
-		t.Errorf("File = %q, want recovery.yaml", sp.File)
-	}
-}
-
-// Two of them is two modules in one folder, and picking one would be the runtime
-// deciding which installer somebody meant.
-func TestTwoDeclarationsAreRefused(t *testing.T) {
-	dir := module(t, map[string]string{"recovery.yaml": head("")})
-	_, err := Load(dir)
-	if err == nil {
-		t.Fatal("loaded a folder holding two declarations")
-	}
-	for _, want := range []string{treeFile, "recovery.yaml"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error = %q, want it to name %s", err, want)
-		}
+// The declaration has one name, so a folder either holds a module or does not.
+func TestAModuleWithoutADeclarationIsRefused(t *testing.T) {
+	_, err := Load(module(t, map[string]string{FileModule: ""}))
+	if err == nil || !strings.Contains(err.Error(), FileModule) {
+		t.Errorf("err = %v, want it to name %s", err, FileModule)
 	}
 }
 
@@ -706,8 +767,8 @@ func TestTwoDeclarationsAreRefused(t *testing.T) {
 // hold: a row that belongs under two unrelated circumstances is two rows.
 func TestSeveralConditionsAllHaveToHold(t *testing.T) {
 	dir := module(t, map[string]string{
-		treeFile:             head("variables:\n  - name: DESKTOP\n    title: D\n    type: bool\n  - name: DRIVER\n    title: G\n"),
-		"tasks/do/task.yaml": "title: Driver\nstage: go\nconditions:\n  - DESKTOP == true\n  - DRIVER != none\n",
+		FileModule:              head("variables:\n  - name: DESKTOP\n    title: D\n    type: bool\n  - name: DRIVER\n    title: G\n"),
+		"tasks/go/do/task.yaml": "title: Driver\nconditions:\n  - DESKTOP == true\n  - DRIVER != none\n",
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -732,7 +793,7 @@ func TestSeveralConditionsAllHaveToHold(t *testing.T) {
 }
 
 func TestConditionsRefuseAnythingButAConditionOrAListOfThem(t *testing.T) {
-	_, err := Load(module(t, unit("do", "title: Do\nstage: go\nconditions:\n  DISK: yes\n")))
+	_, err := Load(module(t, unit("go", "do", "title: Do\nconditions:\n  DISK: yes\n")))
 	if err == nil || !strings.Contains(err.Error(), "conditions takes a condition") {
 		t.Errorf("err = %v", err)
 	}
@@ -745,7 +806,7 @@ func TestConditionsRefuseAnythingButAConditionOrAListOfThem(t *testing.T) {
 func TestBeingNamedIsWhatDefersAValue(t *testing.T) {
 	dir := module(t, units(
 		map[string]string{
-			treeFile: head(`presets:
+			FileModule: head(`presets:
   - title: P
     options:
       - title: O
@@ -761,7 +822,7 @@ variables:
     title: Configuration code
 `),
 		},
-		unit("do", "title: Do\nstage: go\nreport: Done\nshows: LINK\n"),
+		unit("go", "do", "title: Do\nreport: Done\nshows: LINK\n"),
 	))
 	sp, err := Load(dir)
 	if err != nil {
@@ -780,7 +841,7 @@ variables:
 // The first paragraph of a report is its headline, the way the first block of
 // the opening logo is its eyebrow — one idiom, and nothing extra to declare.
 func TestAReportsFirstParagraphIsItsHeadline(t *testing.T) {
-	dir := module(t, unit("do", "title: Do\nstage: go\nreport: |\n  Installed on {{DISK}}\n\n  And here is what that means.\n"))
+	dir := module(t, unit("go", "do", "title: Do\nreport: |\n  Installed on {{DISK}}\n\n  And here is what that means.\n"))
 	sp, err := Load(dir)
 	if err != nil {
 		t.Fatal(err)

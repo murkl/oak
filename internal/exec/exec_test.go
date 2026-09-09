@@ -10,6 +10,7 @@ import (
 
 var sh = Runner{}
 
+// script writes a task's file and answers with the shell that runs it.
 func script(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "stage.sh")
@@ -19,9 +20,19 @@ func script(t *testing.T, body string) string {
 	return path
 }
 
+// sourced is that file as one task's work.
+func sourced(t *testing.T, body string) Script { return Script{File: script(t, body)} }
+
+// run is a script in a file, the way a task with a task.sh beside it runs.
 func run(t *testing.T, body string) *Session {
 	t.Helper()
-	s, err := sh.Start("Test stage", script(t, body), Env(os.Environ()))
+	return start(t, sourced(t, body))
+}
+
+// start is one task's work, whichever of the two shapes it was written in.
+func start(t *testing.T, sc Script) *Session {
+	t.Helper()
+	s, err := sh.Start("Test stage", sc, Env(os.Environ()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,6 +72,34 @@ func TestAFailureSaysExactlyWhereItBroke(t *testing.T) {
 	}
 	if f.Unit != "Test stage" {
 		t.Errorf("unit = %q", f.Unit)
+	}
+}
+
+// Shell a yaml wrote outright has no file to point at, so the report is what
+// broke and what it returned — and that much still arrives.
+//
+// The trailing guard is the same rule as for a file: the status of the script
+// as a whole is not a failure, and a failure inside it is.
+func TestShellWithNoFileStillNamesWhatBroke(t *testing.T) {
+	s := start(t, Script{Shell: "echo first\nls /definitely/not/here\necho never\n"})
+	f, ok := s.Err().(*Failure)
+	if !ok {
+		t.Fatalf("err = %v (%T), want a *Failure", s.Err(), s.Err())
+	}
+	if f.Script != "" {
+		t.Errorf("script = %q, want none — there is no file", f.Script)
+	}
+	if f.Command != "ls /definitely/not/here" {
+		t.Errorf("command = %q", f.Command)
+	}
+	if f.Code == 0 {
+		t.Errorf("code = 0, want the command's own")
+	}
+	if err := start(t, Script{Shell: "X=false\n[ \"$X\" = true ] && echo yes\n"}).Err(); err != nil {
+		t.Errorf("trailing guard reported: %v", err)
+	}
+	if err := start(t, Script{Shell: "ls /definitely/not/here\n"}).Err(); err == nil {
+		t.Error("a one-line script that failed was not reported")
 	}
 }
 
@@ -144,7 +183,7 @@ func TestRunReturnsWhatACommandPrinted(t *testing.T) {
 // else — this is how every answer reaches every task.
 func TestAScriptSeesTheEnvironmentItWasGiven(t *testing.T) {
 	seen := filepath.Join(t.TempDir(), "seen")
-	s, err := sh.Start("Test", script(t, "echo \"disk=$DISK\" >"+seen+"\n"), Env{"DISK=/dev/sda"})
+	s, err := sh.Start("Test", sourced(t, "echo \"disk=$DISK\" >"+seen+"\n"), Env{"DISK=/dev/sda"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +209,7 @@ func TestKillingAStageTakesEverythingItStartedWithIt(t *testing.T) {
 	// the shell exits at once, the sleep would not.
 	body := "(sleep 5; touch " + marker + ") &\nsleep 5\n"
 
-	s, err := sh.Start("Test", script(t, body), Env(os.Environ()))
+	s, err := sh.Start("Test", sourced(t, body), Env(os.Environ()))
 	if err != nil {
 		t.Fatal(err)
 	}

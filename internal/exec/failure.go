@@ -64,13 +64,18 @@ func (f *Failure) Error() string {
 	return b.String()
 }
 
-// parseReport reads the ERR trap's line: code, source, line, command.
+// parseReport reads the ERR trap's first line: code, source, line, command.
 //
 // A script can also die without the trap — a bare `exit 1` does not fire ERR —
 // so a missing or unreadable report is normal and simply leaves the fields
 // empty. The exit code alone still names the step that failed.
+//
+// Only the first line counts. A command substitution fails twice over — once in
+// the subshell it ran in and once in the line that took its output — and the
+// inner one is where the command actually is.
 func parseReport(s string) *Failure {
-	fields := strings.SplitN(strings.TrimRight(s, "\n"), "\t", 4)
+	first, _, _ := strings.Cut(strings.TrimRight(s, "\n"), "\n")
+	fields := strings.SplitN(first, "\t", 4)
 	if len(fields) != 4 {
 		return nil
 	}

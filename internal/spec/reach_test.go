@@ -27,12 +27,12 @@ variables:
 // script. Nothing in it is unread, and each test below breaks exactly one thing.
 func consistent(files map[string]string) map[string]string {
 	out := map[string]string{
-		treeFile: guarded,
+		FileModule: guarded,
 		// The helper's own task, left out: these tests write their own.
-		"tasks/do/task.yaml":      "",
-		"tasks/do/task.sh":        "",
-		"tasks/desktop/task.yaml": "title: Desktop\nstage: go\nconditions: DESKTOP == gnome\n",
-		"tasks/desktop/task.sh":   "echo \"$EXTRAS\"\n",
+		"tasks/go/do/task.yaml":      "",
+		"tasks/go/do/task.sh":        "",
+		"tasks/go/desktop/task.yaml": "title: Desktop\nconditions: DESKTOP == gnome\n",
+		"tasks/go/desktop/task.sh":   "echo \"$EXTRAS\"\n",
 	}
 	maps.Copy(out, files)
 	return out
@@ -68,13 +68,13 @@ func TestATreeWhoseGuardsAgreeReportsNothing(t *testing.T) {
 }
 
 func TestAQuestionAskedWhereItsOnlyTaskCannotRunIsReported(t *testing.T) {
-	got := unread(t, consistent(map[string]string{treeFile: widened}))
+	got := unread(t, consistent(map[string]string{FileModule: widened}))
 	if len(got) != 1 {
 		t.Fatalf("Unread() = %v, want one finding", got)
 	}
 	// What it says has to be enough to go and fix it: which question, which
 	// task, and the condition that task carries and the question does not.
-	for _, want := range []string{"EXTRAS", "tasks/desktop", "DESKTOP == gnome"} {
+	for _, want := range []string{"EXTRAS", "tasks/go/desktop", "DESKTOP == gnome"} {
 		if !strings.Contains(got[0], want) {
 			t.Errorf("Unread() = %q, want it to name %q", got[0], want)
 		}
@@ -87,7 +87,7 @@ func TestAWrittenOutSetOfValuesSettlesTheGuard(t *testing.T) {
 	// runs wherever the question is asked. Take the values away and the same
 	// two guards no longer say the same thing.
 	open := strings.Replace(guarded, "    values: [gnome, none]\n", "", 1)
-	got := unread(t, consistent(map[string]string{treeFile: open}))
+	got := unread(t, consistent(map[string]string{FileModule: open}))
 	if len(got) != 1 || !strings.Contains(got[0], "EXTRAS") {
 		t.Errorf("Unread() = %v, want EXTRAS reported once the domain is open", got)
 	}
@@ -97,19 +97,19 @@ func TestATaskGuardedOnTheAnswerItselfReadsIt(t *testing.T) {
 	// `EXTRAS == true` is not a task that runs somewhere else — it is the
 	// answer being acted on, which is the only way a bool ever is read.
 	files := consistent(map[string]string{
-		treeFile:                widened,
-		"tasks/desktop/task.sh": "echo desktop\n",
+		FileModule:                 widened,
+		"tasks/go/desktop/task.sh": "echo desktop\n",
 	})
-	maps.Copy(files, unit("extras", "title: Extras\nstage: go\nconditions: EXTRAS == true\n"))
+	maps.Copy(files, unit("go", "extras", "title: Extras\nconditions: EXTRAS == true\n"))
 	if got := unread(t, files); len(got) != 0 {
 		t.Errorf("Unread() = %v, want nothing", got)
 	}
 }
 
 func TestOneTaskThatCanRunAnywhereIsEnough(t *testing.T) {
-	files := consistent(map[string]string{treeFile: widened})
-	maps.Copy(files, unit("always", "title: Always\nstage: go\n"))
-	files["tasks/always/task.sh"] = "echo \"$EXTRAS\"\n"
+	files := consistent(map[string]string{FileModule: widened})
+	maps.Copy(files, unit("go", "always", "title: Always\n"))
+	files["tasks/go/always/task.sh"] = "echo \"$EXTRAS\"\n"
 	if got := unread(t, files); len(got) != 0 {
 		t.Errorf("Unread() = %v, want nothing: one task reads it wherever it is asked", got)
 	}
@@ -117,18 +117,18 @@ func TestOneTaskThatCanRunAnywhereIsEnough(t *testing.T) {
 
 func TestTheSharedLibraryReadsForEveryTask(t *testing.T) {
 	files := consistent(map[string]string{
-		treeFile:                widened,
-		"tasks/desktop/task.sh": "echo desktop\n",
-		"lib.sh":                "echo \"$EXTRAS\"\n",
+		FileModule:                 widened,
+		"tasks/go/desktop/task.sh": "echo desktop\n",
+		FileShell:                  "echo \"$EXTRAS\"\n",
 	})
 	if got := unread(t, files); len(got) != 0 {
-		t.Errorf("Unread() = %v, want nothing: lib.sh runs whatever the answers say", got)
+		t.Errorf("Unread() = %v, want nothing: module.sh runs whatever the answers say", got)
 	}
 }
 
 func TestAQuestionNothingReadsAtAllIsReported(t *testing.T) {
 	spare := guarded + "  - name: SPARE\n    title: Spare\n    type: bool\n    default: true\n"
-	got := unread(t, consistent(map[string]string{treeFile: spare}))
+	got := unread(t, consistent(map[string]string{FileModule: spare}))
 	if len(got) != 1 || !strings.Contains(got[0], "SPARE") {
 		t.Fatalf("Unread() = %v, want SPARE reported", got)
 	}
@@ -148,8 +148,8 @@ func TestAValueATaskAsksForOrShowsIsReadByThatTask(t *testing.T) {
   - name: LINK
     title: Link
 `
-	files := consistent(map[string]string{treeFile: declared})
-	maps.Copy(files, unit("work", "title: Work\nstage: go\nasks: PICK\nshows: LINK\nreport: |\n  Done\n\n  It worked.\n"))
+	files := consistent(map[string]string{FileModule: declared})
+	maps.Copy(files, unit("go", "work", "title: Work\nasks: PICK\nshows: LINK\nreport: |\n  Done\n\n  It worked.\n"))
 	if got := unread(t, files); len(got) != 0 {
 		t.Errorf("Unread() = %v, want nothing", got)
 	}
@@ -176,8 +176,8 @@ func unset(t *testing.T, files map[string]string) []string {
 // only place it is visible at all.
 func TestANameNothingAnswersIsReported(t *testing.T) {
 	got := unset(t, consistent(map[string]string{
-		"tasks/do/task.yaml": "title: Do\nstage: go\n",
-		"tasks/do/task.sh":   "echo \"$PRODUCT_VERSION\" >\"$MODULE_DIR/out\"\n",
+		"tasks/go/do/task.yaml": "title: Do\n",
+		"tasks/go/do/task.sh":   "echo \"$PRODUCT_VERSION\" >\"$MODULE_DIR/out\"\n",
 	}))
 	if strings.Join(got, " ") != "MODULE_DIR PRODUCT_VERSION" {
 		t.Errorf("Unset() = %v, want both names the module reads and nothing sets", got)
@@ -188,9 +188,9 @@ func TestANameNothingAnswersIsReported(t *testing.T) {
 // the module, which is the whole point of the line.
 func TestANameTheModuleSetsItselfIsNotReported(t *testing.T) {
 	got := unset(t, consistent(map[string]string{
-		"lib.sh":             "MODULE_DIR=\"$(dirname \"${BASH_SOURCE[0]}\")\"\n",
-		"tasks/do/task.yaml": "title: Do\nstage: go\n",
-		"tasks/do/task.sh":   "echo \"$MODULE_DIR\"\n",
+		FileShell:               "MODULE_DIR=\"$(dirname \"${BASH_SOURCE[0]}\")\"\n",
+		"tasks/go/do/task.yaml": "title: Do\n",
+		"tasks/go/do/task.sh":   "echo \"$MODULE_DIR\"\n",
 	}))
 	if len(got) != 0 {
 		t.Errorf("Unset() = %v, want nothing", got)
@@ -201,8 +201,8 @@ func TestANameTheModuleSetsItselfIsNotReported(t *testing.T) {
 // script's own working values are lower case and none of this check's business.
 func TestWhatIsAnsweredIsNotReported(t *testing.T) {
 	got := unset(t, consistent(map[string]string{
-		"tasks/do/task.yaml": "title: Do\nstage: go\n",
-		"tasks/do/task.sh": "target=\"$DESKTOP\"\n" +
+		"tasks/go/do/task.yaml": "title: Do\n",
+		"tasks/go/do/task.sh": "target=\"$DESKTOP\"\n" +
 			"[ \"$DEBUG\" = true ] && echo \"$target\" >>\"$MODULE_CONF\"\n" +
 			"echo \"${BASH_SOURCE[0]}\"\n",
 	}))

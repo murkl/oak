@@ -90,7 +90,7 @@ func start(args []string) error {
 	// Answered before anything is loaded: a version is what this binary is,
 	// which is true of a binary standing on its own with no product beside it.
 	if cmd.version {
-		fmt.Println(program, version)
+		fmt.Println(program + "-" + version)
 		return nil
 	}
 
@@ -235,6 +235,9 @@ func open(mod *spec.Module, debug bool) (*tui.Program, error) {
 		return nil, err
 	}
 	logging.Info("%s", mod.UI.Title)
+	for _, warning := range mod.Warnings {
+		logging.Warn("%s", warning)
+	}
 
 	// This module's catalogs are laid over the runtime's, so a module may reword
 	// anything. The language itself is the runtime's and is already settled.

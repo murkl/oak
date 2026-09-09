@@ -25,7 +25,7 @@ Oak knows nothing about any operating system. Not a disk, not a package, not a b
 ## What you get
 
 - **One config file per installer.** Questions, stages, the last warning before anything changes — all in one YAML file next to your scripts
-- **A task pipeline.** A task is a folder with `task.yaml` and `task.sh`. The order comes out of what each task declares, so there is no list of steps to keep in step
+- **A task pipeline.** A task is a folder under the stage it belongs to, holding a `task.yaml` and the shell it runs. The order comes out of where each task sits and what it declares, so there is no list of steps to keep in step
 - **Error handling you did not write.** A script that fails is caught, and the frame names the file, the line, the command and the exit code
 - **Answers that survive.** Every answer is written down the moment it is given, as plain shell. An interrupted run picks up where it left off; copy the file to the next machine and every question it answers is skipped
 - **Modular.** A module is one whole program. Ship an installer and a recovery from the same binary, or add a third by adding a folder
@@ -39,11 +39,10 @@ Oak looks next to itself, and nowhere else:
 oak                       the binary
 oak.yaml                  the product: name, colour, version, wordmark
 modules/setup/            one module — everything below belongs to it
-  setup.yaml              what it asks and what order it works in
-  tasks/disk/task.yaml    where this step belongs
-  tasks/disk/task.sh      what it does
-  hooks/preflight.sh      optional: can this machine be worked on at all
-  lib.sh                  optional: shell every script of this module gets
+  module.yaml             what it asks and what order it works in
+  module.sh               optional: shell everything this module runs gets
+  tasks/disk/format/      one step of the disk stage: task.yaml, task.sh
+  tasks/@preflight/uefi/  optional: can this machine be worked on at all
 modules/recovery/         another module, another program
 ```
 
@@ -58,7 +57,7 @@ flowchart LR
     subgraph Y["What you write"]
         direction TB
         C["oak.yaml<br/>module.yaml"]
-        S["task.sh<br/>hooks"]
+        S["module.sh<br/>task.sh"]
     end
     subgraph O["What Oak does"]
         direction TB
@@ -110,7 +109,7 @@ version: 1.0.0
 accent: "#8fbcbb"
 ```
 
-### 3. Write a module — `modules/setup/setup.yaml`
+### 3. Write a module — `modules/setup/module.yaml`
 
 ```yaml
 title: Tux Setup
@@ -124,20 +123,28 @@ variables:
     required: true
 ```
 
-### 4. Add a task — `modules/setup/tasks/hostname/`
+### 4. Add a task — `modules/setup/tasks/install/hostname/`
 
-`task.yaml` says where the step belongs:
+The folder is under the stage it belongs to, so `task.yaml` only says what the step is:
 
 ```yaml
 title: Write the hostname
-stage: install
 ```
 
-`task.sh` does the work. No shebang, no `set -e`, no error handling — Oak wraps it:
+`task.sh` beside it does the work. No shebang, no `set -e`, no error handling — Oak wraps it:
 
 ```bash
 mkdir -p ./tux/etc
 echo "$TUX_HOST" >./tux/etc/hostname
+```
+
+A step short enough to read at a glance skips the file and says it in the yaml instead:
+
+```yaml
+title: Write the hostname
+script: |
+  mkdir -p ./tux/etc
+  echo "$TUX_HOST" >./tux/etc/hostname
 ```
 
 ### 5. Run it
@@ -159,21 +166,21 @@ The **[example](../example)** is the same shape, filled out: two modules, three 
 
 Nothing lists the tasks anywhere. The folder is the list, and the order follows two rules:
 
-- A task runs after every task of an **earlier stage**
+- A task runs after every task of an **earlier stage**, which is the folder it sits in
 - Inside its stage, it runs after whatever it named in **`needs:`**
 
 ```mermaid
 flowchart LR
-    subgraph S1["stage: prepare"]
+    subgraph S1["tasks/prepare"]
         direction TB
         P1["partition"] --> P2["format"]
     end
-    subgraph S2["stage: install"]
+    subgraph S2["tasks/install"]
         direction TB
         B["base"] --> D["desktop"]
         B --> G["graphics"]
     end
-    subgraph S3["stage: finish"]
+    subgraph S3["tasks/finish"]
         direction TB
         U["users"]
     end
@@ -219,7 +226,7 @@ Nothing on the command line is an answer. Questions are answered in the interfac
 
 ## Everything else
 
-**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, conditions, hooks, the script contract and translations.
+**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, conditions, system stages, the script contract and translations.
 
 **[➜ Contributing](CONTRIBUTING.md)** — how to work on Oak itself.
 

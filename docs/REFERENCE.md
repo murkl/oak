@@ -5,7 +5,7 @@ Everything a product may declare. Nothing here is compiled into Oak: a different
 Two rules run through the whole file:
 
 - **`title:` is what a person reads. `name:` only ever names a variable.** A module, a task and a preset are named by their folder or their place, so none carries an id
-- **Nothing is written down twice.** Which modules there are is the folders under `modules/`; which tasks there are is the folders under `tasks/`
+- **Nothing is written down twice.** Which modules there are is the folders under `modules/`; which stages have work in them and which tasks are in each is the folders under `tasks/`
 
 ## The product — `oak.yaml`
 
@@ -28,7 +28,7 @@ logo: |
 | `accent` | `#rrggbb`. The one colour the interface is built from |
 | `logo` | The wordmark. Everything above the first blank line is a dim eyebrow over it |
 
-`version` is the product's own. Oak's own is what `--version` answers and what the splash signs off with — `powered by oak <version>`, under the wordmark — and it is never shown as though it belonged to the product.
+`version` is the product's own. Oak's own is what `--version` answers — `oak-1.0.0`, name and version as one word, the way a release names its files — and what the splash signs off with under the wordmark. It is never shown as though it belonged to the product.
 
 ## A module
 
@@ -36,14 +36,14 @@ One folder. Only the declaration has to be there — a module turns a part of th
 
 | Path | Description |
 | --- | --- |
-| `<name>.yaml` | The declaration: the one `.yaml` at the top level, whatever it is called. Two of them is refused |
-| `tasks/<id>/task.yaml` | Where a step belongs |
-| `tasks/<id>/task.sh` | What it does |
-| `hooks/<name>.sh` | Everything around the work, one script per hook |
-| `lib.sh` | Sourced in front of every script of this module |
+| `module.yaml` | The declaration: what the module is, what it asks, and the order its work happens in |
+| `module.sh` | Sourced in front of everything this module runs |
+| `tasks/<stage>/<task>/task.yaml` | What a step is |
+| `tasks/<stage>/<task>/task.sh` | What it does, where its yaml does not say so itself |
+| `tasks/@<stage>/<task>/` | A stage Oak runs itself — see [System stages](#system-stages) |
 | `locales/<code>.po` | One catalog per language |
 
-The folder name is the module's identity: what `oak --module=<name>` opens, and what its files are called — `setup` writes `setup.conf` and `setup.log`.
+The folder name is the module's identity: what `oak --module=<name>` opens, and what its files are called — `setup` writes `setup.conf` and `setup.log`. Everything inside it has the name Oak knows it by, so nothing points at anything.
 
 ### The declaration
 
@@ -51,6 +51,7 @@ The folder name is the module's identity: what `oak --module=<name>` opens, and 
 title: Tux Setup                         # the module's name on screen
 description: Set a machine up for Tux.   # shown where the modules are offered
 stages: [prepare, install]               # the phases the work happens in, in order
+                                         # — one folder each under tasks/
 
 confirm: |                               # the last thing shown before anything changes
   {{TUX_HOST}} will be set up in {{TUX_TARGET}}.
@@ -62,7 +63,7 @@ language: TUX_LOCALE                     # optional: ties the interface language
 | Key | Description |
 | --- | --- |
 | `title` | **Required.** The module's only name — it heads the row that starts a run, the last warning, and the clock while it runs |
-| `stages` | **Required.** The phases the work happens in, in order |
+| `stages` | **Required.** The phases the work happens in, in order. Each is a folder under `tasks/`, and a name may not start with `@` |
 | `description` | One sentence, read on the page that offers the modules |
 | `confirm` | The last thing shown before the first task. `{{VAR}}` is filled in from the answers |
 | `console` | Read on the terminal on the way out, where the machine keeps running |
@@ -144,15 +145,31 @@ There is no `or`. A row that applies under two unrelated conditions is written a
 
 ## Tasks
 
-A folder under `tasks/` with two files in it.
+A folder under the stage it belongs to: `tasks/<stage>/<task>/`. Nothing says which stage it runs in — the folder it sits in does.
 
 ```yaml
 title: Install the graphics driver   # the line shown while the user waits
-stage: desktop                       # which stage this runs in
 needs: [desktop-gnome]               # ordered after these, within the same stage
 conditions:                          # every one must hold, or the task is skipped
   - TUX_DRIVER != none
 ```
+
+What it does is the `task.sh` beside that file, or the `script:` in it:
+
+```yaml
+title: Enable 32-bit support
+script: |                            # shell, for a step short enough to read here
+  sed -i '/\[multilib\]/,+1s/^#//' /etc/pacman.conf
+  pacman -Sy --noconfirm
+```
+
+| Written as | What runs |
+| --- | --- |
+| nothing | The `task.sh` in the same folder |
+| `script:` with shell in it | That shell |
+| `script: ./install.sh` | That file, relative to this `task.yaml` |
+
+A `script:` **and** a `task.sh` is two answers to the same question and is refused, as is neither. Shell written in the yaml has no file for a failure to point at, so what a failure names is the command and the exit code rather than a file and a line.
 
 Seven more keys change what a task **is** rather than what it does:
 
@@ -174,13 +191,24 @@ printf "MY_LINK='%s'\n" "$url" >>"$MODULE_CONF"
 
 ### The order
 
+```
+tasks/
+  prepare/
+    partition/
+    format/          needs: [partition]
+  install/
+    base/
+    desktop/         needs: [base]
+    graphics/        needs: [base]
+```
+
 ```mermaid
 flowchart LR
-    subgraph A["stage: prepare"]
+    subgraph A["tasks/prepare"]
         direction TB
         P["partition"] --> F["format"]
     end
-    subgraph B["stage: install"]
+    subgraph B["tasks/install"]
         direction TB
         BS["base"] --> DE["desktop"]
         BS --> GR["graphics"]
@@ -193,7 +221,9 @@ flowchart LR
 
 Two tasks that neither a stage nor a `needs` separates are independent. Their order is stable from run to run, but it is not something to build on — the folder name is the task's identity, not a way to steer the order.
 
-`needs:` orders tasks **within one stage** and nowhere else. A need reaching into another stage is refused at startup, as are a cycle, an unknown stage and a `needs:` pointing at nothing.
+`needs:` names a task **in the same stage**. A name no task anywhere answers to is refused at startup, and so is a cycle, which is reported as the ring it goes round: `a → b → c → a`. A name belonging to another stage says nothing the stages have not already said, so it is dropped with a warning rather than refused — `--inspect` reports it and the log records it.
+
+A folder under `tasks/` that is neither a declared stage nor one of Oak's own is refused: work that never runs because its folder is misspelled is the one mistake nothing else would ever show.
 
 ## Presets
 
@@ -212,26 +242,38 @@ presets:
       - title: Online                  # a starting point fetched rather than written out
         description: Take the answers somebody shared.
         asks: TUX_CONFIG_SOURCE        # the one question this row asks
-        apply: ./tasks/share/import.sh # shell that turns that answer into more answers
+        apply: ./tasks/finish/share/import.sh   # shell turning that answer into more answers
 ```
 
 A preset is named by its title and nothing else. Nothing points at one, so there is no id to keep unique.
 
-## Hooks
+## System stages
 
-Bash scripts under `hooks/`, called by name. Nothing declares them — a script under one of these names **is** the declaration, and any other file name there is refused when the module loads.
+Seven stages belong to Oak rather than to the module, and are marked with `@` so a listing tells them apart at a glance. Each is a folder of tasks like any other stage — Oak decides when it runs, and a module that leaves one out simply does not get that part of the program.
 
-| Hook | Description |
+| Stage | Description |
 | --- | --- |
-| `preflight.sh` | Can this machine be worked on at all. A hard stop, run before everything except the `first` questions. What it writes to stderr is what the user reads |
-| `online.sh` | Is there internet. Without it the network screen never appears |
-| `wlan-device.sh` | Which wireless device to use |
-| `wlan-networks.sh` | The networks in range, one SSID per line |
-| `wlan-connect.sh` | Join one, with `WLAN_DEVICE`, `WLAN_SSID` and `WLAN_PASSPHRASE` in the environment |
-| `restart.sh` | Shut this machine down and start it again |
-| `shutdown.sh` | Switch it off |
+| `@preflight` | Can this machine be worked on at all. A hard stop, run before everything except the `first` questions. What it writes to stderr is what the user reads |
+| `@online` | Is there internet. Without it the network screen never appears |
+| `@wlan-device` | Which wireless device to use |
+| `@wlan-networks` | The networks in range, one SSID per line |
+| `@wlan-connect` | Join one, with `WLAN_DEVICE`, `WLAN_SSID` and `WLAN_PASSPHRASE` in the environment |
+| `@restart` | Shut this machine down and start it again |
+| `@shutdown` | Switch it off |
 
-`restart.sh` and `shutdown.sh` turn leaving the interface into a choice rather than a plain exit: a module that defines them is saying the machine booted specifically to run it. A module with neither exits like any ordinary program.
+```
+tasks/@preflight/root/task.yaml       title: Running as root
+tasks/@preflight/firmware/task.yaml   title: UEFI, Secure Boot off
+tasks/@online/https/task.yaml         title: Reach the network
+```
+
+Every task in one of them runs in order, and `@preflight` stops at the first that says no — so a check that is really four checks is written as four, each with a name of its own. `needs:` orders them the way it orders any stage.
+
+A task here is written like any other — a `title:`, what it `needs:`, and its `task.sh` or `script:` — but it is run at a fixed moment rather than listed, offered or reported on, so `conditions:`, `asks:`, `confirm:`, `default:`, `report:`, `shows:`, `quits:` and `tty:` are refused: a line that can never take effect is a line somebody will read as though it could.
+
+The title of a `@preflight` task is read: it is what the failure page names when that check is the one that said no. Everywhere else it is what the file calls itself, and nothing more.
+
+`@restart` and `@shutdown` turn leaving the interface into a choice rather than a plain exit: a module that fills them is saying the machine booted specifically to run it. A module with neither exits like any ordinary program.
 
 ## What a script receives
 
@@ -242,22 +284,35 @@ Every declared variable under its own name, answered or not, and two names of Oa
 | `MODULE_CONF` | The answer file. Also how a script answers a question back: append `KEY='value'` to it |
 | `DEBUG` | `true` when the run was started with `--debug`. Absent otherwise |
 
-That is the whole list, and it is meant to stay that way. Anything else a script needs it works out for itself — its own folder, for instance, is where `lib.sh` was sourced from:
+That is the whole list, and it is meant to stay that way. Anything else a script needs it works out for itself — its own folder, for instance, is where `module.sh` was sourced from:
 
 ```bash
 MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ```
 
-Scripts are **sourced** into a shell that already carries an `ERR` trap and, where the module has one, `lib.sh`. They need no preamble: no shebang, no `set -e`, no error handling. If a command fails, the task fails and the user is shown the file, the line, the command and the exit code.
+Scripts run in a shell that already carries an `ERR` trap and, where the module has one, `module.sh`. They need no preamble: no shebang, no `set -e`, no error handling. If a command fails, the task fails and the user is shown the file, the line, the command and the exit code.
+
+**`module.sh` is sourced in front of everything** — every task, and every piece of shell the yaml writes for a `command:`, a `prefill:`, an `apply:` or a `script:`. So a function defined there is called by name from the yaml:
+
+```yaml
+apply: load_console_keyboard
+command: list_locales
+```
+
+```yaml
+# tasks/@online/https/task.yaml
+title: Reach the network
+script: is_online
+```
 
 Four rules, and no more:
 
-- **Change nothing while simulating.** `simulating && return 0` before the first line that touches anything, with `simulating()` defined in your `lib.sh` as `[ "$DEBUG" = true ]`
+- **Change nothing while simulating.** `simulating && return 0` before the first line that touches anything, with `simulating()` defined in your `module.sh` as `[ "$DEBUG" = true ]`
 - **Never end on a command that can fail.** `[ "$X" = y ] && do_it` as the last line leaves the script's status at 1 when the test is false
 - **Ask nothing.** Every question is declared in the yaml, unless the task declares `tty: true`
 - **Print nothing for a person to read.** stdout and stderr go to the log; the screen shows the task's name
 
-`command:`, `prefill:` and `apply:` each accept either inline shell or a file. A single line starting with `./` or `../` names a file; anything else is the shell itself.
+`command:`, `prefill:`, `apply:` and a task's `script:` each accept either shell or a file. A single line starting with `./` or `../` names a file, relative to the folder of the yaml it was written in; anything else is the shell itself.
 
 ## Files it writes
 
@@ -299,6 +354,7 @@ oak --strings --module=setup     # write that module's translation template
 | --- | --- |
 | `unread` | A question asked where no task that reads the answer can run. **This fails the check** — it is the one authoring mistake a module's shape does not rule out on its own |
 | `unset` | A name in capitals the module's shell reads that nothing here answers. A description, not a verdict — `$HOME` and `$PATH` belong on that line |
+| `needs` | A `needs:` naming a task in another stage. Also a description: the stages already put the two in that order |
 
 `unset` is where a name that used to arrive and no longer does becomes visible. In shell an unset name is an empty string rather than an error, so nothing else would ever say so.
 

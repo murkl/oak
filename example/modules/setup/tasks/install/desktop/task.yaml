@@ -1,5 +1,4 @@
 title: Install the desktop
-stage: install
 
 # Ordered after the base system, within this stage. Nothing lists the tasks
 # anywhere else: this line is the whole of what puts it second.
@@ -9,3 +8,10 @@ needs: [base]
 # but never part of the list.
 conditions:
   - TUX_DESKTOP != none
+
+# Short enough to read here, so there is no task.sh beside this file. The other
+# form is a single line naming one: `script: ./install.sh`.
+script: |
+  simulating && return 0
+
+  echo "$TUX_DESKTOP" >"$TUX_TARGET/etc/desktop"

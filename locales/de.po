@@ -39,20 +39,6 @@ msgstr "%s fehlgeschlagen"
 msgid "Error"
 msgstr "Fehler"
 
-#: internal/runner/runner.go:232
-msgid "System check"
-msgstr "Systemprüfung"
-
-#: internal/spec/load.go:30
-#, c-format
-msgid "no %s file here"
-msgstr "hier liegt keine %s-Datei"
-
-#: internal/spec/load.go:32
-#, c-format
-msgid "more than one %s file here"
-msgstr "hier liegt mehr als eine %s-Datei"
-
 #: internal/spec/runtime.go:84
 #, c-format
 msgid "A %s file has to sit next to this program, in %s."
@@ -67,11 +53,11 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:460
+#: internal/spec/spec.go:511
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:462
+#: internal/spec/spec.go:513
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
@@ -387,6 +373,17 @@ msgstr "Wird heruntergefahren …"
 #: tui/labels.go:165
 msgid "The machine did not respond."
 msgstr "Der Rechner hat nicht reagiert."
+
+#~ msgid "System check"
+#~ msgstr "Systemprüfung"
+
+#, c-format
+#~ msgid "no %s file here"
+#~ msgstr "hier liegt keine %s-Datei"
+
+#, c-format
+#~ msgid "more than one %s file here"
+#~ msgstr "hier liegt mehr als eine %s-Datei"
 
 #, c-format
 #~ msgid "%q names nothing."

@@ -51,10 +51,10 @@ func newLeave(a *app, halt func(), running bool) *leaveScreen {
 	var items []item
 	// Only what the module actually has: a row that would run nothing is a row
 	// that reads as a machine refusing to switch off.
-	if a.module.Hook(spec.HookRestart) != "" {
+	if a.module.SystemShell(spec.StageRestart) != "" {
 		items = append(items, item{title: labelRestart(), detail: labelRestartHelp(), key: keyRestart})
 	}
-	if a.module.Hook(spec.HookShutdown) != "" {
+	if a.module.SystemShell(spec.StageShutdown) != "" {
 		items = append(items, item{title: labelShutdown(), detail: labelShutdownHelp(), key: keyShutdown})
 	}
 	// Last, and only where the module names a way back: the two rows above end

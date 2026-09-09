@@ -1,0 +1,11 @@
+# A stage marked with @ is one the runtime runs itself, at its own moment: this
+# one before the first question, to say whether the machine can be worked on at
+# all. It is a folder of tasks like any other stage, and the module says nothing
+# anywhere about when it runs.
+title: Check the working folder
+
+# What goes to stderr is what somebody reads when the check says no.
+script: |
+  [ -w . ] && return 0
+  echo "This folder cannot be written to. Start Tux Setup somewhere you own." >&2
+  exit 1

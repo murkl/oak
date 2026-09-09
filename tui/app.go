@@ -321,7 +321,7 @@ func (a *app) network() screen {
 // something or was told to carry on without. Then comes the module's own check
 // that this machine can be worked on at all, where it declares one.
 func (a *app) afterNetwork() screen {
-	if a.module.Hook(spec.HookPreflight) == "" {
+	if a.module.SystemShell(spec.StagePreflight) == "" {
 		return a.afterCheck()
 	}
 	return newCheck(a)

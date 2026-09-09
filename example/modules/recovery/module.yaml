@@ -1,6 +1,9 @@
 # A second module, and a second whole program out of the same binary. Its being
 # here is the only reason the interface asks which one to open: one folder under
 # modules/ is opened on the way in, two make a page.
+#
+# It has no module.sh: a module that shares nothing between its scripts simply
+# leaves the file out.
 
 title: Tux Recovery
 description: Check a system tree that is already there.

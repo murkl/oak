@@ -42,20 +42,6 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: internal/runner/runner.go:232
-msgid "System check"
-msgstr ""
-
-#: internal/spec/load.go:30
-#, c-format
-msgid "no %s file here"
-msgstr ""
-
-#: internal/spec/load.go:32
-#, c-format
-msgid "more than one %s file here"
-msgstr ""
-
 #: internal/spec/runtime.go:84
 #, c-format
 msgid "A %s file has to sit next to this program, in %s."
@@ -70,11 +56,11 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:460
+#: internal/spec/spec.go:511
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:462
+#: internal/spec/spec.go:513
 msgid "This value is required."
 msgstr ""
 

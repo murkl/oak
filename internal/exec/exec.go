@@ -26,37 +26,82 @@ type Env []string
 
 // Runner starts scripts, each wrapped in the same failure-reporting trap.
 //
-// Lib is shell the module hands to every script of its own before that script's
-// own text — one place for what several of them share. The runtime never reads
-// it and has no idea what is in it; it only makes sure everything it starts
-// gets the same one.
+// Shell is what the module hands to everything it runs, in front of that
+// script's own text — one place for what several of them share, and the
+// functions its yaml calls by name. The runtime never reads it and has no idea
+// what is in it; it only makes sure everything it starts gets the same one.
 type Runner struct {
-	Lib string
+	Shell string
 }
 
-// The ERR trap reports on file descriptor 3 — the first entry of cmd.ExtraFiles.
-// A dedicated descriptor keeps the report out of the script's own output, so a
-// script may print anything at all without being mistaken for a failure report.
+// Script is one task's work, in the shape its module wrote it: a file to
+// source, or shell its yaml wrote outright. Exactly one of the two is set.
+//
+// Which it is travels with it because the two are not run the same way. A
+// file's own last status propagates out of `source` and is not a failure;
+// shell written outright runs at the shell's own level, where there is no file
+// for a failure to point at and nothing for a status to propagate out of.
+type Script struct {
+	File  string
+	Shell string
+}
+
+// shell is either of them as one piece of shell, for the places that only run
+// it and never report on where it broke.
+func (s Script) shell() string {
+	if s.File != "" {
+		return "source " + quote(s.File)
+	}
+	return s.Shell
+}
+
+func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
+// The ERR trap of the two wrappers below reports on file descriptor 3 — the
+// first entry of cmd.ExtraFiles. A dedicated descriptor keeps the report out of
+// the script's own output, so a script may print anything at all without being
+// mistaken for a failure report.
 //
 // The trap is the single detector, and -e is deliberately not set: -e would also
 // kill the shell when `source` merely returns the status of a benign last line —
 // `[ "$X" = true ] && do_it` leaves status 1 when the test is false.
 //
 // It reports on the failure's own terms: BASH_SOURCE and LINENO point into the
-// script, BASH_COMMAND is the command that failed. The empty-BASH_SOURCE check
-// drops the status a failing `source` propagates back to this wrapper.
-const trapped = `set -Eo pipefail
-trap 'c=$?; s=${BASH_SOURCE[0]}; [ -n "$s" ] && { printf "%d\t%s\t%d\t%s\n" "$c" "$s" "$LINENO" "$BASH_COMMAND" >&3; exit $c; }' ERR
+// script, BASH_COMMAND is the command that failed.
+const strict = `set -Eo pipefail
 `
 
 // The two arguments every invocation is given: the script to run, and the
-// shared library to put in front of it. Sourcing the library here is what lets
-// a script be plain shell with no preamble at all.
+// module's own shell to put in front of it. Sourcing that here is what lets a
+// script be plain shell with no preamble at all, and what puts the module's
+// functions within reach of everything — its tasks, and the shell its yaml
+// wrote.
 const preamble = `[ -n "$2" ] && source "$2"
 `
 
-// scriptWrapper sources a task's own file, under the trap.
-const scriptWrapper = trapped + preamble + `source "$1"
+// fileWrapper sources a task's own file, under the trap.
+//
+// The empty-BASH_SOURCE check drops the status a failing `source` propagates
+// back to this wrapper: everything inside the file names the file it is in, and
+// this level names nothing.
+const fileWrapper = strict + `trap 'c=$?; s=${BASH_SOURCE[0]}; [ -n "$s" ] && { printf "%d\t%s\t%d\t%s\n" "$c" "$s" "$LINENO" "$BASH_COMMAND" >&3; exit $c; }' ERR
+` + preamble + `source "$1"
+exit 0`
+
+// shellWrapper runs shell a task's yaml wrote outright, under the same trap
+// without that check: here there is no file, so every failure the trap sees is
+// one inside the script and the report names the command instead.
+//
+// The trailing `:` does for the last line what `source` returning does for a
+// file. A script ending on a guard that does not fire leaves 1 behind and is
+// not a failure, so the function is made to end on something that cannot fail —
+// and a failure anywhere in it has already fired the trap by then.
+const shellWrapper = strict + `trap 'c=$?; printf "%d\t\t%d\t%s\n" "$c" "$LINENO" "$BASH_COMMAND" >&3; exit $c' ERR
+` + preamble + `eval "oak_task() {
+$1
+:
+}"
+oak_task
 exit 0`
 
 // snippet runs a short piece of shell the yaml wrote inline — an option list, a
@@ -67,7 +112,7 @@ const snippet = preamble + `eval "$1"`
 // handover runs a script that takes the terminal over. No trap and no pipes:
 // what it does is a session somebody is sitting in front of, so its output is
 // the terminal's and its exit code is the whole of what comes back.
-const handover = preamble + `source "$1"`
+const handover = preamble + `eval "$1"`
 
 // Run executes a one-liner and returns its trimmed stdout. Used for the small
 // reads: an option list, a suggested value.
@@ -104,7 +149,7 @@ func (r Runner) Reason(s string, env Env) error {
 // say runs a one-liner and keeps its two channels apart: what it printed, and
 // what it said on the way out.
 func (r Runner) say(s string, env Env) (out, said string, err error) {
-	cmd := exec.Command("bash", "-c", snippet, "--", s, r.Lib)
+	cmd := exec.Command("bash", "-c", snippet, "--", s, r.Shell)
 	cmd.Env = env
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -147,9 +192,9 @@ type Session struct {
 	unit   string
 }
 
-// Start runs a script in the background. unit names it in any failure.
-func (r Runner) Start(unit, path string, env Env) (*Session, error) {
-	cmd, report, err := r.command(path, env)
+// Start runs one task in the background. unit names it in any failure.
+func (r Runner) Start(unit string, script Script, env Env) (*Session, error) {
+	cmd, report, err := r.command(script, env)
 	if err != nil {
 		return nil, err
 	}
@@ -178,8 +223,12 @@ func (r Runner) Start(unit, path string, env Env) (*Session, error) {
 // command builds the invocation of a script, with the ERR trap's channel
 // attached as fd 3. The returned reader yields the trap's report; the caller
 // closes the write end right after starting (see drain).
-func (r Runner) command(payload string, env Env) (*exec.Cmd, *os.File, error) {
-	cmd := exec.Command("bash", "-c", scriptWrapper, "--", payload, r.Lib)
+func (r Runner) command(script Script, env Env) (*exec.Cmd, *os.File, error) {
+	wrapper, payload := shellWrapper, script.Shell
+	if script.File != "" {
+		wrapper, payload = fileWrapper, script.File
+	}
+	cmd := exec.Command("bash", "-c", wrapper, "--", payload, r.Shell)
 	cmd.Env = env
 	// A process group of its own, so that stopping a stage stops everything it
 	// started. A stage is one line of shell that runs a package manager that
@@ -200,8 +249,8 @@ func (r Runner) command(payload string, env Env) (*exec.Cmd, *os.File, error) {
 // It is deliberately not a Session: nothing is captured, nothing is logged, and
 // there is no process group to kill — the user is at the keyboard, and what
 // they see is what the script prints. All that comes back is the exit code.
-func (r Runner) Terminal(path string, env Env) *exec.Cmd {
-	cmd := exec.Command("bash", "-c", handover, "--", path, r.Lib)
+func (r Runner) Terminal(script Script, env Env) *exec.Cmd {
+	cmd := exec.Command("bash", "-c", handover, "--", script.shell(), r.Shell)
 	cmd.Env = env
 	return cmd
 }

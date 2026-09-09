@@ -1,5 +1,4 @@
 title: Check the system tree
-stage: check
 report: |
   {{TUX_TARGET}} is complete.
 
