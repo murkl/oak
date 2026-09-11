@@ -126,7 +126,12 @@ func labelSettings() string { return say("Settings") }
 func labelTestsPassed(passed, ran int) string { return say("%d of %d tests passed", passed, ran) }
 
 func labelValidation() string { return say("Validation") }
-func labelHintChecks() string { return say("↑↓ move · ⏎ open · esc continue") }
+func labelHintChecks() string { return say("↑↓ move · ⏎ select") }
+
+// The row that closes the page a run's failed checks are laid out on. It says
+// what pressing it costs, because nothing brings the page back.
+func labelReviewed() string     { return say("Continue") }
+func labelReviewedHelp() string { return say("Leave this page. These results are not shown again.") }
 
 // The switch in the settings, and the heading it stands under. It is the
 // runtime's own answer and holds for every module: what a task tests is the

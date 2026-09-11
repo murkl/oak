@@ -21,6 +21,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/murkl/oak/internal/exec"
 	"github.com/murkl/oak/internal/i18n"
 	"github.com/murkl/oak/internal/inspect"
 	"github.com/murkl/oak/internal/logging"
@@ -115,7 +117,62 @@ func start(args []string) error {
 	case cmd.strings:
 		return inspect.Template(os.Stdout, rt, mods)
 	}
+	// And one about the machine, asked last: which of those modules this machine
+	// can open at all. It runs shell, so it is not asked of a folder somebody is
+	// only reading about.
+	mods, err = offered(mods, cmd.debug)
+	if err != nil {
+		return err
+	}
 	return run(rt, mods, cmd.debug)
+}
+
+// offered cuts the modules down to the ones this machine belongs to, by asking
+// each of them — a module that declares nothing about it belongs everywhere.
+//
+// What is left is what the interface offers: several is the question it puts
+// after the language, one is opened on the way in without a list of one row, and
+// none is this program having nothing to do here. A module named outright
+// arrives as the only one, so the same line that reports none of them is also
+// what says why the named one was refused, in that module's own words.
+//
+// A simulated run skips the question entirely and offers all of them. What
+// --debug is for is reading the pages on a machine that is none of the ones this
+// product is about, and a list narrowed to what that machine happens to be would
+// hide exactly the pages somebody wanted to see.
+func offered(mods []*spec.Module, debug bool) ([]*spec.Module, error) {
+	if debug {
+		return mods, nil
+	}
+	var open []*spec.Module
+	var refused []string
+	for _, mod := range mods {
+		if !mod.Offers() {
+			open = append(open, mod)
+			continue
+		}
+		sh := exec.Runner{Shell: mod.Shell, Module: mod.ID()}
+		if err := sh.Guard(mod.Offered.Text(), os.Environ()); err != nil {
+			refused = append(refused, said(mod, err))
+			continue
+		}
+		open = append(open, mod)
+	}
+	if len(open) == 0 {
+		return nil, errors.New(strings.Join(refused, "\n"))
+	}
+	return open, nil
+}
+
+// said is one refusal as it is read: what the module had to say about this
+// machine, or its name and nothing else where it said nothing. A module that
+// keeps quiet about why it is not on offer is an authoring gap rather than a
+// sentence worth inventing here.
+func said(mod *spec.Module, err error) string {
+	if text := strings.TrimSpace(err.Error()); text != "" {
+		return text
+	}
+	return i18n.T("%s cannot be opened on this machine.", mod.UI.Title)
 }
 
 // command is a command line, read.

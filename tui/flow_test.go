@@ -1233,10 +1233,16 @@ func TestAFailedSystemCheckIsAWall(t *testing.T) {
 	h.wants("Cannot continue", "Set the boot mode to UEFI.").refuses("Exit code")
 
 	h.enter().wants("Check", "Module", "Exit code")
-	// Nothing leads anywhere from here: the only key that does anything leaves.
-	h.esc()
+	// Esc is not a way off a failure: the reflex key must not carry away the one
+	// explanation this run is going to give.
+	h.esc().wants("Check", "Module", "Exit code")
+	if h.m.quitting {
+		t.Fatal("esc closed the page the failure is on")
+	}
+	// Nothing leads anywhere from here: saying yes to it leaves.
+	h.enter()
 	if !h.m.quitting {
-		t.Error("esc on the wall did not leave")
+		t.Error("enter on the wall did not leave")
 	}
 }
 
@@ -1728,11 +1734,13 @@ func TestAFailedTestOpensOnWhereItBroke(t *testing.T) {
 	})
 	h.enter().wants("1 of 2 tests passed", "Second")
 	h.enter().wants("Module", "Task", "Second", "Script", "Exit code")
-	// Back to the list, and on from there.
+	// Back to the list, and on from the row that says so. Esc does nothing on
+	// either page: this is the only place these failures are ever laid out.
+	h.enter().wants("1 of 2 tests passed")
 	h.esc().wants("1 of 2 tests passed")
-	h.esc()
+	h.down().enter()
 	if !h.m.quitting {
-		t.Error("esc on the validation page did not leave")
+		t.Error("the row that leaves the validation page did not leave")
 	}
 }
 
@@ -1780,10 +1788,11 @@ func TestAReportWithAFailedTestIsFollowedByTheList(t *testing.T) {
 	h.enter().wants("Validation", "1 of 2 tests passed", "Second")
 	// Where first, then what the tool said.
 	h.enter().wants("Module", "Task", "Second", "Script", "test.sh", "Exit code", "the disk is empty")
-	h.esc().wants("Validation", "Second")
+	h.enter().wants("Validation", "Second")
 
-	// And on into the offer the run was going to make anyway.
-	h.esc().wants("Put these answers online?")
+	// And on into the offer the run was going to make anyway, once the row that
+	// leaves this page has been chosen.
+	h.down().enter().wants("Put these answers online?")
 }
 
 // Offered once: it is a fact about the run rather than about the moment, so the
@@ -1797,8 +1806,8 @@ func TestTheListOfFailedTestsIsOfferedOnce(t *testing.T) {
 	})
 	h.wants("Installed")
 	h.enter().wants("Validation")
-	// Esc leaves it; enter would open the failure under the cursor.
-	h.esc().wants("Shared", "0 of 1 tests passed")
+	// The last row leaves it; enter on any other opens the failure under it.
+	h.down().enter().wants("Shared", "0 of 1 tests passed")
 	// On to the end of the run, which counts them again and offers nothing.
 	h.enter().wants("Test Installer complete", "0 of 1 tests passed").refuses("Validation")
 	h.enter()
@@ -1953,4 +1962,48 @@ variables:`, 1)
     description: The code of a configuration somebody shared.
     required: true
 `}
+}
+
+// ─── Failures are not closed by accident ─────────────────────────────────────
+
+// The page a failed check is laid out on is the only account of it this run
+// gives: nothing reopens it, and a run that has just gone wrong is exactly when
+// somebody reaches for the key that means back. So it answers to yes and to
+// nothing else.
+func TestAFailureIsNotClosedByTheKeyThatMeansBack(t *testing.T) {
+	h := installed(t, map[string]string{
+		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\n",
+		"tasks/@go/b-second/task.yaml": "title: Second\n",
+		"tasks/@go/b-second/test.sh":   "ls /definitely/not/here\n",
+	})
+	h.enter().wants("Validation", "Second")
+	h.enter().wants("Module", "Task", "Second", "Exit code")
+
+	for _, press := range []func() *harness{h.esc, h.erase, h.down} {
+		press().wants("Module", "Task", "Second", "Exit code")
+	}
+	h.enter().wants("Validation", "Second")
+}
+
+// And the list they are laid out on is left by choosing the row that says so,
+// not by a keystroke that means something else everywhere else in the program.
+func TestTheListOfFailuresIsLeftByTheRowThatSaysSo(t *testing.T) {
+	h := installed(t, map[string]string{
+		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\n",
+		"tasks/@go/b-second/task.yaml": "title: Second\nreport: Installed\n",
+		"tasks/@go/b-second/task.sh":   "true\n",
+		"tasks/@go/b-second/test.sh":   "ls /definitely/not/here\n",
+		"tasks/@go/c-extras/task.yaml": "title: After\nconfirm: Carry on?\n",
+		"tasks/@go/c-extras/task.sh":   "true\n",
+	})
+	h.wants("Installed", "1 of 2 tests passed")
+	h.enter().wants("Validation", "Second", "Continue")
+
+	// Every way of saying back leaves the page standing.
+	h.esc().wants("Validation", "Second")
+	h.erase().wants("Validation", "Second")
+
+	// The row says what it costs, and choosing it is what moves the run on.
+	h.down().wants("not shown again")
+	h.enter().wants("Carry on?")
 }

@@ -170,6 +170,19 @@ func wrap(step Step) (wrapper, payload string) {
 // non-zero status is an answer rather than a failure.
 const snippet = preamble + `eval "$1"`
 
+// guard runs a module's shell as a question with a yes or no for an answer.
+//
+// Wrapped in a function of its own, exactly as shell a task wrote inline is:
+// `return 0` is how every guard in a module says yes, and shell that means one
+// thing beside a task and another beside the module is a trap laid for whoever
+// writes the next one. No ERR trap, because a no is the answer here rather than
+// a failure to report the file and line of.
+const guard = preamble + `eval "oak_guard() {
+$1
+}"
+oak_guard
+exit $?`
+
 // handover runs a script that takes the terminal over. No trap and no pipes:
 // what it does is a session somebody is sitting in front of, so its output is
 // the terminal's and its exit code is the whole of what comes back.
@@ -207,10 +220,30 @@ func (r Runner) Reason(s string, env Env) error {
 	return err
 }
 
+// Guard runs a piece of a module's shell whose exit status is an answer rather
+// than a result: may this module be opened on this machine at all. What it says
+// on stderr where it says no is what somebody reads, the way a preflight step's
+// is — so a check that refuses says why, in the module's own words.
+func (r Runner) Guard(s string, env Env) error {
+	_, said, err := r.ask(guard, s, env)
+	switch {
+	case err == nil:
+		return nil
+	case said != "":
+		return errors.New(said)
+	}
+	return err
+}
+
 // say runs a one-liner and keeps its two channels apart: what it printed, and
 // what it said on the way out.
 func (r Runner) say(s string, env Env) (out, said string, err error) {
-	cmd := exec.Command("bash", "-c", snippet, "--", s, r.Shell)
+	return r.ask(snippet, s, env)
+}
+
+// ask is that, under whichever wrapper the caller's shell is written to.
+func (r Runner) ask(wrapper, s string, env Env) (out, said string, err error) {
+	cmd := exec.Command("bash", "-c", wrapper, "--", s, r.Shell)
 	cmd.Env = env
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

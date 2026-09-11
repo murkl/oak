@@ -50,7 +50,7 @@ msgstr ""
 msgid "Exit code"
 msgstr ""
 
-#: internal/exec/failure.go:93 tui/labels.go:162
+#: internal/exec/failure.go:93 tui/labels.go:167
 #, c-format
 msgid "%s failed"
 msgstr ""
@@ -73,11 +73,11 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:573
+#: internal/spec/spec.go:593
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:575
+#: internal/spec/spec.go:595
 msgid "This value is required."
 msgstr ""
 
@@ -102,11 +102,11 @@ msgstr ""
 msgid "asked just before the run"
 msgstr ""
 
-#: internal/store/store.go:206 tui/labels.go:212
+#: internal/store/store.go:206 tui/labels.go:217
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:208 tui/labels.go:213
+#: internal/store/store.go:208 tui/labels.go:218
 msgid "No"
 msgstr ""
 
@@ -130,32 +130,37 @@ msgstr ""
 msgid "%s was joined, but there is still no internet."
 msgstr ""
 
-#: main.go:153
+#: main.go:175
+#, c-format
+msgid "%s cannot be opened on this machine."
+msgstr ""
+
+#: main.go:210
 #, c-format
 msgid "One module at a time: %s or %s."
 msgstr ""
 
-#: main.go:157
+#: main.go:214
 #, c-format
 msgid "%s needs the name of a module: %s=<id>."
 msgstr ""
 
-#: main.go:160
+#: main.go:217
 #, c-format
 msgid "%q is not something this program takes."
 msgstr ""
 
-#: main.go:161
+#: main.go:218
 #, c-format
 msgid "It takes %s."
 msgstr ""
 
-#: main.go:181
+#: main.go:238
 #, c-format
 msgid "No module called %s."
 msgstr ""
 
-#: main.go:182
+#: main.go:239
 #, c-format
 msgid "This one offers %s."
 msgstr ""
@@ -322,109 +327,117 @@ msgid "Validation"
 msgstr ""
 
 #: tui/labels.go:129
-msgid "↑↓ move · ⏎ open · esc continue"
+msgid "↑↓ move · ⏎ select"
 msgstr ""
 
-#: tui/labels.go:139
+#: tui/labels.go:133
+msgid "Continue"
+msgstr ""
+
+#: tui/labels.go:134
+msgid "Leave this page. These results are not shown again."
+msgstr ""
+
+#: tui/labels.go:144
 msgid "Validate"
 msgstr ""
 
-#: tui/labels.go:140
+#: tui/labels.go:145
 msgid "Installation scripts"
 msgstr ""
 
-#: tui/labels.go:142
+#: tui/labels.go:147
 msgid "Reads the machine after every task: that what the task installed is really there, and set up the way it was meant to be. It is what makes an installation you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
 msgstr ""
 
 #. %s is the name of the module whose values these are.
-#: tui/labels.go:147
+#: tui/labels.go:152
 #, c-format
 msgid "Every value %s will use. Choose one to change it."
 msgstr ""
 
-#: tui/labels.go:150
+#: tui/labels.go:155
 msgid "Repeat"
 msgstr ""
 
-#: tui/labels.go:151
+#: tui/labels.go:156
 msgid "The entries do not match."
 msgstr ""
 
-#: tui/labels.go:160
+#: tui/labels.go:165
 msgid "Ready to start"
 msgstr ""
 
-#: tui/labels.go:161
+#: tui/labels.go:166
 #, c-format
 msgid "Start %s"
 msgstr ""
 
-#: tui/labels.go:164
+#: tui/labels.go:169
 #, c-format
 msgid "%s · %s"
 msgstr ""
 
-#: tui/labels.go:167
+#: tui/labels.go:172
 #, c-format
 msgid "%s complete in %s"
 msgstr ""
 
-#: tui/labels.go:170
+#: tui/labels.go:175
 #, c-format
 msgid "The full log is in %s."
 msgstr ""
 
-#: tui/labels.go:179
+#: tui/labels.go:184
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr ""
 
-#: tui/labels.go:186
+#: tui/labels.go:191
 #, c-format
 msgid "%s: there is nothing to choose from."
 msgstr ""
 
-#: tui/labels.go:189
+#: tui/labels.go:194
 msgid "Cannot continue"
 msgstr ""
 
-#: tui/labels.go:193
+#: tui/labels.go:198
 msgid "Leave"
 msgstr ""
 
-#: tui/labels.go:198
+#: tui/labels.go:203
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr ""
 
-#: tui/labels.go:201
+#: tui/labels.go:206
 msgid "Restart"
 msgstr ""
 
-#: tui/labels.go:202
+#: tui/labels.go:207
 msgid "Close this machine down and start it again."
 msgstr ""
 
-#: tui/labels.go:203
+#: tui/labels.go:208
 msgid "Shut down"
 msgstr ""
 
-#: tui/labels.go:204
+#: tui/labels.go:209
 msgid "Exit"
 msgstr ""
 
-#: tui/labels.go:205
+#: tui/labels.go:210
 msgid "Switch this machine off."
 msgstr ""
 
-#: tui/labels.go:206
+#: tui/labels.go:211
 msgid "Restarting …"
 msgstr ""
 
-#: tui/labels.go:207
+#: tui/labels.go:212
 msgid "Shutting down …"
 msgstr ""
 
-#: tui/labels.go:208
+#: tui/labels.go:213
 msgid "The machine did not respond."
 msgstr ""

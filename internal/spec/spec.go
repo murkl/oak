@@ -178,6 +178,22 @@ type Module struct {
 	Shell   string
 	Locales string
 
+	// Offered is the shell that decides whether this module is on offer on this
+	// machine at all, and it is the only thing the runtime runs before one has
+	// been opened. A module that declares none is always on offer.
+	//
+	// Read-only and silent: it answers with its exit status, and what it writes
+	// to stderr is the sentence somebody is shown when it was the module they
+	// named outright. It is the machine the module is being asked about, not the
+	// answers — there are none yet — which is why it is shell rather than the
+	// `conditions:` a task is guarded with.
+	//
+	// It is the division between modules of one product that belong on different
+	// machines: an installer that only makes sense on a live image, and the thing
+	// that writes that image, which only makes sense anywhere else. Each says so
+	// itself, and nothing anywhere holds a list of which is which.
+	Offered Script
+
 	// Language names the variable whose answer also settles the words this
 	// interface is read in — a module that asks where a machine is has asked which
 	// language it speaks, and asking again would be the same question twice. The
@@ -233,6 +249,10 @@ func (s *Module) Help() string { return i18n.T(s.UI.Description) }
 func (s *Module) ConfirmText(get func(string) string) string {
 	return strings.TrimSpace(Expand(i18n.T(s.Confirm), get))
 }
+
+// Offers reports whether this module says anything about which machines it
+// belongs on. One that does not is on offer everywhere.
+func (s *Module) Offers() bool { return !s.Offered.Empty() }
 
 // Hook is what this module put in one of the runtime's hooks, in the order it
 // runs, or nothing where it fills that hook at all.

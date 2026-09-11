@@ -36,6 +36,10 @@ type declaration struct {
 	Console  string `yaml:"console"`
 	Language string `yaml:"language"`
 
+	// Whether this machine is one this module belongs on. Shell, or the file it
+	// lives in, like everything else the yaml may write outright.
+	Offered string `yaml:"offered"`
+
 	// What this module is and what it does: one sentence about the program, the
 	// last warning before a run starts, and the phases that run happens in.
 	Description string   `yaml:"description"`
@@ -62,6 +66,15 @@ func Load(dir string) (*Module, error) {
 	s.UI = UI{Title: head.Title, Action: head.Action, Description: head.Description, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Confirm, s.Stages = head.Confirm, head.Stages
+	offered, err := scriptFile(dir, head.Offered)
+	if err != nil {
+		return nil, fmt.Errorf("%s: offered: %w", FileModule, err)
+	}
+	if offered != "" {
+		s.Offered = Script{File: offered}
+	} else if strings.TrimSpace(head.Offered) != "" {
+		s.Offered = Script{Shell: head.Offered}
+	}
 	if err := checkStages(s.Stages); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}

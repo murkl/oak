@@ -63,6 +63,11 @@ confirm: |                               # the last thing shown before anything 
 
 console: Run ./oak --module=setup to start it again.  # optional: read on the way out
 language: TUX_LOCALE                     # optional: ties the interface language to one answer
+
+offered: |                               # optional: whether this machine is one for it
+  [ -d /run/archiso ] && return 0
+  echo "This only runs from the live image." >&2
+  exit 1
 ```
 
 | Key | Description |
@@ -74,8 +79,35 @@ language: TUX_LOCALE                     # optional: ties the interface language
 | `confirm` | The last thing shown before the first task. `{{VAR}}` is filled in from the answers |
 | `console` | Read on the terminal on the way out, where the machine keeps running |
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
+| `offered` | Whether this machine is one this module belongs on — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
+
+### Which modules a machine is offered
+
+`offered:` is shell, or the file it lives in, and it is the only thing Oak runs before a module has been opened. It reads the machine and nothing else — there are no answers yet — which is why it is shell rather than the `conditions:` a task is guarded with. A module that declares none is on offer everywhere.
+
+What is left is what the interface does with them:
+
+| On offer | What happens |
+| --- | --- |
+| Several | The question after the language: which one to open |
+| One | It is opened on the way in. No list of one row |
+| None | The program says so and stops, in the words each module wrote |
+
+It answers with its exit status, and what it writes to **stderr** is the sentence somebody reads when they named that module outright with `--module=`. So a check that says no says why, in the module's own words, the way a `@preflight` step does.
+
+```yaml
+# modules/imager/module.yaml
+offered: |
+  [ "$(cat /proc/sys/kernel/hostname)" = "archiso" ] || return 0
+  echo "This writes a device from an ordinary machine, not from the live image." >&2
+  exit 1
+```
+
+This is what lets one product hold modules that belong on different machines — an installer that only makes sense on a live image, and the thing that writes that image, which only makes sense anywhere else. Each says so itself, and nothing anywhere holds a list of which is which, so adding a module stays a folder.
+
+**`--debug` offers every one of them.** A simulated run is read on whatever machine somebody happens to be sitting at, and a list narrowed to what that machine is would hide exactly the pages they opened it for.
 
 ## Questions
 
@@ -236,6 +268,8 @@ A test that fails does not fail the run. The work said it worked, and something 
 So the tally is read where somebody is actually looking: on every page a `report:` stops the run on, and again under the line that says the run is over. A run whose last offer is a restart is a run most people never see the end of, which is why it is not only said there.
 
 Where something disagreed, the next page is the list of what did — offered **once**, at the first of those stops, and not at all where everything passed. Choosing a row opens the same file-and-line report a failed task gets: the module, the task, the file and line in its `test.sh`, the command and what the tool said. Leaving the list carries the run on into whatever it was going to offer next.
+
+Both of those pages are left **only by saying so**: the list by choosing the row at the end of it, the report behind it by pressing enter. Esc and backspace do nothing on either. Everywhere else in the program a page that is only read answers to them as well, because leaving it costs nothing — here it costs the only account of what went wrong this run is going to give, and reaching for the key that means back is exactly what somebody does who has just been told something failed.
 
 Whether any of this happens at all is one switch in the settings, on unless somebody turns it off. It is Oak's own answer rather than a module's — what a task tests is the module's business, whether anything is tested is not — so it is kept in `oak.conf` and holds for every module beside it. The switch is offered only where the module has something to test.
 

@@ -370,3 +370,126 @@ func TestDebugOnTheCommandLineReachesEveryScript(t *testing.T) {
 		}
 	}
 }
+
+// offeringRuntime is a product whose modules disagree about which machine they
+// belong on: one always, one never, and one that says nothing at all.
+func offeringRuntime(t *testing.T) (*spec.Runtime, []*spec.Module) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte(runtimeDecl), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	put(t, dir, "here", writeModule(t, "title: here\nstages: [go]\noffered: \"true\"\n", nil))
+	put(t, dir, "elsewhere", writeModule(t, "title: elsewhere\nstages: [go]\n"+
+		"offered: |\n  echo \"not this machine\" >&2\n  exit 1\n", nil))
+	put(t, dir, "anywhere", writeModule(t, "title: anywhere\nstages: [go]\n", nil))
+	return product(t, dir)
+}
+
+// A module says for itself which machines it belongs on, and one that says no
+// is not on the list somebody is asked to choose from. One that says nothing
+// belongs everywhere, which is what keeps the key optional.
+func TestOnlyTheModulesThisMachineBelongsToAreOffered(t *testing.T) {
+	_, mods := offeringRuntime(t)
+
+	got, err := offered(mods, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, mod := range got {
+		names = append(names, mod.UI.Title)
+	}
+	want := "anywhere here"
+	if strings.Join(names, " ") != want {
+		t.Errorf("offered() = %v, want %s", names, want)
+	}
+}
+
+// A simulated run is read on whatever machine somebody happens to be at, and
+// narrowing it to what that machine is would hide the pages they opened it for.
+func TestASimulatedRunIsOfferedEveryModule(t *testing.T) {
+	_, mods := offeringRuntime(t)
+
+	got, err := offered(mods, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(mods) {
+		t.Errorf("offered(debug) = %d modules, want all %d of them", len(got), len(mods))
+	}
+}
+
+// Named outright, a module that does not belong here is refused in its own
+// words: the sentence it wrote is the whole of what is worth saying, and an
+// exit status in front of it only gets in the way.
+func TestAModuleNamedOutrightIsRefusedInItsOwnWords(t *testing.T) {
+	rt, mods := offeringRuntime(t)
+
+	one, err := narrow(rt, mods, "elsewhere")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = offered(one, false)
+	if err == nil {
+		t.Fatal("a module that does not belong on this machine was opened anyway")
+	}
+	if err.Error() != "not this machine" {
+		t.Errorf("error = %q, want what the module said", err)
+	}
+}
+
+// Nothing to open is not an empty list to look at: every module said why, and
+// all of it is read at once.
+func TestAMachineNoModuleBelongsOnIsToldByEveryOneOfThem(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte(runtimeDecl), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	put(t, dir, "one", writeModule(t, "title: one\nstages: [go]\n"+
+		"offered: |\n  echo \"needs a live image\" >&2\n  exit 1\n", nil))
+	put(t, dir, "two", writeModule(t, "title: two\nstages: [go]\n"+
+		"offered: |\n  echo \"needs a plugged-in device\" >&2\n  exit 1\n", nil))
+	_, mods := product(t, dir)
+
+	_, err := offered(mods, false)
+	if err == nil {
+		t.Fatal("a machine no module belongs on was let through")
+	}
+	for _, want := range []string{"needs a live image", "needs a plugged-in device"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to hold %q", err, want)
+		}
+	}
+}
+
+// The shell it is decided by is the module's own, so a check reads as a
+// sentence rather than as a line of test flags — and the one place that names
+// the rule is the module it belongs to.
+func TestTheOfferedCheckIsGivenTheModulesOwnShell(t *testing.T) {
+	dir := around(t, writeModule(t, "title: shelled\nstages: [go]\noffered: belongs_here\n",
+		map[string]string{spec.FileShell: "belongs_here() { return 0; }\n"}))
+	_, mods := product(t, dir)
+
+	got, err := offered(mods, false)
+	if err != nil {
+		t.Fatalf("a module whose check its own shell answers was refused: %v", err)
+	}
+	if len(got) != 1 {
+		t.Errorf("offered() = %d modules, want the one", len(got))
+	}
+}
+
+// The check is shell a module wrote, and it is written next to its tasks and
+// its hooks — where `return 0` is how a guard says yes. Shell that means one
+// thing there and another here would be a trap laid for whoever writes the next
+// module.
+func TestTheOfferedCheckMaySayYesTheWayEveryOtherGuardDoes(t *testing.T) {
+	dir := around(t, writeModule(t, "title: returning\nstages: [go]\n"+
+		"offered: |\n  [ -n \"$HOME\" ] && return 0\n  echo no home >&2\n  exit 1\n", nil))
+	_, mods := product(t, dir)
+
+	if _, err := offered(mods, false); err != nil {
+		t.Fatalf("a check that answered with `return 0` was read as a refusal: %v", err)
+	}
+}

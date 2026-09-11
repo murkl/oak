@@ -86,6 +86,12 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	}
 	fmt.Fprintf(w, "%s\n", filepath.Join(mod.Dir, spec.FileModule))
 	fmt.Fprintf(w, "  title      %s\n", mod.UI.Title)
+	// Only where it says something. A module on offer everywhere is the ordinary
+	// case, and a line saying so on every one of them would drown the one that
+	// does not.
+	if mod.Offers() {
+		fmt.Fprintf(w, "  offered    %s\n", oneLine(mod.Offered))
+	}
 	fmt.Fprintf(w, "  variables  %d (%d required, %d secret)\n", len(mod.Vars), required, secret)
 	fmt.Fprintf(w, "  presets    %d\n", len(mod.Presets))
 	fmt.Fprintf(w, "  stages     %s\n", strings.Join(mod.Stages, " "))
@@ -136,6 +142,21 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 		fmt.Fprintf(w, "  %-10s %d of %d strings translated\n", l.Code, done, len(msgs))
 	}
 	return nil
+}
+
+// oneLine is a piece of a module's shell as a report can print it: the file it
+// lives in, or its first line with the rest marked as being there. A report is
+// a table, and a module that wrote ten lines of check into its yaml must not
+// push every other row off the page.
+func oneLine(s spec.Script) string {
+	if s.File != "" {
+		return filepath.Base(s.File)
+	}
+	first, rest, cut := strings.Cut(strings.TrimSpace(s.Shell), "\n")
+	if cut && strings.TrimSpace(rest) != "" {
+		return first + " …"
+	}
+	return first
 }
 
 // hooks is which of the runtime's hooks this module fills, so one that is not

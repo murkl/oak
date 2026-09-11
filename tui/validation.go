@@ -35,6 +35,12 @@ type validationScreen struct {
 	done   func() tea.Cmd
 }
 
+// The row that leaves this page. It is a row rather than a key because leaving
+// is the one thing here that cannot be taken back — nothing reopens this page,
+// and what is on it is the only place the failures are laid out. The NUL prefix
+// cannot collide with the numbers the other rows are keyed by.
+const keyReviewed = "\x00reviewed"
+
 func newValidation(a *app, tests []testResult, done func() tea.Cmd) *validationScreen {
 	s := &validationScreen{app: a, tests: tests, done: done}
 	items := []item{}
@@ -45,15 +51,15 @@ func newValidation(a *app, tests []testResult, done func() tea.Cmd) *validationS
 		s.failed = append(s.failed, r)
 		items = append(items, item{title: r.task.Label(), key: strconv.Itoa(i)})
 	}
+	items = append(items, item{title: labelReviewed(), detail: labelReviewedHelp(), key: keyReviewed})
 	s.picker = newPicker(items)
 	return s
 }
 
 func (s *validationScreen) Title() string { return labelValidation() }
 
-// Hint: enter opens the failure under the cursor. Esc is the way on, which is
-// what a page with nothing behind it can make of a key that means back
-// everywhere else.
+// Hint: enter opens the failure under the cursor, and the last row is the way
+// on. Esc is not offered and does nothing here — see keyReviewed.
 func (s *validationScreen) Hint() string { return labelHintChecks() }
 
 func (s *validationScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
@@ -62,13 +68,18 @@ func (s *validationScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	if !ok {
 		return s, nil
 	}
-	switch {
-	case backs(key):
+	// Only the row that says so leaves. A key that means back everywhere else
+	// would carry off the one page these failures are ever shown on, and the
+	// reflex to press it is exactly what somebody who has just been told
+	// something went wrong does.
+	if !confirms(key) {
+		return s, nil
+	}
+	if s.picker.selected() == keyReviewed {
 		return s, s.done()
-	case confirms(key):
-		if r, found := s.at(s.picker.selected()); found {
-			return s, push(newFailure(r.task.Label(), r.err, pop))
-		}
+	}
+	if r, found := s.at(s.picker.selected()); found {
+		return s, push(newFailure(r.task.Label(), r.err, pop))
 	}
 	return s, nil
 }
@@ -82,8 +93,12 @@ func (s *validationScreen) at(key string) (testResult, bool) {
 	return s.tests[i], true
 }
 
+// With the sentence under the rows, because the last of them is the one row
+// here that cannot be taken back and has to say so. The others carry none, and
+// the space for it is held either way — a cursor moving must not shift the list
+// above it.
 func (s *validationScreen) View(width, height int) string {
-	return s.headline() + "\n\n" + s.picker.View(width, height-2)
+	return s.headline() + "\n\n" + withDetail(s.picker, width, height-2)
 }
 
 // headline is the whole verdict in one line: the mark, and how many of how
@@ -127,8 +142,13 @@ func (s *failureScreen) hinted(hint func() string) *failureScreen {
 func (s *failureScreen) Title() string { return s.title }
 func (s *failureScreen) Hint() string  { return s.hint() }
 
+// Closed by the one key that means yes, and by nothing else. Everywhere else a
+// page that is only read answers to esc as well, because leaving it costs
+// nothing; here it costs the only account of what went wrong that this run will
+// ever give — and the page it is read on is reached by pressing enter, which
+// makes a second enter the one keystroke nobody arrives here holding.
 func (s *failureScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok && answers(key) {
+	if key, ok := msg.(tea.KeyMsg); ok && confirms(key) {
 		return s, s.done()
 	}
 	return s, nil
