@@ -54,6 +54,20 @@ func truncate(s string, width int) string {
 	return string(r) + glyphs.dash
 }
 
+// truncateStart cuts a string to width from the front, marking that it was cut.
+// For a path, where what tells it apart — the folder, the file, the line — is
+// all at the end.
+func truncateStart(s string, width int) string {
+	if lipgloss.Width(s) <= width || width < 2 {
+		return s
+	}
+	r := []rune(s)
+	for len(r) > 0 && lipgloss.Width(string(r))+1 > width {
+		r = r[1:]
+	}
+	return glyphs.dash + string(r)
+}
+
 // wrap breaks text into lines of at most width, on word boundaries.
 func wrap(s string, width int) []string {
 	if width < 1 {

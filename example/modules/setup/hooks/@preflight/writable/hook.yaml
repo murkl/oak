@@ -8,7 +8,7 @@
 title: Check the working folder
 
 # What goes to stderr is what somebody reads when the check says no.
-execute: |
+script: |
   [ -w . ] && return 0
   echo "This folder cannot be written to. Start Tux Setup somewhere you own." >&2
   exit 1

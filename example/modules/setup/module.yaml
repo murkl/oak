@@ -10,6 +10,10 @@
 # thing can be run on the machine you are reading this on.
 
 title: Tux Setup
+
+# What opening it does, on the row that opens it. A row is pressed, so it says
+# what will happen; the title above says what this is.
+action: Set up
 description: Build a small Linux system tree, the way an installer would.
 
 # The phases the work happens in, in the order they happen. Every task names one

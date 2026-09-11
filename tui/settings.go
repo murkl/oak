@@ -36,6 +36,18 @@ type settingsScreen struct {
 	picker *picker
 }
 
+// The groups the runtime's own rows stand in, so that the layout puts a blank
+// line where one changes. The NUL prefix cannot collide with a group the folder
+// named.
+//
+// Only the second carries a heading. The language row is the page's own first
+// line and reads as what it is; the validation row is about the work rather
+// than about a value, and a word over it is what says so.
+const (
+	groupLanguage = "\x00language"
+	groupValidate = "\x00validate"
+)
+
 // settingRow is one setting beside the heading it sits under. Both the module's
 // own key and the words it reads as: the key is what marks the end of a group,
 // and the words are what a query is matched against.
@@ -67,30 +79,32 @@ func (s *settingsScreen) build() {
 // collect is every setting this page shows, in the order it shows them.
 func (s *settingsScreen) collect() []settingRow {
 	rows := []settingRow{}
-	// Language first, and it is the runtime's row rather than the folder's: it
-	// is the one setting that changes this page itself, so it belongs where it
-	// can be found without reading anything.
+	// The runtime's own two rows stand above the folder's, and each in a group
+	// of its own: they have nothing in common but who they belong to — one is
+	// about the words on screen, the other about what a run does with itself —
+	// and read as a pair the second would be taken for more of the first.
 	//
-	// Unless the module tied the language to one of its own answers — see
-	// `language:` — in which case that answer is the row, a few lines further
-	// down, and a second one above it would only be the same setting able to
+	// Language leads. It changes this page itself, so it is found without having
+	// to read anything — unless the module tied it to one of its own answers,
+	// see `language:`, in which case that answer is the row a few lines further
+	// down and a second one above it would only be the same setting able to
 	// disagree with itself.
 	if s.app.module.Language == "" && len(s.app.langs) > 1 {
 		rows = append(rows, settingRow{item: item{
 			title: labelLanguage(),
 			value: s.languageName(),
 			key:   store.LangVar,
-		}})
+		}, group: groupLanguage})
 	}
-	// The runtime's other own answer, and it is offered only where this module
-	// has something to check: a switch for a thing that would never happen is a
-	// row that reads as a promise nothing keeps.
+	// And it is offered only where this module has something to check: a switch
+	// for a thing that would never happen is a row that reads as a promise
+	// nothing keeps.
 	if s.app.module.Checks() {
 		rows = append(rows, settingRow{item: item{
-			title: labelValidating(),
+			title: labelValidatingScripts(),
 			value: store.Label(truth(s.app.prefs.Validates())),
 			key:   store.ValidateVar,
-		}})
+		}, group: groupValidate, label: labelValidating()})
 	}
 	for _, v := range s.app.store.Visible() {
 		rows = append(rows, settingRow{
@@ -218,7 +232,7 @@ func (s *settingsScreen) open(name string) tea.Cmd {
 	case name == store.LangVar:
 		return push(newLanguage(s.app, pop))
 	case name == store.ValidateVar:
-		return push(newSwitch(s.app, labelValidating(), labelValidatingHelp(), s.app.prefs.Validates(), s.app.validate))
+		return push(newSwitch(s.app, labelValidatingScripts(), labelValidatingHelp(), s.app.prefs.Validates(), s.app.validate))
 	}
 	v := s.app.module.Var(name)
 	if v == nil || v.Secret() {

@@ -19,40 +19,40 @@ msgstr "Deutsch"
 #. belongs to, the step itself, the script and line it was in, what ran, and
 #. what it returned. Each is one column of a narrow table, so short wins
 #. over exact.
-#: internal/exec/failure.go:55
+#: internal/exec/failure.go:67
 msgid "Module"
 msgstr "Modul"
 
-#: internal/exec/failure.go:57
+#: internal/exec/failure.go:69
 msgid "Hook"
 msgstr "Hook"
 
-#: internal/exec/failure.go:58
+#: internal/exec/failure.go:70
 msgid "Step"
 msgstr "Schritt"
 
-#: internal/exec/failure.go:60
+#: internal/exec/failure.go:72
 msgid "Task"
-msgstr "Schritt"
+msgstr "Aufgabe"
 
-#: internal/exec/failure.go:63
+#: internal/exec/failure.go:81
 msgid "Script"
 msgstr "Skript"
 
-#: internal/exec/failure.go:65
+#: internal/exec/failure.go:83
 msgid "Command"
 msgstr "Befehl"
 
-#: internal/exec/failure.go:67
+#: internal/exec/failure.go:85
 msgid "Exit code"
 msgstr "Exit-Code"
 
-#: internal/exec/failure.go:75 tui/labels.go:146
+#: internal/exec/failure.go:93 tui/labels.go:162
 #, c-format
 msgid "%s failed"
 msgstr "%s fehlgeschlagen"
 
-#: internal/exec/failure.go:80
+#: internal/exec/failure.go:98
 msgid "Error"
 msgstr "Fehler"
 
@@ -70,11 +70,11 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:557
+#: internal/spec/spec.go:573
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:559
+#: internal/spec/spec.go:575
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
@@ -95,15 +95,15 @@ msgstr "Sprache der Oberfläche"
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
 
-#: internal/store/store.go:193
+#: internal/store/store.go:189
 msgid "asked just before the run"
 msgstr "wird kurz vor dem Start abgefragt"
 
-#: internal/store/store.go:210 tui/labels.go:187
+#: internal/store/store.go:206 tui/labels.go:212
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:212 tui/labels.go:188
+#: internal/store/store.go:208 tui/labels.go:213
 msgid "No"
 msgstr "Nein"
 
@@ -290,132 +290,160 @@ msgid "Start"
 msgstr "Start"
 
 #. %s is the name of the product being read, as oak.yaml declares it.
-#: tui/labels.go:96
-#, c-format
-msgid "Choose the language for %s."
-msgstr "Sprache für %s wählen."
-
 #: tui/labels.go:101
+#, c-format
+msgid "The language %s is read in. It changes the words on screen and nothing else."
+msgstr "Die Sprache, in der %s gelesen wird. Sie ändert nur die Anzeige, sonst nichts."
+
+#: tui/labels.go:107
 msgid "What to do"
 msgstr "Was möchtest du tun?"
 
-#: tui/labels.go:107
+#: tui/labels.go:113
 #, c-format
 msgid "%d of %d"
 msgstr "%d von %d"
 
-#: tui/labels.go:109
+#: tui/labels.go:115
 msgid "Settings"
 msgstr "Einstellungen"
 
-#. the first %d is how many checks passed, the second how many ran.
-#: tui/labels.go:120
+#. the first %d is how many tests passed, the second how many ran.
+#: tui/labels.go:126
 #, c-format
-msgid "%d of %d checks passed"
-msgstr "%d von %d Prüfungen bestanden"
+msgid "%d of %d tests passed"
+msgstr "%d von %d Tests bestanden"
 
-#: tui/labels.go:122
+#: tui/labels.go:128
 msgid "Validation"
-msgstr "Prüfung"
+msgstr "Validierung"
 
-#: tui/labels.go:123
+#: tui/labels.go:129
 msgid "↑↓ move · ⏎ open · esc continue"
 msgstr "↑↓ bewegen · ⏎ öffnen · esc weiter"
 
-#: tui/labels.go:124
-msgid "Check every step"
-msgstr "Jeden Schritt prüfen"
+#: tui/labels.go:139
+msgid "Validate"
+msgstr "Validieren"
 
-#: tui/labels.go:126
-msgid "After each step, read the machine it was done to and say whether it took. Nothing is changed and nothing is stopped."
-msgstr "Nach jedem Schritt die Maschine lesen, auf der er ausgeführt wurde, und sagen, ob er gegriffen hat. Es wird nichts verändert und nichts abgebrochen."
+#: tui/labels.go:140
+msgid "Installation scripts"
+msgstr "Installationsskripte"
+
+#: tui/labels.go:142
+msgid "Reads the machine after every task: that what the task installed is really there, and set up the way it was meant to be. It is what makes an installation you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
+msgstr "Liest nach jeder Aufgabe den Rechner: ob wirklich da ist, was sie installiert hat, und ob es so eingerichtet ist, wie es sein soll. Das macht aus einer Installation, die Erfolg gemeldet hat, eine, auf die Verlass ist. Nichts wird verändert und nichts abgebrochen. Was nicht übereinstimmt, steht am Ende."
 
 #. %s is the name of the module whose values these are.
-#: tui/labels.go:131
+#: tui/labels.go:147
 #, c-format
 msgid "Every value %s will use. Choose one to change it."
 msgstr "Alle Werte, mit denen %s arbeitet. Zum Ändern einen davon öffnen."
 
-#: tui/labels.go:134
+#: tui/labels.go:150
 msgid "Repeat"
 msgstr "Wiederholen"
 
-#: tui/labels.go:135
+#: tui/labels.go:151
 msgid "The entries do not match."
 msgstr "Die Eingaben stimmen nicht überein."
 
-#: tui/labels.go:144
+#: tui/labels.go:160
 msgid "Ready to start"
 msgstr "Bereit zum Start"
 
-#: tui/labels.go:145
+#: tui/labels.go:161
 #, c-format
 msgid "Start %s"
 msgstr "%s starten"
 
-#: tui/labels.go:148
+#: tui/labels.go:164
 #, c-format
 msgid "%s · %s"
 msgstr "%s · %s"
 
-#: tui/labels.go:151
+#: tui/labels.go:167
 #, c-format
 msgid "%s complete in %s"
 msgstr "%s abgeschlossen in %s"
 
-#: tui/labels.go:154
+#: tui/labels.go:170
 #, c-format
 msgid "The full log is in %s."
 msgstr "Das vollständige Protokoll steht in %s."
 
-#: tui/labels.go:161
+#: tui/labels.go:179
+#, c-format
+msgid "It stopped at %s, and nothing after that has run."
+msgstr "Abgebrochen bei %s; alles danach wurde nicht mehr ausgeführt."
+
+#: tui/labels.go:186
 #, c-format
 msgid "%s: there is nothing to choose from."
 msgstr "%s: Es gibt nichts zur Auswahl."
 
-#: tui/labels.go:164
+#: tui/labels.go:189
 msgid "Cannot continue"
 msgstr "Fortfahren nicht möglich"
 
-#: tui/labels.go:168
+#: tui/labels.go:193
 msgid "Leave"
 msgstr "Beenden"
 
-#: tui/labels.go:173
+#: tui/labels.go:198
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr "Der Vorgang läuft hinter dieser Seite weiter. Jede Auswahl hier bricht ihn ab."
 
-#: tui/labels.go:176
+#: tui/labels.go:201
 msgid "Restart"
 msgstr "Neu starten"
 
-#: tui/labels.go:177
+#: tui/labels.go:202
 msgid "Close this machine down and start it again."
 msgstr "Den Rechner herunterfahren und neu starten."
 
-#: tui/labels.go:178
+#: tui/labels.go:203
 msgid "Shut down"
 msgstr "Herunterfahren"
 
-#: tui/labels.go:179
+#: tui/labels.go:204
 msgid "Exit"
 msgstr "Beenden"
 
-#: tui/labels.go:180
+#: tui/labels.go:205
 msgid "Switch this machine off."
 msgstr "Den Rechner ausschalten."
 
-#: tui/labels.go:181
+#: tui/labels.go:206
 msgid "Restarting …"
 msgstr "Neustart läuft …"
 
-#: tui/labels.go:182
+#: tui/labels.go:207
 msgid "Shutting down …"
 msgstr "Wird heruntergefahren …"
 
-#: tui/labels.go:183
+#: tui/labels.go:208
 msgid "The machine did not respond."
 msgstr "Der Rechner hat nicht reagiert."
+
+#~ msgid "Tasks"
+#~ msgstr "Aufgaben"
+
+#~ msgid "The run"
+#~ msgstr "Der Lauf"
+
+#~ msgid "Validate tasks"
+#~ msgstr "Aufgaben validieren"
+
+#~ msgid "Run each task's own test right after it, on the machine it worked on, and report at the end how many passed. Nothing is changed and nothing is stopped."
+#~ msgstr "Den eigenen Test jeder Aufgabe direkt danach ausführen, auf der Maschine, an der sie gearbeitet hat, und am Ende melden, wie viele bestanden haben. Es wird nichts verändert und nichts abgebrochen."
+
+#, c-format
+#~ msgid "Choose the language for %s."
+#~ msgstr "Sprache für %s wählen."
+
+#~ msgid "Check every step"
+#~ msgstr "Jeden Schritt prüfen"
 
 #~ msgid "System check"
 #~ msgstr "Systemprüfung"
@@ -450,10 +478,6 @@ msgstr "Der Rechner hat nicht reagiert."
 #, c-format
 #~ msgid "Installing for %s"
 #~ msgstr "Installation läuft seit %s"
-
-#, c-format
-#~ msgid "Installation complete in %s"
-#~ msgstr "Installation abgeschlossen in %s"
 
 #~ msgid "Installation failed"
 #~ msgstr "Installation fehlgeschlagen"

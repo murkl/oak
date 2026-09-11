@@ -1,0 +1,4 @@
+# The phase this runs in is the folder above: @prepare, one of the stages
+# module.yaml lists. Moving a task to another phase is moving the folder, and
+# there is no line here that could say one thing while it sits in another.
+title: Prepare the target

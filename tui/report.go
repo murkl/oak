@@ -16,9 +16,14 @@ import (
 // "restart now?") arrive as though the work were still going on. So the run
 // stops, once, and says so at the size the thing deserves.
 //
-// The words are the module's, because what has just happened is the module's own
-// business. What is the runtime's is the mark, the green, and the code — a
-// value nobody is going to copy off a screen by hand.
+// It is also the page a run that could not go on stops at, under the other mark
+// and in the other colour. The two are one page with one thing different about
+// them — a run saying where it got to, at the size that deserves — so they are
+// one type rather than two that would drift apart.
+//
+// The words are the module's where the module has any, because what has just
+// happened is its own business. What is the runtime's is the mark, the colour,
+// and the code — a value nobody is going to copy off a screen by hand.
 type report struct {
 	headline string
 	body     string
@@ -27,6 +32,20 @@ type report struct {
 	// Empty where the module named none, or where what it named came back empty —
 	// a link that could not be made is not a page that cannot be shown.
 	code string
+
+	// note is one line under the words: what the run has proved about itself by
+	// the time this page went up. It is here rather than only at the end of the
+	// run because this is the page somebody actually reads — a run that offers a
+	// restart is a run most people never see the end of.
+	//
+	// Empty where nothing has been tested. alarm is whether it is something to
+	// look at rather than something to note.
+	note  string
+	alarm bool
+
+	// stopped is whether this is the page a run ended badly on: the cross
+	// instead of the tick, and the fail colour instead of the good one.
+	stopped bool
 }
 
 // The page divides in the golden ratio, and which way round it divides is
@@ -51,6 +70,34 @@ const (
 
 func newReport(headline, body, code string) *report {
 	return &report{headline: headline, body: body, code: code}
+}
+
+// says adds the line about the tests to this page.
+func (r *report) says(note string, alarm bool) *report {
+	r.note, r.alarm = note, alarm
+	return r
+}
+
+// stop turns this page into the one a run that could not go on draws.
+func (r *report) stop() *report {
+	r.stopped = true
+	return r
+}
+
+// mark and ink are the two things that differ between the page a run finished
+// on and the page it stopped on.
+func (r *report) mark() []string {
+	if r.stopped {
+		return glyphCross
+	}
+	return glyphTick
+}
+
+func (r *report) ink() lipgloss.Style {
+	if r.stopped {
+		return failStyle.Bold(true)
+	}
+	return goodStyle
 }
 
 func (r *report) Hint() string { return labelHintContinue() }
@@ -78,16 +125,19 @@ func (r *report) View(width, height int) string {
 //
 // What a frame too short for all of it loses is what carries least: the tail of
 // the paragraph first, and only once there is none of it left, the mark. The
-// headline and the value are what this page is, and neither is ever what goes.
+// headline, the line about the tests and the value are what this page is, and
+// none of them is ever what goes.
 func (r *report) words(width, height int) []string {
-	head := inked(r.headline, width, goodStyle)
+	ink := r.ink()
+	head := inked(r.headline, width, ink)
 	body := inked(r.body, width, textStyle)
 
 	// Rendered row by row rather than through inked: the mark is a picture, and
 	// what wraps a paragraph would treat its spacing as words to be closed up.
-	mark := make([]string, 0, len(glyphTick))
-	for _, line := range glyphTick {
-		mark = append(mark, goodStyle.Render(line))
+	picture := r.mark()
+	mark := make([]string, 0, len(picture))
+	for _, line := range picture {
+		mark = append(mark, ink.Render(line))
 	}
 
 	build := func() []string {
@@ -98,6 +148,13 @@ func (r *report) words(width, height int) []string {
 		out = append(out, head...)
 		if len(body) > 0 {
 			out = append(append(out, ""), body...)
+		}
+		if r.note != "" {
+			ink := mutedStyle
+			if r.alarm {
+				ink = alertStyle
+			}
+			out = append(out, "", ink.Render(truncate(r.note, width)))
 		}
 		if r.code != "" {
 			out = append(out, "", infoStyle.Render(truncate(r.code, width)))

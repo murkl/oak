@@ -22,40 +22,40 @@ msgstr ""
 #. belongs to, the step itself, the script and line it was in, what ran, and
 #. what it returned. Each is one column of a narrow table, so short wins
 #. over exact.
-#: internal/exec/failure.go:55
+#: internal/exec/failure.go:67
 msgid "Module"
 msgstr ""
 
-#: internal/exec/failure.go:57
+#: internal/exec/failure.go:69
 msgid "Hook"
 msgstr ""
 
-#: internal/exec/failure.go:58
+#: internal/exec/failure.go:70
 msgid "Step"
 msgstr ""
 
-#: internal/exec/failure.go:60
+#: internal/exec/failure.go:72
 msgid "Task"
 msgstr ""
 
-#: internal/exec/failure.go:63
+#: internal/exec/failure.go:81
 msgid "Script"
 msgstr ""
 
-#: internal/exec/failure.go:65
+#: internal/exec/failure.go:83
 msgid "Command"
 msgstr ""
 
-#: internal/exec/failure.go:67
+#: internal/exec/failure.go:85
 msgid "Exit code"
 msgstr ""
 
-#: internal/exec/failure.go:75 tui/labels.go:146
+#: internal/exec/failure.go:93 tui/labels.go:162
 #, c-format
 msgid "%s failed"
 msgstr ""
 
-#: internal/exec/failure.go:80
+#: internal/exec/failure.go:98
 msgid "Error"
 msgstr ""
 
@@ -73,11 +73,11 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:557
+#: internal/spec/spec.go:573
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:559
+#: internal/spec/spec.go:575
 msgid "This value is required."
 msgstr ""
 
@@ -98,15 +98,15 @@ msgstr ""
 msgid "Check every step on the machine it was done to"
 msgstr ""
 
-#: internal/store/store.go:193
+#: internal/store/store.go:189
 msgid "asked just before the run"
 msgstr ""
 
-#: internal/store/store.go:210 tui/labels.go:187
+#: internal/store/store.go:206 tui/labels.go:212
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:212 tui/labels.go:188
+#: internal/store/store.go:208 tui/labels.go:213
 msgid "No"
 msgstr ""
 
@@ -293,129 +293,138 @@ msgid "Start"
 msgstr ""
 
 #. %s is the name of the product being read, as oak.yaml declares it.
-#: tui/labels.go:96
-#, c-format
-msgid "Choose the language for %s."
-msgstr ""
-
 #: tui/labels.go:101
-msgid "What to do"
+#, c-format
+msgid "The language %s is read in. It changes the words on screen and nothing else."
 msgstr ""
 
 #: tui/labels.go:107
+msgid "What to do"
+msgstr ""
+
+#: tui/labels.go:113
 #, c-format
 msgid "%d of %d"
 msgstr ""
 
-#: tui/labels.go:109
+#: tui/labels.go:115
 msgid "Settings"
 msgstr ""
 
-#. the first %d is how many checks passed, the second how many ran.
-#: tui/labels.go:120
+#. the first %d is how many tests passed, the second how many ran.
+#: tui/labels.go:126
 #, c-format
-msgid "%d of %d checks passed"
+msgid "%d of %d tests passed"
 msgstr ""
 
-#: tui/labels.go:122
+#: tui/labels.go:128
 msgid "Validation"
 msgstr ""
 
-#: tui/labels.go:123
+#: tui/labels.go:129
 msgid "↑↓ move · ⏎ open · esc continue"
 msgstr ""
 
-#: tui/labels.go:124
-msgid "Check every step"
+#: tui/labels.go:139
+msgid "Validate"
 msgstr ""
 
-#: tui/labels.go:126
-msgid "After each step, read the machine it was done to and say whether it took. Nothing is changed and nothing is stopped."
+#: tui/labels.go:140
+msgid "Installation scripts"
+msgstr ""
+
+#: tui/labels.go:142
+msgid "Reads the machine after every task: that what the task installed is really there, and set up the way it was meant to be. It is what makes an installation you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
 msgstr ""
 
 #. %s is the name of the module whose values these are.
-#: tui/labels.go:131
+#: tui/labels.go:147
 #, c-format
 msgid "Every value %s will use. Choose one to change it."
 msgstr ""
 
-#: tui/labels.go:134
+#: tui/labels.go:150
 msgid "Repeat"
 msgstr ""
 
-#: tui/labels.go:135
+#: tui/labels.go:151
 msgid "The entries do not match."
 msgstr ""
 
-#: tui/labels.go:144
+#: tui/labels.go:160
 msgid "Ready to start"
-msgstr ""
-
-#: tui/labels.go:145
-#, c-format
-msgid "Start %s"
-msgstr ""
-
-#: tui/labels.go:148
-#, c-format
-msgid "%s · %s"
-msgstr ""
-
-#: tui/labels.go:151
-#, c-format
-msgid "%s complete in %s"
-msgstr ""
-
-#: tui/labels.go:154
-#, c-format
-msgid "The full log is in %s."
 msgstr ""
 
 #: tui/labels.go:161
 #, c-format
-msgid "%s: there is nothing to choose from."
+msgid "Start %s"
 msgstr ""
 
 #: tui/labels.go:164
-msgid "Cannot continue"
+#, c-format
+msgid "%s · %s"
 msgstr ""
 
-#: tui/labels.go:168
-msgid "Leave"
+#: tui/labels.go:167
+#, c-format
+msgid "%s complete in %s"
 msgstr ""
 
-#: tui/labels.go:173
-msgid "This run continues behind this page. Any choice here stops it."
-msgstr ""
-
-#: tui/labels.go:176
-msgid "Restart"
-msgstr ""
-
-#: tui/labels.go:177
-msgid "Close this machine down and start it again."
-msgstr ""
-
-#: tui/labels.go:178
-msgid "Shut down"
+#: tui/labels.go:170
+#, c-format
+msgid "The full log is in %s."
 msgstr ""
 
 #: tui/labels.go:179
+#, c-format
+msgid "It stopped at %s, and nothing after that has run."
+msgstr ""
+
+#: tui/labels.go:186
+#, c-format
+msgid "%s: there is nothing to choose from."
+msgstr ""
+
+#: tui/labels.go:189
+msgid "Cannot continue"
+msgstr ""
+
+#: tui/labels.go:193
+msgid "Leave"
+msgstr ""
+
+#: tui/labels.go:198
+msgid "This run continues behind this page. Any choice here stops it."
+msgstr ""
+
+#: tui/labels.go:201
+msgid "Restart"
+msgstr ""
+
+#: tui/labels.go:202
+msgid "Close this machine down and start it again."
+msgstr ""
+
+#: tui/labels.go:203
+msgid "Shut down"
+msgstr ""
+
+#: tui/labels.go:204
 msgid "Exit"
 msgstr ""
 
-#: tui/labels.go:180
+#: tui/labels.go:205
 msgid "Switch this machine off."
 msgstr ""
 
-#: tui/labels.go:181
+#: tui/labels.go:206
 msgid "Restarting …"
 msgstr ""
 
-#: tui/labels.go:182
+#: tui/labels.go:207
 msgid "Shutting down …"
 msgstr ""
 
-#: tui/labels.go:183
+#: tui/labels.go:208
 msgid "The machine did not respond."
 msgstr ""

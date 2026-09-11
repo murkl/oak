@@ -29,10 +29,10 @@ func consistent(files map[string]string) map[string]string {
 	out := map[string]string{
 		FileModule: guarded,
 		// The helper's own task, left out: these tests write their own.
-		"tasks/do/task.yaml":      "",
-		"tasks/do/task.sh":        "",
-		"tasks/desktop/task.yaml": "stage: go\ntitle: Desktop\nconditions: DESKTOP == gnome\n",
-		"tasks/desktop/task.sh":   "echo \"$EXTRAS\"\n",
+		"tasks/@go/do/task.yaml":      "",
+		"tasks/@go/do/task.sh":        "",
+		"tasks/@go/desktop/task.yaml": "title: Desktop\nconditions: DESKTOP == gnome\n",
+		"tasks/@go/desktop/task.sh":   "echo \"$EXTRAS\"\n",
 	}
 	maps.Copy(out, files)
 	return out
@@ -97,8 +97,8 @@ func TestATaskGuardedOnTheAnswerItselfReadsIt(t *testing.T) {
 	// `EXTRAS == true` is not a task that runs somewhere else — it is the
 	// answer being acted on, which is the only way a bool ever is read.
 	files := consistent(map[string]string{
-		FileModule:              widened,
-		"tasks/desktop/task.sh": "echo desktop\n",
+		FileModule:                  widened,
+		"tasks/@go/desktop/task.sh": "echo desktop\n",
 	})
 	maps.Copy(files, unit("go", "extras", "title: Extras\nconditions: EXTRAS == true\n"))
 	if got := unread(t, files); len(got) != 0 {
@@ -109,7 +109,7 @@ func TestATaskGuardedOnTheAnswerItselfReadsIt(t *testing.T) {
 func TestOneTaskThatCanRunAnywhereIsEnough(t *testing.T) {
 	files := consistent(map[string]string{FileModule: widened})
 	maps.Copy(files, unit("go", "always", "title: Always\n"))
-	files["tasks/always/task.sh"] = "echo \"$EXTRAS\"\n"
+	files["tasks/@go/always/task.sh"] = "echo \"$EXTRAS\"\n"
 	if got := unread(t, files); len(got) != 0 {
 		t.Errorf("Unread() = %v, want nothing: one task reads it wherever it is asked", got)
 	}
@@ -117,9 +117,9 @@ func TestOneTaskThatCanRunAnywhereIsEnough(t *testing.T) {
 
 func TestTheSharedLibraryReadsForEveryTask(t *testing.T) {
 	files := consistent(map[string]string{
-		FileModule:              widened,
-		"tasks/desktop/task.sh": "echo desktop\n",
-		FileShell:               "echo \"$EXTRAS\"\n",
+		FileModule:                  widened,
+		"tasks/@go/desktop/task.sh": "echo desktop\n",
+		FileShell:                   "echo \"$EXTRAS\"\n",
 	})
 	if got := unread(t, files); len(got) != 0 {
 		t.Errorf("Unread() = %v, want nothing: module.sh runs whatever the answers say", got)
@@ -176,8 +176,8 @@ func unset(t *testing.T, files map[string]string) []string {
 // only place it is visible at all.
 func TestANameNothingAnswersIsReported(t *testing.T) {
 	got := unset(t, consistent(map[string]string{
-		"tasks/do/task.yaml": "stage: go\ntitle: Do\n",
-		"tasks/do/task.sh":   "echo \"$PRODUCT_VERSION\" >\"$MODULE_DIR/out\"\n",
+		"tasks/@go/do/task.yaml": "title: Do\n",
+		"tasks/@go/do/task.sh":   "echo \"$PRODUCT_VERSION\" >\"$MODULE_DIR/out\"\n",
 	}))
 	if strings.Join(got, " ") != "MODULE_DIR PRODUCT_VERSION" {
 		t.Errorf("Unset() = %v, want both names the module reads and nothing sets", got)
@@ -188,9 +188,9 @@ func TestANameNothingAnswersIsReported(t *testing.T) {
 // the module, which is the whole point of the line.
 func TestANameTheModuleSetsItselfIsNotReported(t *testing.T) {
 	got := unset(t, consistent(map[string]string{
-		FileShell:            "MODULE_DIR=\"$(dirname \"${BASH_SOURCE[0]}\")\"\n",
-		"tasks/do/task.yaml": "stage: go\ntitle: Do\n",
-		"tasks/do/task.sh":   "echo \"$MODULE_DIR\"\n",
+		FileShell:                "MODULE_DIR=\"$(dirname \"${BASH_SOURCE[0]}\")\"\n",
+		"tasks/@go/do/task.yaml": "title: Do\n",
+		"tasks/@go/do/task.sh":   "echo \"$MODULE_DIR\"\n",
 	}))
 	if len(got) != 0 {
 		t.Errorf("Unset() = %v, want nothing", got)
@@ -201,8 +201,8 @@ func TestANameTheModuleSetsItselfIsNotReported(t *testing.T) {
 // script's own working values are lower case and none of this check's business.
 func TestWhatIsAnsweredIsNotReported(t *testing.T) {
 	got := unset(t, consistent(map[string]string{
-		"tasks/do/task.yaml": "stage: go\ntitle: Do\n",
-		"tasks/do/task.sh": "target=\"$DESKTOP\"\n" +
+		"tasks/@go/do/task.yaml": "title: Do\n",
+		"tasks/@go/do/task.sh": "target=\"$DESKTOP\"\n" +
 			"[ \"$DEBUG\" = true ] && echo \"$target\" >>\"$MODULE_CONF\"\n" +
 			"echo \"${BASH_SOURCE[0]}\"\n",
 	}))

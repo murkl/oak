@@ -33,12 +33,13 @@ func (h *hub) Refresh() {
 	h.picker.focus(key)
 }
 
-// build names the top row after the module itself. It has already said what it
-// is called and what it does, in its own words, and the row that starts a run
-// should be read in those words rather than in the runtime's guess at them.
+// build names the top row after what opening the module does rather than after
+// what it is called: the row is pressed, and what a reader wants off a row they
+// are about to press is what will happen. The module says both words itself —
+// the runtime has no guess of its own to offer.
 func (h *hub) build() {
 	h.picker = newPicker([]item{
-		{title: h.app.module.Name(), detail: h.app.module.Help(), key: keyInstall},
+		{title: h.app.module.Does(), detail: h.app.module.Help(), key: keyInstall},
 		{title: labelSettings(), detail: labelSettingsHelp(h.app.module.Name()), key: keySettings},
 	})
 }

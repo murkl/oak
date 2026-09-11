@@ -19,12 +19,12 @@ func TestAFailureIsReportedAsLabelledFields(t *testing.T) {
 		Code: 2, Command: "mkfs.btrfs -f /dev/sda2", Stderr: "no such device",
 	}
 	got := f.Fields()
-	want := [][2]string{
-		{"Module", "Tux Setup"},
-		{"Task", "Set up the disk"},
-		{"Script", "/module/tasks/disk/task.sh:12"},
-		{"Command", "mkfs.btrfs -f /dev/sda2"},
-		{"Exit code", "2"},
+	want := []Field{
+		{Label: "Module", Value: "Tux Setup"},
+		{Label: "Task", Value: "Set up the disk"},
+		{Label: "Script", Value: "/module/tasks/disk/task.sh:12", Path: true},
+		{Label: "Command", Value: "mkfs.btrfs -f /dev/sda2"},
+		{Label: "Exit code", Value: "2"},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %v, want %v", got, want)
@@ -49,14 +49,14 @@ func TestAFailureIsReportedAsLabelledFields(t *testing.T) {
 func TestAFailureInAHookNamesTheHook(t *testing.T) {
 	f := &Failure{
 		Module: "Tux Setup", Hook: "@wlan-device", Unit: "Find the wireless device",
-		Script: "/module/tasks/@wlan-device/station/task.sh", Line: 3, Code: 127,
+		Script: "/module/hooks/@wlan-device/station/hook.sh", Line: 3, Code: 127,
 	}
-	want := [][2]string{
-		{"Module", "Tux Setup"},
-		{"Hook", "@wlan-device"},
-		{"Step", "Find the wireless device"},
-		{"Script", "/module/tasks/@wlan-device/station/task.sh:3"},
-		{"Exit code", "127"},
+	want := []Field{
+		{Label: "Module", Value: "Tux Setup"},
+		{Label: "Hook", Value: "@wlan-device"},
+		{Label: "Step", Value: "Find the wireless device"},
+		{Label: "Script", Value: "/module/hooks/@wlan-device/station/hook.sh:3", Path: true},
+		{Label: "Exit code", Value: "127"},
 	}
 	got := f.Fields()
 	if len(got) != len(want) {
@@ -74,7 +74,7 @@ func TestAFailureInAHookNamesTheHook(t *testing.T) {
 func TestAFailureWithNoTrapReportSaysOnlyWhatItKnows(t *testing.T) {
 	f := &Failure{Unit: "Restart", Code: 1}
 	got := f.Fields()
-	if len(got) != 2 || got[0][0] != "Task" || got[1][0] != "Exit code" {
+	if len(got) != 2 || got[0].Label != "Task" || got[1].Label != "Exit code" {
 		t.Fatalf("got %v, want the step and the exit code alone", got)
 	}
 }

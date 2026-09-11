@@ -12,7 +12,7 @@ BIN_DIR := bin
 # did not come from a build of an actual release.
 #
 # The tag's leading `v` is dropped here: it belongs to the tag and to nothing
-# else, and what the binary answers is oak-1.0.0.
+# else, and what the binary answers is oak-0.1.0.
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)
 
 # One binary, for the one platform an installer runs on. Named after neither the
@@ -142,8 +142,8 @@ lint:
 # shallow to describe one, a tree with edits in it. Any of those would publish
 # a version nothing inside the file agrees with.
 #
-#   make version-check TAG=v1.0.0                     against what build wrote
-#   make version-check TAG=v1.0.0 BIN=dist/oak-...    against what CI will ship
+#   make version-check TAG=v0.1.0                     against what build wrote
+#   make version-check TAG=v0.1.0 BIN=dist/oak-...    against what CI will ship
 version-check:
 	@[[ "$(TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] \
 		|| { echo "not a release tag: '$(TAG)' — a release is vMAJOR.MINOR.PATCH" >&2; exit 1; }

@@ -115,7 +115,7 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 
 	// The order they run in is worked out rather than written down anywhere.
 	for i, t := range mod.Tasks {
-		fmt.Fprintf(w, "  %2d. %-10s %-20s %s\n", i+1, t.Stage, t.ID(), checked(t))
+		fmt.Fprintf(w, "  %2d. %-10s %-20s %s\n", i+1, t.Stage(), t.ID(), checked(t))
 	}
 
 	// A catalog whose keys have drifted from the yaml shows up here as a

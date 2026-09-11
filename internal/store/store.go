@@ -43,10 +43,6 @@ func New(mod *spec.Module, path string, debug bool) *Store {
 // Path is the answer file this store reads and writes.
 func (s *Store) Path() string { return s.path }
 
-// Simulating reports whether this run only pretends to work. Nothing reaches
-// the machine, so there is nothing on it for a task's own check to read.
-func (s *Store) Simulating() bool { return s.debug }
-
 // Get reads a value.
 func (s *Store) Get(name string) string { return s.val[name] }
 

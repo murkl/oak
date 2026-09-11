@@ -77,9 +77,6 @@ func TestAFailureSaysExactlyWhereItBroke(t *testing.T) {
 
 // Shell a yaml wrote outright has no file to point at, so the report is what
 // broke and what it returned — and that much still arrives.
-//
-// The trailing guard is the same rule as for a file: the status of the script
-// as a whole is not a failure, and a failure inside it is.
 func TestShellWithNoFileStillNamesWhatBroke(t *testing.T) {
 	s := start(t, Script{Shell: "echo first\nls /definitely/not/here\necho never\n"})
 	f, ok := s.Err().(*Failure)
@@ -94,9 +91,6 @@ func TestShellWithNoFileStillNamesWhatBroke(t *testing.T) {
 	}
 	if f.Code == 0 {
 		t.Errorf("code = 0, want the command's own")
-	}
-	if err := start(t, Script{Shell: "X=false\n[ \"$X\" = true ] && echo yes\n"}).Err(); err != nil {
-		t.Errorf("trailing guard reported: %v", err)
 	}
 	if err := start(t, Script{Shell: "ls /definitely/not/here\n"}).Err(); err == nil {
 		t.Error("a one-line script that failed was not reported")
@@ -119,19 +113,172 @@ func TestABareExitIsStillAFailure(t *testing.T) {
 	}
 }
 
-// The one shell idiom every stage script is written in. It leaves a non-zero
-// status behind when the test is false, and it must not be mistaken for a
-// failure — including on the very last line of a script, where the status
-// propagates out of `source`.
-func TestAGuardThatDoesNotFireIsNotAFailure(t *testing.T) {
+// A guard is a guard wherever it is not the last thing a script does: what it
+// leaves behind is only ever read at the end.
+func TestAGuardInTheMiddleOfAScriptIsNotAFailure(t *testing.T) {
 	if err := run(t, "X=false\n[ \"$X\" = true ] && echo yes\necho after\n").Err(); err != nil {
 		t.Fatalf("mid-script guard reported: %v", err)
 	}
-	if err := run(t, "X=false\n[ \"$X\" = true ] && echo yes\n").Err(); err != nil {
-		t.Fatalf("trailing guard reported: %v", err)
-	}
 	if err := run(t, "if false; then echo no; fi\n").Err(); err != nil {
 		t.Fatalf("if-block reported: %v", err)
+	}
+}
+
+// On the last line it is the script's answer, like any other. A script that
+// means to end there ends on the work, on an `if` block or on an `echo` — the
+// alternative is a status nobody meant, read as though somebody had.
+func TestAGuardOnTheLastLineIsTheScriptsAnswer(t *testing.T) {
+	f, ok := run(t, "X=false\n[ \"$X\" = true ] && echo yes\n").Err().(*Failure)
+	if !ok {
+		t.Fatal("a trailing guard that did not fire was taken as a pass")
+	}
+	if f.Line != 2 || f.Command != `[ "$X" = true ]` {
+		t.Errorf("got %s:%d running %q, want the guard's own line", f.Script, f.Line, f.Command)
+	}
+}
+
+// Every script is judged by its status: a command that failed, or whatever it
+// handed back at the end. One rule, and the same one for a task, for its test
+// and for every step of a hook.
+func TestAScriptIsJudgedByItsStatus(t *testing.T) {
+	answers := func(sc Script) error {
+		t.Helper()
+		s, err := sh.Start(Step{Name: "Test", Script: sc}, Env(os.Environ()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		<-s.Done()
+		return s.Err()
+	}
+	if err := answers(sourced(t, "return 1\n")); err == nil {
+		t.Error("a file answering 1 was taken as a pass")
+	}
+	if err := answers(Script{Shell: "return 1"}); err == nil {
+		t.Error("shell answering 1 was taken as a pass")
+	}
+	if err := answers(sourced(t, "return 0\n")); err != nil {
+		t.Errorf("a file answering 0 reported %v", err)
+	}
+	if err := answers(Script{Shell: `[ 1 = 2 ] && echo no`}); err == nil {
+		t.Error("a guard that did not fire was taken as a pass")
+	}
+}
+
+// And it still reports where it broke.
+func TestAScriptStillNamesWhereItBroke(t *testing.T) {
+	s, err := sh.Start(Step{
+		Name:   "Test",
+		Script: sourced(t, "echo looking\nls /definitely/not/here\n"),
+	}, Env(os.Environ()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-s.Done()
+	f, ok := s.Err().(*Failure)
+	if !ok {
+		t.Fatalf("err = %v (%T), want a *Failure", s.Err(), s.Err())
+	}
+	if f.Line != 2 {
+		t.Errorf("line = %d, want 2", f.Line)
+	}
+}
+
+// The module's shell is loaded, not run. A lookup in it that tries one thing
+// and falls back to another is ordinary shell — and under the trap every such
+// fallback wrote a report, which the unit about to run was then blamed for,
+// naming a line of somebody else's file.
+func TestWhatTheModuleShellRecoversFromIsNotTheUnitsFailure(t *testing.T) {
+	shell := script(t, "lib_recovered=$(grep nothing /dev/null || true)\n")
+	// The same shape the real one had: a pipeline whose first command finds
+	// nothing, under pipefail, inside a substitution the shell goes on from.
+	noisy := Runner{Module: "Test Module", Shell: script(t,
+		`: "${found:=$(grep nothing /dev/null | tail -n1)}"`+"\n")}
+
+	for _, r := range []Runner{{Module: "Test Module", Shell: shell}, noisy} {
+		s, err := r.Start(Step{Name: "Test", Script: sourced(t, "return 1\n")}, Env(os.Environ()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		<-s.Done()
+		f, ok := s.Err().(*Failure)
+		if !ok {
+			t.Fatalf("err = %v (%T), want a *Failure", s.Err(), s.Err())
+		}
+		// The test's own line, not a line of the shell it was given.
+		if f.Line != 1 || f.Command != "return 1" {
+			t.Errorf("blamed on %s:%d running %q, want the test's own line", f.Script, f.Line, f.Command)
+		}
+		if strings.Contains(f.Script, "lib") {
+			t.Errorf("script = %q, want the file the test is in", f.Script)
+		}
+	}
+}
+
+// And a shell that will not load at all is still the unit's failure, with
+// whatever it said on the way out.
+func TestAModuleShellThatWillNotLoadFailsTheUnit(t *testing.T) {
+	r := Runner{Module: "Test Module", Shell: script(t, "echo broken >&2\nexit 3\n")}
+	s, err := r.Start(Step{Name: "Test", Script: sourced(t, "echo never\n")}, Env(os.Environ()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-s.Done()
+	f, ok := s.Err().(*Failure)
+	if !ok {
+		t.Fatalf("err = %v (%T), want a *Failure", s.Err(), s.Err())
+	}
+	if f.Code != 3 || !strings.Contains(f.Stderr, "broken") {
+		t.Errorf("got code %d saying %q, want 3 and what the shell said", f.Code, f.Stderr)
+	}
+}
+
+// A script can say no without any command having failed, and the trap sees
+// nothing then. `return 1` is one way; a guard that does not fire is the other,
+// and both are how an assertion is actually written. The line has to come back
+// either way — it is the one thing somebody reading the report came for.
+func TestAScriptThatSaysNoWithoutFailingStillNamesTheLine(t *testing.T) {
+	says := func(body string) *Failure {
+		t.Helper()
+		s, err := sh.Start(Step{Name: "Test", Script: sourced(t, body)}, Env(os.Environ()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		<-s.Done()
+		f, ok := s.Err().(*Failure)
+		if !ok {
+			t.Fatalf("err = %v (%T), want a *Failure", s.Err(), s.Err())
+		}
+		return f
+	}
+	for _, tc := range []struct{ body, command string }{
+		{"# a comment\n\nreturn 1\n", "return 1"},
+		{"# a comment\n\n[ -f /definitely/not/here ] && grep -q x /etc/hostname\n", "[ -f /definitely/not/here ]"},
+	} {
+		f := says(tc.body)
+		if f.Line != 3 || f.Command != tc.command {
+			t.Errorf("got %s:%d running %q, want line 3 running %q", f.Script, f.Line, f.Command, tc.command)
+		}
+	}
+}
+
+// The fallback is only for a script that said no without anything failing. A
+// command that really did fail is reported where that command is — inside the
+// module's shell, where a function it called lives — and naming the call site
+// instead would be pointing away from the line somebody has to open.
+func TestAFailureInsideTheModuleShellIsReportedThere(t *testing.T) {
+	r := Runner{Module: "Test Module", Shell: script(t, "no_thanks() { ls /definitely/not/here; }\n")}
+	own := sourced(t, "# a comment\nno_thanks\n")
+	s, err := r.Start(Step{Name: "Test", Script: own}, Env(os.Environ()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-s.Done()
+	f, ok := s.Err().(*Failure)
+	if !ok {
+		t.Fatalf("err = %v (%T), want a *Failure", s.Err(), s.Err())
+	}
+	if f.Command != "ls /definitely/not/here" || strings.HasSuffix(own.File, f.Script) {
+		t.Errorf("got %s:%d running %q, want the line the command is on", f.Script, f.Line, f.Command)
 	}
 }
 

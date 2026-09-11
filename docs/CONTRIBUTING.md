@@ -11,7 +11,7 @@ flowchart LR
     M["main"] -->|branch off| F["feature/*"]
     F -->|pull request| C["CI checks it"]
     C -->|squash merge| M2["main<br/>one commit per change"]
-    M2 -->|tag v1.0.0| R["Release<br/>artefacts of that commit"]
+    M2 -->|tag v0.1.0| R["Release<br/>artefacts of that commit"]
 
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
 ```
@@ -33,13 +33,13 @@ flowchart LR
 
 A release is a `v*` tag on `main`. It publishes the artefacts of the commit it points at — nothing is rebuilt for it.
 
-Draft it in the browser: **Releases** → **Draft a new release** → **Choose a tag**, type `v1.0.0`, **Create new tag on publish** → target `main` → **Publish release**.
+Draft it in the browser: **Releases** → **Draft a new release** → **Choose a tag**, type `v0.1.0`, **Create new tag on publish** → target `main` → **Publish release**.
 
 Or from a terminal:
 
 ```
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 Both land in the same place. A pushed tag has no release yet, so CI writes one with generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green.
@@ -50,7 +50,7 @@ What that leaves is a tag pointing somewhere the build cannot follow — moved a
 
 ```
 make build
-make version-check TAG=v1.0.0
+make version-check TAG=v0.1.0
 ```
 
 **Note:** _The `v` is what CI watches for. A tag without it builds nothing and releases nothing._
@@ -84,7 +84,7 @@ make inspect                 # loads the example the way a run does
 make locales                 # the template, and every catalog brought up to it
 make fmt                     # format the Go and the shell
 make build                   # bin/oak-linux-amd64, plus its checksum
-make version-check TAG=v1.0.0  # would that tag be allowed to release this?
+make version-check TAG=v0.1.0  # would that tag be allowed to release this?
 ```
 
 Install the required packages:

@@ -113,6 +113,17 @@ var glyphTick = []string{
 	"   ▀██▀",
 }
 
+// glyphCross is the other one: the mark over a run that could not go on, drawn
+// out of the same blocks and at the same size, so the two pages are one page
+// with one thing different about them.
+var glyphCross = []string{
+	"▀█▄     ▄█▀",
+	"  ▀█▄ ▄█▀",
+	"    ███",
+	"  ▄█▀ ▀█▄",
+	"▄█▀     ▀█▄",
+}
+
 // glyphBlockPixel is the one rune the shipped block-letter wordmark draws with —
 // every "on" cell of a letter is this and nothing else. The splash checks for it
 // by name rather than by literal, so a custom logo built from something else

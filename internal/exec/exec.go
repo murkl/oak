@@ -88,38 +88,82 @@ func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + 
 const strict = `set -Eo pipefail
 `
 
+// strictTrace is the same with the DEBUG trap carried into everything the
+// script runs, which is what lets lastLine see past a function call.
+const strictTrace = `set -Eo pipefail -T
+`
+
 // The two arguments every invocation is given: the script to run, and the
 // module's own shell to put in front of it. Sourcing that here is what lets a
 // script be plain shell with no preamble at all, and what puts the module's
 // functions within reach of everything — its tasks, and the shell its yaml
 // wrote.
-const preamble = `[ -n "$2" ] && source "$2"
+//
+// It is **loaded, not run**, and that is why the trap is installed after it
+// rather than before. A lookup that tries one thing and falls back to another
+// is ordinary shell, and under the trap every such fallback writes a report —
+// which the unit about to run would then be blamed for, naming a line of
+// somebody else's file.
+//
+// The one failure that is the module's own is a shell that will not load at
+// all, and that is caught here, with whatever it said on the way out.
+const preamble = `if [ -n "$2" ]; then source "$2" || exit $?; fi
 `
 
-// fileWrapper sources a task's own file, under the trap.
+// The trap, in its two shapes. A file names the file and the line it broke in;
+// shell a yaml wrote outright has no file, so the report names the command.
 //
 // The empty-BASH_SOURCE check drops the status a failing `source` propagates
-// back to this wrapper: everything inside the file names the file it is in, and
+// back to the wrapper: everything inside the file names the file it is in, and
 // this level names nothing.
-const fileWrapper = strict + `trap 'c=$?; s=${BASH_SOURCE[0]}; [ -n "$s" ] && { printf "%d\t%s\t%d\t%s\n" "$c" "$s" "$LINENO" "$BASH_COMMAND" >&3; exit $c; }' ERR
-` + preamble + `source "$1"
-exit 0`
+const (
+	fileTrap = `trap 'c=$?; s=${BASH_SOURCE[0]}; [ -n "$s" ] && { printf "%d\t%s\t%d\t%s\n" "$c" "$s" "$LINENO" "$BASH_COMMAND" >&3; exit $c; }' ERR
+`
+	shellTrap = `trap 'c=$?; printf "%d\t\t%d\t%s\n" "$c" "$LINENO" "$BASH_COMMAND" >&3; exit $c' ERR
+`
+)
 
-// shellWrapper runs shell a task's yaml wrote outright, under the same trap
-// without that check: here there is no file, so every failure the trap sees is
-// one inside the script and the report names the command instead.
+// lastLine remembers where in the script the shell was, for the report a script
+// that says no without anything having failed would otherwise not produce.
 //
-// The trailing `:` does for the last line what `source` returning does for a
-// file. A script ending on a guard that does not fire leaves 1 behind and is
-// not a failure, so the function is made to end on something that cannot fail —
-// and a failure anywhere in it has already fired the trap by then.
-const shellWrapper = strict + `trap 'c=$?; printf "%d\t\t%d\t%s\n" "$c" "$LINENO" "$BASH_COMMAND" >&3; exit $c' ERR
-` + preamble + `eval "oak_task() {
+// It records the script's own lines and nothing else: a function it called out
+// of the module's shell is where that function is, not where the script said
+// no. `set -T` is what carries the trap into everything the script runs.
+const lastLine = `trap '[ "${BASH_SOURCE[0]}" = "$1" ] && { oak_line=$LINENO; oak_cmd=$BASH_COMMAND; }; :' DEBUG
+`
+
+// The two wrappers: a script in a file, and shell a yaml wrote outright.
+//
+// Both answer with the script's own exit status, and both run under the trap.
+// So a script fails on any command that fails, and again on whatever it hands
+// back at the end — `exit 1`, `return 1`, or a last line that simply did not
+// work. One rule, and the same one for a task, for its test and for every step
+// of a hook.
+//
+// A script can say no without any command having failed: `return 1` and a guard
+// that does not fire both look like that, and the trap sees neither. The file
+// wrapper therefore reports the last line the script was on where the trap has
+// nothing to report, so a failure always names a line.
+const (
+	fileWrapper = strictTrace + preamble + fileTrap + lastLine + `source "$1"
+c=$?
+[ "$c" -eq 0 ] || printf "%d\t%s\t%d\t%s\n" "$c" "$1" "${oak_line:-0}" "$oak_cmd" >&3
+exit $c`
+
+	shellWrapper = strict + preamble + shellTrap + `eval "oak_task() {
 $1
-:
 }"
 oak_task
-exit 0`
+exit $?`
+)
+
+// wrap is the shell that runs one step, and what that shell is handed.
+func wrap(step Step) (wrapper, payload string) {
+	if step.Script.File != "" {
+		return fileWrapper, step.Script.File
+	}
+	return shellWrapper, step.Script.Shell
+}
 
 // snippet runs a short piece of shell the yaml wrote inline — an option list, a
 // prefill. No ERR trap: the caller wants the exit code or the output, and a
@@ -227,7 +271,7 @@ type Session struct {
 func (r Runner) Hook(steps []Step, env Env) (string, error) {
 	var out []string
 	for _, step := range steps {
-		printed, said, report, err := r.trapped(step.Script, env)
+		printed, said, report, err := r.trapped(step, env)
 		if printed != "" {
 			out = append(out, printed)
 		}
@@ -241,8 +285,8 @@ func (r Runner) Hook(steps []Step, env Env) (string, error) {
 // trapped runs one script under the ERR trap and keeps its three channels
 // apart: what it printed, what it said on the way out, and where the trap says
 // it broke.
-func (r Runner) trapped(script Script, env Env) (printed, said, report string, err error) {
-	cmd, rd, err := r.command(script, env)
+func (r Runner) trapped(step Step, env Env) (printed, said, report string, err error) {
+	cmd, rd, err := r.command(step, env)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -260,7 +304,7 @@ func (r Runner) trapped(script Script, env Env) (printed, said, report string, e
 // Start runs one script in the background. unit names it in any failure, and
 // hook the one it is a step of where it is one.
 func (r Runner) Start(step Step, env Env) (*Session, error) {
-	cmd, report, err := r.command(step.Script, env)
+	cmd, report, err := r.command(step, env)
 	if err != nil {
 		return nil, err
 	}
@@ -289,11 +333,8 @@ func (r Runner) Start(step Step, env Env) (*Session, error) {
 // command builds the invocation of a script, with the ERR trap's channel
 // attached as fd 3. The returned reader yields the trap's report; the caller
 // closes the write end right after starting (see drain).
-func (r Runner) command(script Script, env Env) (*exec.Cmd, *os.File, error) {
-	wrapper, payload := shellWrapper, script.Shell
-	if script.File != "" {
-		wrapper, payload = fileWrapper, script.File
-	}
+func (r Runner) command(step Step, env Env) (*exec.Cmd, *os.File, error) {
+	wrapper, payload := wrap(step)
 	cmd := exec.Command("bash", "-c", wrapper, "--", payload, r.Shell)
 	cmd.Env = env
 	// A process group of its own, so that stopping a stage stops everything it

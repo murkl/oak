@@ -22,9 +22,9 @@ func writeModule(t *testing.T, declaration string, extra map[string]string) stri
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		spec.FileModule:         declaration,
-		"tasks/first/task.yaml": "stage: go\ntitle: First\n",
-		"tasks/first/task.sh":   "true\n",
+		spec.FileModule:             declaration,
+		"tasks/@go/first/task.yaml": "title: First\n",
+		"tasks/@go/first/task.sh":   "true\n",
 	}
 	maps.Copy(files, extra)
 	for name, body := range files {
@@ -123,11 +123,11 @@ variables:
     type: secret
     required: true
 `, map[string]string{
-		"hooks/" + spec.HookPreflight + "/root/hook.yaml": "title: Root\nexecute: \"true\"\n",
+		"hooks/" + spec.HookPreflight + "/root/hook.yaml": "title: Root\nscript: \"true\"\n",
 		// The one task reads both answers, so the report is about what the
 		// module holds rather than about a guard that disagrees — see
 		// spec.Unread.
-		"tasks/first/task.sh": "echo \"$HOST $PASSWORD\"\n",
+		"tasks/@go/first/task.sh": "echo \"$HOST $PASSWORD\"\n",
 	}))
 	rt, mods := product(t, dir)
 	var out strings.Builder
@@ -189,8 +189,8 @@ variables:
 
 func TestOnlyTheHooksAModuleActuallyFillsAreListed(t *testing.T) {
 	mod, err := spec.Load(writeModule(t, "title: T\nstages: [go]\n", map[string]string{
-		"hooks/" + spec.HookPreflight + "/root/hook.yaml": "title: Root\nexecute: \"true\"\n",
-		"hooks/" + spec.HookRestart + "/reboot/hook.yaml": "title: Reboot\nexecute: \"true\"\n",
+		"hooks/" + spec.HookPreflight + "/root/hook.yaml": "title: Root\nscript: \"true\"\n",
+		"hooks/" + spec.HookRestart + "/reboot/hook.yaml": "title: Reboot\nscript: \"true\"\n",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -206,8 +206,8 @@ func TestOnlyTheHooksAModuleActuallyFillsAreListed(t *testing.T) {
 // wrote it sees that.
 func TestANeedReachingIntoAnotherStageIsReported(t *testing.T) {
 	dir := around(t, writeModule(t, "title: T\nstages: [go, later]\n", map[string]string{
-		"tasks/after/task.yaml": "stage: later\ntitle: After\nneeds: [first]\nexecute: \"true\"\n",
-		"tasks/first/task.sh":   "echo \"$HOST\"\n",
+		"tasks/@later/after/task.yaml": "title: After\nneeds: [first]\nscript: \"true\"\n",
+		"tasks/@go/first/task.sh":      "echo \"$HOST\"\n",
 	}))
 	rt, mods := product(t, dir)
 	var out strings.Builder

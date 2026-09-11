@@ -206,6 +206,19 @@ func TestEveryWordOnScreenFitsAConsoleFont(t *testing.T) {
 	}
 }
 
+// And for the one page that is neither: the landing page is written in the
+// source and never translated, so neither the run above nor the catalogs below
+// would ever look at it.
+func TestTheLandingPageFitsAConsoleFont(t *testing.T) {
+	t.Cleanup(func() { adaptGlyphs(false) })
+	adaptGlyphs(true)
+
+	h := newHarness(t, twoLanguageTree())
+	if r := undrawable(h.screen()); r != 0 {
+		t.Errorf("the landing page shows %q, which no console font can draw:\n%s", r, h.screen())
+	}
+}
+
 // The same, for the languages the runtime has been translated into: a catalog
 // is where the marks the code was careful about come back in, because a
 // translator writes the line again from scratch.

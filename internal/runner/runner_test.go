@@ -21,8 +21,8 @@ func setup(t *testing.T, variables string, tasks map[string]string) (*spec.Modul
 		tasks = oneTask
 	}
 	for id, yaml := range tasks {
-		files["tasks/"+id+"/task.yaml"] = "stage: go\n" + yaml
-		files["tasks/"+id+"/task.sh"] = "echo ran\n"
+		files["tasks/@go/"+id+"/task.yaml"] = yaml
+		files["tasks/@go/"+id+"/task.sh"] = "echo ran\n"
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, name)
@@ -145,10 +145,10 @@ func TestPreflightPassesWhenTheTreeHasNoHook(t *testing.T) {
 func TestPreflightCarriesWhatTheCheckSaid(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
-		spec.FileModule:       "title: T\nstages: [go]\nvariables: []\n",
-		"tasks/run/task.yaml": "stage: go\ntitle: Go\n",
-		"tasks/run/task.sh":   "true\n",
-		"hooks/" + spec.HookPreflight + "/firmware/hook.yaml": "title: Firmware\nexecute: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n",
+		spec.FileModule:           "title: T\nstages: [go]\nvariables: []\n",
+		"tasks/@go/run/task.yaml": "title: Go\n",
+		"tasks/@go/run/task.sh":   "true\n",
+		"hooks/" + spec.HookPreflight + "/firmware/hook.yaml": "title: Firmware\nscript: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n",
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, name)

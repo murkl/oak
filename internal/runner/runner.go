@@ -47,7 +47,7 @@ func steps(mod *spec.Module, hook string) []exec.Step {
 }
 
 // step is one piece of a module's work as the shell layer takes it. What it
-// runs is passed in, because a task holds two: the work, and the check that
+// runs is passed in, because a task holds two: the work, and the test that
 // looks at what the work left behind.
 func step(t *spec.Task, script spec.Script) exec.Step {
 	return exec.Step{
@@ -211,16 +211,16 @@ func (r *Runner) Start(t *spec.Task) (*exec.Session, error) {
 	return r.sh.Start(step(t, t.Work()), r.store.Env())
 }
 
-// Check runs what a task declared as its own proof that the work took: the same
+// Test runs what a task declared as its own proof that the work took: the same
 // kind of script, started the same way, reading the machine the work was done
 // to and changing nothing on it.
 //
 // It is a task's second script rather than a task of its own because it belongs
-// to the one that did the work — a check listed beside the work would be a
+// to the one that did the work — a test listed beside the work would be a
 // second list of the installation's steps, able to fall out of step with the
 // first.
-func (r *Runner) Check(t *spec.Task) (*exec.Session, error) {
-	logging.Info("%s: %s", t.Title, "check")
+func (r *Runner) Test(t *spec.Task) (*exec.Session, error) {
+	logging.Info("%s: %s", t.Title, "test")
 	return r.sh.Start(step(t, t.Check()), r.store.Env())
 }
 

@@ -15,8 +15,9 @@ import (
 // dangerous in different ways, so they are two modules and this is the one
 // moment they are told apart.
 //
-// What is on offer is each module's own name and its own sentence about itself,
-// so the runtime never learns what any of them is for. A runtime offering one
+// What is on offer is what each module does — the word it named for the row
+// that opens it — and its own sentence about itself, so the runtime never
+// learns what any of them is for. A runtime offering one
 // module, or one named on the command line, never draws this page.
 type choiceScreen struct {
 	opening
@@ -29,7 +30,7 @@ func newChoice(a *app, done func() tea.Cmd) *choiceScreen {
 	s := &choiceScreen{app: a, done: done}
 	items := make([]item, 0, len(a.modules))
 	for _, mod := range a.modules {
-		items = append(items, item{title: mod.Name(), detail: mod.Help(), key: mod.ID()})
+		items = append(items, item{title: mod.Does(), detail: mod.Help(), key: mod.ID()})
 	}
 	s.picker = newPicker(items)
 	return s

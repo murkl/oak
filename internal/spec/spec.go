@@ -50,27 +50,42 @@ const (
 	ScriptExt = ".sh"
 )
 
+// Mark is what a folder wears when it stands for a moment of the run rather
+// than for a piece of work: a stage under tasks/, a hook under hooks/. Both are
+// folders somebody else named — the stage list in module.yaml, the runtime
+// itself — and both hold the folders that are the work.
+//
+// So the two levels can be told apart on sight, in a path and in an error: a
+// folder with the mark is a when, a folder without is a what. It also keeps the
+// one mistake that would otherwise load and do nothing — a task dropped
+// straight into tasks/ — from passing for a stage nobody declared.
+const Mark = "@"
+
+// Stage is the folder one is kept in: the name module.yaml gave it, marked.
+func Stage(name string) string { return Mark + name }
+
+// marked reports whether a folder name carries it.
+func marked(name string) bool { return strings.HasPrefix(name, Mark) }
+
 // The hooks: the moments the runtime runs shell of its own accord, each at its
 // own point in the program and for its own reason.
 //
 // Each is a folder under hooks/, holding one folder per step:
-// hooks/@<hook>/<step>/hook.yaml. The mark in front of the name is the hook's
-// own, kept because it is what the name is — in a log, in a report and in the
-// row a failure draws.
+// hooks/@<hook>/<step>/hook.yaml. The mark is part of the name here rather than
+// only of the folder, because it is what the hook is called — in a log, in a
+// report and in the row a failure draws.
 //
 // Nothing declares them. A folder under one of these names is the declaration,
 // and a module that leaves one out simply does not get that part of the
 // program.
 const (
-	HookMark = "@"
-
-	HookPreflight = HookMark + "preflight"     // can this machine be worked on at all
-	HookOnline    = HookMark + "online"        // is there internet
-	HookDevice    = HookMark + "wlan-device"   // the wireless device to use
-	HookNetworks  = HookMark + "wlan-networks" // the networks in range, one per line
-	HookConnect   = HookMark + "wlan-connect"  // join one
-	HookRestart   = HookMark + "restart"       // put this machine down and start it again
-	HookShutdown  = HookMark + "shutdown"      // switch it off
+	HookPreflight = Mark + "preflight"     // can this machine be worked on at all
+	HookOnline    = Mark + "online"        // is there internet
+	HookDevice    = Mark + "wlan-device"   // the wireless device to use
+	HookNetworks  = Mark + "wlan-networks" // the networks in range, one per line
+	HookConnect   = Mark + "wlan-connect"  // join one
+	HookRestart   = Mark + "restart"       // put this machine down and start it again
+	HookShutdown  = Mark + "shutdown"      // switch it off
 )
 
 // Hooks is every one of them. A folder under hooks/ that is not on this list is
@@ -81,9 +96,6 @@ var Hooks = []string{
 	HookPreflight, HookOnline, HookDevice, HookNetworks, HookConnect,
 	HookRestart, HookShutdown,
 }
-
-// hooked reports whether a name carries the mark a hook's does.
-func hooked(name string) bool { return strings.HasPrefix(name, HookMark) }
 
 // Script is one piece of shell a task holds: the file it lives in, or what its
 // yaml wrote outright. Exactly one of the two, and neither where the task
@@ -185,25 +197,31 @@ type Module struct {
 // one wordmark and one colour belong to the runtime, not to any module in it.
 // See Runtime.
 type UI struct {
-	// Title is what this module is called, and it is the only name it has. It
-	// is read on the page that asks which of the programs beside the binary to
-	// open, and again wherever the interface says what is happening — the row
-	// that starts a run, the last warning, the clock while it runs. A second
-	// name for the run itself would be the same thing said twice, and the
-	// runtime has no name of its own to fall back on: it does not know whether
-	// this module installs anything.
-	Title string `yaml:"title"`
+	// Title is what this module is called: the name the interface says it in,
+	// wherever it is talked about rather than started — the sentence over its
+	// settings, the report a run ends on.
+	Title string
+
+	// Action is what opening it does, as the one word somebody presses enter on:
+	// "Install", "Recover". It is the row on the page that asks which module to
+	// open, and the row that starts a run on the menu — both places where the
+	// question is what will happen rather than what this is called.
+	//
+	// The two are not the same word and neither can be made out of the other:
+	// the runtime does not know whether this module installs anything, and a
+	// name pressed like a button reads as a label somebody forgot to finish.
+	Action string
 
 	// Description is what this module is, in one sentence, read under its title
 	// on the page that offers it.
-	Description string `yaml:"description"`
+	Description string
 
 	// Console is the sentence read on the way out of the interface, where the
 	// machine keeps running. What the module is called out there is something
 	// only the module can know, and somebody who has just left it is looking at a
 	// bare prompt. Empty leaves that row off, which is right for an image where
 	// there is nothing behind the interface.
-	Console string `yaml:"console"`
+	Console string
 }
 
 // Help is what this module is, in one sentence: the line under its row on the
@@ -302,26 +320,19 @@ func (o *PresetOption) Help() string  { return i18n.T(o.Description) }
 type Task struct {
 	Title string `yaml:"title"`
 
-	// Stage is the phase this task's work belongs to, out of the ones the
-	// module declared. It is the one thing about a task that is about the run
-	// rather than about the task, which is why it is written here rather than
-	// read off a folder: a task moved from one phase to another is one line,
-	// and the folder it lives in stays the name everything else knows it by.
-	Stage string `yaml:"stage"`
-
 	Needs      []string   `yaml:"needs"`
 	Conditions Conditions `yaml:"conditions"`
 
-	// Execute is what this task does, and Test how the machine is looked at
-	// once it has. Either is shell written here, or a single line beginning
-	// with ./ or ../ naming a file beside this yaml.
+	// Script is what this task does, and Test how the machine is looked at once
+	// it has. Either is shell written here, or a single line beginning with ./
+	// or ../ naming a file beside this yaml.
 	//
 	// Left out, the file of that name in the same folder is what runs — task.sh
 	// and test.sh — which is the rule the rest of a module follows, where being
-	// there is the declaration. A task must do something; checking afterwards
-	// is optional, and a module with no test anywhere simply never validates.
-	Execute string `yaml:"execute"`
-	Test    string `yaml:"test"`
+	// there is the declaration. A task must do something; testing afterwards is
+	// optional, and a module with no test anywhere simply never validates.
+	Script string `yaml:"script"`
+	Test   string `yaml:"test"`
 
 	// Asks names a variable whose answer is not knowable before this point: the
 	// snapshot to go back to, once the disk holding it is open. The run stops and
@@ -379,6 +390,7 @@ type Task struct {
 	TTY bool `yaml:"tty"`
 
 	id    string
+	stage string
 	hook  string
 	dir   string
 	work  Script
@@ -392,8 +404,12 @@ func (t *Task) Label() string { return i18n.T(t.Title) }
 // in the same stage reach it by in their needs.
 func (t *Task) ID() string { return t.id }
 
-// Hook is the one this step belongs to, or empty for an ordinary task. A step
-// of a hook has no stage: when it runs is the runtime's, not the module's.
+// Stage is the phase of the run this task belongs to: the folder it was found
+// in, without the mark. Empty for a step of a hook, which has no stage — when
+// it runs is the runtime's business, not the module's.
+func (t *Task) Stage() string { return t.stage }
+
+// Hook is the one this step belongs to, or empty for an ordinary task.
 func (t *Task) Hook() string { return t.hook }
 
 // Dir is its own folder, absolute: everything it ships with is in there.
@@ -600,8 +616,19 @@ func (s *Module) ID() string { return filepath.Base(s.Dir) }
 // Var finds a variable by name.
 func (s *Module) Var(name string) *Variable { return s.byName[name] }
 
-// Name is the module's own title, translated.
+// Name is the module's own title, translated: what it is called.
 func (s *Module) Name() string { return i18n.T(s.UI.Title) }
+
+// Does is what opening it does, translated: the word on the row that opens it.
+// A module that named none falls back on its own name, which is the old
+// behaviour and reads as a label rather than a button — but it is a word, and a
+// row with nothing on it is worse.
+func (s *Module) Does() string {
+	if s.UI.Action == "" {
+		return s.Name()
+	}
+	return i18n.T(s.UI.Action)
+}
 
 // Message is one thing a module says: the text, what it is, and the files it
 // was read out of. The last two are all a translator has — the words arrive out
@@ -639,7 +666,8 @@ func (s *Module) Messages() []Message {
 	}
 
 	decl := FileModule
-	add(decl, "what this program is called, and what one run of it is called", s.UI.Title)
+	add(decl, "what this program is called, where the interface talks about it", s.UI.Title)
+	add(decl, "what opening it does, on the row that opens it", s.UI.Action)
 	add(decl, "what it is, in one sentence, on the page that offers it", s.UI.Description)
 	add(decl, "how to get back in, read on the way out to the console", s.UI.Console)
 	add(decl, "the last thing read before the first task runs", s.Confirm)
@@ -659,7 +687,7 @@ func (s *Module) Messages() []Message {
 		add(decl, v.Name+": what a wrong answer is told", v.Error)
 	}
 	for _, t := range s.Tasks {
-		file := path.Join(DirTasks, t.ID(), FileTask)
+		file := path.Join(DirTasks, Stage(t.Stage()), t.ID(), FileTask)
 		add(file, "the step, as the run lists it", t.Title)
 		add(file, "asked before the step runs", t.Confirm)
 		add(file, "read once the step is done, and held on until somebody has", t.Report)

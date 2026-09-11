@@ -33,19 +33,31 @@ type Failure struct {
 	Stderr  string
 }
 
-// Fields renders the failure as label/value pairs, so the frame can lay them
-// out as a table rather than parse a sentence back apart. The labels are
-// translated here because this is the one place that knows what each value is.
+// Field is one row of a failure report: what it is, and what it says.
+//
+// Path marks the value whose end carries more than its start — the file and the
+// line it broke on. A frame too narrow for it cuts the front rather than the
+// back, because the leading folders are the one part somebody chasing it can
+// work out for themselves and the line number is not.
+type Field struct {
+	Label string
+	Value string
+	Path  bool
+}
+
+// Fields renders the failure as those rows, so the frame can lay them out as a
+// table rather than parse a sentence back apart. The labels are translated here
+// because this is the one place that knows what each value is.
 //
 // A hook is named as one. It is a module's own code run at a moment the runtime
 // chose, so a mistake in it is as much an authoring bug as one in a task — and
 // the row that says which hook is the difference between a puzzle and a file to
 // open.
-func (f *Failure) Fields() [][2]string {
-	var out [][2]string
+func (f *Failure) Fields() []Field {
+	var out []Field
 	add := func(label, value string) {
 		if value != "" {
-			out = append(out, [2]string{label, value})
+			out = append(out, Field{Label: label, Value: value})
 		}
 	}
 	// TRANSLATORS: the labels below head the table shown when a step failed:
@@ -60,7 +72,13 @@ func (f *Failure) Fields() [][2]string {
 		add(i18n.T("Task"), f.Unit)
 	}
 	if f.Script != "" {
-		add(i18n.T("Script"), fmt.Sprintf("%s:%d", f.Script, f.Line))
+		// A script that simply returned non-zero broke on no line in
+		// particular: there is a file to open and nothing to point at in it.
+		where := f.Script
+		if f.Line > 0 {
+			where = fmt.Sprintf("%s:%d", f.Script, f.Line)
+		}
+		out = append(out, Field{Label: i18n.T("Script"), Value: where, Path: true})
 	}
 	add(i18n.T("Command"), f.Command)
 	if f.Code != 0 {
@@ -74,7 +92,7 @@ func (f *Failure) Error() string {
 	var b strings.Builder
 	b.WriteString(i18n.T("%s failed", f.Unit))
 	for _, kv := range f.Fields() {
-		fmt.Fprintf(&b, "\n%-11s %s", kv[0]+":", kv[1])
+		fmt.Fprintf(&b, "\n%-11s %s", kv.Label+":", kv.Value)
 	}
 	if f.Stderr != "" {
 		fmt.Fprintf(&b, "\n%-11s %s", i18n.T("Error")+":", f.Stderr)
@@ -138,7 +156,10 @@ func (r Runner) Fail(step Step, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &Failure{Module: r.Module, Unit: step.Name, Hook: step.Hook, Code: exitCode(err)}
+	return &Failure{
+		Module: r.Module, Unit: step.Name, Hook: step.Hook,
+		Script: short(step.Script.File), Code: exitCode(err),
+	}
 }
 
 // failure turns an exit status into that one shape, filling in whatever the
@@ -146,7 +167,9 @@ func (r Runner) Fail(step Step, err error) error {
 func (r Runner) failure(step Step, err error, report, said string) error {
 	f := parseReport(report)
 	if f == nil {
-		f = &Failure{Code: exitCode(err)}
+		// Nothing tripped the trap, so the script answered with a status of its
+		// own. There is no line to name, but there is still the file it is in.
+		f = &Failure{Code: exitCode(err), Script: short(step.Script.File)}
 	}
 	f.Module, f.Unit, f.Hook, f.Stderr = r.Module, step.Name, step.Hook, said
 	return f

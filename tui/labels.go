@@ -92,8 +92,14 @@ func labelOpening() string { return say("Start") }
 
 func labelLanguage() string { return say("Interface language") }
 
+// The sentence under it, and it says what the setting does not do: a machine
+// being installed has a language of its own, and somebody who has just been
+// asked for one twice is owed the difference in plain words.
+
 // TRANSLATORS: %s is the name of the product being read, as oak.yaml declares it.
-func labelLanguageHelp(name string) string { return say("Choose the language for %s.", name) }
+func labelLanguageHelp(name string) string {
+	return say("The language %s is read in. It changes the words on screen and nothing else.", name)
+}
 
 // The fork after it, where a runtime offers more than one module. Only the
 // page's own name is the runtime's: what is on it, and what each of them is, is
@@ -108,22 +114,32 @@ func labelCounter(at, of int) string { return say("%d of %d", at, of) }
 
 func labelSettings() string { return say("Settings") }
 
-// What a run proved about itself, once it is over: how many of its checks the
-// machine agreed with, and — where some of them it did not — the page that
-// lists those.
+// What a run proved about itself: how many of the tests its tasks declared the
+// machine agreed with. It is read twice — under the line that says the run is
+// over, and again as the heading of the page listing the ones it did not.
 //
-// One sentence for both outcomes, because the mark in front of it already says
-// which of the two this is, and a second word for it would be the same thing
-// said twice.
+// One sentence for both outcomes, because what is in front of it already says
+// which of the two this is: a mark on that page, and the colour of the line
+// under the run.
 
-// TRANSLATORS: the first %d is how many checks passed, the second how many ran.
-func labelChecksPassed(passed, ran int) string { return say("%d of %d checks passed", passed, ran) }
+// TRANSLATORS: the first %d is how many tests passed, the second how many ran.
+func labelTestsPassed(passed, ran int) string { return say("%d of %d tests passed", passed, ran) }
 
 func labelValidation() string { return say("Validation") }
 func labelHintChecks() string { return say("↑↓ move · ⏎ open · esc continue") }
-func labelValidating() string { return say("Check every step") }
+
+// The switch in the settings, and the heading it stands under. It is the
+// runtime's own answer and holds for every module: what a task tests is the
+// module's business, whether anything is tested at all is not.
+//
+// The heading is what is being decided and the row is what it is being decided
+// about, so the two read as one line: validate — the installation scripts. The
+// sentence under it says what saying yes is worth, because somebody reading it
+// is deciding whether a thing they have never seen fail is worth the time.
+func labelValidating() string        { return say("Validate") }
+func labelValidatingScripts() string { return say("Installation scripts") }
 func labelValidatingHelp() string {
-	return say("After each step, read the machine it was done to and say whether it took. Nothing is changed and nothing is stopped.")
+	return say("Reads the machine after every task: that what the task installed is really there, and set up the way it was meant to be. It is what makes an installation you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end.")
 }
 
 // TRANSLATORS: %s is the name of the module whose values these are.
@@ -152,6 +168,15 @@ func labelRunDone(name, elapsed string) string {
 }
 func labelLogHint(path string) string {
 	return say("The full log is in %s.", path)
+}
+
+// What the page a run stopped on says under the mark. The headline already
+// names the run; this names the step it got to and what that means for
+// everything after it.
+//
+// TRANSLATORS: %s is the name of the step the run stopped at.
+func labelRunStopped(step string) string {
+	return say("It stopped at %s, and nothing after that has run.", step)
 }
 
 // What a question put in the middle of a run says when the answers to it turn

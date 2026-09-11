@@ -47,11 +47,22 @@ type runScreen struct {
 	err     error
 	done    bool
 
-	// checks is what the run proved about itself as it went: one entry per task
-	// that declared a check and got as far as running it. A failed one does not
-	// stop anything — the work itself said it worked — so it is collected here
-	// and read once, on the page that follows the run.
-	checks []check
+	// reviewed is whether the tests the machine disagreed with have been put in
+	// front of somebody yet. They are worth reading once, at the first moment
+	// the run stops for anything at all — which on a run whose last offer is a
+	// restart is a page in the middle of it rather than the end.
+	reviewed bool
+
+	// reviewing is whether that page is up. Nothing of the run is running
+	// behind it, so the header must not say there is.
+	reviewing bool
+
+	// tests is what the run proved about itself as it went: one entry per task
+	// that declared a test and got as far as running it. A failed one does not
+	// stop anything — the work itself said it worked — so they are collected
+	// here, counted under the line that says the run is over, and read in full
+	// on the page after it.
+	tests []testResult
 
 	// settled is whether a keystroke means anything yet. It is false while
 	// something is running and for a moment after every question and every
@@ -91,15 +102,26 @@ const (
 	phaseReport
 )
 
-// check is what one task's own proof came to: the task it belongs to, and the
-// failure where there was one.
-type check struct {
+// testResult is what one task's own test came to: the task it belongs to, and
+// the failure where there was one.
+type testResult struct {
 	task *spec.Task
 	err  error
 }
 
 // failed reports whether this one is worth reading about afterwards.
-func (c check) failed() bool { return c.err != nil }
+func (r testResult) failed() bool { return r.err != nil }
+
+// passed is how many of them the machine agreed with.
+func passed(tests []testResult) int {
+	n := 0
+	for _, r := range tests {
+		if !r.failed() {
+			n++
+		}
+	}
+	return n
+}
 
 // settleFor is the pause before a keystroke counts, after a question appears
 // and after the run ends.
@@ -134,7 +156,7 @@ func (s *runScreen) crumbRoot() bool { return true }
 // running like any other.
 func (s *runScreen) working() bool {
 	switch {
-	case s.done, s.told != nil:
+	case s.done, s.told != nil, s.reviewing:
 		return false
 	case s.ask != nil:
 		return s.ask.loading
@@ -159,7 +181,7 @@ func (s *runScreen) takesText() bool { return s.ask != nil && s.ask.filter.activ
 // thing is finished, and a number beside it saying how much is left would take
 // it straight back.
 func (s *runScreen) status() string {
-	if s.done || s.told != nil {
+	if s.done || s.told != nil || s.reviewing {
 		return ""
 	}
 	return labelCounter(min(s.at+1, len(s.steps)), len(s.steps))
@@ -175,13 +197,20 @@ func (s *runScreen) Hint() string {
 		return labelHintRunning()
 	case s.told != nil:
 		return s.told.Hint()
-	case s.err != nil:
-		return labelHintBack()
+	case len(s.tests) > 0:
+		// Enter opens what the tests came to, so this is not the last page.
+		return labelHintContinue()
 	}
 	return s.app.hintEnd(labelHintClose())
 }
 
 func (s *runScreen) Init() tea.Cmd {
+	// Asked again on the way back from a page drawn over the run. The run is
+	// already going by then, and starting it twice would reset the clock and
+	// repeat whatever step it was on.
+	if !s.started.IsZero() {
+		return nil
+	}
 	s.started = time.Now()
 	return s.step()
 }
@@ -211,9 +240,9 @@ func clock(d time.Duration) string {
 }
 
 type (
-	stepDoneMsg  struct{ err error }
-	checkDoneMsg struct{ err error }
-	settleMsg    struct{}
+	stepDoneMsg struct{ err error }
+	testedMsg   struct{ err error }
+	settleMsg   struct{}
 )
 
 // step takes on the task at the cursor: asks it whatever it said it needed,
@@ -263,21 +292,23 @@ func (s *runScreen) step() tea.Cmd {
 // prove runs what a task declared as its own proof that the work took: read
 // the machine, change nothing, say whether it looks right.
 //
-// It answers nil for a task that declares none, for a run with validation
-// switched off, and for a simulated one — which is what carries the run straight
-// on to the next phase. A simulated run writes nothing, so there is nothing on
-// the machine for a check to read and every one of them would fail for the one
-// reason that is not a fault.
+// It answers nil for a task that declares none and for a run with validation
+// switched off, which is what carries the run straight on to the next phase.
 //
-// A check that will not even start is a failed check rather than a failed run:
+// A simulated run is not one of those. It runs its tests like any other,
+// because a test is a module's own script under the same contract as the work:
+// it is handed DEBUG and decides for itself what a run that changed nothing has
+// to say. Deciding that here would be the runtime knowing what a script does.
+//
+// A test that will not even start is a failed test rather than a failed run:
 // the work is done either way, and this page is not where that is argued.
 func (s *runScreen) prove(e *spec.Task) tea.Cmd {
-	if !e.Checks() || !s.app.prefs.Validates() || s.app.store.Simulating() {
+	if !e.Checks() || !s.app.prefs.Validates() {
 		return nil
 	}
-	session, err := s.app.runner.Check(e)
+	session, err := s.app.runner.Test(e)
 	if err != nil {
-		s.checks = append(s.checks, check{task: e, err: err})
+		s.tests = append(s.tests, testResult{task: e, err: err})
 		return nil
 	}
 	s.settled = false
@@ -288,7 +319,7 @@ func (s *runScreen) prove(e *spec.Task) tea.Cmd {
 func proved(session *exec.Session) tea.Cmd {
 	return func() tea.Msg {
 		<-session.Done()
-		return checkDoneMsg{session.Err()}
+		return testedMsg{session.Err()}
 	}
 }
 
@@ -307,7 +338,8 @@ func (s *runScreen) tell(e *spec.Task) tea.Cmd {
 		logging.Warn("%s: %s", e.Title, err)
 	}
 	headline, body := e.ReportText(s.app.store.Get)
-	s.told = newReport(headline, body, s.app.store.Get(e.Shows))
+	note, alarm := s.tally()
+	s.told = newReport(headline, body, s.app.store.Get(e.Shows)).says(note, alarm)
 	return tea.Batch(s.app.save(), s.settle())
 }
 
@@ -351,11 +383,16 @@ func waitFor(session *exec.Session) tea.Cmd {
 }
 
 // finish ends the run, one way or the other.
+//
+// A run that could not go on stops on the same page a run that finished stops
+// on, under the other mark: it is the same thing being said, and everything
+// there is to know about the failure is one keystroke behind it.
 func (s *runScreen) finish(err error) tea.Cmd {
 	s.took = time.Since(s.started)
 	s.done, s.err, s.session, s.asking, s.ask = true, err, nil, nil, nil
 	if err != nil {
 		logging.Error("%s", err)
+		s.told = newReport(s.failed(), labelRunStopped(s.stoppedAt()), "").stop()
 	} else {
 		logging.Info("%s: ok", s.title())
 	}
@@ -401,10 +438,10 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		s.stage = phaseCheck
 		return s, s.step()
 
-	case checkDoneMsg:
+	case testedMsg:
 		e := s.steps[s.at]
 		s.session = nil
-		s.checks = append(s.checks, check{task: e, err: msg.err})
+		s.tests = append(s.tests, testResult{task: e, err: msg.err})
 		if msg.err != nil {
 			// Not a failed run: the work said it worked, and something looking
 			// at the machine afterwards disagreed. The run carries on and the
@@ -443,7 +480,18 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		// is: deliberately, with enter or esc, and by nothing else.
 		if s.told != nil {
 			if answers(msg) {
+				// The page a run stopped on: everything about the failure is
+				// behind it, and the way on from there is back to the answers.
+				if s.err != nil {
+					return s, push(newFailure(s.stoppedAt(), s.err, s.back))
+				}
 				s.told = nil
+				// The one page in a run that stops for something to be read is
+				// the place to put what the machine disagreed with, because it
+				// is the page somebody is actually looking at.
+				if cmd := s.review(func() tea.Cmd { return tea.Batch(pop(), s.advance()) }); cmd != nil {
+					return s, cmd
+				}
 				return s, s.advance()
 			}
 			return s, nil
@@ -452,13 +500,8 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		// nothing else. Every other key — and every scroll, which arrives here
 		// as an arrow — leaves the report on screen.
 		if answers(msg) {
-			if s.err != nil {
-				return s, s.back()
-			}
-			// What the run proved about itself is a page of its own, and only
-			// where there was anything to prove.
-			if len(s.checks) > 0 {
-				return s, push(newValidation(s.app, s.checks, s.then))
+			if cmd := s.review(s.then); cmd != nil {
+				return s, cmd
 			}
 			return s, s.then()
 		}
@@ -512,16 +555,73 @@ func (s *runScreen) View(width, height int) string {
 		return s.told.View(width, height)
 	}
 	var b strings.Builder
-	b.WriteString(s.headline() + "\n\n")
-	switch {
-	case s.err != nil:
-		return b.String() + renderFailure(s.err, width)
-	case s.ask != nil:
-		return b.String() + s.ask.View(width, height-2)
-	case s.asking != nil:
-		return b.String() + s.question(width, height-2)
+	b.WriteString(s.headline() + "\n")
+	used := 2 // the headline, and the blank line under it
+	if verdict := s.verdict(width); verdict != "" {
+		b.WriteString(verdict + "\n")
+		used++
 	}
-	return b.String() + s.list(width, height-2)
+	b.WriteString("\n")
+	switch {
+	case s.ask != nil:
+		return b.String() + s.ask.View(width, height-used)
+	case s.asking != nil:
+		return b.String() + s.question(width, height-used)
+	}
+	return b.String() + s.list(width, height-used)
+}
+
+// verdict is what the tests came to, under the line that says the run is over.
+//
+// One number, because that is the whole of what somebody wants at this moment:
+// a run that checked itself and agreed with itself needs no page. Where the two
+// numbers differ it is inked as the exception it is, and the page behind enter
+// is where the ones that disagreed are read.
+//
+// It is on the success page and nowhere else. A run that failed is not a run
+// whose tests are worth counting.
+func (s *runScreen) verdict(width int) string {
+	note, alarm := s.tally()
+	if !s.done || s.err != nil || note == "" {
+		return ""
+	}
+	ink := mutedStyle
+	if alarm {
+		ink = alertStyle
+	}
+	return field(glyphBlank) + ink.Render(truncate(note, width-markW))
+}
+
+// review is the page listing the tests the machine disagreed with, and nil
+// where there is nothing to put on it.
+//
+// Offered once. A disagreement is a fact about the run rather than about the
+// moment, so reading it a second time at the next stop would be the same page
+// again. Where everything passed there is no page at all: the count is already
+// under the words, and nothing on it could be opened.
+func (s *runScreen) review(then func() tea.Cmd) tea.Cmd {
+	if s.reviewed || passed(s.tests) == len(s.tests) {
+		return nil
+	}
+	s.reviewed, s.reviewing = true, true
+	return push(newValidation(s.app, s.tests, func() tea.Cmd {
+		s.reviewing = false
+		return then()
+	}))
+}
+
+// tally is what the tests have come to so far, and whether it is something to
+// look at rather than something to note. Empty where none has run.
+//
+// Read at more than one moment — a page a task stops the run on, and the end of
+// the run — so it is one sentence worked out in one place rather than two that
+// could come to disagree.
+func (s *runScreen) tally() (string, bool) {
+	if len(s.tests) == 0 {
+		return "", false
+	}
+	ok := passed(s.tests)
+	return labelTestsPassed(ok, len(s.tests)), ok < len(s.tests)
 }
 
 // headline is the run itself: what is happening, or what happened — and, either
@@ -538,8 +638,6 @@ func (s *runScreen) headline() string {
 		return accentBold.Render(glyphs.ask) + field(" ") + boldStyle.Render(s.steps[s.at].Label())
 	case !s.done:
 		return accentStyle.Render(spinFrame()) + field(" ") + boldStyle.Render(s.running())
-	case s.err != nil:
-		return failStyle.Render(glyphs.fail) + field(" ") + boldStyle.Render(s.failed())
 	}
 	return accentBold.Render(glyphs.ok) + field(" ") + boldStyle.Render(s.succeeded())
 }
@@ -551,6 +649,15 @@ func (s *runScreen) running() string {
 
 func (s *runScreen) succeeded() string { return labelRunDone(s.title(), clock(s.took)) }
 func (s *runScreen) failed() string    { return labelRunFailed(s.title()) }
+
+// stoppedAt is what the run was doing when it could not go on, which is the one
+// thing the page saying so has to name.
+func (s *runScreen) stoppedAt() string {
+	if s.at < len(s.steps) {
+		return s.steps[s.at].Label()
+	}
+	return s.title()
+}
 
 // question is what a task asked, with the answers filled into it, and the
 // two ways to answer under it.

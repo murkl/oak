@@ -170,15 +170,11 @@ func (a *app) enter(mod *spec.Module) error {
 	return nil
 }
 
-// brand is what the frame is titled: the module this run is about, once one has
-// been chosen. The pages in front of that — the language, the question of which
-// module to open — belong to none of them, so they wear the runtime's own name.
-func (a *app) brand() string {
-	if a.module == nil {
-		return a.runtime.Title
-	}
-	return a.module.Name()
-}
+// brand is what the frame is titled, on every page: the product, never one of
+// the modules inside it. Which module is open is what the page itself says —
+// the row that starts it, the breadcrumb over it — and a header repeating that
+// name is the product's own nowhere to be read.
+func (a *app) brand() string { return a.runtime.Title }
 
 // leaves reports whether this machine has to be asked about on the way out. A
 // module nobody has opened yet has said nothing about the machine, so leaving
@@ -289,19 +285,21 @@ func (a *app) save() tea.Cmd {
 // module to settle anything. Which module comes next because everything after
 // that belongs to it: the questions, the answers on disk, the work.
 
-func (a *app) start() screen { return a.language() }
+func (a *app) start() screen { return a.landing() }
 
-// language is where the words the rest of this is read in are settled. It is
-// asked whether or not a module was named on the way in: the words it puts on
-// screen are the runtime's, and they are read before anything else is.
-func (a *app) language() screen {
+// landing is the page a run opens on: what this is, and the words the rest of
+// it is read in. It is drawn whether or not a module was named on the way in —
+// what it says is the runtime's, and it is read before anything else is — but
+// not where there is only one language to offer, because then the one thing it
+// asks is not a question.
+func (a *app) landing() screen {
 	if len(a.langs) < 2 {
 		return a.chooseModule()
 	}
 	// Pushed rather than replacing this page, so esc on the page after it comes
 	// back here. Choosing a language is a decision like any other and should be
 	// as easy to take back.
-	return newLanguage(a, func() tea.Cmd { return push(a.chooseModule()) })
+	return newLanding(a, func() tea.Cmd { return push(a.chooseModule()) })
 }
 
 // chooseModule is which of the runtime's modules this run is. A module named on

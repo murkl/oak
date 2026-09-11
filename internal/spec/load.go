@@ -32,6 +32,7 @@ func binaryDir() string {
 // be typed.
 type declaration struct {
 	Title    string `yaml:"title"`
+	Action   string `yaml:"action"`
 	Console  string `yaml:"console"`
 	Language string `yaml:"language"`
 
@@ -58,7 +59,7 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Description: head.Description, Console: head.Console}
+	s.UI = UI{Title: head.Title, Action: head.Action, Description: head.Description, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Confirm, s.Stages = head.Confirm, head.Stages
 	if err := checkStages(s.Stages); err != nil {
@@ -67,7 +68,7 @@ func Load(dir string) (*Module, error) {
 	s.Shell = beside(dir, FileShell)
 	s.Locales = beside(dir, DirLocales)
 
-	tasks, err := loadTasks(dir)
+	tasks, err := loadTasks(dir, s.Stages)
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +91,8 @@ func checkStages(stages []string) error {
 	seen := map[string]bool{}
 	for _, stage := range stages {
 		switch {
-		case hooked(stage):
-			return fmt.Errorf("stage %q: %s marks a hook, which the runtime runs itself", stage, HookMark)
+		case marked(stage):
+			return fmt.Errorf("stage %q: the %s is the folder's, not the name's — list it as %s", stage, Mark, strings.TrimPrefix(stage, Mark))
 		case seen[stage]:
 			return fmt.Errorf("stage %q is listed twice", stage)
 		}
@@ -111,17 +112,22 @@ func beside(dir, name string) string {
 	return path
 }
 
-// loadTasks reads tasks/, where every folder is one task of the module's own
-// work.
+// loadTasks reads tasks/, which is two levels: a folder per stage, marked, and
+// in each of those a folder per task.
 //
-// The folder name is the task's identity — what another task's `needs` in the
-// same stage points at — and no more than that: what runs when is settled by
-// the stage it names and the order.
+// A task's stage is therefore where it lies rather than a line it writes, the
+// same way a step of a hook takes its moment from the folder above it. The two
+// read alike on disk, and neither can say one thing and sit in another.
 //
-// A folder carrying a hook's mark is refused rather than passed over. It is the
-// one mistake that would otherwise load and do nothing at all, and the message
-// says where the folder belongs instead.
-func loadTasks(dir string) ([]*Task, error) {
+// The task folder's name is its identity — what another task's `needs` in the
+// same stage points at — and no more than that: what runs when is the stage it
+// lies in and the order inside it.
+//
+// A folder under tasks/ without the mark is refused rather than passed over. It
+// is the one mistake that would otherwise load and do nothing at all: a task
+// dropped a level too high runs in no stage, and nothing about a module that
+// starts would say so.
+func loadTasks(dir string, stages []string) ([]*Task, error) {
 	base := filepath.Join(dir, DirTasks)
 	entries, err := os.ReadDir(base)
 	if err != nil {
@@ -136,17 +142,56 @@ func loadTasks(dir string) ([]*Task, error) {
 			continue
 		}
 		name := entry.Name()
-		if hooked(name) {
-			return nil, fmt.Errorf("%s/%s: %s marks a hook, which lives under %s/", DirTasks, name, HookMark, DirHooks)
+		if !marked(name) {
+			return nil, fmt.Errorf("%s/%s: a task lies in the folder of its stage — %s/%s/%s/",
+				DirTasks, name, DirTasks, Stage("<stage>"), name)
 		}
-		t, err := loadTask(filepath.Join(base, name), FileTask, FileTaskScript)
+		// Both levels wear the mark, so a hook dropped in here looks exactly
+		// like a stage. It is named for what it is rather than for the stage it
+		// is not: the folder is right, the half of the tree is wrong.
+		if slices.Contains(Hooks, name) {
+			return nil, fmt.Errorf("%s/%s: %s is one of the runtime's own moments, which lives under %s/",
+				DirTasks, name, name, DirHooks)
+		}
+		stage := strings.TrimPrefix(name, Mark)
+		if !slices.Contains(stages, stage) {
+			return nil, fmt.Errorf("%s/%s: no such stage — %s declares %s",
+				DirTasks, name, FileModule, strings.Join(stages, ", "))
+		}
+		tasks, err := loadStage(filepath.Join(base, name), stage)
 		if err != nil {
-			return nil, fmt.Errorf("%s/%s: %w", DirTasks, name, err)
+			return nil, err
 		}
-		out = append(out, t)
+		out = append(out, tasks...)
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("%s: no tasks", DirTasks)
+	}
+	return out, nil
+}
+
+// loadStage reads the tasks of one stage. A stage folder with nothing in it is
+// refused: an empty phase is a phase somebody meant to fill, and a run that
+// simply skips it says nothing about the folder sitting there.
+func loadStage(base, stage string) ([]*Task, error) {
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return nil, err
+	}
+	var out []*Task
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		t, err := loadTask(filepath.Join(base, entry.Name()), FileTask, FileTaskScript)
+		if err != nil {
+			return nil, fmt.Errorf("%s/%s/%s: %w", DirTasks, Stage(stage), entry.Name(), err)
+		}
+		t.stage = stage
+		out = append(out, t)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%s/%s: no tasks", DirTasks, Stage(stage))
 	}
 	return out, nil
 }
@@ -223,17 +268,17 @@ func loadTask(where, decl, script string) (*Task, error) {
 	return t, nil
 }
 
-// resolve settles what a task actually runs and what checks it afterwards:
-// what its yaml wrote, or the file of that name beside it. Both is two answers
-// to the same question, and neither for the work itself is a task that does
+// resolve settles what a task actually runs and what tests it afterwards: what
+// its yaml wrote, or the file of that name beside it. Both is two answers to
+// the same question, and neither for the work itself is a task that does
 // nothing.
 func (t *Task) resolve(decl, script string) error {
-	work, err := pick(t.dir, "execute", t.Execute, script)
+	work, err := pick(t.dir, "script", t.Script, script)
 	if err != nil {
 		return err
 	}
 	if work.Empty() {
-		return fmt.Errorf("no %s here, and no execute in %s", script, decl)
+		return fmt.Errorf("no %s here, and no script in %s", script, decl)
 	}
 	check, err := pick(t.dir, "test", t.Test, FileTest)
 	if err != nil {
@@ -287,11 +332,12 @@ func read(path string, into any) error {
 // refusal saying what to do about itself, which is all a message that stops a
 // build is for.
 var retired = map[string]string{
-	"run":    "a module is named once, by its title, and that is what one run of it is called",
-	"blind":  "a question asked first opens its filter by itself",
-	"id":     "a starting point is named by its title, and nothing anywhere points at one",
-	"name":   "a title is what a person reads; a name only ever names a variable",
-	"script": "a task says what it does under execute, and how it is checked afterwards under test",
+	"run":     "a module is named once, by its title, and that is what one run of it is called",
+	"blind":   "a question asked first opens its filter by itself",
+	"id":      "a starting point is named by its title, and nothing anywhere points at one",
+	"name":    "a title is what a person reads; a name only ever names a variable",
+	"execute": "a task says what it does under script, and how it is tested afterwards under test",
+	"stage":   "a task lies in the folder of its stage, and that is the whole of where it runs",
 }
 
 // unknownField is how the decoder says a key is not one of them. It names the
@@ -345,9 +391,9 @@ func (s *Module) checkTasks(tasks []*Task, hooks map[string][]*Task) error {
 	byStage := map[string][]*Task{}
 	for _, t := range tasks {
 		if err := s.checkTask(t); err != nil {
-			return fmt.Errorf("%s/%s: %w", DirTasks, t.id, err)
+			return fmt.Errorf("%s/%s/%s: %w", DirTasks, Stage(t.stage), t.id, err)
 		}
-		byStage[t.Stage] = append(byStage[t.Stage], t)
+		byStage[t.stage] = append(byStage[t.stage], t)
 	}
 	for name, steps := range hooks {
 		for _, t := range steps {
@@ -373,23 +419,19 @@ func (s *Module) checkTasks(tasks []*Task, hooks map[string][]*Task) error {
 	for _, stage := range s.Stages {
 		ordered, err := order(byStage[stage])
 		if err != nil {
-			return fmt.Errorf("%s: stage %s: %w", DirTasks, stage, err)
+			return fmt.Errorf("%s/%s: %w", DirTasks, Stage(stage), err)
 		}
 		s.Tasks = append(s.Tasks, ordered...)
 	}
 	return nil
 }
 
-// checkTask settles one task on its own: what it is called, which phase it
-// belongs to, what it asks for and shows, and what it is guarded by.
+// checkTask settles one task on its own: what it is called, what it asks for
+// and shows, and what it is guarded by. Which phase it belongs to was settled
+// by the folder it was found in, before it was read at all.
 func (s *Module) checkTask(t *Task) error {
-	switch {
-	case t.Title == "":
+	if t.Title == "" {
 		return fmt.Errorf("title is required")
-	case t.Stage == "":
-		return fmt.Errorf("stage is required: one of %s", strings.Join(s.Stages, ", "))
-	case !slices.Contains(s.Stages, t.Stage):
-		return fmt.Errorf("stage %q: no such stage — %s declares %s", t.Stage, FileModule, strings.Join(s.Stages, ", "))
 	}
 	if err := s.checkAsks(t); err != nil {
 		return err
@@ -423,7 +465,6 @@ func (t *Task) checkHook() error {
 		key  string
 		used bool
 	}{
-		{"stage", t.Stage != ""},
 		{"test", t.Checks()},
 		{"conditions", len(t.Conditions) > 0},
 		{"asks", t.Asks != ""},

@@ -14,9 +14,16 @@ import (
 // is not having a good day, and the last thing they need is two different
 // shapes of bad news to learn.
 //
-// The order is what somebody actually needs, in that order: what went wrong, in
-// the words of the tool that said so; then where — which script, which line,
-// which command, which exit code; then where the rest of it is written down.
+// The order is what somebody actually needs, in that order: **where** — which
+// module, which unit, which file and line, which command, which exit code —
+// and then **what it said** on its way out, in the words of the tool itself.
+//
+// Where first, because that is the fixed part: the same handful of rows every
+// time, read at a glance and in the same place on every failure. What a tool
+// said is as long as the tool felt like being, and a paragraph of somebody
+// else's prose above the rows would push them off the top of the page it is
+// being read on.
+//
 // Nothing is folded away and nothing has to be pressed for.
 func renderFailure(err error, width int) string {
 	var b strings.Builder
@@ -26,23 +33,47 @@ func renderFailure(err error, width int) string {
 		return b.String() + logNote(width)
 	}
 
-	if msg := strings.TrimSpace(f.Stderr); msg != "" {
-		b.WriteString(failStyle.Render(wrapped(msg, width)))
-		b.WriteString("\n\n")
-	}
 	// The label column is as wide as the widest label plus a gap, so the values
 	// stand in one column — the same rule every other pair in this interface
 	// lines up by.
 	fields := f.Fields()
 	labelW := 0
 	for _, kv := range fields {
-		labelW = max(labelW, len(kv[0]))
+		labelW = max(labelW, len(kv.Label))
 	}
 	for _, kv := range fields {
-		label := mutedStyle.Render(kv[0] + strings.Repeat(" ", labelW-len(kv[0])))
-		b.WriteString(label + field(strings.Repeat(" ", gapM)) + softStyle.Render(truncate(kv[1], width-labelW-gapM)) + "\n")
+		label := mutedStyle.Render(kv.Label + strings.Repeat(" ", labelW-len(kv.Label)))
+		room := width - labelW - gapM
+		value := truncate(kv.Value, room)
+		if kv.Path {
+			value = truncateStart(kv.Value, room)
+		}
+		b.WriteString(label + field(strings.Repeat(" ", gapM)) + softStyle.Render(value) + "\n")
+	}
+	// What the script itself said, which is the whole of what this page shows
+	// of its output — the rest is in the log, and the line under it says where.
+	if msg := strings.TrimSpace(f.Stderr); msg != "" {
+		b.WriteString("\n" + failStyle.Render(wrapped(msg, width)) + "\n")
 	}
 	return b.String() + logNote(width)
+}
+
+// said is a failure in its own words: what the tool printed on its way out,
+// which is the half of a failure written for somebody to read. Empty where it
+// said nothing, and the whole error where it is not one of ours.
+func said(err error) string {
+	if f, ok := err.(*exec.Failure); ok {
+		return strings.TrimSpace(f.Stderr)
+	}
+	return err.Error()
+}
+
+// unitOf is what a failure happened to, where it knows.
+func unitOf(err error) string {
+	if f, ok := err.(*exec.Failure); ok {
+		return f.Unit
+	}
+	return ""
 }
 
 // logNote says where everything that did not fit is. It is the one place the
