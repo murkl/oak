@@ -17,9 +17,9 @@ func module(t *testing.T, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
 	base := map[string]string{
-		FileModule:              head("variables:\n  - name: DISK\n    title: Disk\n    required: true\n"),
-		"tasks/go/do/task.yaml": "title: Do it\n",
-		"tasks/go/do/task.sh":   "echo hi\n",
+		FileModule:           head("variables:\n  - name: DISK\n    title: Disk\n    required: true\n"),
+		"tasks/do/task.yaml": "stage: go\ntitle: Do it\n",
+		"tasks/do/task.sh":   "echo hi\n",
 	}
 	for name, body := range files {
 		base[name] = body
@@ -43,12 +43,23 @@ func module(t *testing.T, files map[string]string) string {
 // the test is actually about after them.
 func head(body string) string { return "title: Test Installer\nstages: [go]\n" + body }
 
-// unit is one task folder under its stage, as the two files it is made of.
+// unit is one task folder, as the two files it is made of. The stage it belongs
+// to is a line in its yaml, the way a module writes one.
 func unit(stage, id, yaml string) map[string]string {
-	at := "tasks/" + stage + "/" + id
+	at := "tasks/" + id
 	return map[string]string{
-		at + "/task.yaml": yaml,
+		at + "/task.yaml": "stage: " + stage + "\n" + yaml,
 		at + "/task.sh":   "echo " + id + "\n",
+	}
+}
+
+// hook is one step of a hook, as the two files it is made of. Hooks live in a
+// folder of their own, and every file in one says so: hook.yaml and hook.sh.
+func hook(name, id, yaml string) map[string]string {
+	at := DirHooks + "/" + name + "/" + id
+	return map[string]string{
+		at + "/" + FileHook:       yaml,
+		at + "/" + FileHookScript: "echo " + id + "\n",
 	}
 }
 
@@ -80,8 +91,8 @@ presets:
         values:
           DISK: /dev/sda
 `,
-		"tasks/done/reboot/task.yaml": "title: Reboot\nconfirm: Restart now?\nquits: true\n",
-		"tasks/done/reboot/task.sh":   "echo bye\n",
+		"tasks/reboot/task.yaml": "stage: done\ntitle: Reboot\nconfirm: Restart now?\nquits: true\n",
+		"tasks/reboot/task.sh":   "echo bye\n",
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -99,8 +110,8 @@ presets:
 	if len(sp.Tasks) != 2 {
 		t.Fatalf("tasks = %d, want 2", len(sp.Tasks))
 	}
-	if !strings.HasSuffix(sp.Tasks[0].File(), filepath.Join("do", FileScript)) {
-		t.Errorf("script = %q", sp.Tasks[0].File())
+	if !strings.HasSuffix(sp.Tasks[0].Work().File, filepath.Join("do", FileTaskScript)) {
+		t.Errorf("script = %q", sp.Tasks[0].Work().File)
 	}
 	last := sp.Tasks[1]
 	if !last.Quits || !last.Confirms() {
@@ -120,10 +131,8 @@ func TestOrderFollowsStagesThenNeeds(t *testing.T) {
 			FileModule: "title: T\nstages: [first, second]\n",
 			// The default task moves into the first stage: this test owns the
 			// whole list.
-			"tasks/go/do/task.yaml":    "",
-			"tasks/go/do/task.sh":      "",
-			"tasks/first/do/task.yaml": "title: Do\n",
-			"tasks/first/do/task.sh":   "echo do\n",
+			"tasks/do/task.yaml": "stage: first\ntitle: Do\n",
+			"tasks/do/task.sh":   "echo do\n",
 		},
 		unit("first", "zulu", "title: Zulu\n"),
 		unit("first", "alpha", "title: Alpha\nneeds: [zulu]\n"),
@@ -177,14 +186,24 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 		want  string
 	}{
 		{
-			name:  "a stage folder nothing declared",
+			name:  "a task naming a stage nothing declared",
 			files: unit("nowhere", "do", "title: Do\n"),
 			want:  "no such stage",
 		},
 		{
-			name:  "a stage folder carrying the runtime's mark that is not one of its own",
-			files: unit(SystemMark+"nowhere", "do", "title: Do\n"),
-			want:  "a stage the runtime runs itself",
+			name:  "a task naming no stage at all",
+			files: map[string]string{"tasks/half/task.yaml": "title: Half\n", "tasks/half/task.sh": "echo\n"},
+			want:  "stage is required",
+		},
+		{
+			name:  "a hook folder that is not one of the runtime's",
+			files: hook(HookMark+"nowhere", "do", "title: Do\n"),
+			want:  "no such hook",
+		},
+		{
+			name:  "a hook left under tasks/",
+			files: map[string]string{"tasks/@preflight/root/hook.yaml": "title: Root\nexecute: \"true\"\n"},
+			want:  "which lives under " + DirHooks,
 		},
 		{
 			name:  "a need pointing at nothing",
@@ -204,25 +223,25 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 
 		{
 			name:  "a task folder with no yaml in it",
-			files: map[string]string{"tasks/go/half/task.sh": "echo\n"},
+			files: map[string]string{"tasks/half/task.sh": "echo\n"},
 			want:  FileTask,
 		},
 		{
 			name:  "a task that says nothing about what it does",
-			files: map[string]string{"tasks/go/half/task.yaml": "title: Half\n"},
-			want:  "no " + FileScript,
+			files: map[string]string{"tasks/half/task.yaml": "stage: go\ntitle: Half\n"},
+			want:  "no " + FileTaskScript,
 		},
 		{
 			name: "a task saying twice what it does",
 			files: map[string]string{
-				"tasks/go/half/task.yaml": "title: Half\nscript: echo hi\n",
-				"tasks/go/half/task.sh":   "echo hi\n",
+				"tasks/half/task.yaml": "stage: go\ntitle: Half\nexecute: echo hi\n",
+				"tasks/half/task.sh":   "echo hi\n",
 			},
 			want: "a task runs one thing",
 		},
 		{
 			name:  "a script naming a file that is not there",
-			files: map[string]string{"tasks/go/half/task.yaml": "title: Half\nscript: ./gone.sh\n"},
+			files: map[string]string{"tasks/half/task.yaml": "stage: go\ntitle: Half\nexecute: ./gone.sh\n"},
 			want:  "no such script",
 		},
 	}
@@ -239,60 +258,74 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 	}
 }
 
-// Nothing declares the stages the runtime runs itself: a folder under one of
-// their names is the declaration, and any other name carrying the mark is a
-// typo rather than something to ignore.
-func TestSystemStagesAreFoundByTheirFolder(t *testing.T) {
+// Nothing declares the hooks: a folder under one of their names is the
+// declaration, and any other name carrying the mark is a typo rather than
+// something to ignore.
+func TestHooksAreFoundByTheirFolder(t *testing.T) {
 	sp, err := Load(module(t, units(
-		unit(StagePreflight, "root", "title: Running as root\n"),
-		unit(StageRestart, "reboot", "title: Reboot\n"),
+		hook(HookPreflight, "root", "title: Running as root\n"),
+		hook(HookRestart, "reboot", "title: Reboot\n"),
 	)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := sp.System(StagePreflight); len(got) != 1 || got[0].ID() != "root" {
-		t.Errorf("preflight = %+v, want the one task in it", got)
+	if got := sp.Hook(HookPreflight); len(got) != 1 || got[0].ID() != "root" {
+		t.Errorf("preflight = %+v, want the one step in it", got)
 	}
-	if got := sp.SystemShell(StageRestart); !strings.HasPrefix(got, "source ") {
-		t.Errorf("SystemShell() = %q, want it to source the task's file", got)
+	if got := sp.Hook(HookRestart); len(got) != 1 || got[0].Work().File == "" {
+		t.Errorf("restart = %+v, want the step and the file it runs", got)
 	}
-	if sp.SystemShell(StageShutdown) != "" {
-		t.Errorf("shutdown = %q, want none", sp.SystemShell(StageShutdown))
+	if got := sp.Hook(HookShutdown); len(got) != 0 {
+		t.Errorf("shutdown = %+v, want none", got)
 	}
-	// A system stage runs at its own moment, so nothing in it is part of the
-	// work: the run is the one task the module has of its own.
+	// A hook runs at its own moment, so nothing in it is part of the work: the
+	// run is the one task the module has of its own.
 	if len(sp.Tasks) != 1 || sp.Tasks[0].ID() != "do" {
 		t.Errorf("tasks = %+v, want only the module's own work", sp.Tasks)
 	}
 	if !sp.Leaves() {
-		t.Error("Leaves() = false, want true: there is a restart stage")
+		t.Error("Leaves() = false, want true: there is a restart hook")
 	}
 }
 
-// Every task in one runs in order, so a module may split a check into the
+// A step of a hook knows which hook it is in, so a failure in one can say so.
+func TestAHookStepNamesItsHook(t *testing.T) {
+	sp, err := Load(module(t, hook(HookPreflight, "root", "title: Root\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	step := sp.Hook(HookPreflight)[0]
+	if step.Hook() != HookPreflight {
+		t.Errorf("Hook() = %q, want %q", step.Hook(), HookPreflight)
+	}
+	if sp.Tasks[0].Hook() != "" {
+		t.Errorf("a task's Hook() = %q, want none", sp.Tasks[0].Hook())
+	}
+}
+
+// Every step of a hook runs in order, so a module may split a check into the
 // several things it actually checks.
-func TestASystemStageRunsEveryTaskInIt(t *testing.T) {
+func TestAHookRunsEveryStepInIt(t *testing.T) {
 	sp, err := Load(module(t, units(
-		unit(StagePreflight, "root", "title: Root\n"),
-		unit(StagePreflight, "network", "title: Network\nneeds: [root]\n"),
+		hook(HookPreflight, "root", "title: Root\n"),
+		hook(HookPreflight, "network", "title: Network\nneeds: [root]\n"),
 	)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	steps := sp.System(StagePreflight)
+	steps := sp.Hook(HookPreflight)
 	if len(steps) != 2 || steps[0].ID() != "root" || steps[1].ID() != "network" {
 		t.Fatalf("preflight = %+v, want root then network", steps)
 	}
-	if lines := strings.Count(sp.SystemShell(StagePreflight), "\n"); lines != 1 {
-		t.Errorf("SystemShell() runs %d step(s), want both", lines+1)
-	}
 }
 
-// Most of what a task may say has nothing to answer to in a stage the runtime
-// runs itself: it is never listed, offered or reported on. Saying it anyway is
-// a line that can never take effect.
-func TestASystemTaskRefusesWhatItCannotMean(t *testing.T) {
+// Most of what a task may say has nothing to answer to in a hook: it is never
+// listed, offered, reported on or checked afterwards. Saying it anyway is a
+// line that can never take effect.
+func TestAHookStepRefusesWhatItCannotMean(t *testing.T) {
 	for key, line := range map[string]string{
+		"stage":      "stage: go\n",
+		"test":       "test: \"true\"\n",
 		"conditions": "conditions: DISK != none\n",
 		"confirm":    "confirm: Really?\n",
 		"report":     "report: Done\n",
@@ -300,7 +333,7 @@ func TestASystemTaskRefusesWhatItCannotMean(t *testing.T) {
 		"tty":        "tty: true\n",
 	} {
 		t.Run(key, func(t *testing.T) {
-			_, err := Load(module(t, unit(StagePreflight, "check", "title: Check\n"+line)))
+			_, err := Load(module(t, hook(HookPreflight, "check", "title: Check\n"+line)))
 			if err == nil || !strings.Contains(err.Error(), key) {
 				t.Errorf("err = %v, want it to name %s", err, key)
 			}
@@ -308,14 +341,14 @@ func TestASystemTaskRefusesWhatItCannotMean(t *testing.T) {
 	}
 }
 
-func TestAModuleWithoutSystemStagesHasNone(t *testing.T) {
+func TestAModuleWithoutHooksHasNone(t *testing.T) {
 	sp, err := Load(module(t, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stage := range SystemStages {
-		if sp.SystemShell(stage) != "" {
-			t.Errorf("%s = %q, want none", stage, sp.SystemShell(stage))
+	for _, name := range Hooks {
+		if got := sp.Hook(name); len(got) != 0 {
+			t.Errorf("%s = %+v, want none", name, got)
 		}
 	}
 	if sp.Leaves() {
@@ -323,14 +356,16 @@ func TestAModuleWithoutSystemStagesHasNone(t *testing.T) {
 	}
 }
 
-// A task says what it does in its own yaml or in the file beside it, and the
-// two are told apart because a failure in a file names the file.
-func TestATaskRunsItsFileOrTheShellItsYamlWrote(t *testing.T) {
+// A task's own proof that the work took is a second script beside the first,
+// found the same way: written in the yaml, named by it, or simply lying there
+// under the name Oak knows it by.
+func TestATaskFindsItsCheckTheWayItFindsItsWork(t *testing.T) {
 	sp, err := Load(module(t, units(
 		map[string]string{
-			"tasks/go/inline/task.yaml": "title: Inline\nscript: echo hi\n",
-			"tasks/go/named/task.yaml":  "title: Named\nscript: ./other.sh\n",
-			"tasks/go/named/other.sh":   "echo other\n",
+			"tasks/inline/task.yaml": "stage: go\ntitle: Inline\nexecute: echo hi\ntest: test -e /\n",
+			"tasks/beside/task.yaml": "stage: go\ntitle: Beside\n",
+			"tasks/beside/task.sh":   "echo hi\n",
+			"tasks/beside/test.sh":   "test -e /\n",
 		},
 	)))
 	if err != nil {
@@ -340,14 +375,60 @@ func TestATaskRunsItsFileOrTheShellItsYamlWrote(t *testing.T) {
 	for _, task := range sp.Tasks {
 		by[task.ID()] = task
 	}
-	if got := by["inline"]; got.File() != "" || got.Script != "echo hi" {
-		t.Errorf("inline = %q / %q, want the shell it wrote", got.File(), got.Script)
+	if got := by["inline"].Check(); got.Shell != "test -e /" {
+		t.Errorf("inline check = %+v, want the shell it wrote", got)
 	}
-	if got := by["named"]; !strings.HasSuffix(got.File(), "other.sh") || got.Script != "" {
-		t.Errorf("named = %q / %q, want the file it named", got.File(), got.Script)
+	if got := by["beside"].Check(); !strings.HasSuffix(got.File, FileTest) {
+		t.Errorf("beside check = %+v, want the %s beside it", got, FileTest)
 	}
-	if got := by["do"]; !strings.HasSuffix(got.File(), FileScript) {
-		t.Errorf("do = %q, want the %s beside it", got.File(), FileScript)
+	// The default task declares none, and a module is checked only where
+	// something says how.
+	if by["do"].Checks() {
+		t.Errorf("do = %+v, want no check", by["do"].Check())
+	}
+	if !sp.Checks() {
+		t.Error("Checks() = false, want true: two tasks say how to tell")
+	}
+}
+
+// Saying it twice is two answers to one question, exactly as it is for the work
+// itself.
+func TestATaskCannotSayTwiceHowItIsChecked(t *testing.T) {
+	_, err := Load(module(t, map[string]string{
+		"tasks/half/task.yaml": "stage: go\ntitle: Half\ntest: test -e /\n",
+		"tasks/half/task.sh":   "echo hi\n",
+		"tasks/half/test.sh":   "test -e /\n",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "a task runs one thing") {
+		t.Errorf("err = %v, want it to refuse two checks", err)
+	}
+}
+
+// A task says what it does in its own yaml or in the file beside it, and the
+// two are told apart because a failure in a file names the file.
+func TestATaskRunsItsFileOrTheShellItsYamlWrote(t *testing.T) {
+	sp, err := Load(module(t, units(
+		map[string]string{
+			"tasks/inline/task.yaml": "stage: go\ntitle: Inline\nexecute: echo hi\n",
+			"tasks/named/task.yaml":  "stage: go\ntitle: Named\nexecute: ./other.sh\n",
+			"tasks/named/other.sh":   "echo other\n",
+		},
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	by := map[string]*Task{}
+	for _, task := range sp.Tasks {
+		by[task.ID()] = task
+	}
+	if got := by["inline"].Work(); got.File != "" || got.Shell != "echo hi" {
+		t.Errorf("inline = %q / %q, want the shell it wrote", got.File, got.Shell)
+	}
+	if got := by["named"].Work(); !strings.HasSuffix(got.File, "other.sh") || got.Shell != "" {
+		t.Errorf("named = %q / %q, want the file it named", got.File, got.Shell)
+	}
+	if got := by["do"].Work(); !strings.HasSuffix(got.File, FileTaskScript) {
+		t.Errorf("do = %q, want the %s beside it", got.File, FileTaskScript)
 	}
 }
 
@@ -592,8 +673,8 @@ func TestLoadRefuses(t *testing.T) {
 func TestConditionsDecideWhatBelongs(t *testing.T) {
 	dir := module(t, units(
 		map[string]string{
-			FileModule:              head("variables:\n  - name: DESKTOP\n    title: Desktop\n    type: bool\n"),
-			"tasks/go/do/task.yaml": "title: Always\n",
+			FileModule:           head("variables:\n  - name: DESKTOP\n    title: Desktop\n    type: bool\n"),
+			"tasks/do/task.yaml": "stage: go\ntitle: Always\n",
 		},
 		unit("go", "with", "title: Only with a desktop\nconditions: DESKTOP == true\n"),
 		unit("go", "without", "title: Only without one\nconditions: DESKTOP != true\n"),
@@ -722,7 +803,7 @@ variables:
     group: Storage
     error: Pick one.
 `),
-		"tasks/go/do/task.yaml": "title: Do it\nconfirm: Really?\n",
+		"tasks/do/task.yaml": "stage: go\ntitle: Do it\nconfirm: Really?\n",
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -741,7 +822,7 @@ variables:
 			t.Errorf("%q has no origin: %+v", m.Text, m)
 		}
 	}
-	if m := sp.Messages()[len(sp.Messages())-1]; m.Files[0] != "tasks/go/do/task.yaml" {
+	if m := sp.Messages()[len(sp.Messages())-1]; m.Files[0] != "tasks/do/task.yaml" {
 		t.Errorf("%q was read from %v, want the task it is in", m.Text, m.Files)
 	}
 }
@@ -767,8 +848,8 @@ func TestAModuleWithoutADeclarationIsRefused(t *testing.T) {
 // hold: a row that belongs under two unrelated circumstances is two rows.
 func TestSeveralConditionsAllHaveToHold(t *testing.T) {
 	dir := module(t, map[string]string{
-		FileModule:              head("variables:\n  - name: DESKTOP\n    title: D\n    type: bool\n  - name: DRIVER\n    title: G\n"),
-		"tasks/go/do/task.yaml": "title: Driver\nconditions:\n  - DESKTOP == true\n  - DRIVER != none\n",
+		FileModule:           head("variables:\n  - name: DESKTOP\n    title: D\n    type: bool\n  - name: DRIVER\n    title: G\n"),
+		"tasks/do/task.yaml": "stage: go\ntitle: Driver\nconditions:\n  - DESKTOP == true\n  - DRIVER != none\n",
 	})
 	sp, err := Load(dir)
 	if err != nil {

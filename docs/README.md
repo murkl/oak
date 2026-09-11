@@ -25,8 +25,9 @@ Oak knows nothing about any operating system. Not a disk, not a package, not a b
 ## What you get
 
 - **One config file per installer.** Questions, stages, the last warning before anything changes — all in one YAML file next to your scripts
-- **A task pipeline.** A task is a folder under the stage it belongs to, holding a `task.yaml` and the shell it runs. The order comes out of where each task sits and what it declares, so there is no list of steps to keep in step
-- **Error handling you did not write.** A script that fails is caught, and the frame names the file, the line, the command and the exit code
+- **A task pipeline.** A task is a folder holding a `task.yaml` and the shell it runs. The order comes out of the stage each task names and what it declares it needs, so there is no list of steps to keep in step
+- **Error handling you did not write.** A script that fails is caught, and the frame names the module, the task, the file, the line, the command and the exit code
+- **Checks that come with the steps.** A task may say how to tell that it took. Those run on the machine as the work goes, read and change nothing, and what they came to is one page at the end of the run
 - **Answers that survive.** Every answer is written down the moment it is given, as plain shell. An interrupted run picks up where it left off; copy the file to the next machine and every question it answers is skipped
 - **Modular.** A module is one whole program. Ship an installer and a recovery from the same binary, or add a third by adding a folder
 - **One file to ship.** A static binary, your YAML and your scripts beside it. Bash is the only thing it expects of the machine
@@ -41,8 +42,8 @@ oak.yaml                  the product: name, colour, version, wordmark
 modules/setup/            one module — everything below belongs to it
   module.yaml             what it asks and what order it works in
   module.sh               optional: shell everything this module runs gets
-  tasks/disk/format/      one step of the disk stage: task.yaml, task.sh
-  tasks/@preflight/uefi/  optional: can this machine be worked on at all
+  tasks/format/           one task: task.yaml, task.sh, and an optional test.sh
+  hooks/@preflight/uefi/  optional: a hook — can this machine be worked on at all
 modules/recovery/         another module, another program
 ```
 
@@ -123,12 +124,13 @@ variables:
     required: true
 ```
 
-### 4. Add a task — `modules/setup/tasks/install/hostname/`
+### 4. Add a task — `modules/setup/tasks/hostname/`
 
-The folder is under the stage it belongs to, so `task.yaml` only says what the step is:
+`task.yaml` says what the step is and which phase it belongs to:
 
 ```yaml
 title: Write the hostname
+stage: install
 ```
 
 `task.sh` beside it does the work. No shebang, no `set -e`, no error handling — Oak wraps it:
@@ -142,9 +144,13 @@ A step short enough to read at a glance skips the file and says it in the yaml i
 
 ```yaml
 title: Write the hostname
-script: |
+stage: install
+execute: |
   mkdir -p ./tux/etc
   echo "$TUX_HOST" >./tux/etc/hostname
+
+# Optional: how to tell that it took. Reads the machine, changes nothing.
+test: grep -q "^$TUX_HOST$" ./tux/etc/hostname
 ```
 
 ### 5. Run it
@@ -155,7 +161,7 @@ script: |
 
 Oak asks for a language, then for the one question that is required and still unanswered, then runs the task. The answers land in `setup.conf`, everything the script printed in `setup.log`.
 
-The **[example](../example)** is the same shape, filled out: two modules, three stages, a task that only runs under a condition, and a page the run stops on when it is done.
+The **[example](../example)** is the same shape, filled out: two modules, three stages, a task that only runs under a condition, checks beside the work, and a page the run stops on when it is done.
 
 <p align="center">
   <img src="screenshots/question.png" width="49%" alt="One question, on a page of its own">
@@ -166,21 +172,21 @@ The **[example](../example)** is the same shape, filled out: two modules, three 
 
 Nothing lists the tasks anywhere. The folder is the list, and the order follows two rules:
 
-- A task runs after every task of an **earlier stage**, which is the folder it sits in
+- A task runs after every task of an **earlier stage**, which is the one its `stage:` names
 - Inside its stage, it runs after whatever it named in **`needs:`**
 
 ```mermaid
 flowchart LR
-    subgraph S1["tasks/prepare"]
+    subgraph S1["stage: prepare"]
         direction TB
         P1["partition"] --> P2["format"]
     end
-    subgraph S2["tasks/install"]
+    subgraph S2["stage: install"]
         direction TB
         B["base"] --> D["desktop"]
         B --> G["graphics"]
     end
-    subgraph S3["tasks/finish"]
+    subgraph S3["stage: finish"]
         direction TB
         U["users"]
     end
@@ -195,11 +201,13 @@ A task with `conditions:` that do not hold is left out of the run entirely. Ever
 
 ## When a step breaks
 
-The run stops and says where, in the words of the tool that failed. The rest is in the log.
+The run stops and says where, in the words of the tool that failed: which module, which task, which file and line, which command. The rest is in the log.
 
 <p align="center">
-  <img src="screenshots/failure.png" width="640" alt="A failed task: the script, the line, the command and the exit code">
+  <img src="screenshots/failure.png" width="640" alt="A failed task: the module, the task, the script, the line, the command and the exit code">
 </p>
+
+A check that disagrees is not that. The work said it worked, so the run carries on and every check is read once, on the page it ends with — how many of how many, and each disagreement opening on the same report. One switch in the settings turns the whole of it off.
 
 ## The command line
 
@@ -226,7 +234,7 @@ Nothing on the command line is an answer. Questions are answered in the interfac
 
 ## Everything else
 
-**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, conditions, system stages, the script contract and translations.
+**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, checks, conditions, hooks, the script contract and translations.
 
 **[➜ Contributing](CONTRIBUTING.md)** — how to work on Oak itself.
 

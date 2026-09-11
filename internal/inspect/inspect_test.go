@@ -22,9 +22,9 @@ func writeModule(t *testing.T, declaration string, extra map[string]string) stri
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		spec.FileModule:            declaration,
-		"tasks/go/first/task.yaml": "title: First\n",
-		"tasks/go/first/task.sh":   "true\n",
+		spec.FileModule:         declaration,
+		"tasks/first/task.yaml": "stage: go\ntitle: First\n",
+		"tasks/first/task.sh":   "true\n",
 	}
 	maps.Copy(files, extra)
 	for name, body := range files {
@@ -123,11 +123,11 @@ variables:
     type: secret
     required: true
 `, map[string]string{
-		"tasks/" + spec.StagePreflight + "/root/task.yaml": "title: Root\nscript: \"true\"\n",
+		"hooks/" + spec.HookPreflight + "/root/hook.yaml": "title: Root\nexecute: \"true\"\n",
 		// The one task reads both answers, so the report is about what the
 		// module holds rather than about a guard that disagrees — see
 		// spec.Unread.
-		"tasks/go/first/task.sh": "echo \"$HOST $PASSWORD\"\n",
+		"tasks/first/task.sh": "echo \"$HOST $PASSWORD\"\n",
 	}))
 	rt, mods := product(t, dir)
 	var out strings.Builder
@@ -139,7 +139,7 @@ variables:
 		"title      Installer",
 		"variables  2 (2 required, 1 secret)",
 		"tasks      1",
-		"system     " + spec.StagePreflight + "(1)",
+		"hooks      " + spec.HookPreflight + "(1)",
 		"1. go         first",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -187,17 +187,17 @@ variables:
 	}
 }
 
-func TestOnlyTheSystemStagesAModuleActuallyFillsAreListed(t *testing.T) {
+func TestOnlyTheHooksAModuleActuallyFillsAreListed(t *testing.T) {
 	mod, err := spec.Load(writeModule(t, "title: T\nstages: [go]\n", map[string]string{
-		"tasks/" + spec.StagePreflight + "/root/task.yaml": "title: Root\nscript: \"true\"\n",
-		"tasks/" + spec.StageRestart + "/reboot/task.yaml": "title: Reboot\nscript: \"true\"\n",
+		"hooks/" + spec.HookPreflight + "/root/hook.yaml": "title: Root\nexecute: \"true\"\n",
+		"hooks/" + spec.HookRestart + "/reboot/hook.yaml": "title: Reboot\nexecute: \"true\"\n",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := spec.StagePreflight + "(1) " + spec.StageRestart + "(1)"
-	if got := strings.Join(systemStages(mod), " "); got != want {
-		t.Errorf("systemStages() = %q, want %q in SystemStages order", got, want)
+	want := spec.HookPreflight + "(1) " + spec.HookRestart + "(1)"
+	if got := strings.Join(hooks(mod), " "); got != want {
+		t.Errorf("hooks() = %q, want %q in Hooks order", got, want)
 	}
 }
 
@@ -206,15 +206,15 @@ func TestOnlyTheSystemStagesAModuleActuallyFillsAreListed(t *testing.T) {
 // wrote it sees that.
 func TestANeedReachingIntoAnotherStageIsReported(t *testing.T) {
 	dir := around(t, writeModule(t, "title: T\nstages: [go, later]\n", map[string]string{
-		"tasks/later/after/task.yaml": "title: After\nneeds: [first]\nscript: \"true\"\n",
-		"tasks/go/first/task.sh":      "echo \"$HOST\"\n",
+		"tasks/after/task.yaml": "stage: later\ntitle: After\nneeds: [first]\nexecute: \"true\"\n",
+		"tasks/first/task.sh":   "echo \"$HOST\"\n",
 	}))
 	rt, mods := product(t, dir)
 	var out strings.Builder
 	if err := Report(&out, rt, mods, locales.FS); err != nil {
 		t.Fatal(err)
 	}
-	if want := "needs      tasks/later/after: needs first, which is in go"; !strings.Contains(out.String(), want) {
+	if want := "needs      tasks/after: needs first, which is in go"; !strings.Contains(out.String(), want) {
 		t.Errorf("the report does not say %q:\n%s", want, out.String())
 	}
 }

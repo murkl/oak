@@ -30,8 +30,13 @@ type Env []string
 // script's own text — one place for what several of them share, and the
 // functions its yaml calls by name. The runtime never reads it and has no idea
 // what is in it; it only makes sure everything it starts gets the same one.
+//
+// Module is that module's name, and it is here rather than at every call site
+// because every failure this package builds carries it: a run has one module in
+// it, and which one is the first thing somebody reading a failure needs.
 type Runner struct {
-	Shell string
+	Shell  string
+	Module string
 }
 
 // Script is one task's work, in the shape its module wrote it: a file to
@@ -44,6 +49,18 @@ type Runner struct {
 type Script struct {
 	File  string
 	Shell string
+}
+
+// Step is one piece of a module's work as this layer takes it: the shell
+// itself, what a failure calls it, and the hook it belongs to where it is one.
+//
+// A hook is run step by step rather than as one piece of shell for exactly that
+// reason — a mistake in one of them has to name the step it is in, the file and
+// the line, the same way a task's does.
+type Step struct {
+	Name   string
+	Hook   string
+	Script Script
 }
 
 // shell is either of them as one piece of shell, for the places that only run
@@ -170,6 +187,12 @@ func (r Runner) Lines(s string, env Env) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return Lines(out), nil
+}
+
+// Lines is that rule on its own, for output that came back from somewhere else
+// — a hook answering with the networks in range.
+func Lines(out string) []string {
 	var lines []string
 	for l := range strings.SplitSeq(out, "\n") {
 		l = strings.TrimRight(l, " \t\r")
@@ -178,7 +201,7 @@ func (r Runner) Lines(s string, env Env) ([]string, error) {
 		}
 		lines = append(lines, l)
 	}
-	return lines, nil
+	return lines
 }
 
 // Session is a running script. Everything it prints goes to the log; what it
@@ -189,16 +212,59 @@ type Session struct {
 	done   chan struct{}
 	err    error
 	cmd    *exec.Cmd
-	unit   string
+	run    Runner
+	step   Step
 }
 
-// Start runs one task in the background. unit names it in any failure.
-func (r Runner) Start(unit string, script Script, env Env) (*Session, error) {
-	cmd, report, err := r.command(script, env)
+// Hook runs the steps of one hook in order and hands back everything they
+// printed, as one block.
+//
+// Unlike the one-liners above it runs under the ERR trap: a hook is a module's
+// own code, and a mistake in it is an authoring bug that has to name the file
+// and the line rather than an exit status nobody can place. Its output is the
+// answer the runtime asked for — a device name, the networks in range — so it
+// is captured rather than logged.
+func (r Runner) Hook(steps []Step, env Env) (string, error) {
+	var out []string
+	for _, step := range steps {
+		printed, said, report, err := r.trapped(step.Script, env)
+		if printed != "" {
+			out = append(out, printed)
+		}
+		if err != nil {
+			return "", r.failure(step, err, report, said)
+		}
+	}
+	return strings.Join(out, "\n"), nil
+}
+
+// trapped runs one script under the ERR trap and keeps its three channels
+// apart: what it printed, what it said on the way out, and where the trap says
+// it broke.
+func (r Runner) trapped(script Script, env Env) (printed, said, report string, err error) {
+	cmd, rd, err := r.command(script, env)
+	if err != nil {
+		return "", "", "", err
+	}
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Start(); err != nil {
+		drain(cmd, rd)
+		return "", "", "", err
+	}
+	raw := drain(cmd, rd)
+	err = cmd.Wait()
+	return strings.TrimRight(stdout.String(), "\n"), lastWords(stderr.String()), raw, err
+}
+
+// Start runs one script in the background. unit names it in any failure, and
+// hook the one it is a step of where it is one.
+func (r Runner) Start(step Step, env Env) (*Session, error) {
+	cmd, report, err := r.command(step.Script, env)
 	if err != nil {
 		return nil, err
 	}
-	s := &Session{done: make(chan struct{}), cmd: cmd, unit: unit}
+	s := &Session{done: make(chan struct{}), cmd: cmd, run: r, step: step}
 
 	// The log gets the raw bytes of both channels; the failure report gets
 	// stderr, sanitized — see writeErr.
@@ -273,13 +339,7 @@ func (s *Session) failure(err error, report string) error {
 	if err == nil {
 		return nil
 	}
-	f := parseReport(report)
-	if f == nil {
-		f = &Failure{Code: exitCode(err)}
-	}
-	f.Unit = s.unit
-	f.Stderr = s.lastErr()
-	return f
+	return s.run.failure(s.step, err, report, s.lastErr())
 }
 
 // Done closes once the script has exited and all its output is collected.

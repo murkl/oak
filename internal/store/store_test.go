@@ -22,9 +22,9 @@ func load(t *testing.T, installer string) *spec.Module {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		spec.FileModule:          installer,
-		"tasks/go/run/task.yaml": "title: Go\n",
-		"tasks/go/run/task.sh":   "true\n",
+		spec.FileModule:       installer,
+		"tasks/run/task.yaml": "stage: go\ntitle: Go\n",
+		"tasks/run/task.sh":   "true\n",
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, name)

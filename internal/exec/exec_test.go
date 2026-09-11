@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-var sh = Runner{}
+var sh = Runner{Module: "Test Module"}
 
 // script writes a task's file and answers with the shell that runs it.
 func script(t *testing.T, body string) string {
@@ -32,7 +32,7 @@ func run(t *testing.T, body string) *Session {
 // start is one task's work, whichever of the two shapes it was written in.
 func start(t *testing.T, sc Script) *Session {
 	t.Helper()
-	s, err := sh.Start("Test stage", sc, Env(os.Environ()))
+	s, err := sh.Start(Step{Name: "Test stage", Script: sc}, Env(os.Environ()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestRunReturnsWhatACommandPrinted(t *testing.T) {
 // else — this is how every answer reaches every task.
 func TestAScriptSeesTheEnvironmentItWasGiven(t *testing.T) {
 	seen := filepath.Join(t.TempDir(), "seen")
-	s, err := sh.Start("Test", sourced(t, "echo \"disk=$DISK\" >"+seen+"\n"), Env{"DISK=/dev/sda"})
+	s, err := sh.Start(Step{Name: "Test", Script: sourced(t, "echo \"disk=$DISK\" >"+seen+"\n")}, Env{"DISK=/dev/sda"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestKillingAStageTakesEverythingItStartedWithIt(t *testing.T) {
 	// the shell exits at once, the sleep would not.
 	body := "(sleep 5; touch " + marker + ") &\nsleep 5\n"
 
-	s, err := sh.Start("Test", sourced(t, body), Env(os.Environ()))
+	s, err := sh.Start(Step{Name: "Test", Script: sourced(t, body)}, Env(os.Environ()))
 	if err != nil {
 		t.Fatal(err)
 	}

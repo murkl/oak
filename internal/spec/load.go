@@ -67,11 +67,15 @@ func Load(dir string) (*Module, error) {
 	s.Shell = beside(dir, FileShell)
 	s.Locales = beside(dir, DirLocales)
 
-	byStage, err := loadTasks(dir, s.Stages)
+	tasks, err := loadTasks(dir)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.check(byStage); err != nil {
+	hooks, err := loadHooks(dir)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.check(tasks, hooks); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -86,8 +90,8 @@ func checkStages(stages []string) error {
 	seen := map[string]bool{}
 	for _, stage := range stages {
 		switch {
-		case system(stage):
-			return fmt.Errorf("stage %q: %s marks a stage the runtime runs itself", stage, SystemMark)
+		case hooked(stage):
+			return fmt.Errorf("stage %q: %s marks a hook, which the runtime runs itself", stage, HookMark)
 		case seen[stage]:
 			return fmt.Errorf("stage %q is listed twice", stage)
 		}
@@ -107,19 +111,17 @@ func beside(dir, name string) string {
 	return path
 }
 
-// loadTasks reads tasks/, where every folder is a stage and every folder in one
-// of those is a step: tasks/<stage>/<task>/task.yaml.
-//
-// Which stages there are is settled twice over and has to agree: the module
-// declares the ones its work happens in, in the order they happen, and the
-// runtime owns the rest by name. A folder that is neither is refused rather
-// than passed over — work that never runs because its folder is misspelled is
-// the worst kind of authoring bug, since everything loads and nothing happens.
+// loadTasks reads tasks/, where every folder is one task of the module's own
+// work.
 //
 // The folder name is the task's identity — what another task's `needs` in the
 // same stage points at — and no more than that: what runs when is settled by
-// order.
-func loadTasks(dir string, stages []string) (map[string][]*Task, error) {
+// the stage it names and the order.
+//
+// A folder carrying a hook's mark is refused rather than passed over. It is the
+// one mistake that would otherwise load and do nothing at all, and the message
+// says where the folder belongs instead.
+func loadTasks(dir string) ([]*Task, error) {
 	base := filepath.Join(dir, DirTasks)
 	entries, err := os.ReadDir(base)
 	if err != nil {
@@ -128,45 +130,63 @@ func loadTasks(dir string, stages []string) (map[string][]*Task, error) {
 		}
 		return nil, err
 	}
-	out := map[string][]*Task{}
+	var out []*Task
 	for _, entry := range entries {
-		stage := entry.Name()
 		if !entry.IsDir() {
 			continue
 		}
-		if err := knownStage(stage, stages); err != nil {
-			return nil, fmt.Errorf("%s/%s: %w", DirTasks, stage, err)
+		name := entry.Name()
+		if hooked(name) {
+			return nil, fmt.Errorf("%s/%s: %s marks a hook, which lives under %s/", DirTasks, name, HookMark, DirHooks)
 		}
-		tasks, err := loadStage(filepath.Join(base, stage), stage)
+		t, err := loadTask(filepath.Join(base, name), FileTask, FileTaskScript)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s/%s: %w", DirTasks, name, err)
 		}
-		out[stage] = tasks
+		out = append(out, t)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%s: no tasks", DirTasks)
 	}
 	return out, nil
 }
 
-// knownStage settles whether a folder under tasks/ is a stage at all: one the
-// module declared, or one of the runtime's own.
-func knownStage(stage string, stages []string) error {
-	switch {
-	case system(stage):
-		if !slices.Contains(SystemStages, stage) {
-			return fmt.Errorf("%s marks a stage the runtime runs itself — one of %s",
-				SystemMark, strings.Join(SystemStages, ", "))
+// loadHooks reads hooks/, where every folder is one of the runtime's own
+// moments and every folder in one of those is a step of it.
+//
+// A module that fills none of them has no hooks/ at all, which is not an error:
+// it simply does not get those parts of the program.
+func loadHooks(dir string) (map[string][]*Task, error) {
+	base := filepath.Join(dir, DirHooks)
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
 		}
-	case !slices.Contains(stages, stage):
-		return fmt.Errorf("no such stage: %s declares %s", FileModule, strings.Join(stages, ", "))
+		return nil, err
 	}
-	return nil
+	out := map[string][]*Task{}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		steps, err := loadHook(filepath.Join(base, name), name)
+		if err != nil {
+			return nil, err
+		}
+		out[name] = steps
+	}
+	return out, nil
 }
 
-// loadStage reads every task folder of one stage, in name order, which is what
-// order falls back on for two tasks nothing separates.
-//
-// A folder without a task.yaml is an authoring mistake rather than an opt-out:
-// it is an error, not a step quietly dropped from the run.
-func loadStage(base, stage string) ([]*Task, error) {
+// loadHook reads the steps of one hook, in name order, which is what order
+// falls back on for two steps nothing separates.
+func loadHook(base, name string) ([]*Task, error) {
+	if !slices.Contains(Hooks, name) {
+		return nil, fmt.Errorf("%s/%s: no such hook — the runtime has %s",
+			DirHooks, name, strings.Join(Hooks, ", "))
+	}
 	entries, err := os.ReadDir(base)
 	if err != nil {
 		return nil, err
@@ -176,44 +196,71 @@ func loadStage(base, stage string) ([]*Task, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		where := filepath.Join(base, entry.Name())
-		t := &Task{id: entry.Name(), stage: stage, dir: where}
-		if err := read(filepath.Join(where, FileTask), t); err != nil {
-			return nil, err
+		t, err := loadTask(filepath.Join(base, entry.Name()), FileHook, FileHookScript)
+		if err != nil {
+			return nil, fmt.Errorf("%s/%s/%s: %w", DirHooks, name, entry.Name(), err)
 		}
-		if err := t.resolve(); err != nil {
-			return nil, fmt.Errorf("%s/%s/%s: %w", DirTasks, stage, t.id, err)
-		}
+		t.hook = name
 		out = append(out, t)
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("%s/%s: no tasks", DirTasks, stage)
+		return nil, fmt.Errorf("%s/%s: no steps", DirHooks, name)
 	}
 	return out, nil
 }
 
-// resolve settles what a task actually runs: what its yaml wrote, or the
-// task.sh beside it. Both is two answers to the same question, and neither is a
-// task that does nothing.
-func (t *Task) resolve() error {
-	file := beside(t.dir, FileScript)
-	switch {
-	case t.Script != "" && file != "":
-		return fmt.Errorf("script: there is a %s here as well, and a task runs one thing", FileScript)
-	case t.Script == "" && file == "":
-		return fmt.Errorf("no %s here, and no script in %s", FileScript, FileTask)
-	case t.Script == "":
-		t.file = file
-		return nil
+// loadTask reads one folder: the yaml it is declared in, and what it turns out
+// to run. A folder without that file is an authoring mistake rather than an
+// opt-out — it is an error, not a step quietly dropped from the run.
+func loadTask(where, decl, script string) (*Task, error) {
+	t := &Task{id: filepath.Base(where), dir: where}
+	if err := read(filepath.Join(where, decl), t); err != nil {
+		return nil, err
 	}
-	named, err := scriptFile(t.dir, t.Script)
+	if err := t.resolve(decl, script); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// resolve settles what a task actually runs and what checks it afterwards:
+// what its yaml wrote, or the file of that name beside it. Both is two answers
+// to the same question, and neither for the work itself is a task that does
+// nothing.
+func (t *Task) resolve(decl, script string) error {
+	work, err := pick(t.dir, "execute", t.Execute, script)
 	if err != nil {
-		return fmt.Errorf("script: %w", err)
+		return err
+	}
+	if work.Empty() {
+		return fmt.Errorf("no %s here, and no execute in %s", script, decl)
+	}
+	check, err := pick(t.dir, "test", t.Test, FileTest)
+	if err != nil {
+		return err
+	}
+	t.work, t.check = work, check
+	return nil
+}
+
+// pick settles one of the two: the shell the yaml wrote, the file it named, or
+// — where it said nothing — the file of that name lying beside it.
+func pick(dir, key, expr, name string) (Script, error) {
+	file := beside(dir, name)
+	switch {
+	case expr != "" && file != "":
+		return Script{}, fmt.Errorf("%s: there is a %s here as well, and a task runs one thing", key, name)
+	case expr == "":
+		return Script{File: file}, nil
+	}
+	named, err := scriptFile(dir, expr)
+	if err != nil {
+		return Script{}, fmt.Errorf("%s: %w", key, err)
 	}
 	if named != "" {
-		t.file, t.Script = named, ""
+		return Script{File: named}, nil
 	}
-	return nil
+	return Script{Shell: expr}, nil
 }
 
 // read decodes one file with unknown keys refused. A misspelled key that is
@@ -240,11 +287,11 @@ func read(path string, into any) error {
 // refusal saying what to do about itself, which is all a message that stops a
 // build is for.
 var retired = map[string]string{
-	"run":   "a module is named once, by its title, and that is what one run of it is called",
-	"blind": "a question asked first opens its filter by itself",
-	"id":    "a starting point is named by its title, and nothing anywhere points at one",
-	"name":  "a title is what a person reads; a name only ever names a variable",
-	"stage": "a task sits in the folder of the stage it belongs to: tasks/<stage>/<task>",
+	"run":    "a module is named once, by its title, and that is what one run of it is called",
+	"blind":  "a question asked first opens its filter by itself",
+	"id":     "a starting point is named by its title, and nothing anywhere points at one",
+	"name":   "a title is what a person reads; a name only ever names a variable",
+	"script": "a task says what it does under execute, and how it is checked afterwards under test",
 }
 
 // unknownField is how the decoder says a key is not one of them. It names the
@@ -274,8 +321,8 @@ func refused(path string, err error) error {
 	return fmt.Errorf("%s: %s", filepath.Base(path), strings.Join(said, "\n"))
 }
 
-func (s *Module) check(byStage map[string][]*Task) error {
-	s.normalize(byStage)
+func (s *Module) check(tasks []*Task, hooks map[string][]*Task) error {
+	s.normalize(tasks, hooks)
 	if s.UI.Title == "" {
 		return fmt.Errorf("%s: title is required", FileModule)
 	}
@@ -285,68 +332,64 @@ func (s *Module) check(byStage map[string][]*Task) error {
 	if err := s.checkPresets(); err != nil {
 		return fmt.Errorf("%s: %w", FileModule, err)
 	}
-	return s.checkTasks(byStage)
+	return s.checkTasks(tasks, hooks)
 }
 
 // checkTasks settles what runs and in what order: every task checked over, the
 // needs resolved, and what is left sorted once and for all.
 //
-// The runtime's own stages are kept apart from the work. They run at their own
-// moment rather than as part of it, so a step in one is neither ordered against
-// the rest nor listed anywhere a run is.
-func (s *Module) checkTasks(byStage map[string][]*Task) error {
-	for _, stage := range slices.Sorted(maps.Keys(byStage)) {
-		for _, t := range byStage[stage] {
-			if err := s.checkTask(t); err != nil {
-				return fmt.Errorf("%s/%s/%s: %w", DirTasks, stage, t.id, err)
+// The hooks are kept apart from the work. They run at their own moment rather
+// than as part of it, so a step in one is neither ordered against the rest nor
+// listed anywhere a run is.
+func (s *Module) checkTasks(tasks []*Task, hooks map[string][]*Task) error {
+	byStage := map[string][]*Task{}
+	for _, t := range tasks {
+		if err := s.checkTask(t); err != nil {
+			return fmt.Errorf("%s/%s: %w", DirTasks, t.id, err)
+		}
+		byStage[t.Stage] = append(byStage[t.Stage], t)
+	}
+	for name, steps := range hooks {
+		for _, t := range steps {
+			if err := t.checkHook(); err != nil {
+				return fmt.Errorf("%s/%s/%s: %w", DirHooks, name, t.id, err)
 			}
 		}
 	}
-	warnings, err := checkNeeds(byStage)
+	warnings, err := checkNeeds(byStage, hooks)
 	if err != nil {
 		return err
 	}
 	s.Warnings = warnings
 
-	s.system = map[string][]*Task{}
-	work := map[string][]*Task{}
-	for stage, tasks := range byStage {
-		if system(stage) {
-			ordered, err := order(tasks)
-			if err != nil {
-				return fmt.Errorf("%s/%s: %w", DirTasks, stage, err)
-			}
-			s.system[stage] = ordered
-			continue
+	s.hooks = map[string][]*Task{}
+	for name, steps := range hooks {
+		ordered, err := order(steps)
+		if err != nil {
+			return fmt.Errorf("%s/%s: %w", DirHooks, name, err)
 		}
-		work[stage] = tasks
-	}
-	if len(work) == 0 {
-		return fmt.Errorf("%s: no tasks", DirTasks)
+		s.hooks[name] = ordered
 	}
 	for _, stage := range s.Stages {
-		ordered, err := order(work[stage])
+		ordered, err := order(byStage[stage])
 		if err != nil {
-			return fmt.Errorf("%s/%s: %w", DirTasks, stage, err)
+			return fmt.Errorf("%s: stage %s: %w", DirTasks, stage, err)
 		}
 		s.Tasks = append(s.Tasks, ordered...)
 	}
 	return nil
 }
 
-// checkTask settles one task on its own: what it is called, what it asks for
-// and shows, and what it is guarded by.
-//
-// A step in one of the runtime's own stages is held to less, because most of
-// what a task may say has nothing to answer to there: it is run at a fixed
-// moment rather than listed, offered or reported on. Saying any of it would be
-// writing a line down that can never take effect, so it is refused instead.
+// checkTask settles one task on its own: what it is called, which phase it
+// belongs to, what it asks for and shows, and what it is guarded by.
 func (s *Module) checkTask(t *Task) error {
-	if t.Title == "" {
+	switch {
+	case t.Title == "":
 		return fmt.Errorf("title is required")
-	}
-	if system(t.stage) {
-		return t.checkSystem()
+	case t.Stage == "":
+		return fmt.Errorf("stage is required: one of %s", strings.Join(s.Stages, ", "))
+	case !slices.Contains(s.Stages, t.Stage):
+		return fmt.Errorf("stage %q: no such stage — %s declares %s", t.Stage, FileModule, strings.Join(s.Stages, ", "))
 	}
 	if err := s.checkAsks(t); err != nil {
 		return err
@@ -365,13 +408,23 @@ func (s *Module) checkTask(t *Task) error {
 	return nil
 }
 
-// checkSystem refuses everything a step in one of the runtime's own stages
-// cannot mean. What is left is its title, what it needs and what it does.
-func (t *Task) checkSystem() error {
+// checkHook refuses everything a step of a hook cannot mean. What is left is
+// its title, what it needs and what it does.
+//
+// A hook is run at a fixed moment rather than listed, offered or reported on,
+// and it is not part of the work, so there is nothing for a stage, a guard or
+// a check afterwards to answer to. Saying any of it would be writing down a
+// line that can never take effect.
+func (t *Task) checkHook() error {
+	if t.Title == "" {
+		return fmt.Errorf("title is required")
+	}
 	said := []struct {
 		key  string
 		used bool
 	}{
+		{"stage", t.Stage != ""},
+		{"test", t.Checks()},
 		{"conditions", len(t.Conditions) > 0},
 		{"asks", t.Asks != ""},
 		{"confirm", t.Confirms()},
@@ -383,7 +436,7 @@ func (t *Task) checkSystem() error {
 	}
 	for _, k := range said {
 		if k.used {
-			return fmt.Errorf("%s: %s is run by the runtime rather than as part of the work, so there is nothing for it to answer to", k.key, t.stage)
+			return fmt.Errorf("%s: %s is run by the runtime rather than as part of the work, so there is nothing for it to answer to", k.key, t.hook)
 		}
 	}
 	return nil
@@ -391,27 +444,33 @@ func (t *Task) checkSystem() error {
 
 // checkNeeds resolves what every task waits for, and says what it found.
 //
-// `needs` orders tasks across one stage; the stages order the rest. So a name
-// belonging to another stage says nothing the stages have not already said, and
-// is dropped with a word about it rather than refused — a module that behaves
-// is not a module that refuses to start. A name belonging to nothing is a
-// different thing entirely: it is a task waiting for something that does not
-// exist, and there is no reading of it that runs.
-func checkNeeds(byStage map[string][]*Task) ([]string, error) {
+// `needs` orders tasks across one stage, and the steps of one hook among
+// themselves; the stages order the rest. So a name belonging to another stage
+// says nothing the stages have not already said, and is dropped with a word
+// about it rather than refused — a module that behaves is not a module that
+// refuses to start. A name belonging to nothing is a different thing entirely:
+// it is a task waiting for something that does not exist, and there is no
+// reading of it that runs.
+func checkNeeds(byStage, hooks map[string][]*Task) ([]string, error) {
+	// A hook carries the mark and a stage may not, so the two sets of names can
+	// never collide.
+	groups := map[string][]*Task{}
+	maps.Copy(groups, byStage)
+	maps.Copy(groups, hooks)
+
 	elsewhere := map[string]string{}
-	for stage, tasks := range byStage {
+	for group, tasks := range groups {
 		for _, t := range tasks {
-			elsewhere[t.id] = stage
+			elsewhere[t.id] = group
 		}
 	}
 	var warnings []string
-	for _, stage := range slices.Sorted(maps.Keys(byStage)) {
+	for _, group := range slices.Sorted(maps.Keys(groups)) {
 		here := map[string]bool{}
-		for _, t := range byStage[stage] {
+		for _, t := range groups[group] {
 			here[t.id] = true
 		}
-		for _, t := range byStage[stage] {
-			where := fmt.Sprintf("%s/%s/%s", DirTasks, stage, t.id)
+		for _, t := range groups[group] {
 			kept := t.Needs[:0]
 			for _, n := range t.Needs {
 				switch {
@@ -419,15 +478,23 @@ func checkNeeds(byStage map[string][]*Task) ([]string, error) {
 					kept = append(kept, n)
 				case elsewhere[n] != "":
 					warnings = append(warnings, fmt.Sprintf("%s: needs %s, which is in %s — needs orders tasks within one stage, the stages order the rest",
-						where, n, elsewhere[n]))
+						t.where(), n, elsewhere[n]))
 				default:
-					return nil, fmt.Errorf("%s: needs unknown task: %s", where, n)
+					return nil, fmt.Errorf("%s: needs unknown task: %s", t.where(), n)
 				}
 			}
 			t.Needs = kept
 		}
 	}
 	return warnings, nil
+}
+
+// where is the folder a task was read from, as a module's author knows it.
+func (t *Task) where() string {
+	if t.hook != "" {
+		return fmt.Sprintf("%s/%s/%s", DirHooks, t.hook, t.id)
+	}
+	return fmt.Sprintf("%s/%s", DirTasks, t.id)
 }
 
 // checkConfirm settles a task's `default:`, which says which of the two answers
@@ -503,7 +570,7 @@ func (s *Module) checkAsks(t *Task) error {
 // to reproduce.
 //
 // A blank line survives, because that is the one break that was meant.
-func (s *Module) normalize(byStage map[string][]*Task) {
+func (s *Module) normalize(tasks []*Task, hooks map[string][]*Task) {
 	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Console, &s.Confirm}
 	for _, p := range s.Presets {
 		fields = append(fields, &p.Title, &p.Description)
@@ -514,9 +581,12 @@ func (s *Module) normalize(byStage map[string][]*Task) {
 	for _, v := range s.Vars {
 		fields = append(fields, &v.Title, &v.Description, &v.Group, &v.Free, &v.Error)
 	}
-	for _, tasks := range byStage {
-		for _, t := range tasks {
-			fields = append(fields, &t.Title, &t.Confirm, &t.Report)
+	for _, t := range tasks {
+		fields = append(fields, &t.Title, &t.Confirm, &t.Report)
+	}
+	for _, steps := range hooks {
+		for _, t := range steps {
+			fields = append(fields, &t.Title)
 		}
 	}
 	for _, f := range fields {

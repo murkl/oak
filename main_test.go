@@ -18,9 +18,9 @@ func writeModule(t *testing.T, declaration string, extra map[string]string) stri
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		spec.FileModule:            declaration,
-		"tasks/go/first/task.yaml": "title: First\n",
-		"tasks/go/first/task.sh":   "true\n",
+		spec.FileModule:         declaration,
+		"tasks/first/task.yaml": "stage: go\ntitle: First\n",
+		"tasks/first/task.sh":   "true\n",
 	}
 	maps.Copy(files, extra)
 	for name, body := range files {

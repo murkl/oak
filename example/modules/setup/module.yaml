@@ -12,8 +12,8 @@
 title: Tux Setup
 description: Build a small Linux system tree, the way an installer would.
 
-# The phases the work happens in, in the order they happen. Each is a folder
-# under tasks/, and the steps in it are what puts them in the run and where.
+# The phases the work happens in, in the order they happen. Every task names one
+# of them, and naming it is the whole of what puts it in the run and where.
 stages: [prepare, install, finish]
 
 # The last thing read before the first task runs, with the answers filled in.

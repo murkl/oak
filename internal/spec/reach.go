@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"maps"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -101,7 +100,7 @@ func (s *Module) unreachable(v *Variable, tasks []*Task) (Unread, bool) {
 			return Unread{}, false
 		}
 		if first.Var == "" {
-			first = Unread{Var: v.Name, Task: path.Join(t.Stage(), t.ID()), Need: need}
+			first = Unread{Var: v.Name, Task: t.ID(), Need: need}
 		}
 	}
 	return first, true
@@ -121,16 +120,16 @@ func (s *Module) readers(sh *refs, name string) []*Task {
 }
 
 // everywhere is every file of this module that runs whatever the answers say:
-// the declaration and the shell in it, the module's own shell, and each step of
-// the runtime's own stages. Nothing here is guarded by anything, so a value one
-// of them reads is read on every run there is.
+// the declaration and the shell in it, the module's own shell, and every step
+// of every hook. Nothing here is guarded by anything, so a value one of them
+// reads is read on every run there is.
 func (s *Module) everywhere() ([]string, error) {
 	out := []string{filepath.Join(s.Dir, FileModule)}
 	if s.Shell != "" {
 		out = append(out, s.Shell)
 	}
-	for _, stage := range SystemStages {
-		for _, t := range s.System(stage) {
+	for _, name := range Hooks {
+		for _, t := range s.Hook(name) {
 			paths, err := filesUnder(t.Dir())
 			if err != nil {
 				return nil, err

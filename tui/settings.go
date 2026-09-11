@@ -2,6 +2,7 @@ package tui
 
 import (
 	"github.com/murkl/oak/internal/i18n"
+	"github.com/murkl/oak/internal/spec"
 	"github.com/murkl/oak/internal/store"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -79,6 +80,16 @@ func (s *settingsScreen) collect() []settingRow {
 			title: labelLanguage(),
 			value: s.languageName(),
 			key:   store.LangVar,
+		}})
+	}
+	// The runtime's other own answer, and it is offered only where this module
+	// has something to check: a switch for a thing that would never happen is a
+	// row that reads as a promise nothing keeps.
+	if s.app.module.Checks() {
+		rows = append(rows, settingRow{item: item{
+			title: labelValidating(),
+			value: store.Label(truth(s.app.prefs.Validates())),
+			key:   store.ValidateVar,
 		}})
 	}
 	for _, v := range s.app.store.Visible() {
@@ -206,6 +217,8 @@ func (s *settingsScreen) open(name string) tea.Cmd {
 		return nil
 	case name == store.LangVar:
 		return push(newLanguage(s.app, pop))
+	case name == store.ValidateVar:
+		return push(newSwitch(s.app, labelValidating(), labelValidatingHelp(), s.app.prefs.Validates(), s.app.validate))
 	}
 	v := s.app.module.Var(name)
 	if v == nil || v.Secret() {
@@ -217,3 +230,57 @@ func (s *settingsScreen) open(name string) tea.Cmd {
 func (s *settingsScreen) View(width, height int) string {
 	return s.filter.View() + s.picker.View(width, height-s.filter.rows())
 }
+
+// truth is a bool as the answer file spells one, so that the runtime's own rows
+// read exactly as a module's do.
+func truth(on bool) string {
+	if on {
+		return spec.BoolTrue
+	}
+	return spec.BoolFalse
+}
+
+// switchScreen is a yes or no that belongs to the runtime rather than to a
+// module. A module's own bool has a page already — the one every question is
+// asked on — and it is built out of a declaration this answer does not have, so
+// the two rows get a page of their own rather than a fake variable to hang off.
+type switchScreen struct {
+	app    *app
+	title  string
+	help   string
+	set    func(bool) tea.Cmd
+	picker *picker
+}
+
+func newSwitch(a *app, title, help string, on bool, set func(bool) tea.Cmd) *switchScreen {
+	s := &switchScreen{app: a, title: title, help: help, set: set}
+	s.picker = newPicker([]item{
+		{title: labelYes(), key: keyYes},
+		{title: labelNo(), key: keyNo},
+	})
+	s.picker.describe(help)
+	if !on {
+		s.picker.focus(keyNo)
+	}
+	return s
+}
+
+func (s *switchScreen) Title() string { return s.title }
+func (s *switchScreen) Hint() string  { return labelHintChoose() }
+
+func (s *switchScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
+	s.picker.Update(msg)
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return s, nil
+	}
+	switch {
+	case confirms(key):
+		return s, tea.Batch(s.set(s.picker.selected() == keyYes), pop())
+	case backs(key):
+		return s, pop()
+	}
+	return s, nil
+}
+
+func (s *switchScreen) View(width, height int) string { return s.picker.View(width, height) }

@@ -18,27 +18,44 @@ msgstr ""
 msgid "English"
 msgstr ""
 
-#. the four labels below head the table shown when a step failed: the script
-#. it was in, the line that ran, what it returned, and what it printed. Each
-#. is one column of a narrow table, so short wins over exact.
-#: internal/exec/failure.go:45
+#. the labels below head the table shown when a step failed: the module it
+#. belongs to, the step itself, the script and line it was in, what ran, and
+#. what it returned. Each is one column of a narrow table, so short wins
+#. over exact.
+#: internal/exec/failure.go:55
+msgid "Module"
+msgstr ""
+
+#: internal/exec/failure.go:57
+msgid "Hook"
+msgstr ""
+
+#: internal/exec/failure.go:58
+msgid "Step"
+msgstr ""
+
+#: internal/exec/failure.go:60
+msgid "Task"
+msgstr ""
+
+#: internal/exec/failure.go:63
 msgid "Script"
 msgstr ""
 
-#: internal/exec/failure.go:47
+#: internal/exec/failure.go:65
 msgid "Command"
 msgstr ""
 
-#: internal/exec/failure.go:49
+#: internal/exec/failure.go:67
 msgid "Exit code"
 msgstr ""
 
-#: internal/exec/failure.go:57 tui/labels.go:128
+#: internal/exec/failure.go:75 tui/labels.go:146
 #, c-format
 msgid "%s failed"
 msgstr ""
 
-#: internal/exec/failure.go:62
+#: internal/exec/failure.go:80
 msgid "Error"
 msgstr ""
 
@@ -56,11 +73,11 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:511
+#: internal/spec/spec.go:557
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:513
+#: internal/spec/spec.go:559
 msgid "This value is required."
 msgstr ""
 
@@ -69,42 +86,46 @@ msgstr ""
 msgid "Answers for %s. Can be edited by hand."
 msgstr ""
 
-#: internal/store/language.go:55
+#: internal/store/prefs.go:77
 msgid "Answers kept for every module. Can be edited by hand."
 msgstr ""
 
-#: internal/store/language.go:56 tui/labels.go:93
+#: internal/store/prefs.go:78 tui/labels.go:93
 msgid "Interface language"
 msgstr ""
 
-#: internal/store/store.go:189
+#: internal/store/prefs.go:79
+msgid "Check every step on the machine it was done to"
+msgstr ""
+
+#: internal/store/store.go:193
 msgid "asked just before the run"
 msgstr ""
 
-#: internal/store/store.go:206 tui/labels.go:169
+#: internal/store/store.go:210 tui/labels.go:187
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:208 tui/labels.go:170
+#: internal/store/store.go:212 tui/labels.go:188
 msgid "No"
 msgstr ""
 
-#: internal/wlan/wlan.go:88 internal/wlan/wlan.go:91
+#: internal/wlan/wlan.go:89 internal/wlan/wlan.go:92
 msgid "No wireless device."
 msgstr ""
 
-#: internal/wlan/wlan.go:102
+#: internal/wlan/wlan.go:103
 msgid "The networks in range could not be read."
 msgstr ""
 
 #. %s is the name of the wireless network.
-#: internal/wlan/wlan.go:115
+#: internal/wlan/wlan.go:116
 #, c-format
 msgid "%s could not be joined."
 msgstr ""
 
 #. %s is the name of the wireless network.
-#: internal/wlan/wlan.go:124
+#: internal/wlan/wlan.go:125
 #, c-format
 msgid "%s was joined, but there is still no internet."
 msgstr ""
@@ -290,89 +311,111 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
+#. the first %d is how many checks passed, the second how many ran.
+#: tui/labels.go:120
+#, c-format
+msgid "%d of %d checks passed"
+msgstr ""
+
+#: tui/labels.go:122
+msgid "Validation"
+msgstr ""
+
+#: tui/labels.go:123
+msgid "↑↓ move · ⏎ open · esc continue"
+msgstr ""
+
+#: tui/labels.go:124
+msgid "Check every step"
+msgstr ""
+
+#: tui/labels.go:126
+msgid "After each step, read the machine it was done to and say whether it took. Nothing is changed and nothing is stopped."
+msgstr ""
+
 #. %s is the name of the module whose values these are.
-#: tui/labels.go:113
+#: tui/labels.go:131
 #, c-format
 msgid "Every value %s will use. Choose one to change it."
 msgstr ""
 
-#: tui/labels.go:116
+#: tui/labels.go:134
 msgid "Repeat"
 msgstr ""
 
-#: tui/labels.go:117
+#: tui/labels.go:135
 msgid "The entries do not match."
 msgstr ""
 
-#: tui/labels.go:126
+#: tui/labels.go:144
 msgid "Ready to start"
 msgstr ""
 
-#: tui/labels.go:127
+#: tui/labels.go:145
 #, c-format
 msgid "Start %s"
 msgstr ""
 
-#: tui/labels.go:130
+#: tui/labels.go:148
 #, c-format
 msgid "%s · %s"
 msgstr ""
 
-#: tui/labels.go:133
+#: tui/labels.go:151
 #, c-format
 msgid "%s complete in %s"
 msgstr ""
 
-#: tui/labels.go:136
+#: tui/labels.go:154
 #, c-format
 msgid "The full log is in %s."
 msgstr ""
 
-#: tui/labels.go:143
+#: tui/labels.go:161
 #, c-format
 msgid "%s: there is nothing to choose from."
 msgstr ""
 
-#: tui/labels.go:146
+#: tui/labels.go:164
 msgid "Cannot continue"
 msgstr ""
 
-#: tui/labels.go:150
+#: tui/labels.go:168
 msgid "Leave"
 msgstr ""
 
-#: tui/labels.go:155
+#: tui/labels.go:173
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr ""
 
-#: tui/labels.go:158
+#: tui/labels.go:176
 msgid "Restart"
 msgstr ""
 
-#: tui/labels.go:159
+#: tui/labels.go:177
 msgid "Close this machine down and start it again."
 msgstr ""
 
-#: tui/labels.go:160
+#: tui/labels.go:178
 msgid "Shut down"
 msgstr ""
 
-#: tui/labels.go:161
+#: tui/labels.go:179
 msgid "Exit"
 msgstr ""
 
-#: tui/labels.go:162
+#: tui/labels.go:180
 msgid "Switch this machine off."
 msgstr ""
 
-#: tui/labels.go:163
+#: tui/labels.go:181
 msgid "Restarting …"
 msgstr ""
 
-#: tui/labels.go:164
+#: tui/labels.go:182
 msgid "Shutting down …"
 msgstr ""
 
-#: tui/labels.go:165
+#: tui/labels.go:183
 msgid "The machine did not respond."
 msgstr ""

@@ -18,8 +18,14 @@ const stderrKeep = 8
 // Failure is what a script reports back when it dies, in one shape for every
 // script there is or will be: the runtime never knows what a script does, so it
 // asks bash where it broke rather than guessing from the output.
+//
+// What it carries is what somebody reading it has to have to go and find the
+// line: which module, which step of it, which file and line, and what the tool
+// itself said on the way out.
 type Failure struct {
+	Module  string // the module the step belongs to
 	Unit    string // the step's name, filled in by the caller
+	Hook    string // the hook it is a step of, empty for an ordinary task
 	Script  string // the file the ERR trap fired in
 	Line    int
 	Code    int
@@ -30,6 +36,11 @@ type Failure struct {
 // Fields renders the failure as label/value pairs, so the frame can lay them
 // out as a table rather than parse a sentence back apart. The labels are
 // translated here because this is the one place that knows what each value is.
+//
+// A hook is named as one. It is a module's own code run at a moment the runtime
+// chose, so a mistake in it is as much an authoring bug as one in a task — and
+// the row that says which hook is the difference between a puzzle and a file to
+// open.
 func (f *Failure) Fields() [][2]string {
 	var out [][2]string
 	add := func(label, value string) {
@@ -37,11 +48,18 @@ func (f *Failure) Fields() [][2]string {
 			out = append(out, [2]string{label, value})
 		}
 	}
+	// TRANSLATORS: the labels below head the table shown when a step failed:
+	// the module it belongs to, the step itself, the script and line it was in,
+	// what ran, and what it returned. Each is one column of a narrow table, so
+	// short wins over exact.
+	add(i18n.T("Module"), f.Module)
+	if f.Hook != "" {
+		add(i18n.T("Hook"), f.Hook)
+		add(i18n.T("Step"), f.Unit)
+	} else {
+		add(i18n.T("Task"), f.Unit)
+	}
 	if f.Script != "" {
-		// TRANSLATORS: the four labels below head the table shown when a step
-		// failed: the script it was in, the line that ran, what it returned,
-		// and what it printed. Each is one column of a narrow table, so short
-		// wins over exact.
 		add(i18n.T("Script"), fmt.Sprintf("%s:%d", f.Script, f.Line))
 	}
 	add(i18n.T("Command"), f.Command)
@@ -116,9 +134,35 @@ func exitCode(err error) int {
 // Fail wraps whatever comes back from a script that ran outside a Session — one
 // that was handed the terminal — in the one shape failures are reported in.
 // There is no trap report to fill in: what went wrong was on screen.
-func Fail(unit string, err error) error {
+func (r Runner) Fail(step Step, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &Failure{Unit: unit, Code: exitCode(err)}
+	return &Failure{Module: r.Module, Unit: step.Name, Hook: step.Hook, Code: exitCode(err)}
+}
+
+// failure turns an exit status into that one shape, filling in whatever the
+// trap managed to report and whatever the script said on its way out.
+func (r Runner) failure(step Step, err error, report, said string) error {
+	f := parseReport(report)
+	if f == nil {
+		f = &Failure{Code: exitCode(err)}
+	}
+	f.Module, f.Unit, f.Hook, f.Stderr = r.Module, step.Name, step.Hook, said
+	return f
+}
+
+// lastWords is the tail of what a script said on stderr, which is where a
+// failing tool says why. Everything above it is the tool working.
+func lastWords(s string) string {
+	var kept []string
+	for line := range strings.SplitSeq(s, "\n") {
+		if line = strings.TrimSpace(sanitize(line)); line != "" {
+			kept = append(kept, line)
+		}
+	}
+	if len(kept) > stderrKeep {
+		kept = kept[len(kept)-stderrKeep:]
+	}
+	return strings.Join(kept, "\n")
 }

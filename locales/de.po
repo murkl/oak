@@ -15,27 +15,44 @@ msgstr ""
 msgid "English"
 msgstr "Deutsch"
 
-#. the four labels below head the table shown when a step failed: the script
-#. it was in, the line that ran, what it returned, and what it printed. Each
-#. is one column of a narrow table, so short wins over exact.
-#: internal/exec/failure.go:45
+#. the labels below head the table shown when a step failed: the module it
+#. belongs to, the step itself, the script and line it was in, what ran, and
+#. what it returned. Each is one column of a narrow table, so short wins
+#. over exact.
+#: internal/exec/failure.go:55
+msgid "Module"
+msgstr "Modul"
+
+#: internal/exec/failure.go:57
+msgid "Hook"
+msgstr "Hook"
+
+#: internal/exec/failure.go:58
+msgid "Step"
+msgstr "Schritt"
+
+#: internal/exec/failure.go:60
+msgid "Task"
+msgstr "Schritt"
+
+#: internal/exec/failure.go:63
 msgid "Script"
 msgstr "Skript"
 
-#: internal/exec/failure.go:47
+#: internal/exec/failure.go:65
 msgid "Command"
 msgstr "Befehl"
 
-#: internal/exec/failure.go:49
+#: internal/exec/failure.go:67
 msgid "Exit code"
 msgstr "Exit-Code"
 
-#: internal/exec/failure.go:57 tui/labels.go:128
+#: internal/exec/failure.go:75 tui/labels.go:146
 #, c-format
 msgid "%s failed"
 msgstr "%s fehlgeschlagen"
 
-#: internal/exec/failure.go:62
+#: internal/exec/failure.go:80
 msgid "Error"
 msgstr "Fehler"
 
@@ -53,11 +70,11 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:511
+#: internal/spec/spec.go:557
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:513
+#: internal/spec/spec.go:559
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
@@ -66,42 +83,46 @@ msgstr "Dieser Wert wird benötigt."
 msgid "Answers for %s. Can be edited by hand."
 msgstr "Angaben für %s. Kann von Hand bearbeitet werden."
 
-#: internal/store/language.go:55
+#: internal/store/prefs.go:77
 msgid "Answers kept for every module. Can be edited by hand."
 msgstr "Angaben, die für jedes Modul gelten. Kann von Hand bearbeitet werden."
 
-#: internal/store/language.go:56 tui/labels.go:93
+#: internal/store/prefs.go:78 tui/labels.go:93
 msgid "Interface language"
 msgstr "Sprache der Oberfläche"
 
-#: internal/store/store.go:189
+#: internal/store/prefs.go:79
+msgid "Check every step on the machine it was done to"
+msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
+
+#: internal/store/store.go:193
 msgid "asked just before the run"
 msgstr "wird kurz vor dem Start abgefragt"
 
-#: internal/store/store.go:206 tui/labels.go:169
+#: internal/store/store.go:210 tui/labels.go:187
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:208 tui/labels.go:170
+#: internal/store/store.go:212 tui/labels.go:188
 msgid "No"
 msgstr "Nein"
 
-#: internal/wlan/wlan.go:88 internal/wlan/wlan.go:91
+#: internal/wlan/wlan.go:89 internal/wlan/wlan.go:92
 msgid "No wireless device."
 msgstr "Kein WLAN-Gerät."
 
-#: internal/wlan/wlan.go:102
+#: internal/wlan/wlan.go:103
 msgid "The networks in range could not be read."
 msgstr "Die Netzwerke in Reichweite konnten nicht gelesen werden."
 
 #. %s is the name of the wireless network.
-#: internal/wlan/wlan.go:115
+#: internal/wlan/wlan.go:116
 #, c-format
 msgid "%s could not be joined."
 msgstr "Verbindung mit %s fehlgeschlagen."
 
 #. %s is the name of the wireless network.
-#: internal/wlan/wlan.go:124
+#: internal/wlan/wlan.go:125
 #, c-format
 msgid "%s was joined, but there is still no internet."
 msgstr "%s ist verbunden, aber es gibt weiterhin keine Internetverbindung."
@@ -287,90 +308,112 @@ msgstr "%d von %d"
 msgid "Settings"
 msgstr "Einstellungen"
 
+#. the first %d is how many checks passed, the second how many ran.
+#: tui/labels.go:120
+#, c-format
+msgid "%d of %d checks passed"
+msgstr "%d von %d Prüfungen bestanden"
+
+#: tui/labels.go:122
+msgid "Validation"
+msgstr "Prüfung"
+
+#: tui/labels.go:123
+msgid "↑↓ move · ⏎ open · esc continue"
+msgstr "↑↓ bewegen · ⏎ öffnen · esc weiter"
+
+#: tui/labels.go:124
+msgid "Check every step"
+msgstr "Jeden Schritt prüfen"
+
+#: tui/labels.go:126
+msgid "After each step, read the machine it was done to and say whether it took. Nothing is changed and nothing is stopped."
+msgstr "Nach jedem Schritt die Maschine lesen, auf der er ausgeführt wurde, und sagen, ob er gegriffen hat. Es wird nichts verändert und nichts abgebrochen."
+
 #. %s is the name of the module whose values these are.
-#: tui/labels.go:113
+#: tui/labels.go:131
 #, c-format
 msgid "Every value %s will use. Choose one to change it."
 msgstr "Alle Werte, mit denen %s arbeitet. Zum Ändern einen davon öffnen."
 
-#: tui/labels.go:116
+#: tui/labels.go:134
 msgid "Repeat"
 msgstr "Wiederholen"
 
-#: tui/labels.go:117
+#: tui/labels.go:135
 msgid "The entries do not match."
 msgstr "Die Eingaben stimmen nicht überein."
 
-#: tui/labels.go:126
+#: tui/labels.go:144
 msgid "Ready to start"
 msgstr "Bereit zum Start"
 
-#: tui/labels.go:127
+#: tui/labels.go:145
 #, c-format
 msgid "Start %s"
 msgstr "%s starten"
 
-#: tui/labels.go:130
+#: tui/labels.go:148
 #, c-format
 msgid "%s · %s"
 msgstr "%s · %s"
 
-#: tui/labels.go:133
+#: tui/labels.go:151
 #, c-format
 msgid "%s complete in %s"
 msgstr "%s abgeschlossen in %s"
 
-#: tui/labels.go:136
+#: tui/labels.go:154
 #, c-format
 msgid "The full log is in %s."
 msgstr "Das vollständige Protokoll steht in %s."
 
-#: tui/labels.go:143
+#: tui/labels.go:161
 #, c-format
 msgid "%s: there is nothing to choose from."
 msgstr "%s: Es gibt nichts zur Auswahl."
 
-#: tui/labels.go:146
+#: tui/labels.go:164
 msgid "Cannot continue"
 msgstr "Fortfahren nicht möglich"
 
-#: tui/labels.go:150
+#: tui/labels.go:168
 msgid "Leave"
 msgstr "Beenden"
 
-#: tui/labels.go:155
+#: tui/labels.go:173
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr "Der Vorgang läuft hinter dieser Seite weiter. Jede Auswahl hier bricht ihn ab."
 
-#: tui/labels.go:158
+#: tui/labels.go:176
 msgid "Restart"
 msgstr "Neu starten"
 
-#: tui/labels.go:159
+#: tui/labels.go:177
 msgid "Close this machine down and start it again."
 msgstr "Den Rechner herunterfahren und neu starten."
 
-#: tui/labels.go:160
+#: tui/labels.go:178
 msgid "Shut down"
 msgstr "Herunterfahren"
 
-#: tui/labels.go:161
+#: tui/labels.go:179
 msgid "Exit"
 msgstr "Beenden"
 
-#: tui/labels.go:162
+#: tui/labels.go:180
 msgid "Switch this machine off."
 msgstr "Den Rechner ausschalten."
 
-#: tui/labels.go:163
+#: tui/labels.go:181
 msgid "Restarting …"
 msgstr "Neustart läuft …"
 
-#: tui/labels.go:164
+#: tui/labels.go:182
 msgid "Shutting down …"
 msgstr "Wird heruntergefahren …"
 
-#: tui/labels.go:165
+#: tui/labels.go:183
 msgid "The machine did not respond."
 msgstr "Der Rechner hat nicht reagiert."
 

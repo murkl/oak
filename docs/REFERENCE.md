@@ -5,7 +5,7 @@ Everything a product may declare. Nothing here is compiled into Oak: a different
 Two rules run through the whole file:
 
 - **`title:` is what a person reads. `name:` only ever names a variable.** A module, a task and a preset are named by their folder or their place, so none carries an id
-- **Nothing is written down twice.** Which modules there are is the folders under `modules/`; which stages have work in them and which tasks are in each is the folders under `tasks/`
+- **Nothing is written down twice.** Which modules there are is the folders under `modules/`; which tasks there are is the folders under `tasks/`
 
 ## The product — `oak.yaml`
 
@@ -38,10 +38,14 @@ One folder. Only the declaration has to be there — a module turns a part of th
 | --- | --- |
 | `module.yaml` | The declaration: what the module is, what it asks, and the order its work happens in |
 | `module.sh` | Sourced in front of everything this module runs |
-| `tasks/<stage>/<task>/task.yaml` | What a step is |
-| `tasks/<stage>/<task>/task.sh` | What it does, where its yaml does not say so itself |
-| `tasks/@<stage>/<task>/` | A stage Oak runs itself — see [System stages](#system-stages) |
+| `tasks/<task>/task.yaml` | What a task is |
+| `tasks/<task>/task.sh` | What it does, where its yaml does not say so itself |
+| `tasks/<task>/test.sh` | How to tell that it took, likewise. Optional — see [Checking the work](#checking-the-work) |
+| `hooks/@<hook>/<step>/hook.yaml` | A moment Oak runs itself — see [Hooks](#hooks) |
+| `hooks/@<hook>/<step>/hook.sh` | What that step does, where its yaml does not say so itself |
 | `locales/<code>.po` | One catalog per language |
+
+The work and the hooks are two folders, not one, because they answer to different things: a task is the module's own work — listed, ordered, guarded — while a hook is the module's answer to a question Oak asks at a moment of its own choosing. Every file inside says which of the two it is, so neither is ever read as the other.
 
 The folder name is the module's identity: what `oak --module=<name>` opens, and what its files are called — `setup` writes `setup.conf` and `setup.log`. Everything inside it has the name Oak knows it by, so nothing points at anything.
 
@@ -51,7 +55,7 @@ The folder name is the module's identity: what `oak --module=<name>` opens, and 
 title: Tux Setup                         # the module's name on screen
 description: Set a machine up for Tux.   # shown where the modules are offered
 stages: [prepare, install]               # the phases the work happens in, in order
-                                         # — one folder each under tasks/
+                                         # — every task names one of them
 
 confirm: |                               # the last thing shown before anything changes
   {{TUX_HOST}} will be set up in {{TUX_TARGET}}.
@@ -63,7 +67,7 @@ language: TUX_LOCALE                     # optional: ties the interface language
 | Key | Description |
 | --- | --- |
 | `title` | **Required.** The module's only name — it heads the row that starts a run, the last warning, and the clock while it runs |
-| `stages` | **Required.** The phases the work happens in, in order. Each is a folder under `tasks/`, and a name may not start with `@` |
+| `stages` | **Required.** The phases the work happens in, in order. Every task names one of them, and a name may not start with `@` |
 | `description` | One sentence, read on the page that offers the modules |
 | `confirm` | The last thing shown before the first task. `{{VAR}}` is filled in from the answers |
 | `console` | Read on the terminal on the way out, where the machine keeps running |
@@ -145,20 +149,24 @@ There is no `or`. A row that applies under two unrelated conditions is written a
 
 ## Tasks
 
-A folder under the stage it belongs to: `tasks/<stage>/<task>/`. Nothing says which stage it runs in — the folder it sits in does.
+One folder under `tasks/`, flat, whatever phase it belongs to. Which phase that is is the `stage:` in its declaration, out of the ones `module.yaml` listed.
 
 ```yaml
 title: Install the graphics driver   # the line shown while the user waits
+stage: install                       # one of the module's declared stages
 needs: [desktop-gnome]               # ordered after these, within the same stage
 conditions:                          # every one must hold, or the task is skipped
   - TUX_DRIVER != none
 ```
 
-What it does is the `task.sh` beside that file, or the `script:` in it:
+The folder name is the task's identity — what another task's `needs:` points at — and nothing else. Moving a task to another phase is one line, and the name everything knows it by does not move with it.
+
+What it does is the `task.sh` beside that file, or the `execute:` in it:
 
 ```yaml
 title: Enable 32-bit support
-script: |                            # shell, for a step short enough to read here
+stage: install
+execute: |                           # shell, for a step short enough to read here
   sed -i '/\[multilib\]/,+1s/^#//' /etc/pacman.conf
   pacman -Sy --noconfirm
 ```
@@ -166,10 +174,10 @@ script: |                            # shell, for a step short enough to read he
 | Written as | What runs |
 | --- | --- |
 | nothing | The `task.sh` in the same folder |
-| `script:` with shell in it | That shell |
-| `script: ./install.sh` | That file, relative to this `task.yaml` |
+| `execute:` with shell in it | That shell |
+| `execute: ./install.sh` | That file, relative to this `task.yaml` |
 
-A `script:` **and** a `task.sh` is two answers to the same question and is refused, as is neither. Shell written in the yaml has no file for a failure to point at, so what a failure names is the command and the exit code rather than a file and a line.
+An `execute:` **and** a `task.sh` is two answers to the same question and is refused, as is neither. Shell written in the yaml has no file for a failure to point at, so what a failure names is the command and the exit code rather than a file and a line.
 
 Seven more keys change what a task **is** rather than what it does:
 
@@ -189,26 +197,50 @@ Seven more keys change what a task **is** rather than what it does:
 printf "MY_LINK='%s'\n" "$url" >>"$MODULE_CONF"
 ```
 
+### Checking the work
+
+A task may also say how to tell that it took. That is `test:`, found exactly the way `execute:` is — written here, naming a file, or simply lying beside it as `test.sh`:
+
+```yaml
+title: Install the boot loader
+stage: boot
+test: |
+  arch-chroot "$MNT" bootctl is-installed | grep -q yes
+```
+
+| Written as | What runs |
+| --- | --- |
+| nothing | The `test.sh` in the same folder, where there is one |
+| `test:` with shell in it | That shell |
+| `test: ./check.sh` | That file, relative to this `task.yaml` |
+| neither, and no `test.sh` | Nothing. The task is simply not checked |
+
+It runs immediately after the work, on the machine that work was done to, and it has one rule: **it reads and it says nothing else**. It runs on a system halfway through being built, and a check that changes anything is a step nobody listed. An exit code is the whole answer; what it prints goes to the log.
+
+A run started with `--debug` runs none of them. Nothing reached the machine, so there is nothing on it to read — which means a check needs no guard of its own for that case, unlike the task it belongs to.
+
+A check that fails does not fail the run. The work said it worked, and something looking at the machine afterwards disagreed — that is a thing to read, not a reason to abandon an installation that is already on the disk. So they are collected and read once, on the page the run ends with: how many of how many, and the ones that disagreed, each opening on the same file-and-line report a failed task gets.
+
+Whether any of this happens at all is one switch in the settings, on unless somebody turns it off. It is Oak's own answer rather than a module's — what is checked is the module's business, whether anything is checked is not — so it is kept in `oak.conf` and holds for every module beside it. The switch is offered only where the module has something to check.
+
 ### The order
 
 ```
 tasks/
-  prepare/
-    partition/
-    format/          needs: [partition]
-  install/
-    base/
-    desktop/         needs: [base]
-    graphics/        needs: [base]
+  partition/       stage: prepare
+  format/          stage: prepare   needs: [partition]
+  base/            stage: install
+  desktop/         stage: install   needs: [base]
+  graphics/        stage: install   needs: [base]
 ```
 
 ```mermaid
 flowchart LR
-    subgraph A["tasks/prepare"]
+    subgraph A["stage: prepare"]
         direction TB
         P["partition"] --> F["format"]
     end
-    subgraph B["tasks/install"]
+    subgraph B["stage: install"]
         direction TB
         BS["base"] --> DE["desktop"]
         BS --> GR["graphics"]
@@ -223,7 +255,7 @@ Two tasks that neither a stage nor a `needs` separates are independent. Their or
 
 `needs:` names a task **in the same stage**. A name no task anywhere answers to is refused at startup, and so is a cycle, which is reported as the ring it goes round: `a → b → c → a`. A name belonging to another stage says nothing the stages have not already said, so it is dropped with a warning rather than refused — `--inspect` reports it and the log records it.
 
-A folder under `tasks/` that is neither a declared stage nor one of Oak's own is refused: work that never runs because its folder is misspelled is the one mistake nothing else would ever show.
+A task naming a stage the module never declared is refused, and so is one naming none: work that never runs because a stage is misspelled is the one mistake nothing else would ever show.
 
 ## Presets
 
@@ -247,11 +279,13 @@ presets:
 
 A preset is named by its title and nothing else. Nothing points at one, so there is no id to keep unique.
 
-## System stages
+## Hooks
 
-Seven stages belong to Oak rather than to the module, and are marked with `@` so a listing tells them apart at a glance. Each is a folder of tasks like any other stage — Oak decides when it runs, and a module that leaves one out simply does not get that part of the program.
+Seven moments belong to Oak rather than to the module. Each is a folder under `hooks/`, named with the `@` the hook itself carries, holding one folder per step with a `hook.yaml` and — where the shell is too long for the yaml — a `hook.sh` in it.
 
-| Stage | Description |
+Oak decides when a hook runs. A module that fills none of them has no `hooks/` folder at all, and simply does not get those parts of the program.
+
+| Hook | Description |
 | --- | --- |
 | `@preflight` | Can this machine be worked on at all. A hard stop, run before everything except the `first` questions. What it writes to stderr is what the user reads |
 | `@online` | Is there internet. Without it the network screen never appears |
@@ -262,16 +296,18 @@ Seven stages belong to Oak rather than to the module, and are marked with `@` so
 | `@shutdown` | Switch it off |
 
 ```
-tasks/@preflight/root/task.yaml       title: Running as root
-tasks/@preflight/firmware/task.yaml   title: UEFI, Secure Boot off
-tasks/@online/https/task.yaml         title: Reach the network
+hooks/@preflight/root/hook.yaml       title: Running as root
+hooks/@preflight/firmware/hook.yaml   title: UEFI, Secure Boot off
+hooks/@online/https/hook.yaml         title: Reach the network
 ```
 
-Every task in one of them runs in order, and `@preflight` stops at the first that says no — so a check that is really four checks is written as four, each with a name of its own. `needs:` orders them the way it orders any stage.
+Every step of a hook runs in order, one process each, and `@preflight` stops at the first that says no — so a check that is really four checks is written as four, each with a name of its own. `needs:` orders them the way it orders a stage. What they print comes back as one answer, which is how `@wlan-networks` hands over a list.
 
-A task here is written like any other — a `title:`, what it `needs:`, and its `task.sh` or `script:` — but it is run at a fixed moment rather than listed, offered or reported on, so `conditions:`, `asks:`, `confirm:`, `default:`, `report:`, `shows:`, `quits:` and `tty:` are refused: a line that can never take effect is a line somebody will read as though it could.
+Running them one at a time is what makes a mistake in one findable. A hook is a module's own shell, and a typo in it is an authoring bug like any other: the failure names the module, the hook, the step, the file, the line and the command, exactly as a failed task does.
 
-The title of a `@preflight` task is read: it is what the failure page names when that check is the one that said no. Everywhere else it is what the file calls itself, and nothing more.
+A step is written like any other unit — a `title:`, what it `needs:`, and its `hook.sh` or `execute:` — but it is run at a fixed moment rather than listed, offered, reported on or checked afterwards, so `stage:`, `test:`, `conditions:`, `asks:`, `confirm:`, `default:`, `report:`, `shows:`, `quits:` and `tty:` are refused: a line that can never take effect is a line somebody will read as though it could.
+
+The title of a `@preflight` step is read: it is what the failure page names when that check is the one that said no. Everywhere else it is what the file calls itself, and nothing more.
 
 `@restart` and `@shutdown` turn leaving the interface into a choice rather than a plain exit: a module that fills them is saying the machine booted specifically to run it. A module with neither exits like any ordinary program.
 
@@ -290,9 +326,9 @@ That is the whole list, and it is meant to stay that way. Anything else a script
 MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ```
 
-Scripts run in a shell that already carries an `ERR` trap and, where the module has one, `module.sh`. They need no preamble: no shebang, no `set -e`, no error handling. If a command fails, the task fails and the user is shown the file, the line, the command and the exit code.
+Scripts run in a shell that already carries an `ERR` trap and, where the module has one, `module.sh`. They need no preamble: no shebang, no `set -e`, no error handling. If a command fails, the unit fails and the user is shown the module, the unit, the file, the line, the command and the exit code.
 
-**`module.sh` is sourced in front of everything** — every task, and every piece of shell the yaml writes for a `command:`, a `prefill:`, an `apply:` or a `script:`. So a function defined there is called by name from the yaml:
+**`module.sh` is sourced in front of everything** — every task, every check, every step of every hook, and every piece of shell the yaml writes for a `command:`, a `prefill:`, an `apply:`, an `execute:` or a `test:`. So a function defined there is called by name from the yaml:
 
 ```yaml
 apply: load_console_keyboard
@@ -300,9 +336,9 @@ command: list_locales
 ```
 
 ```yaml
-# tasks/@online/https/task.yaml
+# hooks/@online/https/hook.yaml
 title: Reach the network
-script: is_online
+execute: is_online
 ```
 
 Four rules, and no more:
@@ -312,7 +348,9 @@ Four rules, and no more:
 - **Ask nothing.** Every question is declared in the yaml, unless the task declares `tty: true`
 - **Print nothing for a person to read.** stdout and stderr go to the log; the screen shows the task's name
 
-`command:`, `prefill:`, `apply:` and a task's `script:` each accept either shell or a file. A single line starting with `./` or `../` names a file, relative to the folder of the yaml it was written in; anything else is the shell itself.
+A `test:` keeps a fifth: **change nothing at all**, whatever `DEBUG` says. It reads a machine somebody is still installing onto, and its exit code is the whole of what it has to say.
+
+`command:`, `prefill:`, `apply:`, `execute:` and `test:` each accept either shell or a file. A single line starting with `./` or `../` names a file, relative to the folder of the yaml it was written in; anything else is the shell itself.
 
 ## Files it writes
 
@@ -320,7 +358,7 @@ Beside wherever the program was started, never inside a module — which may be 
 
 | File | Description |
 | --- | --- |
-| `oak.conf` | What Oak keeps across every module: the language |
+| `oak.conf` | What Oak keeps across every module: `OAK_LANG`, the language, and `OAK_VALIDATE`, whether a run checks its own work |
 | `<module>.conf` | Every answer, as `KEY='value'`. Plain shell, editable by hand |
 | `<module>.log` | Oak's own progress plus every line every script printed |
 

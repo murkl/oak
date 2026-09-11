@@ -8,7 +8,13 @@ import (
 	"github.com/murkl/oak/internal/exec"
 )
 
-var sh = exec.Runner{}
+var sh = exec.Runner{Module: "Test Module"}
+
+// hook is what a module put in one of the runtime's hooks, as the shell layer
+// takes it: one step, which is what nearly every hook is.
+func hook(shell string) []exec.Step {
+	return []exec.Step{{Name: "Step", Script: exec.Script{Shell: shell}}}
+}
 
 func radio(cfg Config) *Radio {
 	return &Radio{cfg: cfg, sh: sh, env: func() exec.Env { return nil }, settle: time.Millisecond, tries: 2}
@@ -21,26 +27,26 @@ func TestNewGivesNoRadioWhenTheTreeDescribesNone(t *testing.T) {
 }
 
 func TestOnlineReportsWhatTheHookSays(t *testing.T) {
-	if !radio(Config{Online: "true"}).Online() {
+	if !radio(Config{Online: hook("true")}).Online() {
 		t.Error("Online() = false, want true")
 	}
-	if radio(Config{Online: "false"}).Online() {
+	if radio(Config{Online: hook("false")}).Online() {
 		t.Error("Online() = true, want false")
 	}
 }
 
 func TestJoinableNeedsDeviceNetworksAndConnect(t *testing.T) {
-	if radio(Config{Online: "true"}).Joinable() {
+	if radio(Config{Online: hook("true")}).Joinable() {
 		t.Error("a module with only an online hook reported joinable")
 	}
-	full := Config{Online: "true", Device: "echo wlan0", Networks: "true", Connect: "true"}
+	full := Config{Online: hook("true"), Device: hook("echo wlan0"), Networks: hook("true"), Connect: hook("true")}
 	if !radio(full).Joinable() {
 		t.Error("a fully described module reported not joinable")
 	}
 }
 
 func TestInterfaceReturnsWhatTheDeviceCommandPrints(t *testing.T) {
-	r := radio(Config{Device: "echo wlan0"})
+	r := radio(Config{Device: hook("echo wlan0")})
 	got, err := r.Interface()
 	if err != nil {
 		t.Fatal(err)
@@ -51,17 +57,17 @@ func TestInterfaceReturnsWhatTheDeviceCommandPrints(t *testing.T) {
 }
 
 func TestInterfaceFailsWhenThereIsNoDevice(t *testing.T) {
-	if _, err := radio(Config{Device: "true"}).Interface(); err == nil {
+	if _, err := radio(Config{Device: hook("true")}).Interface(); err == nil {
 		t.Fatal("an empty device list was not an error")
 	}
-	if _, err := radio(Config{Device: "exit 1"}).Interface(); err == nil {
+	if _, err := radio(Config{Device: hook("exit 1")}).Interface(); err == nil {
 		t.Fatal("a failing device command was not an error")
 	}
 }
 
 // An SSID may hold spaces, so the list is one name per line and nothing else.
 func TestNetworksReadsOneNamePerLine(t *testing.T) {
-	cfg := Config{Networks: `printf '%s\n' "Coffee Bar" Home`}
+	cfg := Config{Networks: hook(`printf '%s\n' "Coffee Bar" Home`)}
 	got, err := radio(cfg).Networks("wlan0")
 	if err != nil {
 		t.Fatal(err)
@@ -73,13 +79,13 @@ func TestNetworksReadsOneNamePerLine(t *testing.T) {
 }
 
 func TestNetworksFailsWhenTheHookDoes(t *testing.T) {
-	if _, err := radio(Config{Networks: "exit 1"}).Networks("wlan0"); err == nil {
+	if _, err := radio(Config{Networks: hook("exit 1")}).Networks("wlan0"); err == nil {
 		t.Fatal("a failing networks hook was not reported")
 	}
 }
 
 func TestNetworksSeesTheDeviceInTheEnvironment(t *testing.T) {
-	cfg := Config{Networks: `echo "device=$WLAN_DEVICE"`}
+	cfg := Config{Networks: hook(`echo "device=$WLAN_DEVICE"`)}
 	got, err := radio(cfg).Networks("wlan0")
 	if err != nil {
 		t.Fatal(err)
@@ -91,8 +97,8 @@ func TestNetworksSeesTheDeviceInTheEnvironment(t *testing.T) {
 
 func TestJoinRunsConnectWithTheCredentials(t *testing.T) {
 	cfg := Config{
-		Online:  "true",
-		Connect: `[ "$WLAN_DEVICE" = wlan0 ] && [ "$WLAN_SSID" = Home ] && [ "$WLAN_PASSPHRASE" = secret ]`,
+		Online:  hook("true"),
+		Connect: hook(`[ "$WLAN_DEVICE" = wlan0 ] && [ "$WLAN_SSID" = Home ] && [ "$WLAN_PASSPHRASE" = secret ]`),
 	}
 	if err := radio(cfg).Join("wlan0", "Home", "secret"); err != nil {
 		t.Fatalf("join = %v", err)
@@ -100,7 +106,7 @@ func TestJoinRunsConnectWithTheCredentials(t *testing.T) {
 }
 
 func TestJoinFailsWhenConnectFails(t *testing.T) {
-	cfg := Config{Online: "true", Connect: "exit 1"}
+	cfg := Config{Online: hook("true"), Connect: hook("exit 1")}
 	if err := radio(cfg).Join("wlan0", "Home", "secret"); err == nil {
 		t.Fatal("a failing connect was not reported")
 	}
@@ -109,7 +115,7 @@ func TestJoinFailsWhenConnectFails(t *testing.T) {
 // Joining and being online are not the same thing — a wrong passphrase fails
 // silently on some cards — so Join has to wait and check for itself.
 func TestJoinFailsWhenItNeverComesOnline(t *testing.T) {
-	cfg := Config{Online: "false", Connect: "true"}
+	cfg := Config{Online: hook("false"), Connect: hook("true")}
 	err := radio(cfg).Join("wlan0", "Home", "secret")
 	if err == nil {
 		t.Fatal("a connection that never carries traffic was not reported")
@@ -122,7 +128,7 @@ func TestJoinFailsWhenItNeverComesOnline(t *testing.T) {
 func TestAHookIsHandedTheEnvironmentAsItStandsNow(t *testing.T) {
 	env := exec.Env{"ANSWER=first"}
 	r := &Radio{
-		cfg:    Config{Online: "true", Networks: `printf '%s\n' "$ANSWER"`},
+		cfg:    Config{Online: hook("true"), Networks: hook(`printf '%s\n' "$ANSWER"`)},
 		sh:     sh,
 		env:    func() exec.Env { return env },
 		settle: time.Millisecond,

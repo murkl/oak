@@ -1,0 +1,6 @@
+title: Prepare the target
+
+# Which phase this task's work belongs to, out of the ones module.yaml declares.
+# The folder it sits in is its name and nothing more, so moving a task to
+# another phase is this one line.
+stage: prepare

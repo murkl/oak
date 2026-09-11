@@ -189,11 +189,11 @@ func run(rt *spec.Runtime, mods []*spec.Module, debug bool) error {
 	sources := catalogs(mods...)
 	langs := i18n.Discover(sources...)
 
-	lang := saved()
-	i18n.Activate(language(lang.Code(), langs), sources...)
+	prefs := saved()
+	i18n.Activate(language(prefs.Lang(), langs), sources...)
 
 	opening := &tui.Opening{
-		Runtime: rt, Modules: mods, Lang: lang, Langs: langs, Sources: sources,
+		Runtime: rt, Modules: mods, Prefs: prefs, Langs: langs, Sources: sources,
 		Oak: version,
 	}
 	return tui.Run(opening, func(mod *spec.Module) (*tui.Program, error) {
@@ -201,16 +201,17 @@ func run(rt *spec.Runtime, mods []*spec.Module, debug bool) error {
 	})
 }
 
-// saved is the runtime's own answers: the language, kept for every module.
+// saved is the runtime's own answers: the language and whether a run checks its
+// own work, both kept for every module.
 //
-// It sits in the folder a module's answers sit in, so that one folder holds one
+// They sit in the folder a module's answers sit in, so that one folder holds one
 // product's files and nothing else.
-func saved() *store.Language {
+func saved() *store.Preferences {
 	beside, err := filepath.Abs(".")
 	if err != nil {
 		beside = "."
 	}
-	return store.NewLanguage(filepath.Join(beside, runtimeConf))
+	return store.NewPreferences(filepath.Join(beside, runtimeConf))
 }
 
 // open makes one module runnable: the answers it keeps and the file they

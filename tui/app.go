@@ -50,7 +50,7 @@ type Program struct {
 type Opening struct {
 	Runtime *spec.Runtime
 	Modules []*spec.Module
-	Lang    *store.Language
+	Prefs   *store.Preferences
 	Langs   []i18n.Lang
 	Sources []fs.FS
 
@@ -75,9 +75,10 @@ type app struct {
 	modules []*spec.Module
 	open    Open
 
-	// lang is what the runtime remembers for every module: the words all of
-	// them are read in, settled before any of them is opened.
-	lang *store.Language
+	// prefs is what the runtime remembers for every module: the words all of
+	// them are read in, settled before any of them is opened, and whether a run
+	// checks its own work as it goes.
+	prefs *store.Preferences
 
 	module *spec.Module
 	store  *store.Store
@@ -121,7 +122,7 @@ func Run(o *Opening, open Open) error {
 	// running that would take the answer for somebody typing.
 	Adapt()
 	a := &app{
-		runtime: o.Runtime, modules: o.Modules, lang: o.Lang,
+		runtime: o.Runtime, modules: o.Modules, prefs: o.Prefs,
 		langs: o.Langs, sources: o.Sources,
 		open: open, version: o.Runtime.Version, oak: o.Oak,
 	}
@@ -193,8 +194,24 @@ func (a *app) leaves() bool { return a.module != nil && a.module.Leaves() }
 // to rebuild: the next frame is simply in the new language.
 func (a *app) speak(code string) tea.Cmd {
 	i18n.Activate(code, a.sources...)
-	a.lang.Set(code)
-	if err := a.lang.Save(); err != nil {
+	a.prefs.SetLang(code)
+	return a.remember()
+}
+
+// validate turns the checking of a run's own work on or off, for every module
+// this product offers. It is the runtime's answer rather than a module's: what
+// is checked is the module's business, whether anything is checked at all is
+// not.
+func (a *app) validate(on bool) tea.Cmd {
+	a.prefs.SetValidates(on)
+	return a.remember()
+}
+
+// remember writes the runtime's own answers. A machine that cannot record them
+// would ask again from the top on the next start, so failing is worth saying
+// out loud rather than carrying on quietly.
+func (a *app) remember() tea.Cmd {
+	if err := a.prefs.Save(); err != nil {
 		logging.Error("%s", err)
 		return flashBad(err.Error())
 	}
@@ -218,8 +235,8 @@ func (a *app) speakLike(value string) {
 		code = i18n.SourceLang
 	}
 	i18n.Activate(code, a.sources...)
-	a.lang.Set(code)
-	if err := a.lang.Save(); err != nil {
+	a.prefs.SetLang(code)
+	if err := a.prefs.Save(); err != nil {
 		logging.Error("%s", err)
 	}
 }
@@ -321,7 +338,7 @@ func (a *app) network() screen {
 // something or was told to carry on without. Then comes the module's own check
 // that this machine can be worked on at all, where it declares one.
 func (a *app) afterNetwork() screen {
-	if a.module.SystemShell(spec.StagePreflight) == "" {
+	if len(a.module.Hook(spec.HookPreflight)) == 0 {
 		return a.afterCheck()
 	}
 	return newCheck(a)

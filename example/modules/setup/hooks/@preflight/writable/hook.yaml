@@ -1,0 +1,14 @@
+# A hook is a moment the runtime runs shell of its own accord. Which moment is
+# the folder's name; what the module does there is one folder per step under it,
+# each declared in hook.yaml — never task.yaml, because a hook is not part of
+# the work and nothing about it is listed, ordered or guarded.
+#
+# This one runs before the first question, to say whether the machine can be
+# worked on at all. The module says nothing anywhere about when that is.
+title: Check the working folder
+
+# What goes to stderr is what somebody reads when the check says no.
+execute: |
+  [ -w . ] && return 0
+  echo "This folder cannot be written to. Start Tux Setup somewhere you own." >&2
+  exit 1

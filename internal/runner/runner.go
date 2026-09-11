@@ -25,14 +25,36 @@ type Runner struct {
 }
 
 func New(mod *spec.Module, st *store.Store) *Runner {
-	sh := exec.Runner{Shell: mod.Shell}
+	sh := exec.Runner{Shell: mod.Shell, Module: mod.Name()}
 	cfg := wlan.Config{
-		Online:   mod.SystemShell(spec.StageOnline),
-		Device:   mod.SystemShell(spec.StageDevice),
-		Networks: mod.SystemShell(spec.StageNetworks),
-		Connect:  mod.SystemShell(spec.StageConnect),
+		Online:   steps(mod, spec.HookOnline),
+		Device:   steps(mod, spec.HookDevice),
+		Networks: steps(mod, spec.HookNetworks),
+		Connect:  steps(mod, spec.HookConnect),
 	}
 	return &Runner{mod: mod, store: st, sh: sh, radio: wlan.New(cfg, sh, st.Env)}
+}
+
+// steps is one hook as the shell layer takes it: everything the module put in
+// it, in order, each carrying the names a failure is reported under.
+func steps(mod *spec.Module, hook string) []exec.Step {
+	tasks := mod.Hook(hook)
+	out := make([]exec.Step, 0, len(tasks))
+	for _, t := range tasks {
+		out = append(out, step(t, t.Work()))
+	}
+	return out
+}
+
+// step is one piece of a module's work as the shell layer takes it. What it
+// runs is passed in, because a task holds two: the work, and the check that
+// looks at what the work left behind.
+func step(t *spec.Task, script spec.Script) exec.Step {
+	return exec.Step{
+		Name:   t.Label(),
+		Hook:   t.Hook(),
+		Script: exec.Script{File: script.File, Shell: script.Shell},
+	}
 }
 
 // Radio is how this module finds and joins a wireless network, or nil when it
@@ -186,20 +208,34 @@ func (r *Runner) Tasks() []*spec.Task {
 // nowhere else; what comes back here is whether it worked.
 func (r *Runner) Start(t *spec.Task) (*exec.Session, error) {
 	logging.Info("%s", t.Title)
-	return r.sh.Start(t.Label(), script(t), r.store.Env())
+	return r.sh.Start(step(t, t.Work()), r.store.Env())
+}
+
+// Check runs what a task declared as its own proof that the work took: the same
+// kind of script, started the same way, reading the machine the work was done
+// to and changing nothing on it.
+//
+// It is a task's second script rather than a task of its own because it belongs
+// to the one that did the work — a check listed beside the work would be a
+// second list of the installation's steps, able to fall out of step with the
+// first.
+func (r *Runner) Check(t *spec.Task) (*exec.Session, error) {
+	logging.Info("%s: %s", t.Title, "check")
+	return r.sh.Start(step(t, t.Check()), r.store.Env())
 }
 
 // Terminal is a task that takes the terminal over, built but not started —
 // the interface has to stand aside first, and only it knows how.
 func (r *Runner) Terminal(t *spec.Task) *osexec.Cmd {
 	logging.Info("%s", t.Title)
-	return r.sh.Terminal(script(t), r.store.Env())
+	work := t.Work()
+	return r.sh.Terminal(exec.Script{File: work.File, Shell: work.Shell}, r.store.Env())
 }
 
-// script is one task as the shell layer takes it: the file it lives in, or the
-// shell its yaml wrote outright.
-func script(t *spec.Task) exec.Script {
-	return exec.Script{File: t.File(), Shell: t.Script}
+// Fail is what comes back from a task the interface stood aside for, in the one
+// shape failures are reported in.
+func (r *Runner) Fail(t *spec.Task, err error) error {
+	return r.sh.Fail(step(t, t.Work()), err)
 }
 
 // Leave carries out one of the two ways this module says a machine is put down,
@@ -210,16 +246,16 @@ func script(t *spec.Task) exec.Script {
 // A module with nothing in that stage has nothing to carry out and says so, so
 // the interface never offers a row that would do nothing.
 func (r *Runner) Leave(restart bool) error {
-	stage := spec.StageShutdown
+	hook := spec.HookShutdown
 	if restart {
-		stage = spec.StageRestart
+		hook = spec.HookRestart
 	}
-	script := r.mod.SystemShell(stage)
-	if script == "" {
+	put := steps(r.mod, hook)
+	if len(put) == 0 {
 		return nil
 	}
-	logging.Info("leaving: %s", stage)
-	_, err := r.sh.Run(script, r.store.Env())
+	logging.Info("leaving: %s", hook)
+	_, err := r.sh.Hook(put, r.store.Env())
 	return err
 }
 
@@ -232,9 +268,9 @@ func (r *Runner) Leave(restart bool) error {
 // which is the whole point: being told the firmware is wrong is worth very
 // little after twenty questions.
 func (r *Runner) Preflight() error {
-	for _, t := range r.mod.System(spec.StagePreflight) {
+	for _, t := range r.mod.Hook(spec.HookPreflight) {
 		logging.Info("%s", t.Title)
-		session, err := r.sh.Start(t.Label(), script(t), r.store.Env())
+		session, err := r.sh.Start(step(t, t.Work()), r.store.Env())
 		if err != nil {
 			return err
 		}

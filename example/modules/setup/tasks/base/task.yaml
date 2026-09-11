@@ -1,0 +1,8 @@
+title: Install the base system
+stage: install
+
+# Short enough to read here, so there is no test.sh beside this file. The other
+# form is a single line naming one: `test: ./verify.sh`.
+test: |
+  grep -q "^$TUX_HOST$" "$TUX_TARGET/etc/hostname"
+  grep -q '^ID=tux$' "$TUX_TARGET/etc/os-release"

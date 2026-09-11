@@ -15,13 +15,14 @@ import (
 	"github.com/murkl/oak/internal/i18n"
 )
 
-// Config is the shell one module uses to find and join a network. Every field is
-// optional bar Online: a module may say only "tell me if I am offline".
+// Config is the shell one module uses to find and join a network, one hook to
+// a field. Every one is optional bar Online: a module may say only "tell me if
+// I am offline".
 type Config struct {
-	Online   string
-	Device   string
-	Networks string
-	Connect  string
+	Online   []exec.Step
+	Device   []exec.Step
+	Networks []exec.Step
+	Connect  []exec.Step
 }
 
 // Radio joins a network the way one module describes.
@@ -59,7 +60,7 @@ const (
 // gets a nil Radio, which is not an error — it just never gets offered the
 // screen.
 func New(cfg Config, sh exec.Runner, env func() exec.Env) *Radio {
-	if cfg.Online == "" {
+	if len(cfg.Online) == 0 {
 		return nil
 	}
 	return &Radio{cfg: cfg, sh: sh, env: env, settle: defaultSettle, tries: defaultTries}
@@ -67,13 +68,13 @@ func New(cfg Config, sh exec.Runner, env func() exec.Env) *Radio {
 
 // Joinable reports whether the module described enough to actually connect.
 func (r *Radio) Joinable() bool {
-	return r.cfg.Device != "" && r.cfg.Networks != "" && r.cfg.Connect != ""
+	return len(r.cfg.Device) > 0 && len(r.cfg.Networks) > 0 && len(r.cfg.Connect) > 0
 }
 
 // Online reports whether there is internet. A failing check is an answer, not
 // an error — being offline is the normal case this whole package exists for.
 func (r *Radio) Online() bool {
-	_, err := r.sh.Run(r.cfg.Online, r.env())
+	_, err := r.sh.Hook(r.cfg.Online, r.env())
 	return err == nil
 }
 
@@ -83,7 +84,7 @@ func (r *Radio) Online() bool {
 // it is said in the interface's own language with whatever the hook had to add
 // after it — that part is the tool's own words and is nobody's to translate.
 func (r *Radio) Interface() (string, error) {
-	out, err := r.sh.Run(r.cfg.Device, r.env())
+	out, err := r.sh.Hook(r.cfg.Device, r.env())
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", i18n.T("No wireless device."), err)
 	}
@@ -97,11 +98,11 @@ func (r *Radio) Interface() (string, error) {
 // to settle belong to the hook: how long a card takes to answer is the module's
 // business, and a list read too early is empty rather than wrong.
 func (r *Radio) Networks(device string) ([]string, error) {
-	lines, err := r.sh.Lines(r.cfg.Networks, r.withDevice(device))
+	out, err := r.sh.Hook(r.cfg.Networks, r.withDevice(device))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("The networks in range could not be read."), err)
 	}
-	return lines, nil
+	return exec.Lines(out), nil
 }
 
 // Join connects to one network and waits for it to actually carry traffic.
@@ -110,7 +111,7 @@ func (r *Radio) Networks(device string) ([]string, error) {
 // caller meant to ask.
 func (r *Radio) Join(device, ssid, passphrase string) error {
 	env := r.withCredentials(device, ssid, passphrase)
-	if _, err := r.sh.Run(r.cfg.Connect, env); err != nil {
+	if _, err := r.sh.Hook(r.cfg.Connect, env); err != nil {
 		// TRANSLATORS: %s is the name of the wireless network.
 		return fmt.Errorf("%s: %w", i18n.T("%s could not be joined.", ssid), err)
 	}

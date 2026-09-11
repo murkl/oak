@@ -89,9 +89,9 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	fmt.Fprintf(w, "  variables  %d (%d required, %d secret)\n", len(mod.Vars), required, secret)
 	fmt.Fprintf(w, "  presets    %d\n", len(mod.Presets))
 	fmt.Fprintf(w, "  stages     %s\n", strings.Join(mod.Stages, " "))
-	fmt.Fprintf(w, "  tasks      %d\n", len(mod.Tasks))
-	if stages := systemStages(mod); len(stages) > 0 {
-		fmt.Fprintf(w, "  system     %s\n", strings.Join(stages, " "))
+	fmt.Fprintf(w, "  tasks      %d (%d checked)\n", len(mod.Tasks), checks(mod))
+	if filled := hooks(mod); len(filled) > 0 {
+		fmt.Fprintf(w, "  hooks      %s\n", strings.Join(filled, " "))
 	}
 	fmt.Fprintf(w, "  languages  %s\n", strings.Join(names, " "))
 
@@ -115,7 +115,7 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 
 	// The order they run in is worked out rather than written down anywhere.
 	for i, t := range mod.Tasks {
-		fmt.Fprintf(w, "  %2d. %-10s %s\n", i+1, t.Stage(), t.ID())
+		fmt.Fprintf(w, "  %2d. %-10s %-20s %s\n", i+1, t.Stage, t.ID(), checked(t))
 	}
 
 	// A catalog whose keys have drifted from the yaml shows up here as a
@@ -138,14 +138,14 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	return nil
 }
 
-// systemStages is which of the runtime's own stages this module fills, so one
-// that is not being run because of a typo in a folder name is visible as one
-// missing from this line.
-func systemStages(mod *spec.Module) []string {
+// hooks is which of the runtime's hooks this module fills, so one that is not
+// being run because of a typo in a folder name is visible as one missing from
+// this line.
+func hooks(mod *spec.Module) []string {
 	var out []string
-	for _, stage := range spec.SystemStages {
-		if n := len(mod.System(stage)); n > 0 {
-			out = append(out, fmt.Sprintf("%s(%d)", stage, n))
+	for _, name := range spec.Hooks {
+		if n := len(mod.Hook(name)); n > 0 {
+			out = append(out, fmt.Sprintf("%s(%d)", name, n))
 		}
 	}
 	return out
@@ -178,4 +178,25 @@ func Template(w io.Writer, rt *spec.Runtime, mods []*spec.Module) error {
 		entries = append(entries, i18n.Entry{Text: m.Text, Note: m.Note, Refs: m.Files})
 	}
 	return i18n.Template(w, mod.ID(), entries)
+}
+
+// checks is how many tasks say how to tell that they worked, which is what a
+// run validates once it is over.
+func checks(mod *spec.Module) int {
+	n := 0
+	for _, t := range mod.Tasks {
+		if t.Checks() {
+			n++
+		}
+	}
+	return n
+}
+
+// checked marks a task that carries one, so the listing says which of them a
+// run will look at afterwards.
+func checked(t *spec.Task) string {
+	if t.Checks() {
+		return "test"
+	}
+	return ""
 }

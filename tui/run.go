@@ -47,6 +47,12 @@ type runScreen struct {
 	err     error
 	done    bool
 
+	// checks is what the run proved about itself as it went: one entry per task
+	// that declared a check and got as far as running it. A failed one does not
+	// stop anything — the work itself said it worked — so it is collected here
+	// and read once, on the page that follows the run.
+	checks []check
+
 	// settled is whether a keystroke means anything yet. It is false while
 	// something is running and for a moment after every question and every
 	// result — see settleFor.
@@ -71,17 +77,29 @@ const (
 
 // phase is how far the task at the cursor has got through what it declared
 // about itself: a value it has to ask for, then the offer, then the work, then
-// whatever it has to report of what the work came to. Each is skipped by a task
-// that declared none, and the order is the useful one — an offer can name what
-// was just chosen, and a report can name what the work produced.
+// the check that the work took, then whatever it has to report of what it came
+// to. Each is skipped by a task that declared none, and the order is the useful
+// one — an offer can name what was just chosen, a check runs while what it
+// looks at is freshest, and a report can name what the work produced.
 type phase int
 
 const (
 	phaseAsk phase = iota
 	phaseConfirm
 	phaseRun
+	phaseCheck
 	phaseReport
 )
+
+// check is what one task's own proof came to: the task it belongs to, and the
+// failure where there was one.
+type check struct {
+	task *spec.Task
+	err  error
+}
+
+// failed reports whether this one is worth reading about afterwards.
+func (c check) failed() bool { return c.err != nil }
 
 // settleFor is the pause before a keystroke counts, after a question appears
 // and after the run ends.
@@ -193,8 +211,9 @@ func clock(d time.Duration) string {
 }
 
 type (
-	stepDoneMsg struct{ err error }
-	settleMsg   struct{}
+	stepDoneMsg  struct{ err error }
+	checkDoneMsg struct{ err error }
+	settleMsg    struct{}
 )
 
 // step takes on the task at the cursor: asks it whatever it said it needed,
@@ -229,10 +248,48 @@ func (s *runScreen) step() tea.Cmd {
 			return s.settle()
 		}
 	}
+	if s.stage == phaseCheck {
+		s.stage = phaseReport
+		if cmd := s.prove(e); cmd != nil {
+			return cmd
+		}
+	}
 	if s.stage == phaseReport {
 		return s.tell(e)
 	}
 	return s.start()
+}
+
+// prove runs what a task declared as its own proof that the work took: read
+// the machine, change nothing, say whether it looks right.
+//
+// It answers nil for a task that declares none, for a run with validation
+// switched off, and for a simulated one — which is what carries the run straight
+// on to the next phase. A simulated run writes nothing, so there is nothing on
+// the machine for a check to read and every one of them would fail for the one
+// reason that is not a fault.
+//
+// A check that will not even start is a failed check rather than a failed run:
+// the work is done either way, and this page is not where that is argued.
+func (s *runScreen) prove(e *spec.Task) tea.Cmd {
+	if !e.Checks() || !s.app.prefs.Validates() || s.app.store.Simulating() {
+		return nil
+	}
+	session, err := s.app.runner.Check(e)
+	if err != nil {
+		s.checks = append(s.checks, check{task: e, err: err})
+		return nil
+	}
+	s.settled = false
+	s.session = session
+	return proved(session)
+}
+
+func proved(session *exec.Session) tea.Cmd {
+	return func() tea.Msg {
+		<-session.Done()
+		return checkDoneMsg{session.Err()}
+	}
 }
 
 // tell puts up what a task had to report of what it just did, and holds the run
@@ -272,7 +329,7 @@ func (s *runScreen) start() tea.Cmd {
 		// releases the terminal, the script has it whole, and the frame is
 		// restored exactly as it was when the script exits.
 		return tea.ExecProcess(s.app.runner.Terminal(e), func(err error) tea.Msg {
-			return stepDoneMsg{exec.Fail(e.Label(), err)}
+			return stepDoneMsg{s.app.runner.Fail(e, err)}
 		})
 	}
 	session, err := s.app.runner.Start(e)
@@ -341,7 +398,19 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		if s.steps[s.at].Quits {
 			return s, quit()
 		}
-		s.stage = phaseReport
+		s.stage = phaseCheck
+		return s, s.step()
+
+	case checkDoneMsg:
+		e := s.steps[s.at]
+		s.session = nil
+		s.checks = append(s.checks, check{task: e, err: msg.err})
+		if msg.err != nil {
+			// Not a failed run: the work said it worked, and something looking
+			// at the machine afterwards disagreed. The run carries on and the
+			// page after it is where the two are put side by side.
+			logging.Warn("%s: %s", e.Title, msg.err)
+		}
 		return s, s.step()
 
 	case askedMsg:
@@ -385,6 +454,11 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		if answers(msg) {
 			if s.err != nil {
 				return s, s.back()
+			}
+			// What the run proved about itself is a page of its own, and only
+			// where there was anything to prove.
+			if len(s.checks) > 0 {
+				return s, push(newValidation(s.app, s.checks, s.then))
 			}
 			return s, s.then()
 		}

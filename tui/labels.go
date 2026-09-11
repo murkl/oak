@@ -108,6 +108,24 @@ func labelCounter(at, of int) string { return say("%d of %d", at, of) }
 
 func labelSettings() string { return say("Settings") }
 
+// What a run proved about itself, once it is over: how many of its checks the
+// machine agreed with, and — where some of them it did not — the page that
+// lists those.
+//
+// One sentence for both outcomes, because the mark in front of it already says
+// which of the two this is, and a second word for it would be the same thing
+// said twice.
+
+// TRANSLATORS: the first %d is how many checks passed, the second how many ran.
+func labelChecksPassed(passed, ran int) string { return say("%d of %d checks passed", passed, ran) }
+
+func labelValidation() string { return say("Validation") }
+func labelHintChecks() string { return say("↑↓ move · ⏎ open · esc continue") }
+func labelValidating() string { return say("Check every step") }
+func labelValidatingHelp() string {
+	return say("After each step, read the machine it was done to and say whether it took. Nothing is changed and nothing is stopped.")
+}
+
 // TRANSLATORS: %s is the name of the module whose values these are.
 func labelSettingsHelp(name string) string {
 	return say("Every value %s will use. Choose one to change it.", name)
