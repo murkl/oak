@@ -45,7 +45,7 @@ SCRIPTS := $(shell find $(EXAMPLE) -name '*.sh')
 POT      := locales/$(APP).pot
 CATALOGS := $(wildcard locales/*.po)
 
-.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln fmt fmt-check locales locales-check version-check check clean
+.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln fmt fmt-check locales locales-check tag-check tag version-check check clean
 
 all: build
 
@@ -136,6 +136,21 @@ lint:
 	yamllint .
 	actionlint
 
+# What a release is called. On its own so that the tag being made and the
+# binary being published are held to the same rule.
+tag-check:
+	@[[ "$(TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] \
+		|| { echo "not a release tag: '$(TAG)' — a release is vMAJOR.MINOR.PATCH" >&2; exit 1; }
+
+# The one place a release tag is typed. The name is checked before the tag
+# exists rather than after it is pushed: a typo is a line in a terminal here,
+# and a tag to delete off the remote there.
+#
+#   make tag TAG=v0.2.0
+tag: tag-check
+	git tag $(TAG)
+	git push origin $(TAG)
+
 # What a tag is allowed to release. The version is `git describe` and there is
 # no second place to keep in step with it, so what can still go wrong is a tag
 # whose binary does not answer to it: a tag moved after the fact, a clone too
@@ -144,9 +159,7 @@ lint:
 #
 #   make version-check TAG=v0.1.0                     against what build wrote
 #   make version-check TAG=v0.1.0 BIN=dist/oak-...    against what CI will ship
-version-check:
-	@[[ "$(TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] \
-		|| { echo "not a release tag: '$(TAG)' — a release is vMAJOR.MINOR.PATCH" >&2; exit 1; }
+version-check: tag-check
 	@said="$$(./$(BIN) --version)"; \
 	[ "$$said" = "$(APP)-$(TAG:v%=%)" ] \
 		|| { echo "$(BIN) answers '$$said' — the tag says '$(TAG)'" >&2; exit 1; }
