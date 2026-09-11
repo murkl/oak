@@ -23,7 +23,7 @@ logo: |
 
 | Key | Description |
 | --- | --- |
-| `title` | The product's name, over the pages drawn before a module is opened |
+| `title` | The product's name, over every page — followed by the module's own once one is open |
 | `version` | What this build of the product is called, in the corner of every page. Left out, no version is shown |
 | `accent` | `#rrggbb`. The one colour the interface is built from |
 | `logo` | The wordmark. Everything above the first blank line is a dim eyebrow over it |

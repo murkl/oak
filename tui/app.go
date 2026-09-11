@@ -170,11 +170,20 @@ func (a *app) enter(mod *spec.Module) error {
 	return nil
 }
 
-// brand is what the frame is titled, on every page: the product, never one of
-// the modules inside it. Which module is open is what the page itself says —
-// the row that starts it, the breadcrumb over it — and a header repeating that
-// name is the product's own nowhere to be read.
+// brand is the product's own name, the word a sentence about it uses — the
+// welcome page's greeting among them, read before a module is even on offer.
 func (a *app) brand() string { return a.runtime.Title }
+
+// heading is what the frame is titled, on every page: the product, and once
+// one of its modules has been opened, which one — joined onto it the way a
+// breadcrumb reads, so the header still says what this run is once the page
+// that named it has scrolled away.
+func (a *app) heading() string {
+	if a.module == nil {
+		return a.brand()
+	}
+	return a.brand() + " " + glyphs.crumb + " " + a.module.Name()
+}
 
 // leaves reports whether this machine has to be asked about on the way out. A
 // module nobody has opened yet has said nothing about the machine, so leaving

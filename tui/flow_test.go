@@ -617,14 +617,15 @@ func TestTheLandingPageComesBeforeTheQuestionOfWhichModule(t *testing.T) {
 
 // A row that opens something says what will happen on it, not what the thing is
 // called: `action:` is the word, on the page asking which module to open and on
-// the menu inside one. The title is for the sentences about it.
+// the menu inside one. The title is for the sentences about it — the header
+// among them, which is why it is not refused on the whole screen here.
 func TestARowThatOpensAModuleCarriesWhatItDoes(t *testing.T) {
 	tree := strings.Replace(testInstaller, "title: Test Installer\n",
 		"title: Test Installer\naction: Set it up\n", 1)
 	h := newHarness(t, map[string]string{treeFile: tree})
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
-	h.wants("Set it up").refuses("Test Installer")
+	h.wants("Set it up").refuses(glyphs.cursor + "Test Installer")
 
 	// And the title is what the sentences about it are written with.
 	h.down()
@@ -653,16 +654,15 @@ func TestTheRuntimesOwnPagesNameTheProgramThatWasOpened(t *testing.T) {
 	h.wants("Every value Test Recovery will use.").refuses("installer")
 }
 
-// The frame itself is titled after the product wherever it is drawn, the pages
-// inside a module included. Which module is open is what the page says — the row
-// that starts it, the breadcrumb over it — and a header repeating that name
-// leaves the product's own nowhere to be read.
-func TestTheFrameIsTitledAfterTheProductInsideAModuleToo(t *testing.T) {
+// The frame is titled after the product on every page, and once a module is
+// open, after that module too: the header says what this run is even once the
+// page that named it has scrolled away.
+func TestTheFrameIsTitledAfterTheProductAndTheModuleOnceOneIsOpen(t *testing.T) {
 	h := start(t, both(t)...)
 	h.down().enter() // the recovery
 	h.wants("Disk").enter()
 	h.wants("Snapshot").enter()
-	h.wants(testRuntime.Title, "Test Recovery")
+	h.wants(testRuntime.Title + " " + glyphs.crumb + " Test Recovery")
 }
 
 // ─── Starting points ─────────────────────────────────────────────────────────

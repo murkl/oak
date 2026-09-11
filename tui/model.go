@@ -280,7 +280,7 @@ func (m *Model) View() string {
 	}
 
 	return renderFrame(m.width, m.height, chrome{
-		brand:   m.app.brand(),
+		brand:   m.app.heading(),
 		status:  status,
 		alarm:   alarm,
 		mark:    m.indicator(),
