@@ -54,6 +54,7 @@ The folder name is the module's identity: what `oak --module=<name>` opens, and 
 ```yaml
 title: Tux Setup                         # the module's name, where it is talked about
 action: Set up                           # optional: the word on the row that opens it
+run: Setup                               # optional: what one run of it is called
 description: Set a machine up for Tux.   # shown where the modules are offered
 stages: [prepare, install]               # the phases the work happens in, in order
                                          # — each a folder under tasks/
@@ -72,9 +73,10 @@ offered: |                               # optional: whether this machine is one
 
 | Key | Description |
 | --- | --- |
-| `title` | **Required.** What the module is called, wherever the interface talks about it rather than starts it: the sentence over its settings, the last warning, the clock while it runs |
+| `title` | **Required.** What the module is called, wherever the interface talks about it rather than starts it: the sentence over its settings and the last warning |
 | `stages` | **Required.** The phases the work happens in, in order. Each is a folder under `tasks/`, marked — `tasks/@install/` — and the name written here carries no `@` of its own |
 | `action` | The word on the row that **opens** it — on the page asking which module, and again on the menu. A row is pressed, so it says what will happen rather than what this is called. Left out, the row falls back on the title |
+| `run` | What one **run** of it is called, as the work rather than the program doing it: the row that starts it, the clock while it works, and the line at the end — `Installation failed`, not `Installer failed`, because what failed is the work. Left out, it falls back on the title |
 | `description` | One sentence, read on the page that offers the modules |
 | `confirm` | The last thing shown before the first task. `{{VAR}}` is filled in from the answers |
 | `console` | Read on the terminal on the way out, where the machine keeps running |

@@ -40,7 +40,7 @@ func (s *confirmScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 }
 
 func (s *confirmScreen) View(width, height int) string {
-	start := labelStartNamed(s.app.module.Name())
+	start := labelStartNamed(s.app.module.Doing())
 	var b strings.Builder
 	b.WriteString(alertStyle.Render(labelReadyToStart()) + "\n\n")
 	if text := s.app.module.ConfirmText(s.app.store.Get); text != "" {

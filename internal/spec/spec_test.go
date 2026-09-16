@@ -578,8 +578,8 @@ func TestLoadRefuses(t *testing.T) {
 			// told what to write instead, so the refusal is the whole of what
 			// somebody needs in order to fix it.
 			name:  "a key a product used to be able to declare",
-			files: map[string]string{FileModule: head("run: Installation\n")},
-			want:  "run is not a key here — a module is named once, by its title",
+			files: map[string]string{FileModule: head("blind: true\n")},
+			want:  "blind is not a key here — a question asked first opens its filter by itself",
 		},
 		{
 			// The two keys this layout retired, each pointing at where what

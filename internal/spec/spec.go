@@ -228,6 +228,19 @@ type UI struct {
 	// name pressed like a button reads as a label somebody forgot to finish.
 	Action string
 
+	// Run is what one run of this module is called, as the work rather than the
+	// program doing it: "Installation", "Recovery". It is what the page before
+	// the first task, the clock while the tasks go by and the line at the end
+	// are about — a run that stops says the installation failed, because what
+	// failed is the work and not the program that was carrying it out.
+	//
+	// None of the three can be made out of the others. A title is a name, an
+	// action is an imperative, and the work is a noun for neither: no two
+	// languages form one from the other the same way. A module that names no
+	// run falls back on its title, which is what every module said before there
+	// was anywhere else to say it.
+	Run string
+
 	// Description is what this module is, in one sentence, read under its title
 	// on the page that offers it.
 	Description string
@@ -650,6 +663,17 @@ func (s *Module) Does() string {
 	return i18n.T(s.UI.Action)
 }
 
+// Doing is what a run of it is called, translated: the word the page before the
+// first task, the clock while it works and the line at the end are all about.
+// A module that named none falls back on its own name, which is what the
+// interface said before there was anywhere else to say it.
+func (s *Module) Doing() string {
+	if s.UI.Run == "" {
+		return s.Name()
+	}
+	return i18n.T(s.UI.Run)
+}
+
 // Message is one thing a module says: the text, what it is, and the files it
 // was read out of. The last two are all a translator has — the words arrive out
 // of the module they belong to, one sentence at a time.
@@ -688,6 +712,7 @@ func (s *Module) Messages() []Message {
 	decl := FileModule
 	add(decl, "what this program is called, where the interface talks about it", s.UI.Title)
 	add(decl, "what opening it does, on the row that opens it", s.UI.Action)
+	add(decl, "what a run of it is called, read while it runs and when it ends", s.UI.Run)
 	add(decl, "what it is, in one sentence, on the page that offers it", s.UI.Description)
 	add(decl, "how to get back in, read on the way out to the console", s.UI.Console)
 	add(decl, "the last thing read before the first task runs", s.Confirm)

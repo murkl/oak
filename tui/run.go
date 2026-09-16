@@ -137,10 +137,12 @@ func newRun(a *app, steps []*spec.Task, then, back func() tea.Cmd) *runScreen {
 	return &runScreen{app: a, steps: steps, state: make([]mark, len(steps)), then: then, back: back}
 }
 
-// title is what this run is called: the module's own name, which is the only
-// one it has. The runtime has none to fall back on — it does not know whether
-// this module installs anything.
-func (s *runScreen) title() string { return s.app.module.Name() }
+// title is what this run is called: the work, not the program carrying it out.
+// A run that stops says the installation failed, not the installer — the module
+// is what failed it, and naming it there reads as the program being broken. The
+// runtime has no word of its own to fall back on: it does not know whether this
+// module installs anything, which is why the module says so itself.
+func (s *runScreen) title() string { return s.app.module.Doing() }
 
 func (s *runScreen) Title() string { return "" }
 
@@ -642,7 +644,7 @@ func (s *runScreen) headline() string {
 	return accentBold.Render(glyphs.ok) + field(" ") + boldStyle.Render(s.succeeded())
 }
 
-// The three things a run says about itself, each around the module's own name.
+// The three things a run says about itself, each around what the run is called.
 func (s *runScreen) running() string {
 	return labelRunningFor(s.title(), clock(s.elapsed()))
 }

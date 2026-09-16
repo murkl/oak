@@ -47,7 +47,7 @@ msgstr "Befehl"
 msgid "Exit code"
 msgstr "Exit-Code"
 
-#: internal/exec/failure.go:93 tui/labels.go:167
+#: internal/exec/failure.go:93 tui/labels.go:168
 #, c-format
 msgid "%s failed"
 msgstr "%s fehlgeschlagen"
@@ -70,11 +70,11 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:593
+#: internal/spec/spec.go:606
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:595
+#: internal/spec/spec.go:608
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
@@ -99,11 +99,11 @@ msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
 msgid "asked just before the run"
 msgstr "wird kurz vor dem Start abgefragt"
 
-#: internal/store/store.go:206 tui/labels.go:217
+#: internal/store/store.go:206 tui/labels.go:218
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:208 tui/labels.go:218
+#: internal/store/store.go:208 tui/labels.go:219
 msgid "No"
 msgstr "Nein"
 
@@ -361,81 +361,81 @@ msgstr "Wiederholen"
 msgid "The entries do not match."
 msgstr "Die Eingaben stimmen nicht überein."
 
-#: tui/labels.go:165
+#: tui/labels.go:166
 msgid "Ready to start"
 msgstr "Bereit zum Start"
 
-#: tui/labels.go:166
+#: tui/labels.go:167
 #, c-format
 msgid "Start %s"
 msgstr "%s starten"
 
-#: tui/labels.go:169
+#: tui/labels.go:170
 #, c-format
 msgid "%s · %s"
 msgstr "%s · %s"
 
-#: tui/labels.go:172
+#: tui/labels.go:173
 #, c-format
 msgid "%s complete in %s"
 msgstr "%s abgeschlossen in %s"
 
-#: tui/labels.go:175
+#: tui/labels.go:176
 #, c-format
 msgid "The full log is in %s."
 msgstr "Das vollständige Protokoll steht in %s."
 
-#: tui/labels.go:184
+#: tui/labels.go:185
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr "Abgebrochen bei %s; alles danach wurde nicht mehr ausgeführt."
 
-#: tui/labels.go:191
+#: tui/labels.go:192
 #, c-format
 msgid "%s: there is nothing to choose from."
 msgstr "%s: Es gibt nichts zur Auswahl."
 
-#: tui/labels.go:194
+#: tui/labels.go:195
 msgid "Cannot continue"
 msgstr "Fortfahren nicht möglich"
 
-#: tui/labels.go:198
+#: tui/labels.go:199
 msgid "Leave"
 msgstr "Beenden"
 
-#: tui/labels.go:203
+#: tui/labels.go:204
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr "Der Vorgang läuft hinter dieser Seite weiter. Jede Auswahl hier bricht ihn ab."
 
-#: tui/labels.go:206
+#: tui/labels.go:207
 msgid "Restart"
 msgstr "Neu starten"
 
-#: tui/labels.go:207
+#: tui/labels.go:208
 msgid "Close this machine down and start it again."
 msgstr "Den Rechner herunterfahren und neu starten."
 
-#: tui/labels.go:208
+#: tui/labels.go:209
 msgid "Shut down"
 msgstr "Herunterfahren"
 
-#: tui/labels.go:209
+#: tui/labels.go:210
 msgid "Exit"
 msgstr "Beenden"
 
-#: tui/labels.go:210
+#: tui/labels.go:211
 msgid "Switch this machine off."
 msgstr "Den Rechner ausschalten."
 
-#: tui/labels.go:211
+#: tui/labels.go:212
 msgid "Restarting …"
 msgstr "Neustart läuft …"
 
-#: tui/labels.go:212
+#: tui/labels.go:213
 msgid "Shutting down …"
 msgstr "Wird heruntergefahren …"
 
-#: tui/labels.go:213
+#: tui/labels.go:214
 msgid "The machine did not respond."
 msgstr "Der Rechner hat nicht reagiert."
 

@@ -33,6 +33,7 @@ func binaryDir() string {
 type declaration struct {
 	Title    string `yaml:"title"`
 	Action   string `yaml:"action"`
+	Run      string `yaml:"run"`
 	Console  string `yaml:"console"`
 	Language string `yaml:"language"`
 
@@ -63,7 +64,7 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Action: head.Action, Description: head.Description, Console: head.Console}
+	s.UI = UI{Title: head.Title, Action: head.Action, Run: head.Run, Description: head.Description, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Confirm, s.Stages = head.Confirm, head.Stages
 	offered, err := scriptFile(dir, head.Offered)
@@ -345,7 +346,6 @@ func read(path string, into any) error {
 // refusal saying what to do about itself, which is all a message that stops a
 // build is for.
 var retired = map[string]string{
-	"run":     "a module is named once, by its title, and that is what one run of it is called",
 	"blind":   "a question asked first opens its filter by itself",
 	"id":      "a starting point is named by its title, and nothing anywhere points at one",
 	"name":    "a title is what a person reads; a name only ever names a variable",
@@ -625,7 +625,7 @@ func (s *Module) checkAsks(t *Task) error {
 //
 // A blank line survives, because that is the one break that was meant.
 func (s *Module) normalize(tasks []*Task, hooks map[string][]*Task) {
-	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Console, &s.Confirm}
+	fields := []*string{&s.UI.Title, &s.UI.Run, &s.UI.Description, &s.UI.Console, &s.Confirm}
 	for _, p := range s.Presets {
 		fields = append(fields, &p.Title, &p.Description)
 		for _, o := range p.Options {

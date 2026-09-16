@@ -155,9 +155,10 @@ func labelSettingsHelp(name string) string {
 func labelPasswordRepeat() string   { return say("Repeat") }
 func labelPasswordMismatch() string { return say("The entries do not match.") }
 
-// What a run is called is the module's own title, and the runtime supplies the
-// sentence around it and nothing else. It has no name of its own to fall back
-// on: whether this module installs anything is not something it knows.
+// What a run is called is the module's own word for the work it does, and the
+// runtime supplies the sentence around it and nothing else. It has no word of
+// its own to fall back on: whether this module installs anything is not
+// something it knows.
 //
 // The clock is on three of them. How long a run has been going is the one thing
 // somebody watching a list of tasks actually wants to know and cannot work out
