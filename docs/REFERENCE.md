@@ -153,7 +153,7 @@ What is drawn follows from the declaration — there is no switch for it:
 
 `true` and `false` are shown as Yes and No wherever they appear, so `values: [auto, true, false]` is a boolean with a third option.
 
-**A secret** is the one required value that does not hold up the rest of the program. It is asked for immediately before the run that needs it, used, and forgotten — never written to the answer file or the log.
+**A secret** is the one required value that does not hold up the rest of the program. It is asked for immediately before the run that needs it, used, and forgotten — never written to the answer file or the log, and never on the settings page: a row that can show nothing and open on nothing only raises the question of why not.
 
 **`answer:`** is for the question a machine can see the answer to: whether the disk in front of it is encrypted is a fact, not an opinion. The shell prints the value, and printing nothing leaves it empty.
 

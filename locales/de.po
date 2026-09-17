@@ -95,15 +95,11 @@ msgstr "Sprache der Oberfläche"
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
 
-#: internal/store/store.go:191
-msgid "asked just before the run"
-msgstr "wird kurz vor dem Start abgefragt"
-
-#: internal/store/store.go:208 tui/labels.go:223
+#: internal/store/store.go:206 tui/labels.go:223
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:210 tui/labels.go:224
+#: internal/store/store.go:208 tui/labels.go:224
 msgid "No"
 msgstr "Nein"
 
@@ -440,6 +436,9 @@ msgstr "Wird heruntergefahren …"
 #: tui/labels.go:219
 msgid "The machine did not respond."
 msgstr "Der Rechner hat nicht reagiert."
+
+#~ msgid "asked just before the run"
+#~ msgstr "wird kurz vor dem Start abgefragt"
 
 #~ msgid "Installation scripts"
 #~ msgstr "Installationsskripte"

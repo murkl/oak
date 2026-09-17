@@ -233,9 +233,8 @@ func (s *settingsScreen) leave() tea.Cmd {
 	return pop()
 }
 
-// open is the page behind a row. A secret has none: it is not stored, so there
-// is nothing here to change — it is asked for on the way into an installation
-// and forgotten again afterwards.
+// open is the page behind a row. Every row on this page has one, which is what
+// keeps it a page of answers rather than a list of facts.
 func (s *settingsScreen) open(name string) tea.Cmd {
 	switch {
 	case name == "":
@@ -248,7 +247,7 @@ func (s *settingsScreen) open(name string) tea.Cmd {
 		return push(newReset(s.app))
 	}
 	v := s.app.module.Var(name)
-	if v == nil || v.Secret() {
+	if v == nil {
 		return nil
 	}
 	return push(newField(s.app, v, pop))

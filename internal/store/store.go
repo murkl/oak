@@ -143,14 +143,16 @@ func (s *Store) Secrets() []*spec.Variable {
 // Visible lists the variables worth showing on the settings page: everything
 // that means something given the answers so far, in declaration order.
 //
-// A deferred value is not among them, and neither is a derived one. Both are
-// rows nobody could answer from here — one offers what is read off work that
-// has not happened yet, the other is read off the machine every run — and a
-// settings page is a promise that every row on it can be opened.
+// The three kinds Missing leaves out are left out here too, because a settings
+// page is a promise that every row on it can be opened and none of them can. A
+// deferred value offers what is read off work that has not happened yet, a
+// derived one is read off the machine every run, and a secret is not stored at
+// all — a row showing a password that cannot be typed into is a row that only
+// raises the question of why not.
 func (s *Store) Visible() []*spec.Variable {
 	var out []*spec.Variable
 	for _, v := range s.mod.Vars {
-		if !v.Deferred() && !v.Derived() && v.Applies(s.Get) {
+		if !v.Secret() && !v.Deferred() && !v.Derived() && v.Applies(s.Get) {
 			out = append(out, v)
 		}
 	}
@@ -181,18 +183,14 @@ func (s *Store) Invalid(v *spec.Variable, value string) string {
 	return ""
 }
 
-// Display is what a value looks like on a page: a secret as dots, a bool in
-// words, and an unanswered question as a dash rather than as nothing at all —
-// an empty column reads as a row that is still loading.
+// Display is what a value looks like on a page: a bool in words, and an
+// unanswered question as a dash rather than as nothing at all — an empty column
+// reads as a row that is still loading.
 func (s *Store) Display(v *spec.Variable) string {
-	value := s.val[v.Name]
-	switch {
-	case v.Secret():
-		return i18n.T("asked just before the run")
-	case value == "":
-		return "—"
+	if value := s.val[v.Name]; value != "" {
+		return Label(value)
 	}
-	return Label(value)
+	return "—"
 }
 
 // Label is how one value is read out loud: true and false in the interface's

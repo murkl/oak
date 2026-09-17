@@ -971,13 +971,14 @@ func TestSettingsShowsEveryAnswerOnOnePage(t *testing.T) {
 	h.wants("Identity", "User name", "moritz", "Storage", "Disk", "/dev/sda", "Extras", "No")
 }
 
-// A secret has no page behind it: it is not stored, so there is nothing here to
-// change.
-func TestSettingsSaysASecretIsAskedForLater(t *testing.T) {
+// A secret is not on the page at all. It is never stored, so the row could only
+// show what cannot be read and open on nothing that can be typed — and a
+// settings page is a promise that every row on it can be opened.
+func TestSettingsLeavesASecretOffThePage(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.down().enter()
-	h.wants("Password", "asked just before the run")
+	h.wants("User name", "Disk").refuses("Password")
 }
 
 func TestChangingAValueInSettingsShowsTheNewOne(t *testing.T) {
@@ -1996,7 +1997,7 @@ func TestTheRowsThatAreNotAnswersStandLast(t *testing.T) {
 	for _, r := range newSettings(h.a).rows {
 		keys = append(keys, r.key)
 	}
-	want := []string{"USER", "PW", "DISK", "EXTRAS", store.ValidateVar, keyReset}
+	want := []string{"USER", "DISK", "EXTRAS", store.ValidateVar, keyReset}
 	if !slices.Equal(keys, want) {
 		t.Errorf("the settings rows are %v, want %v", keys, want)
 	}

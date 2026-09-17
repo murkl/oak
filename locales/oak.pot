@@ -98,15 +98,11 @@ msgstr ""
 msgid "Check every step on the machine it was done to"
 msgstr ""
 
-#: internal/store/store.go:191
-msgid "asked just before the run"
-msgstr ""
-
-#: internal/store/store.go:208 tui/labels.go:223
+#: internal/store/store.go:206 tui/labels.go:223
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:210 tui/labels.go:224
+#: internal/store/store.go:208 tui/labels.go:224
 msgid "No"
 msgstr ""
 
