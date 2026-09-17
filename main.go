@@ -147,12 +147,12 @@ func offered(mods []*spec.Module, debug bool) ([]*spec.Module, error) {
 	var open []*spec.Module
 	var refused []string
 	for _, mod := range mods {
-		if !mod.Offers() {
+		if mod.Requires.Empty() {
 			open = append(open, mod)
 			continue
 		}
 		sh := exec.Runner{Shell: mod.Shell, Module: mod.ID()}
-		if err := sh.Guard(mod.Offered.Text(), os.Environ()); err != nil {
+		if err := sh.Guard(mod.Requires.Text(), os.Environ()); err != nil {
 			refused = append(refused, said(mod, err))
 			continue
 		}

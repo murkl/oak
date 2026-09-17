@@ -152,25 +152,33 @@ func labelSettingsHelp(name string) string {
 	return say("Every value %s will use. Choose one to change it.", name)
 }
 
+// The last row of the settings page, and the page behind it. The row says what
+// it does rather than what it is about — it is the one row there that acts
+// instead of holding a value — and the sentence behind it says what that costs,
+// because nothing after it can be taken back.
+func labelReset() string { return say("Reset all answers") }
+func labelResetHelp() string {
+	return say("Every answer is forgotten and the file they are kept in is deleted. The module starts again at its first question, and this cannot be undone.")
+}
+
 func labelPasswordRepeat() string   { return say("Repeat") }
 func labelPasswordMismatch() string { return say("The entries do not match.") }
 
-// What a run is called is the module's own word for the work it does, and the
-// runtime supplies the sentence around it and nothing else. It has no word of
-// its own to fall back on: whether this module installs anything is not
-// something it knows.
+// What a run says about itself. None of it names the module: the frame says
+// which one this is above every page, and a headline repeating it would be the
+// same word twice on one screen — which is also why the runtime needs no word
+// of the module's own here.
 //
-// The clock is on three of them. How long a run has been going is the one thing
+// The clock is on two of them. How long a run has been going is the one thing
 // somebody watching a list of tasks actually wants to know and cannot work out
 // for themselves, and how long it took is the same answer once it is over.
-func labelReadyToStart() string          { return say("Ready to start") }
-func labelStartNamed(name string) string { return say("Start %s", name) }
-func labelRunFailed(name string) string  { return say("%s failed", name) }
-func labelRunningFor(name, elapsed string) string {
-	return say("%s · %s", name, elapsed)
+func labelReadyToStart() string { return say("Ready to start") }
+func labelRunFailed() string    { return say("Failed") }
+func labelRunningFor(elapsed string) string {
+	return say("Working · %s", elapsed)
 }
-func labelRunDone(name, elapsed string) string {
-	return say("%s complete in %s", name, elapsed)
+func labelRunDone(elapsed string) string {
+	return say("Finished in %s", elapsed)
 }
 func labelLogHint(path string) string {
 	return say("The full log is in %s.", path)

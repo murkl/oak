@@ -46,7 +46,12 @@ type settingsScreen struct {
 const (
 	groupLanguage = "\x00language"
 	groupValidate = "\x00validate"
+	groupReset    = "\x00reset"
 )
+
+// The row that undoes the rest of them. It is the runtime's like the two above,
+// and its own group, so a blank line stands between it and the last answer.
+const keyReset = "\x00reset-row"
 
 // settingRow is one setting beside the heading it sits under. Both the module's
 // own key and the words it reads as: the key is what marks the end of a group,
@@ -117,6 +122,13 @@ func (s *settingsScreen) collect() []settingRow {
 			label: v.GroupLabel(),
 		})
 	}
+	// Under everything, the one row that carries no value: it is not an answer
+	// but what undoes all of them, so it stands where a page is finished being
+	// read rather than among the rows it would throw away.
+	rows = append(rows, settingRow{item: item{
+		title: labelReset(),
+		key:   keyReset,
+	}, group: groupReset})
 	return rows
 }
 
@@ -233,6 +245,8 @@ func (s *settingsScreen) open(name string) tea.Cmd {
 		return push(newLanguage(s.app, pop))
 	case name == store.ValidateVar:
 		return push(newSwitch(s.app, labelValidatingScripts(), labelValidatingHelp(), s.app.prefs.Validates(), s.app.validate))
+	case name == keyReset:
+		return push(newReset(s.app))
 	}
 	v := s.app.module.Var(name)
 	if v == nil || v.Secret() {

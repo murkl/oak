@@ -379,9 +379,9 @@ func offeringRuntime(t *testing.T) (*spec.Runtime, []*spec.Module) {
 	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte(runtimeDecl), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	put(t, dir, "here", writeModule(t, "title: here\nstages: [go]\noffered: \"true\"\n", nil))
+	put(t, dir, "here", writeModule(t, "title: here\nstages: [go]\nrequires: \"true\"\n", nil))
 	put(t, dir, "elsewhere", writeModule(t, "title: elsewhere\nstages: [go]\n"+
-		"offered: |\n  echo \"not this machine\" >&2\n  exit 1\n", nil))
+		"requires: |\n  echo \"not this machine\" >&2\n  exit 1\n", nil))
 	put(t, dir, "anywhere", writeModule(t, "title: anywhere\nstages: [go]\n", nil))
 	return product(t, dir)
 }
@@ -447,9 +447,9 @@ func TestAMachineNoModuleBelongsOnIsToldByEveryOneOfThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	put(t, dir, "one", writeModule(t, "title: one\nstages: [go]\n"+
-		"offered: |\n  echo \"needs a live image\" >&2\n  exit 1\n", nil))
+		"requires: |\n  echo \"needs a live image\" >&2\n  exit 1\n", nil))
 	put(t, dir, "two", writeModule(t, "title: two\nstages: [go]\n"+
-		"offered: |\n  echo \"needs a plugged-in device\" >&2\n  exit 1\n", nil))
+		"requires: |\n  echo \"needs a plugged-in device\" >&2\n  exit 1\n", nil))
 	_, mods := product(t, dir)
 
 	_, err := offered(mods, false)
@@ -466,8 +466,8 @@ func TestAMachineNoModuleBelongsOnIsToldByEveryOneOfThem(t *testing.T) {
 // The shell it is decided by is the module's own, so a check reads as a
 // sentence rather than as a line of test flags — and the one place that names
 // the rule is the module it belongs to.
-func TestTheOfferedCheckIsGivenTheModulesOwnShell(t *testing.T) {
-	dir := around(t, writeModule(t, "title: shelled\nstages: [go]\noffered: belongs_here\n",
+func TestTheRequirementIsGivenTheModulesOwnShell(t *testing.T) {
+	dir := around(t, writeModule(t, "title: shelled\nstages: [go]\nrequires: belongs_here\n",
 		map[string]string{spec.FileShell: "belongs_here() { return 0; }\n"}))
 	_, mods := product(t, dir)
 
@@ -484,9 +484,9 @@ func TestTheOfferedCheckIsGivenTheModulesOwnShell(t *testing.T) {
 // its hooks — where `return 0` is how a guard says yes. Shell that means one
 // thing there and another here would be a trap laid for whoever writes the next
 // module.
-func TestTheOfferedCheckMaySayYesTheWayEveryOtherGuardDoes(t *testing.T) {
+func TestARequirementMaySayYesTheWayEveryOtherGuardDoes(t *testing.T) {
 	dir := around(t, writeModule(t, "title: returning\nstages: [go]\n"+
-		"offered: |\n  [ -n \"$HOME\" ] && return 0\n  echo no home >&2\n  exit 1\n", nil))
+		"requires: |\n  [ -n \"$HOME\" ] && return 0\n  echo no home >&2\n  exit 1\n", nil))
 	_, mods := product(t, dir)
 
 	if _, err := offered(mods, false); err != nil {

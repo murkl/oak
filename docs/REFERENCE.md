@@ -38,6 +38,7 @@ One folder. Only the declaration has to be there — a module turns a part of th
 | --- | --- |
 | `module.yaml` | The declaration: what the module is, what it asks, and the order its work happens in |
 | `module.sh` | Sourced in front of everything this module runs |
+| `requires.sh` | What a machine has to be for this module to be offered on it — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `tasks/@<stage>/<task>/task.yaml` | What a task is |
 | `tasks/@<stage>/<task>/task.sh` | What it does, where its yaml does not say so itself |
 | `tasks/@<stage>/<task>/test.sh` | How to tell that it took, likewise. Optional — see [Testing the work](#testing-the-work) |
@@ -52,9 +53,7 @@ The folder name is the module's identity: what `oak --module=<name>` opens, and 
 ### The declaration
 
 ```yaml
-title: Tux Setup                         # the module's name, where it is talked about
-action: Set up                           # optional: the word on the row that opens it
-run: Setup                               # optional: what one run of it is called
+title: Tux Setup                         # the module's one name, wherever it is named
 description: Set a machine up for Tux.   # shown where the modules are offered
 stages: [prepare, install]               # the phases the work happens in, in order
                                          # — each a folder under tasks/
@@ -65,29 +64,26 @@ confirm: |                               # the last thing shown before anything 
 console: Run ./oak --module=setup to start it again.  # optional: read on the way out
 language: TUX_LOCALE                     # optional: ties the interface language to one answer
 
-offered: |                               # optional: whether this machine is one for it
-  [ -d /run/archiso ] && return 0
-  echo "This only runs from the live image." >&2
-  exit 1
+requires: is_live_image                  # optional: what a machine must be for this
 ```
 
 | Key | Description |
 | --- | --- |
-| `title` | **Required.** What the module is called, wherever the interface talks about it rather than starts it: the sentence over its settings and the last warning |
+| `title` | **Required.** What the module is called, everywhere: the row that opens it, the trail across the top of every page once it is open, and every sentence the interface writes about it |
 | `stages` | **Required.** The phases the work happens in, in order. Each is a folder under `tasks/`, marked — `tasks/@install/` — and the name written here carries no `@` of its own |
-| `action` | The word on the row that **opens** it — on the page asking which module, and again on the menu. A row is pressed, so it says what will happen rather than what this is called. Left out, the row falls back on the title |
-| `run` | What one **run** of it is called, as the work rather than the program doing it: the row that starts it, the clock while it works, and the line at the end — `Installation failed`, not `Installer failed`, because what failed is the work. Left out, it falls back on the title |
 | `description` | One sentence, read on the page that offers the modules |
 | `confirm` | The last thing shown before the first task. `{{VAR}}` is filled in from the answers |
 | `console` | Read on the terminal on the way out, where the machine keeps running |
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
-| `offered` | Whether this machine is one this module belongs on — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
+| `requires` | What a machine has to be for this module to be offered on it, where it is one line. More than that is `requires.sh` beside the declaration — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
 
+**One name and no second word for pressing it.** The frame carries the title on every page, so the rows inside a module are named after what they do — `Start`, `Settings` — and the lines a run writes about itself say `Failed` rather than the module's name over again. A name read twice on one screen is a line that says nothing, and three words for one module would be three entries in every catalog that no language forms out of each other.
+
 ### Which modules a machine is offered
 
-`offered:` is shell, or the file it lives in, and it is the only thing Oak runs before a module has been opened. It reads the machine and nothing else — there are no answers yet — which is why it is shell rather than the `conditions:` a task is guarded with. A module that declares none is on offer everywhere.
+What a module demands is found the way a task's script is: the `requires.sh` beside the declaration, or a `requires:` in it holding shell or naming a file. Both is two answers to one question and is refused. It is the only thing Oak runs before a module has been opened. It reads the machine and nothing else — there are no answers yet — which is why it is shell rather than the `conditions:` a task is guarded with. A module that demands nothing is on offer everywhere.
 
 What is left is what the interface does with them:
 
@@ -99,12 +95,11 @@ What is left is what the interface does with them:
 
 It answers with its exit status, and what it writes to **stderr** is the sentence somebody reads when they named that module outright with `--module=`. So a check that says no says why, in the module's own words, the way a `@preflight` step does.
 
-```yaml
-# modules/imager/module.yaml
-offered: |
-  [ "$(cat /proc/sys/kernel/hostname)" = "archiso" ] || return 0
-  echo "This writes a device from an ordinary machine, not from the live image." >&2
-  exit 1
+```bash
+# modules/imager/requires.sh
+[ "$(cat /proc/sys/kernel/hostname)" = "archiso" ] || return 0
+echo "This writes a device from an ordinary machine, not from the live image." >&2
+exit 1
 ```
 
 This is what lets one product hold modules that belong on different machines — an installer that only makes sense on a live image, and the thing that writes that image, which only makes sense anywhere else. Each says so itself, and nothing anywhere holds a list of which is which, so adding a module stays a folder.
@@ -419,6 +414,8 @@ Beside wherever the program was started, never inside a module — which may be 
 | `<module>.log` | Oak's own progress plus every line every script printed |
 
 A second module writes its own pair beside the first, so two started from the same folder never collide.
+
+**The last row of the settings page deletes the answer file.** Every answer is forgotten and the module opens again where a machine that has answered nothing opens it — the starting points included, since being offered once is the whole of what one is. It is asked first and opens on No, because nothing about it can be taken back. The log is left standing: it says what this machine did, and forgetting the answers does not unwrite the disk they were carried out on.
 
 ## Keys
 

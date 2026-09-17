@@ -33,13 +33,13 @@ func (h *hub) Refresh() {
 	h.picker.focus(key)
 }
 
-// build names the top row after what opening the module does rather than after
-// what it is called: the row is pressed, and what a reader wants off a row they
-// are about to press is what will happen. The module says both words itself —
-// the runtime has no guess of its own to offer.
+// build names the top row after what pressing it does and not after the module
+// it belongs to: the frame overhead carries that name on every page, and a row
+// repeating it would be the same word twice on one screen. What the module has
+// to say for itself is the sentence under the row.
 func (h *hub) build() {
 	h.picker = newPicker([]item{
-		{title: h.app.module.Does(), detail: h.app.module.Help(), key: keyInstall},
+		{title: labelOpening(), detail: h.app.module.Help(), key: keyInstall},
 		{title: labelSettings(), detail: labelSettingsHelp(h.app.module.Name()), key: keySettings},
 	})
 }

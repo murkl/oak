@@ -573,12 +573,12 @@ func TestChoosingAProgramSettlesTheQuestionsTheWarningAndTheRun(t *testing.T) {
 	h.wants("Disk").enter()
 	h.wants("Snapshot", "one", "two").enter()
 
-	// The hub, the warning and the run are all read in that module's own name for
-	// a run of it, and only its own tasks run.
+	// The frame carries that module's name from here on, the warning is its own,
+	// and only its own tasks run.
 	h.wants("Test Recovery", "Open a system already on a disk.").enter()
-	h.wants("Ready to start", "Opening /dev/sda.", "Start Test Recovery").enter()
+	h.wants("Ready to start", "Opening /dev/sda.", "Start").enter()
 	h.ran()
-	h.wants("Test Recovery complete in", "Open the disk")
+	h.wants("Finished in", "Open the disk")
 	h.refuses("First")
 }
 
@@ -615,30 +615,19 @@ func TestTheLandingPageComesBeforeTheQuestionOfWhichModule(t *testing.T) {
 	h.wants("Was tun", "Test Installer", "Test Recovery")
 }
 
-// A row that opens something says what will happen on it, not what the thing is
-// called: `action:` is the word, on the page asking which module to open and on
-// the menu inside one. The title is for the sentences about it — the header
-// among them, which is why it is not refused on the whole screen here.
-func TestARowThatOpensAModuleCarriesWhatItDoes(t *testing.T) {
-	tree := strings.Replace(testInstaller, "title: Test Installer\n",
-		"title: Test Installer\naction: Set it up\n", 1)
-	h := newHarness(t, map[string]string{treeFile: tree})
+// A module has one name, and the frame carries it on every page. So the rows
+// inside it are named after what pressing them does rather than after the
+// module all over again — and the sentences the runtime writes about it are the
+// one place that name is read.
+func TestTheRowsInsideAModuleAreNamedAfterWhatTheyDo(t *testing.T) {
+	h := newHarness(t, nil)
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
-	h.wants("Set it up").refuses(glyphs.cursor + "Test Installer")
+	h.wants("Start", "Settings").refuses(glyphs.cursor + "Test Installer")
 
 	// And the title is what the sentences about it are written with.
 	h.down()
 	h.wants("Every value Test Installer will use.")
-}
-
-// A module that named none falls back on its own name: a row with nothing on it
-// is worse than a row reading like a label.
-func TestAModuleWithNoActionFallsBackOnItsName(t *testing.T) {
-	h := newHarness(t, nil)
-	h.down().enter() // a starting point
-	h.typeIn("moritz").enter().enter()
-	h.wants("Test Installer")
 }
 
 // The pages the runtime brings with it belong to whichever module was opened and
@@ -1069,13 +1058,49 @@ func TestTurningOnASettingAsksForWhatItNowRequiresOnTheWayOut(t *testing.T) {
 	h.wants("Test Installer", "Settings")
 }
 
+// ─── Starting over ───────────────────────────────────────────────────────────
+
+// The last row of the settings page drops every answer this module holds and
+// opens it where a machine that has answered nothing opens it — the starting
+// points among them, since being offered once is the whole of what one is.
+func TestResettingForgetsEveryAnswerAndOffersTheStartingPointsAgain(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter().typeIn("moritz").enter().enter()
+	conf := h.a.store.Path()
+
+	// Started again, the way a machine that has answered before starts: the
+	// starting points are spent by then, and bringing them back is half of what
+	// the reset is for.
+	h.restart()
+	h.wants("Settings").refuses("Setup")
+
+	h.down().enter()           // Settings
+	h.typeIn("/reset").enter() // the one row there that is not an answer
+	h.wants("Reset all answers", "cannot be undone", "Yes", "No")
+
+	// It opens on No: an enter meant for the row above it must not throw an
+	// hour of answers away.
+	h.enter()
+	h.wants("Reset all answers").refuses("cannot be undone")
+	if _, err := os.Stat(conf); err != nil {
+		t.Fatalf("the answers were dropped by a no: %v", err)
+	}
+
+	h.enter()                // the row again
+	h.key(tea.KeyUp).enter() // Yes, the row above No
+	h.wants("Setup", "Choose what kind of system to install.")
+	if _, err := os.Stat(conf); !os.IsNotExist(err) {
+		t.Errorf("the answer file is still there after a reset: %v", err)
+	}
+}
+
 // ─── Installing ──────────────────────────────────────────────────────────────
 
 func TestTheConfirmationNamesTheDiskItIsAbout(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter() // Install
-	h.wants("Ready to start", "Erasing /dev/sda.", "Start Test Installer")
+	h.wants("Ready to start", "Erasing /dev/sda.", "Start")
 }
 
 func TestTheSecretIsAskedForTwiceAndOnlyThenTheRunBegins(t *testing.T) {
@@ -1091,7 +1116,7 @@ func TestTheSecretIsAskedForTwiceAndOnlyThenTheRunBegins(t *testing.T) {
 
 	h.typeIn("hunter2").enter().typeIn("hunter2").enter()
 	h.ran()
-	h.wants("Test Installer complete", "First", "Second").refuses("Only with extras")
+	h.wants("Finished in", "First", "Second").refuses("Only with extras")
 }
 
 // A task that fails stops the run there, on the same page a finished run stops
@@ -1105,7 +1130,7 @@ func TestAFailedTaskStopsTheRunAndSaysWhereItBroke(t *testing.T) {
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
 	h.ran()
-	h.wants("Test Installer failed", "It stopped at Second").refuses("Script", "Exit code")
+	h.wants("Failed", "It stopped at Second").refuses("Script", "Exit code")
 
 	h.enter().wants("Second", "Module", "Task", "Script", "Command", "Exit code", "not/here")
 
@@ -1130,7 +1155,7 @@ func TestAnTaskThatAsksIsOfferedRatherThanRun(t *testing.T) {
 	// No: the row keeps its place in the list, marked as passed over.
 	h.down().enter()
 	h.ran()
-	h.wants("Test Installer complete", "First", "Second", "Reboot")
+	h.wants("Finished in", "First", "Second", "Reboot")
 }
 
 // An offer opens on yes unless the task says otherwise, and one that says `no`
@@ -1151,7 +1176,7 @@ func TestAnOfferCanOpenOnNo(t *testing.T) {
 
 	h.enter()
 	h.ran()
-	h.wants("Test Installer complete", "Shell")
+	h.wants("Finished in", "Shell")
 }
 
 // A value that could not have been known before the work started: the run
@@ -1186,7 +1211,7 @@ func TestATaskCanAskForAValueInTheMiddleOfTheRun(t *testing.T) {
 
 	h.enter()
 	h.ran()
-	h.wants("Test Installer complete", "Roll back")
+	h.wants("Finished in", "Roll back")
 }
 
 // A question the run stopped for that turns out to have no answers is the end
@@ -1205,7 +1230,7 @@ func TestAskingForSomethingThatIsNotThereEndsTheRun(t *testing.T) {
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
 	h.ran()
-	h.wants("Test Installer failed", "Roll back")
+	h.wants("Failed", "Roll back")
 	h.enter().wants("there is nothing to choose from")
 }
 
@@ -1316,9 +1341,9 @@ func TestTheSmallestTreeStillWorks(t *testing.T) {
 	h.wants("Test Installer", "Settings")
 
 	// No confirmation sentence to show, and no secret to ask for.
-	h.enter().wants("Ready to start", "Start Test Installer")
+	h.enter().wants("Ready to start", "Start")
 	h.enter().ran()
-	h.wants("Test Installer complete", "Do it")
+	h.wants("Finished in", "Do it")
 
 	// Nothing follows a finished installation: enter on the result leaves.
 	h.enter()
@@ -1418,7 +1443,7 @@ func TestAFinishedInstallationEndsOnTheWayOut(t *testing.T) {
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
 	h.ran()
-	h.wants("Test Installer complete")
+	h.wants("Finished in")
 
 	h.enter()
 	h.wants("Restart", "Shut down")
@@ -1437,7 +1462,7 @@ func TestAskingToLeaveDuringARunDoesNotStopIt(t *testing.T) {
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
-	h.wants("Test Installer · 00:0")
+	h.wants("Working · 00:0")
 
 	h.esc()
 	h.wants("Restart", "Shut down", "continues behind this page")
@@ -1446,7 +1471,7 @@ func TestAskingToLeaveDuringARunDoesNotStopIt(t *testing.T) {
 	}
 
 	h.esc()
-	h.wants("Test Installer · 00:0").refuses("Restart")
+	h.wants("Working · 00:0").refuses("Restart")
 
 	h.ctrlC()
 	h.wants("Restart", "Shut down")
@@ -1462,7 +1487,7 @@ func TestChoosingAWayOutStopsTheRun(t *testing.T) {
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
-	h.wants("Test Installer · 00:0")
+	h.wants("Working · 00:0")
 
 	run, ok := h.m.top().(*runScreen)
 	if !ok || run.session == nil {
@@ -1492,7 +1517,7 @@ func TestTheHeadlineCarriesTheClock(t *testing.T) {
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
 	h.ran()
-	h.wants("Test Installer complete in 00:0")
+	h.wants("Finished in 00:0")
 }
 
 func TestClockReadsAsAClock(t *testing.T) {
@@ -1660,7 +1685,7 @@ func TestATaskCanReportWhatItProduced(t *testing.T) {
 
 	h.enter()
 	h.ran()
-	h.wants("Test Installer complete", "Share")
+	h.wants("Finished in", "Share")
 }
 
 // A task that produced nothing still says what it has to say. Not being able to
@@ -1704,7 +1729,7 @@ func TestTestsThatPassAreCountedAndNothingMore(t *testing.T) {
 	})
 	// One line under the run, and no page: a run that agreed with itself has
 	// nothing anybody could open.
-	h.wants("Test Installer complete", "2 of 2 tests passed")
+	h.wants("Finished in", "2 of 2 tests passed")
 	h.enter()
 	if !h.m.quitting {
 		t.Error("a run that agreed with itself stopped on a page")
@@ -1718,7 +1743,7 @@ func TestAFailedTestDoesNotStopTheRun(t *testing.T) {
 		"tasks/@go/a-first/task.yaml": "title: First\ntest: ./check.sh\n",
 		"tasks/@go/a-first/check.sh":  "echo the disk is empty >&2\nexit 1\n",
 	})
-	h.wants("Test Installer complete", "First", "0 of 1 tests passed")
+	h.wants("Finished in", "First", "0 of 1 tests passed")
 	h.refuses("failed")
 
 	h.enter().wants("Validation", "0 of 1 tests passed", "First")
@@ -1809,7 +1834,7 @@ func TestTheListOfFailedTestsIsOfferedOnce(t *testing.T) {
 	// The last row leaves it; enter on any other opens the failure under it.
 	h.down().enter().wants("Shared", "0 of 1 tests passed")
 	// On to the end of the run, which counts them again and offers nothing.
-	h.enter().wants("Test Installer complete", "0 of 1 tests passed").refuses("Validation")
+	h.enter().wants("Finished in", "0 of 1 tests passed").refuses("Validation")
 	h.enter()
 	if !h.m.quitting {
 		t.Error("the list was put up a second time")

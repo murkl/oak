@@ -50,7 +50,7 @@ msgstr ""
 msgid "Exit code"
 msgstr ""
 
-#: internal/exec/failure.go:93 tui/labels.go:168
+#: internal/exec/failure.go:93
 #, c-format
 msgid "%s failed"
 msgstr ""
@@ -73,11 +73,11 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:606
+#: internal/spec/spec.go:583
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:608
+#: internal/spec/spec.go:585
 msgid "This value is required."
 msgstr ""
 
@@ -102,11 +102,11 @@ msgstr ""
 msgid "asked just before the run"
 msgstr ""
 
-#: internal/store/store.go:206 tui/labels.go:218
+#: internal/store/store.go:206 tui/labels.go:226
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:208 tui/labels.go:219
+#: internal/store/store.go:208 tui/labels.go:227
 msgid "No"
 msgstr ""
 
@@ -356,88 +356,95 @@ msgstr ""
 msgid "Every value %s will use. Choose one to change it."
 msgstr ""
 
-#: tui/labels.go:155
+#: tui/labels.go:159
+msgid "Reset all answers"
+msgstr ""
+
+#: tui/labels.go:161
+msgid "Every answer is forgotten and the file they are kept in is deleted. The module starts again at its first question, and this cannot be undone."
+msgstr ""
+
+#: tui/labels.go:164
 msgid "Repeat"
 msgstr ""
 
-#: tui/labels.go:156
+#: tui/labels.go:165
 msgid "The entries do not match."
 msgstr ""
 
-#: tui/labels.go:166
+#: tui/labels.go:175
 msgid "Ready to start"
 msgstr ""
 
-#: tui/labels.go:167
-#, c-format
-msgid "Start %s"
-msgstr ""
-
-#: tui/labels.go:170
-#, c-format
-msgid "%s · %s"
-msgstr ""
-
-#: tui/labels.go:173
-#, c-format
-msgid "%s complete in %s"
-msgstr ""
-
 #: tui/labels.go:176
+msgid "Failed"
+msgstr ""
+
+#: tui/labels.go:178
+#, c-format
+msgid "Working · %s"
+msgstr ""
+
+#: tui/labels.go:181
+#, c-format
+msgid "Finished in %s"
+msgstr ""
+
+#: tui/labels.go:184
 #, c-format
 msgid "The full log is in %s."
 msgstr ""
 
-#: tui/labels.go:185
+#: tui/labels.go:193
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr ""
 
-#: tui/labels.go:192
+#: tui/labels.go:200
 #, c-format
 msgid "%s: there is nothing to choose from."
 msgstr ""
 
-#: tui/labels.go:195
+#: tui/labels.go:203
 msgid "Cannot continue"
 msgstr ""
 
-#: tui/labels.go:199
+#: tui/labels.go:207
 msgid "Leave"
 msgstr ""
 
-#: tui/labels.go:204
+#: tui/labels.go:212
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr ""
 
-#: tui/labels.go:207
+#: tui/labels.go:215
 msgid "Restart"
 msgstr ""
 
-#: tui/labels.go:208
+#: tui/labels.go:216
 msgid "Close this machine down and start it again."
 msgstr ""
 
-#: tui/labels.go:209
+#: tui/labels.go:217
 msgid "Shut down"
 msgstr ""
 
-#: tui/labels.go:210
+#: tui/labels.go:218
 msgid "Exit"
 msgstr ""
 
-#: tui/labels.go:211
+#: tui/labels.go:219
 msgid "Switch this machine off."
 msgstr ""
 
-#: tui/labels.go:212
+#: tui/labels.go:220
 msgid "Restarting …"
 msgstr ""
 
-#: tui/labels.go:213
+#: tui/labels.go:221
 msgid "Shutting down …"
 msgstr ""
 
-#: tui/labels.go:214
+#: tui/labels.go:222
 msgid "The machine did not respond."
 msgstr ""

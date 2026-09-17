@@ -137,13 +137,6 @@ func newRun(a *app, steps []*spec.Task, then, back func() tea.Cmd) *runScreen {
 	return &runScreen{app: a, steps: steps, state: make([]mark, len(steps)), then: then, back: back}
 }
 
-// title is what this run is called: the work, not the program carrying it out.
-// A run that stops says the installation failed, not the installer — the module
-// is what failed it, and naming it there reads as the program being broken. The
-// runtime has no word of its own to fall back on: it does not know whether this
-// module installs anything, which is why the module says so itself.
-func (s *runScreen) title() string { return s.app.module.Doing() }
-
 func (s *runScreen) Title() string { return "" }
 
 // crumbRoot: a run is not a place you navigated to, it is a thing happening.
@@ -396,7 +389,7 @@ func (s *runScreen) finish(err error) tea.Cmd {
 		logging.Error("%s", err)
 		s.told = newReport(s.failed(), labelRunStopped(s.stoppedAt()), "").stop()
 	} else {
-		logging.Info("%s: ok", s.title())
+		logging.Info("run: ok")
 	}
 	// Whatever a run was given is gone the moment it is over, whether it worked
 	// or not: a failed installation is one that gets looked at, and nothing
@@ -418,7 +411,7 @@ func (s *runScreen) stop() {
 	if s.session == nil {
 		return
 	}
-	logging.Warn("%s: stopped", s.title())
+	logging.Warn("run: stopped")
 	s.session.Kill()
 	// Let go of it, so a second way out asking the same thing of this page says
 	// so once. Whoever is waiting on the run holds its own reference.
@@ -644,21 +637,24 @@ func (s *runScreen) headline() string {
 	return accentBold.Render(glyphs.ok) + field(" ") + boldStyle.Render(s.succeeded())
 }
 
-// The three things a run says about itself, each around what the run is called.
+// The three things a run says about itself. None of them names the module: the
+// frame above says which one this is on every page, and the only thing the line
+// adds is how far the work has got.
 func (s *runScreen) running() string {
-	return labelRunningFor(s.title(), clock(s.elapsed()))
+	return labelRunningFor(clock(s.elapsed()))
 }
 
-func (s *runScreen) succeeded() string { return labelRunDone(s.title(), clock(s.took)) }
-func (s *runScreen) failed() string    { return labelRunFailed(s.title()) }
+func (s *runScreen) succeeded() string { return labelRunDone(clock(s.took)) }
+func (s *runScreen) failed() string    { return labelRunFailed() }
 
 // stoppedAt is what the run was doing when it could not go on, which is the one
-// thing the page saying so has to name.
+// thing the page saying so has to name. Past the last step there is no step to
+// name, and what is left is the module the run belonged to.
 func (s *runScreen) stoppedAt() string {
 	if s.at < len(s.steps) {
 		return s.steps[s.at].Label()
 	}
-	return s.title()
+	return s.app.module.Name()
 }
 
 // question is what a task asked, with the answers filled into it, and the

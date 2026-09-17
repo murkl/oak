@@ -89,8 +89,8 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	// Only where it says something. A module on offer everywhere is the ordinary
 	// case, and a line saying so on every one of them would drown the one that
 	// does not.
-	if mod.Offers() {
-		fmt.Fprintf(w, "  offered    %s\n", oneLine(mod.Offered))
+	if !mod.Requires.Empty() {
+		fmt.Fprintf(w, "  requires   %s\n", oneLine(mod.Requires))
 	}
 	fmt.Fprintf(w, "  variables  %d (%d required, %d secret)\n", len(mod.Vars), required, secret)
 	fmt.Fprintf(w, "  presets    %d\n", len(mod.Presets))

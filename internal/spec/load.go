@@ -32,14 +32,13 @@ func binaryDir() string {
 // be typed.
 type declaration struct {
 	Title    string `yaml:"title"`
-	Action   string `yaml:"action"`
-	Run      string `yaml:"run"`
 	Console  string `yaml:"console"`
 	Language string `yaml:"language"`
 
-	// Whether this machine is one this module belongs on. Shell, or the file it
-	// lives in, like everything else the yaml may write outright.
-	Offered string `yaml:"offered"`
+	// What a machine has to be for this module to be offered on it. Shell, or
+	// the file it lives in, like everything else the yaml may write outright —
+	// and left out entirely where requires.sh lies beside the declaration.
+	Requires string `yaml:"requires"`
 
 	// What this module is and what it does: one sentence about the program, the
 	// last warning before a run starts, and the phases that run happens in.
@@ -64,18 +63,18 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Action: head.Action, Run: head.Run, Description: head.Description, Console: head.Console}
+	s.UI = UI{Title: head.Title, Description: head.Description, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Confirm, s.Stages = head.Confirm, head.Stages
-	offered, err := scriptFile(dir, head.Offered)
+	// Found the way a task's script is: what the yaml wrote, the file it named,
+	// or — where it says nothing — requires.sh lying beside it. So the ordinary
+	// case is a file with the name the runtime knows it by, and module.yaml
+	// points at nothing.
+	requires, err := pick(dir, "requires", head.Requires, FileRequires)
 	if err != nil {
-		return nil, fmt.Errorf("%s: offered: %w", FileModule, err)
+		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
-	if offered != "" {
-		s.Offered = Script{File: offered}
-	} else if strings.TrimSpace(head.Offered) != "" {
-		s.Offered = Script{Shell: head.Offered}
-	}
+	s.Requires = requires
 	if err := checkStages(s.Stages); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
@@ -308,7 +307,7 @@ func pick(dir, key, expr, name string) (Script, error) {
 	file := beside(dir, name)
 	switch {
 	case expr != "" && file != "":
-		return Script{}, fmt.Errorf("%s: there is a %s here as well, and a task runs one thing", key, name)
+		return Script{}, fmt.Errorf("%s: there is a %s here as well, and only one of the two can be the answer", key, name)
 	case expr == "":
 		return Script{File: file}, nil
 	}
@@ -625,7 +624,7 @@ func (s *Module) checkAsks(t *Task) error {
 //
 // A blank line survives, because that is the one break that was meant.
 func (s *Module) normalize(tasks []*Task, hooks map[string][]*Task) {
-	fields := []*string{&s.UI.Title, &s.UI.Run, &s.UI.Description, &s.UI.Console, &s.Confirm}
+	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Console, &s.Confirm}
 	for _, p := range s.Presets {
 		fields = append(fields, &p.Title, &p.Description)
 		for _, o := range p.Options {

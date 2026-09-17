@@ -34,11 +34,12 @@ import (
 // while a hook is the module's answer to a question the runtime asks. Every
 // file inside says which of the two it is, so nothing is read as the other.
 const (
-	FileModule = "module.yaml" // the declaration: what the module is, asks, and does
-	FileShell  = "module.sh"   // shell put in front of every script this module runs
-	DirTasks   = "tasks"       // the work, one folder per task
-	DirHooks   = "hooks"       // what the runtime runs itself, one folder per hook
-	DirLocales = "locales"     // one catalog per language the module speaks
+	FileModule   = "module.yaml" // the declaration: what the module is, asks, and does
+	FileShell    = "module.sh"   // shell put in front of every script this module runs
+	FileRequires = "requires.sh" // what a machine has to be for this module to be offered on it
+	DirTasks     = "tasks"       // the work, one folder per task
+	DirHooks     = "hooks"       // what the runtime runs itself, one folder per hook
+	DirLocales   = "locales"     // one catalog per language the module speaks
 
 	FileTask       = "task.yaml" // what a task is
 	FileTaskScript = "task.sh"   // what it does, where its yaml does not say so itself
@@ -178,9 +179,9 @@ type Module struct {
 	Shell   string
 	Locales string
 
-	// Offered is the shell that decides whether this module is on offer on this
-	// machine at all, and it is the only thing the runtime runs before one has
-	// been opened. A module that declares none is always on offer.
+	// Requires is what this module demands of a machine before it is offered on
+	// one at all, and it is the only thing the runtime runs before a module has
+	// been opened. A module that demands nothing is on offer everywhere.
 	//
 	// Read-only and silent: it answers with its exit status, and what it writes
 	// to stderr is the sentence somebody is shown when it was the module they
@@ -192,7 +193,7 @@ type Module struct {
 	// machines: an installer that only makes sense on a live image, and the thing
 	// that writes that image, which only makes sense anywhere else. Each says so
 	// itself, and nothing anywhere holds a list of which is which.
-	Offered Script
+	Requires Script
 
 	// Language names the variable whose answer also settles the words this
 	// interface is read in — a module that asks where a machine is has asked which
@@ -213,33 +214,14 @@ type Module struct {
 // one wordmark and one colour belong to the runtime, not to any module in it.
 // See Runtime.
 type UI struct {
-	// Title is what this module is called: the name the interface says it in,
-	// wherever it is talked about rather than started — the sentence over its
-	// settings, the report a run ends on.
+	// Title is what this module is called, and the only name it has: the row
+	// that opens it, the trail across the top of every page once it is open,
+	// and every sentence the interface writes about it.
+	//
+	// One name and no second word for pressing it. The frame carries this one
+	// on every page, so the rows inside a module are named after what they do
+	// — "Start", "Settings" — rather than after the module all over again.
 	Title string
-
-	// Action is what opening it does, as the one word somebody presses enter on:
-	// "Install", "Recover". It is the row on the page that asks which module to
-	// open, and the row that starts a run on the menu — both places where the
-	// question is what will happen rather than what this is called.
-	//
-	// The two are not the same word and neither can be made out of the other:
-	// the runtime does not know whether this module installs anything, and a
-	// name pressed like a button reads as a label somebody forgot to finish.
-	Action string
-
-	// Run is what one run of this module is called, as the work rather than the
-	// program doing it: "Installation", "Recovery". It is what the page before
-	// the first task, the clock while the tasks go by and the line at the end
-	// are about — a run that stops says the installation failed, because what
-	// failed is the work and not the program that was carrying it out.
-	//
-	// None of the three can be made out of the others. A title is a name, an
-	// action is an imperative, and the work is a noun for neither: no two
-	// languages form one from the other the same way. A module that names no
-	// run falls back on its title, which is what every module said before there
-	// was anywhere else to say it.
-	Run string
 
 	// Description is what this module is, in one sentence, read under its title
 	// on the page that offers it.
@@ -262,10 +244,6 @@ func (s *Module) Help() string { return i18n.T(s.UI.Description) }
 func (s *Module) ConfirmText(get func(string) string) string {
 	return strings.TrimSpace(Expand(i18n.T(s.Confirm), get))
 }
-
-// Offers reports whether this module says anything about which machines it
-// belongs on. One that does not is on offer everywhere.
-func (s *Module) Offers() bool { return !s.Offered.Empty() }
 
 // Hook is what this module put in one of the runtime's hooks, in the order it
 // runs, or nothing where it fills that hook at all.
@@ -652,28 +630,6 @@ func (s *Module) Var(name string) *Variable { return s.byName[name] }
 // Name is the module's own title, translated: what it is called.
 func (s *Module) Name() string { return i18n.T(s.UI.Title) }
 
-// Does is what opening it does, translated: the word on the row that opens it.
-// A module that named none falls back on its own name, which is the old
-// behaviour and reads as a label rather than a button — but it is a word, and a
-// row with nothing on it is worse.
-func (s *Module) Does() string {
-	if s.UI.Action == "" {
-		return s.Name()
-	}
-	return i18n.T(s.UI.Action)
-}
-
-// Doing is what a run of it is called, translated: the word the page before the
-// first task, the clock while it works and the line at the end are all about.
-// A module that named none falls back on its own name, which is what the
-// interface said before there was anywhere else to say it.
-func (s *Module) Doing() string {
-	if s.UI.Run == "" {
-		return s.Name()
-	}
-	return i18n.T(s.UI.Run)
-}
-
 // Message is one thing a module says: the text, what it is, and the files it
 // was read out of. The last two are all a translator has — the words arrive out
 // of the module they belong to, one sentence at a time.
@@ -710,9 +666,7 @@ func (s *Module) Messages() []Message {
 	}
 
 	decl := FileModule
-	add(decl, "what this program is called, where the interface talks about it", s.UI.Title)
-	add(decl, "what opening it does, on the row that opens it", s.UI.Action)
-	add(decl, "what a run of it is called, read while it runs and when it ends", s.UI.Run)
+	add(decl, "what this module is called, wherever the interface names it", s.UI.Title)
 	add(decl, "what it is, in one sentence, on the page that offers it", s.UI.Description)
 	add(decl, "how to get back in, read on the way out to the console", s.UI.Console)
 	add(decl, "the last thing read before the first task runs", s.Confirm)

@@ -85,6 +85,23 @@ func (s *Store) Save() error {
 	return write(s.path, b.String())
 }
 
+// Reset drops every answer: each value back to what the module declared it
+// starts from, and the file they were kept in deleted — so what follows is a
+// first run, down to the starting points it is offered.
+//
+// The log is left standing. It says what this machine was told and what came of
+// it, and that is still true of the machine afterwards: forgetting the answers
+// is not unwriting the disk they were carried out on.
+func (s *Store) Reset() error {
+	for _, v := range s.mod.Vars {
+		s.val[v.Name] = v.Default.String()
+	}
+	if err := os.Remove(s.path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // write puts an answer file on disk: whole, and replaced in one step. A run
 // interrupted mid-write must not leave a half-file that reads as a machine
 // having answered nothing.

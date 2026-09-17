@@ -6,7 +6,6 @@
 # leaves the file out.
 
 title: Tux Recovery
-action: Check
 description: Check a system tree that is already there.
 
 stages: [check]
