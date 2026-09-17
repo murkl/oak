@@ -414,3 +414,32 @@ func TestLoadingAgainPicksUpWhatAScriptWroteIntoTheAnswerFile(t *testing.T) {
 		t.Errorf("USER = %q after loading again, want moritz", got)
 	}
 }
+
+// A derived answer is a fact the module reads off the machine, so it is neither
+// a question that holds the run up nor a row on the settings page — and it is
+// never written down, because the file could only hold a copy able to disagree
+// with what the next run reads.
+func TestADerivedAnswerIsNeitherAskedNorShownNorWritten(t *testing.T) {
+	s := setup(t, "variables:\n"+
+		"  - name: DISK\n    title: Disk\n    required: true\n"+
+		"  - name: ENCRYPTED\n    title: Encrypted\n    required: true\n    answer: echo true\n")
+
+	if names := names(s.Missing()); strings.Join(names, ",") != "DISK" {
+		t.Errorf("missing = %v, want just DISK", names)
+	}
+	if names := names(s.Visible()); strings.Join(names, ",") != "DISK" {
+		t.Errorf("visible = %v, want just DISK", names)
+	}
+
+	s.Set("ENCRYPTED", "true")
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(s.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "ENCRYPTED") {
+		t.Errorf("the answer file carries a derived answer:\n%s", raw)
+	}
+}

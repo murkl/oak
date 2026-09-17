@@ -336,3 +336,36 @@ func TestAnImportThatFailsSaysWhy(t *testing.T) {
 		t.Errorf("the message is %q", err)
 	}
 }
+
+// A question a machine can see the answer to is not asked but worked out, and
+// worked out again whenever the answer it follows from changes.
+func TestADerivedAnswerIsReadOffTheMachine(t *testing.T) {
+	_, st, r := setup(t, "variables:\n"+
+		"  - name: DISK\n    title: Disk\n"+
+		"  - name: ENCRYPTED\n    title: Encrypted\n    type: bool\n"+
+		"    answer: '[ \"$DISK\" = /dev/sdz ] && echo true || echo false'\n", nil)
+
+	r.Resolve()
+	if got := st.Get("ENCRYPTED"); got != "false" {
+		t.Errorf("ENCRYPTED = %q before the disk is answered, want false", got)
+	}
+
+	st.Set("DISK", "/dev/sdz")
+	r.Resolve()
+	if got := st.Get("ENCRYPTED"); got != "true" {
+		t.Errorf("ENCRYPTED = %q after the disk changed, want true", got)
+	}
+}
+
+// A script that will not run leaves the value empty rather than whatever it
+// held before: there is no question to fall back on, and a guard on an empty
+// name is simply false.
+func TestADerivedAnswerThatCannotBeReadIsEmpty(t *testing.T) {
+	_, st, r := setup(t, "variables:\n  - name: X\n    title: X\n    answer: exit 7\n", nil)
+	st.Set("X", "stale")
+
+	r.Resolve()
+	if got := st.Get("X"); got != "" {
+		t.Errorf("X = %q after an answer that would not run, want empty", got)
+	}
+}

@@ -73,14 +73,14 @@ func (f *filter) Update(key tea.KeyMsg) (took bool, cmd tea.Cmd) {
 	}
 	switch {
 	// The permanent box has nothing to close, so what would close it instead
-	// leaves the question the same way it would have if the box had never
-	// been there: esc and an empty backspace are handed on rather than acted
-	// on here.
-	case f.permanent && (cancels(key) || erases(key) && f.input.Value() == ""):
+	// leaves the question the same way it would have if the box had never been
+	// there: esc is handed on rather than acted on here.
+	case f.permanent && cancels(key):
 		return false, nil
-	// Backspace closes the box too, but not while there is a character left in
-	// it: there it is the delete key first.
-	case cancels(key), erases(key) && f.input.Value() == "":
+	// Esc closes it. Backspace does not: while this box is open it is the
+	// delete key, so holding it down to clear a query cannot close the box and
+	// then leave the page behind it.
+	case cancels(key):
 		f.close()
 		return true, nil
 	case confirms(key), moves(key):

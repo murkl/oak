@@ -16,6 +16,12 @@ import tea "github.com/charmbracelet/bubbletea"
 // say back, and q and ctrl+c ask to leave — that is the whole vocabulary of an
 // answer, and it means the same thing on every page of every module.
 //
+// With one exception, and it is the reason backspace is never named in a hint:
+// **in front of a box being typed into, backspace is the delete key and nothing
+// else.** A key repeat is faster than a hand — clearing a box by holding it
+// down empties it and then, on the very next repeat, would leave the page. So
+// there, esc is the way back and is the only one.
+//
 // The two that leave are taken by the model before any screen sees them, so
 // no page can disagree about how this program is left, and every page can be
 // left the same way. See Model.wayOut.
@@ -26,14 +32,13 @@ func confirms(k tea.KeyMsg) bool { return k.String() == "enter" }
 // cancels is the one key that always means back.
 func cancels(k tea.KeyMsg) bool { return k.String() == "esc" }
 
-// erases is the second way to say back, and the only key here that means two
-// things at once: in front of a text field it deletes a character. Which of the
-// two it is belongs to the page, so a page holding a field asks for it on its
-// own and only once the field has nothing left to delete.
+// erases is the delete key, and the second way to say back where there is
+// nothing to delete it for. A page that can be either — a list with a text box
+// under it — asks which of the two it is; a page that is only a box reaches for
+// cancels alone.
 func erases(k tea.KeyMsg) bool { return k.String() == "backspace" }
 
-// backs is either way. Correct as it stands on a page with no text field on it;
-// a page that has one must reach for cancels and erases separately.
+// backs is either way back, for the pages holding no text at all.
 func backs(k tea.KeyMsg) bool { return cancels(k) || erases(k) }
 
 // answers is yes or back. Used by the pages that are only there to be read and

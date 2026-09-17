@@ -3,3 +3,8 @@
 
 test -f "$TUX_TARGET/etc/hostname"
 test -f "$TUX_TARGET/etc/os-release"
+
+# And whatever the tree said it was built with is still there to find.
+if [ "$TUX_DESKTOP" != none ]; then
+    test -f "$TUX_TARGET/etc/desktop"
+fi

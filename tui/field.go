@@ -198,10 +198,10 @@ func (s *fieldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			}
 		}
 		switch {
-		// Backspace leaves the question as well, but the text box has the first
-		// claim on it: while there is something to delete it deletes, and it
-		// only means back once the box is empty.
-		case cancels(msg), erases(msg) && !s.hasText():
+		// Backspace leaves the question as well, but only where this one is a
+		// list: with the box up it is the delete key and nothing else, so that
+		// holding it down to clear the box cannot walk off the page.
+		case cancels(msg), erases(msg) && !s.typing:
 			// A box opened from a list goes back to that list rather than out of
 			// the page: choosing to type an answer is a step inside this
 			// question, so undoing it lands on the answers again.
@@ -224,10 +224,6 @@ func (s *fieldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	}
 	return s, nil
 }
-
-// hasText reports whether the page is holding text a keystroke could still be
-// meant for. A list has none, and neither has an empty box.
-func (s *fieldScreen) hasText() bool { return s.typing && s.input.Value() != "" }
 
 // choosing reports whether a list of answers is on screen: not the text box,
 // and not the moment before the answers have arrived.

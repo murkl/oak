@@ -27,6 +27,24 @@ func TestTheSplashSignsOffWithOaksOwnVersion(t *testing.T) {
 	}
 }
 
+// And only the release of it. A build between two tags carries the commits and
+// the hash that say which one it is, and none of that is what the sign-off is
+// for.
+func TestTheSignOffNamesTheReleaseAndNothingAfterIt(t *testing.T) {
+	i18n.Use(i18n.SourceLang)
+
+	m := newSplash("OAK", "1.2.3-4-gdeadbee-dev")
+	run(m)
+
+	view := m.View(60, 20)
+	if want := "powered by oak 1.2.3"; !strings.Contains(view, want) {
+		t.Errorf("the splash does not say %q:\n%s", want, view)
+	}
+	if strings.Contains(view, "gdeadbee") {
+		t.Errorf("the splash carries the build it was made from:\n%s", view)
+	}
+}
+
 // The sign-off is the last thing to arrive, so it never sweeps in alongside the
 // wordmark it belongs under.
 func TestTheSignOffArrivesAfterTheWordmark(t *testing.T) {

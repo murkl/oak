@@ -93,15 +93,16 @@ func (s *Store) Apply(o *spec.PresetOption) {
 // every variable that is required, means something given the answers so far,
 // and has no acceptable value yet.
 //
-// Two kinds are not among them, and for the same reason: there is no answering
-// them yet, so leaving them in would be a machine that can never be finished
-// answering. A secret is never written down and is asked for immediately before
-// the run that needs it — see Secrets. A deferred value is one a task asks for
-// mid-run, because until that task's turn there is nothing to choose from.
+// Three kinds are not among them, and for much the same reason: none of them is
+// a question anybody could answer here. A secret is never written down and is
+// asked for immediately before the run that needs it — see Secrets. A deferred
+// value is one a task asks for mid-run, because until that task's turn there is
+// nothing to choose from. A derived one the module reads off the machine
+// itself.
 func (s *Store) Missing() []*spec.Variable {
 	var out []*spec.Variable
 	for _, v := range s.mod.Vars {
-		if v.Secret() || v.Deferred() || !v.Applies(s.Get) {
+		if v.Secret() || v.Deferred() || v.Derived() || !v.Applies(s.Get) {
 			continue
 		}
 		if s.Invalid(v, s.val[v.Name]) != "" {
@@ -142,13 +143,14 @@ func (s *Store) Secrets() []*spec.Variable {
 // Visible lists the variables worth showing on the settings page: everything
 // that means something given the answers so far, in declaration order.
 //
-// A deferred value is not among them. It is a row nobody could answer from
-// here — what it offers is read off work that has not happened yet — and a
+// A deferred value is not among them, and neither is a derived one. Both are
+// rows nobody could answer from here — one offers what is read off work that
+// has not happened yet, the other is read off the machine every run — and a
 // settings page is a promise that every row on it can be opened.
 func (s *Store) Visible() []*spec.Variable {
 	var out []*spec.Variable
 	for _, v := range s.mod.Vars {
-		if !v.Deferred() && v.Applies(s.Get) {
+		if !v.Deferred() && !v.Derived() && v.Applies(s.Get) {
 			out = append(out, v)
 		}
 	}

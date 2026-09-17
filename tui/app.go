@@ -273,7 +273,12 @@ func (a *app) hintEnd(otherwise string) string {
 // save writes the answer file. A machine that cannot record its own answers
 // would ask again from the top after any interruption, so failing to save is
 // worth saying out loud rather than carrying on quietly.
+//
+// Whatever the module reads off the machine is read again first: an answer has
+// just changed, and a value worked out from one is only as current as the last
+// time it was worked out.
 func (a *app) save() tea.Cmd {
+	a.runner.Resolve()
 	if err := a.store.Save(); err != nil {
 		logging.Error("%s", err)
 		return flashBad(err.Error())

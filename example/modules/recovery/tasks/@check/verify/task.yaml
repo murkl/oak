@@ -3,4 +3,5 @@ title: Check the system tree
 report: |
   {{TUX_TARGET}} is complete.
 
-  Every file Tux Setup writes is where it left it.
+  Every file Tux Setup writes is where it left it, and the tree says it was
+  built with {{TUX_DESKTOP}}.

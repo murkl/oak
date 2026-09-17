@@ -40,9 +40,10 @@ type settingsScreen struct {
 // line where one changes. The NUL prefix cannot collide with a group the folder
 // named.
 //
-// Only the second carries a heading. The language row is the page's own first
-// line and reads as what it is; the validation row is about the work rather
-// than about a value, and a word over it is what says so.
+// Only the middle one carries a heading. The language row is the page's own
+// first line and reads as what it is; the validation row is about the work
+// rather than about a value, and a word over it is what says so; and the row
+// that throws every answer away needs no word at all.
 const (
 	groupLanguage = "\x00language"
 	groupValidate = "\x00validate"
@@ -50,7 +51,7 @@ const (
 )
 
 // The row that undoes the rest of them. It is the runtime's like the two above,
-// and its own group, so a blank line stands between it and the last answer.
+// and its own group, so a blank line stands between it and the row over it.
 const keyReset = "\x00reset-row"
 
 // settingRow is one setting beside the heading it sits under. Both the module's
@@ -84,32 +85,17 @@ func (s *settingsScreen) build() {
 // collect is every setting this page shows, in the order it shows them.
 func (s *settingsScreen) collect() []settingRow {
 	rows := []settingRow{}
-	// The runtime's own two rows stand above the folder's, and each in a group
-	// of its own: they have nothing in common but who they belong to — one is
-	// about the words on screen, the other about what a run does with itself —
-	// and read as a pair the second would be taken for more of the first.
-	//
-	// Language leads. It changes this page itself, so it is found without having
-	// to read anything — unless the module tied it to one of its own answers,
-	// see `language:`, in which case that answer is the row a few lines further
-	// down and a second one above it would only be the same setting able to
-	// disagree with itself.
+	// Language leads, above the folder's own rows. It changes this page itself,
+	// so it is found without having to read anything — unless the module tied it
+	// to one of its own answers, see `language:`, in which case that answer is
+	// the row a few lines further down and a second one above it would only be
+	// the same setting able to disagree with itself.
 	if s.app.module.Language == "" && len(s.app.langs) > 1 {
 		rows = append(rows, settingRow{item: item{
 			title: labelLanguage(),
 			value: s.languageName(),
 			key:   store.LangVar,
 		}, group: groupLanguage})
-	}
-	// And it is offered only where this module has something to check: a switch
-	// for a thing that would never happen is a row that reads as a promise
-	// nothing keeps.
-	if s.app.module.Checks() {
-		rows = append(rows, settingRow{item: item{
-			title: labelValidatingScripts(),
-			value: store.Label(truth(s.app.prefs.Validates())),
-			key:   store.ValidateVar,
-		}, group: groupValidate, label: labelValidating()})
 	}
 	for _, v := range s.app.store.Visible() {
 		rows = append(rows, settingRow{
@@ -122,9 +108,22 @@ func (s *settingsScreen) collect() []settingRow {
 			label: v.GroupLabel(),
 		})
 	}
-	// Under everything, the one row that carries no value: it is not an answer
-	// but what undoes all of them, so it stands where a page is finished being
-	// read rather than among the rows it would throw away.
+	// And under everything, the two rows that are about the run rather than
+	// about a value: whether it checks its own work, and the one that throws
+	// every answer away. Neither is an answer, so both stand where the page is
+	// finished being read rather than among the rows they act on — and the one
+	// that cannot be taken back stands last of all.
+	//
+	// Validating is offered only where this module has something to check: a
+	// switch for a thing that would never happen is a row that reads as a
+	// promise nothing keeps.
+	if s.app.module.Checks() {
+		rows = append(rows, settingRow{item: item{
+			title: labelValidatingScripts(),
+			value: store.Label(truth(s.app.prefs.Validates())),
+			key:   store.ValidateVar,
+		}, group: groupValidate, label: labelValidating()})
+	}
 	rows = append(rows, settingRow{item: item{
 		title: labelReset(),
 		key:   keyReset,

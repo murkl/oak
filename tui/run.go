@@ -446,8 +446,15 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		return s, s.step()
 
 	case askedMsg:
-		if err := s.ask.fill(msg, s.app.store.Get(s.ask.v.Name)); err != nil {
+		skip, err := s.ask.fill(msg, s.app.store.Get(s.ask.v.Name))
+		if err != nil {
 			return s, s.finish(err)
+		}
+		if skip {
+			logging.Info("%s: %s", s.steps[s.at].Title, "nothing to choose from")
+			s.ask = nil
+			s.state[s.at] = skipped
+			return s, s.advance()
 		}
 		return s, nil
 

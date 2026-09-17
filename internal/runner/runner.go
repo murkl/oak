@@ -178,11 +178,35 @@ func (r *Runner) Imported() error {
 	return nil
 }
 
-// Settle applies every answer that stands, so the live system agrees with the
-// answer file: at startup, so a second start stands where the first one left
-// off, and after a preset, whose values were never typed at a prompt that could
-// have applied them one at a time.
+// Resolve works out every answer the module reads off the machine instead of
+// asking for it. It runs when the module opens and again whenever an answer
+// changes, so a value worked out from another answer follows it.
+//
+// A script that fails or prints nothing leaves the value empty, exactly as an
+// unanswered question is: there is no question here to fall back on, and a
+// guard on an empty name is simply false.
+func (r *Runner) Resolve() {
+	env := r.store.Env()
+	for _, v := range r.mod.Vars {
+		if !v.Derived() {
+			continue
+		}
+		out, err := r.sh.Run(v.Answer, env)
+		if err != nil {
+			logging.Warn("answer for %s: %s", v.Name, err)
+			out = ""
+		}
+		r.store.Set(v.Name, out)
+	}
+}
+
+// Settle brings the live system in line with the answers: whatever the module
+// reads for itself is read again, and every answer that stands is applied. At
+// startup, so a second start stands where the first one left off, and after a
+// preset, whose values were never typed at a prompt that could have applied
+// them one at a time.
 func (r *Runner) Settle() {
+	r.Resolve()
 	for _, v := range r.mod.Vars {
 		if r.store.Get(v.Name) != "" {
 			r.Apply(v)

@@ -25,3 +25,18 @@ variables:
     group: Storage
     required: true
     default: ./tux
+
+  # Not a question but a fact, so it is worked out rather than asked: what the
+  # tree itself says it was built with. It is read when the module opens and
+  # again whenever an answer changes, so naming another folder above changes
+  # this too.
+  #
+  # Such a variable is never asked, never on the settings page and never written
+  # to the answer file - the next run reads it off the machine again, and a
+  # stored copy could only disagree with it.
+  - name: TUX_DESKTOP
+    title: Desktop
+    description: |
+      Which desktop the tree was built with.
+    group: Storage
+    answer: cat "${TUX_TARGET}/etc/desktop" 2>/dev/null || echo none

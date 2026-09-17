@@ -69,13 +69,16 @@ func reportRuntime(w io.Writer, rt *spec.Runtime) {
 
 // report is what one module holds, printed.
 func report(w io.Writer, mod *spec.Module, base fs.FS) error {
-	required, secret := 0, 0
+	required, secret, derived := 0, 0, 0
 	for _, v := range mod.Vars {
+		switch {
+		case v.Derived():
+			derived++
+		case v.Secret():
+			secret++
+		}
 		if v.Required {
 			required++
-		}
-		if v.Secret() {
-			secret++
 		}
 	}
 	sources := catalogs(mod, base)
@@ -92,7 +95,7 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	if !mod.Requires.Empty() {
 		fmt.Fprintf(w, "  requires   %s\n", oneLine(mod.Requires))
 	}
-	fmt.Fprintf(w, "  variables  %d (%d required, %d secret)\n", len(mod.Vars), required, secret)
+	fmt.Fprintf(w, "  variables  %d (%d required, %d secret, %d derived)\n", len(mod.Vars), required, secret, derived)
 	fmt.Fprintf(w, "  presets    %d\n", len(mod.Presets))
 	fmt.Fprintf(w, "  stages     %s\n", strings.Join(mod.Stages, " "))
 	fmt.Fprintf(w, "  tasks      %d (%d checked)\n", len(mod.Tasks), checks(mod))

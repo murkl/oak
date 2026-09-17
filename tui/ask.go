@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -52,17 +51,24 @@ func (a *ask) Init(app *app) tea.Cmd {
 	}
 }
 
-// fill takes the answers, or says why there is no going on. A question the run
-// stopped for that turns out to have nothing to choose from is a failure and
-// not an empty list: the work has already happened, and the value it was
-// waiting for is not on this machine.
-func (a *ask) fill(msg askedMsg, current string) error {
+// fill takes the answers and reports what to do with the task behind them.
+//
+// A list that came back empty is a task with nothing to do: this machine has no
+// snapshot to go back to, no second disk to pick. That is a step to skip, not a
+// run to abandon — and it is the one outcome a module cannot declare in
+// advance, because what there is to choose from is read off work that has only
+// just happened.
+//
+// A command that *failed* is something else entirely and stops the run: nothing
+// was read, so nothing is known, and skipping on that would be a step quietly
+// left out because a script had a typo in it.
+func (a *ask) fill(msg askedMsg, current string) (skip bool, err error) {
 	a.loading = false
 	if msg.err != nil {
-		return fmt.Errorf("%s: %w", a.v.Label(), msg.err)
+		return false, fmt.Errorf("%s: %w", a.v.Label(), msg.err)
 	}
 	if len(msg.values) == 0 {
-		return errors.New(labelNothingToChoose(a.v.Label()))
+		return true, nil
 	}
 	a.values = make([]item, 0, len(msg.values))
 	for _, o := range msg.values {
@@ -70,7 +76,7 @@ func (a *ask) fill(msg askedMsg, current string) error {
 	}
 	a.picker = newPicker(a.rows())
 	a.picker.focus(current)
-	return nil
+	return false, nil
 }
 
 // Update offers a key to the question and reports whether it has been answered.

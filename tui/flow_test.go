@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1214,14 +1215,36 @@ func TestATaskCanAskForAValueInTheMiddleOfTheRun(t *testing.T) {
 	h.wants("Finished in", "Roll back")
 }
 
-// A question the run stopped for that turns out to have no answers is the end
-// of the run: the work has happened, and what it was waiting for is not here.
-func TestAskingForSomethingThatIsNotThereEndsTheRun(t *testing.T) {
+// A question the run stopped for that turns out to have no answers is a task
+// with nothing to do: this machine has no snapshot to go back to. The step is
+// skipped and the run carries on, because what there is to choose from is read
+// off work that has only just happened and no module could have declared it.
+func TestAskingForSomethingThatIsNotThereSkipsTheTask(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller + `
   - name: SNAPSHOT
     title: Snapshot
     command: "true"
+`,
+		"tasks/@finish/d-roll/task.yaml": "title: Roll back\nasks: SNAPSHOT\n",
+		"tasks/@finish/d-roll/task.sh":   "exit 1\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().enter()
+	h.typeIn("x").enter().typeIn("x").enter()
+	h.ran()
+	h.wants("Finished in", "Roll back")
+}
+
+// A command that failed is the other outcome and stops the run: nothing was
+// read, so nothing is known, and skipping on that would leave a step out
+// because a script had a typo in it.
+func TestAskingWithACommandThatFailsEndsTheRun(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: testInstaller + `
+  - name: SNAPSHOT
+    title: Snapshot
+    command: "exit 3"
 `,
 		"tasks/@finish/d-roll/task.yaml": "title: Roll back\nasks: SNAPSHOT\n",
 		"tasks/@finish/d-roll/task.sh":   "echo never\n",
@@ -1231,7 +1254,6 @@ func TestAskingForSomethingThatIsNotThereEndsTheRun(t *testing.T) {
 	h.typeIn("x").enter().typeIn("x").enter()
 	h.ran()
 	h.wants("Failed", "Roll back")
-	h.enter().wants("there is nothing to choose from")
 }
 
 // Nothing typed while a run is going may dismiss its result, and nothing said
@@ -1554,18 +1576,58 @@ func TestBackspaceGoesBackWhereEscDoes(t *testing.T) {
 	h.wants("User name", "1 of 2")
 }
 
-// Except in front of a text box, where it is the delete key first and only
-// means back once there is nothing left to delete.
-func TestBackspaceDeletesBeforeItGoesBack(t *testing.T) {
+// Except in front of a box being typed into, where it is the delete key and
+// nothing else. A key repeat is faster than a hand: a box cleared by holding
+// backspace down would otherwise leave the page on the very next repeat, which
+// is a step back nobody asked for. Esc is the way back there, and the only one
+// the hint ever promised.
+func TestBackspaceOnlyDeletesInFrontOfABox(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter()
 	h.typeIn("moritz").erase()
 	h.wants("morit").refuses("moritz")
 
-	h.erase().erase().erase().erase().erase()
-	h.wants("User name")
-	h.erase()
+	// Held down well past the end of the text, which is what a repeat does.
+	for range 10 {
+		h.erase()
+	}
+	h.wants("User name").refuses("Setup", "Full", "Bare")
+
+	h.esc()
 	h.wants("Setup", "Full", "Bare")
+}
+
+// The same in a narrowing box: clearing a query cannot close the box and then
+// walk off the page behind it.
+func TestBackspaceInANarrowingBoxOnlyDeletes(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.down().enter() // Settings
+	h.typeIn("/disk")
+	h.wants("Disk").refuses("User name")
+
+	for range 10 {
+		h.erase()
+	}
+	h.wants("User name", "Disk")
+
+	// The box is still open, so the first esc closes it and only the second
+	// leaves the page.
+	h.esc().wants("User name", "Disk")
+}
+
+// And in a password, which is a box from edge to edge.
+func TestBackspaceInAPasswordOnlyDeletes(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.key(tea.KeyUp).enter() // the row that installs, and the warning it opens
+	h.enter()                // start, which asks for the password first
+	h.typeIn("hunter2")
+
+	for range 12 {
+		h.erase()
+	}
+	h.wants("Password").refuses("Ready to start")
 }
 
 // The question of which module to open is a page like any other: it was pushed
@@ -1899,11 +1961,11 @@ func TestTheValidationSettingIsOfferedOnlyWhereThereIsSomethingToTest(t *testing
 		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.down().enter().wants("Validate", "Installation scripts", "Yes")
+	h.down().enter().wants("Validate", "Scripts", "Yes")
 
 	plain := newHarness(t, nil)
 	plain.down().enter().typeIn("moritz").enter().enter()
-	plain.down().enter().refuses("Validate", "Installation scripts")
+	plain.down().enter().refuses("Validate", "Scripts")
 }
 
 // Turning it off from the settings page is what the switch is for, and the row
@@ -1913,12 +1975,30 @@ func TestTheValidationSettingTurnsTestsOff(t *testing.T) {
 		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.down().enter().enter()              // Settings, then the validation row
-	h.wants("Installation scripts", "No") // the page, opened on Yes with No under it
-	h.down().enter()
-	h.wants("Installation scripts", "No")
+	h.down().enter()                 // Settings
+	h.typeIn("/").typeIn("Scripts")  // the row stands last, so it is found rather than walked to
+	h.enter().wants("Scripts", "No") // the page, opened on Yes with No under it
+	h.down().enter().wants("Scripts", "No")
 	if h.a.prefs.Validates() {
 		t.Error("the switch was answered No and validation is still on")
+	}
+}
+
+// The two rows that are not answers stand last, under every answer, and the one
+// that cannot be taken back stands under the other.
+func TestTheRowsThatAreNotAnswersStandLast(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+
+	var keys []string
+	for _, r := range newSettings(h.a).rows {
+		keys = append(keys, r.key)
+	}
+	want := []string{"USER", "PW", "DISK", "EXTRAS", store.ValidateVar, keyReset}
+	if !slices.Equal(keys, want) {
+		t.Errorf("the settings rows are %v, want %v", keys, want)
 	}
 }
 

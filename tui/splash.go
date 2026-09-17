@@ -18,6 +18,10 @@ import (
 // this build of itself is in the corner of every page behind the splash. It
 // fades in last, once the wordmark has settled, so the two never compete for
 // the eye.
+//
+// The release and nothing after it — the commits and the hash `git describe`
+// adds are what this build is, and the sign-off is which Oak drew this. What
+// the binary answers `--version` with is the whole of it.
 
 const (
 	// animEvery is one animation frame — the rate the wordmark sweeps in and
@@ -104,6 +108,7 @@ type splashModel struct {
 }
 
 func newSplash(logo, oak string) *splashModel {
+	oak, _, _ = strings.Cut(oak, "-")
 	rows := logoLines(logo)
 	title := 0
 	for title < len(rows) && strings.TrimSpace(rows[title]) != "" {

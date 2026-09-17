@@ -28,7 +28,7 @@ logo: |
 | `accent` | `#rrggbb`. The one colour the interface is built from |
 | `logo` | The wordmark. Everything above the first blank line is a dim eyebrow over it |
 
-`version` is the product's own. Oak's own is what `--version` answers — `oak-0.1.0`, name and version as one word, the way a release names its files — and what the splash signs off with under the wordmark. It is never shown as though it belonged to the product.
+`version` is the product's own. Oak's own is what `--version` answers — `oak-0.1.0`, name and version as one word, the way a release names its files — and what the splash signs off with under the wordmark, there as the bare release. It is never shown as though it belonged to the product.
 
 ## A module
 
@@ -143,6 +143,7 @@ What is drawn follows from the declaration — there is no switch for it:
 | `required` | Required and unanswered is what makes Oak ask |
 | `default` | The answer to start from. Any scalar: `true`, `8`, `pc105` |
 | `prefill` | Shell that prints a suggestion into the box. A suggestion is not an answer, so it does not stop Oak asking |
+| `answer` | Shell that works the value out instead of asking for it — see below |
 | `apply` | Shell run when the answer takes effect — see below |
 | `first` | Asked before everything else — see below |
 | `free` | Label of a text box under a list, for a value the list only suggests |
@@ -153,6 +154,19 @@ What is drawn follows from the declaration — there is no switch for it:
 `true` and `false` are shown as Yes and No wherever they appear, so `values: [auto, true, false]` is a boolean with a third option.
 
 **A secret** is the one required value that does not hold up the rest of the program. It is asked for immediately before the run that needs it, used, and forgotten — never written to the answer file or the log.
+
+**`answer:`** is for the question a machine can see the answer to: whether the disk in front of it is encrypted is a fact, not an opinion. The shell prints the value, and printing nothing leaves it empty.
+
+```yaml
+  - name: TUX_ENCRYPTED
+    title: Encrypted
+    type: bool
+    answer: disk_is_encrypted          # a function in module.sh
+```
+
+It is read when the module opens and again whenever an answer changes, so a value worked out from another answer follows it. Such a variable is **never asked, never on the settings page and never written to the answer file** — the next run reads it off the machine again, and a stored copy could only disagree with it. It is still an answer like any other everywhere else: scripts read it under its own name, and `conditions:` are written against it.
+
+**Note:** _Where there is something to decide, there is a question. `answer:` is refused on a secret, alongside `prefill:` and together with `first:`._
 
 **`apply:`** is for an answer that changes the machine the program is running on rather than the one being worked on — `apply: loadkeys "$TUX_KEYMAP"`. It runs the moment the answer is given, and again at startup for an answer this run already had. A failure is logged as a warning and the answer still stands.
 
@@ -224,7 +238,7 @@ Seven more keys change what a task **is** rather than what it does:
 
 | Key | Description |
 | --- | --- |
-| `asks: VAR` | The run pauses to ask for that value first, for something not knowable before the work started. The variable must have a fixed set of answers and must not be a secret |
+| `asks: VAR` | The run pauses to ask for that value first, for something not knowable before the work started. The variable must have a fixed set of answers and must not be a secret. A list that comes back **empty** is a task with nothing to do, and the task is skipped; a command that **fails** stops the run |
 | `confirm:` | Asked as a yes/no before it runs. Declining skips it and the run carries on |
 | `default: no` | That yes/no opens on No instead of Yes |
 | `report:` | The run stops on a page of its own once this task has finished. The first paragraph is the headline; `{{VAR}}` is filled in. Where anything has been tested, the page also says how many passed |
@@ -271,7 +285,7 @@ Where something disagreed, the next page is the list of what did — offered **o
 
 Both of those pages are left **only by saying so**: the list by choosing the row at the end of it, the report behind it by pressing enter. Esc and backspace do nothing on either. Everywhere else in the program a page that is only read answers to them as well, because leaving it costs nothing — here it costs the only account of what went wrong this run is going to give, and reaching for the key that means back is exactly what somebody does who has just been told something failed.
 
-Whether any of this happens at all is one switch in the settings, on unless somebody turns it off. It is Oak's own answer rather than a module's — what a task tests is the module's business, whether anything is tested is not — so it is kept in `oak.conf` and holds for every module beside it. The switch is offered only where the module has something to test.
+Whether any of this happens at all is one switch in the settings, on unless somebody turns it off. It is Oak's own answer rather than a module's — what a task tests is the module's business, whether anything is tested is not — so it is kept in `oak.conf` and holds for every module beside it. The switch is offered only where the module has something to test, and it stands at the foot of the page with the row that forgets every answer: neither is a value, both are about the run.
 
 ### The order
 
@@ -413,7 +427,7 @@ Beside wherever the program was started, never inside a module — which may be 
 | File | Description |
 | --- | --- |
 | `oak.conf` | What Oak keeps across every module: `OAK_LANG`, the language, and `OAK_VALIDATE`, whether a run checks its own work |
-| `<module>.conf` | Every answer, as `KEY='value'`. Plain shell, editable by hand |
+| `<module>.conf` | Every answer, as `KEY='value'`. Plain shell, editable by hand. A secret and a derived answer are not in it |
 | `<module>.log` | Oak's own progress plus every line every script printed |
 
 A second module writes its own pair beside the first, so two started from the same folder never collide.
@@ -427,10 +441,13 @@ Five keys, three meanings, the same on every page. Long lists narrow with `/`.
 | Key | Meaning |
 | --- | --- |
 | `enter` | Confirm |
-| `esc`, `backspace` | Back |
+| `esc` | Back, everywhere |
+| `backspace` | Back, except in front of a box being typed into, where it is the delete key |
 | `q`, `ctrl+c` | Ask to leave |
 
 **Note:** _Arrow keys only move a cursor, since an arrow key is also what a mouse wheel sends._
+
+**Note:** _Backspace never leaves a text box, a password or a narrowing box, however empty it is. A key repeat is faster than a hand, and a box cleared by holding it down would leave the page on the very next repeat — which is why no hint anywhere names backspace, and every one of them names esc._
 
 ## Checking a product
 

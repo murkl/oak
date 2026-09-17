@@ -165,9 +165,8 @@ func (s *networkScreen) key(k tea.KeyMsg) tea.Cmd {
 			s.step, s.busy = netJoining, labelNetworkJoining(s.ssid)
 			r, dev, ssid, pass := s.radio, s.dev, s.ssid, s.input.Value()
 			return func() tea.Msg { return netJoinedMsg{err: r.Join(dev, ssid, pass)} }
-		// Backspace goes back as well, once there is nothing left of the
-		// passphrase for it to delete.
-		case cancels(k), erases(k) && s.input.Value() == "":
+		// Esc alone: backspace is the delete key in front of a passphrase.
+		case cancels(k):
 			s.step, s.err = netChoosing, ""
 			return nil
 		}

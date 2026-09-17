@@ -532,6 +532,18 @@ type Variable struct {
 	// box, it does not answer the question.
 	Prefill string `yaml:"prefill"`
 
+	// Answer is shell that works the value out instead of asking for it, for
+	// the question a machine can see the answer to: whether the disk in front
+	// of it is encrypted is a fact, not an opinion. It prints the answer, and
+	// printing nothing leaves the value empty.
+	//
+	// It is read when the module opens and again whenever an answer changes, so
+	// a value worked out from another answer follows it. Such a variable is
+	// never asked, never on the settings page and never written to the answer
+	// file: it is read off the machine every run, and a stored copy could only
+	// disagree with it.
+	Answer string `yaml:"answer"`
+
 	// Apply puts this answer into effect on the machine the runtime is running
 	// on, rather than on the one being installed. Almost nothing needs it — an
 	// answer is a string a script reads later — but a console keyboard is not a
@@ -559,6 +571,11 @@ type Variable struct {
 // cannot be chosen, or shown on a settings page, while the disk holding it is
 // still locked; a link a run has yet to produce is not a question at all.
 func (v *Variable) Deferred() bool { return v.deferred }
+
+// Derived reports whether this value is read off the machine rather than asked
+// for. Like a deferred one it is not a question, and for the mirror reason:
+// there is nothing here for anybody to decide.
+func (v *Variable) Derived() bool { return v.Answer != "" }
 
 func (v *Variable) Label() string { return i18n.T(v.Title) }
 func (v *Variable) Help() string  { return i18n.T(v.Description) }

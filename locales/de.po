@@ -70,15 +70,15 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:583
+#: internal/spec/spec.go:600
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:585
+#: internal/spec/spec.go:602
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
-#: internal/store/conf.go:67
+#: internal/store/conf.go:69
 #, c-format
 msgid "Answers for %s. Can be edited by hand."
 msgstr "Angaben für %s. Kann von Hand bearbeitet werden."
@@ -95,15 +95,15 @@ msgstr "Sprache der Oberfläche"
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
 
-#: internal/store/store.go:189
+#: internal/store/store.go:191
 msgid "asked just before the run"
 msgstr "wird kurz vor dem Start abgefragt"
 
-#: internal/store/store.go:206 tui/labels.go:226
+#: internal/store/store.go:208 tui/labels.go:223
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:208 tui/labels.go:227
+#: internal/store/store.go:210 tui/labels.go:224
 msgid "No"
 msgstr "Nein"
 
@@ -335,116 +335,118 @@ msgstr "Weiter"
 msgid "Leave this page. These results are not shown again."
 msgstr "Diese Seite verlassen. Die Ergebnisse werden nicht noch einmal gezeigt."
 
-#: tui/labels.go:144
+#: tui/labels.go:148
 msgid "Validate"
 msgstr "Validieren"
 
-#: tui/labels.go:145
-msgid "Installation scripts"
-msgstr "Installationsskripte"
+#: tui/labels.go:149
+msgid "Scripts"
+msgstr "Skripte"
 
-#: tui/labels.go:147
-msgid "Reads the machine after every task: that what the task installed is really there, and set up the way it was meant to be. It is what makes an installation you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
-msgstr "Liest nach jeder Aufgabe den Rechner: ob wirklich da ist, was sie installiert hat, und ob es so eingerichtet ist, wie es sein soll. Das macht aus einer Installation, die Erfolg gemeldet hat, eine, auf die Verlass ist. Nichts wird verändert und nichts abgebrochen. Was nicht übereinstimmt, steht am Ende."
+#: tui/labels.go:151
+msgid "Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
+msgstr "Liest nach jeder Aufgabe den Rechner: ob wirklich getan ist, was sie getan hat, und ob es so ist, wie es sein soll. Das macht aus einem Durchlauf, der Erfolg gemeldet hat, einen, auf den Verlass ist. Nichts wird verändert und nichts abgebrochen. Was nicht übereinstimmt, steht am Ende."
 
 #. %s is the name of the module whose values these are.
-#: tui/labels.go:152
+#: tui/labels.go:156
 #, c-format
 msgid "Every value %s will use. Choose one to change it."
 msgstr "Alle Werte, mit denen %s arbeitet. Zum Ändern einen davon öffnen."
 
-#: tui/labels.go:159
+#: tui/labels.go:163
 msgid "Reset all answers"
 msgstr "Alle Antworten zurücksetzen"
 
-#: tui/labels.go:161
+#: tui/labels.go:165
 msgid "Every answer is forgotten and the file they are kept in is deleted. The module starts again at its first question, and this cannot be undone."
 msgstr "Alle Antworten werden verworfen und die Datei, in der sie stehen, wird gelöscht. Das Modul beginnt wieder bei seiner ersten Frage, und das lässt sich nicht rückgängig machen."
 
-#: tui/labels.go:164
+#: tui/labels.go:168
 msgid "Repeat"
 msgstr "Wiederholen"
 
-#: tui/labels.go:165
+#: tui/labels.go:169
 msgid "The entries do not match."
 msgstr "Die Eingaben stimmen nicht überein."
 
-#: tui/labels.go:175
+#: tui/labels.go:179
 msgid "Ready to start"
 msgstr "Bereit zum Start"
 
-#: tui/labels.go:176
+#: tui/labels.go:180
 msgid "Failed"
 msgstr "Fehlgeschlagen"
 
-#: tui/labels.go:178
+#: tui/labels.go:182
 #, c-format
 msgid "Working · %s"
 msgstr "Läuft · %s"
 
-#: tui/labels.go:181
+#: tui/labels.go:185
 #, c-format
 msgid "Finished in %s"
 msgstr "Fertig in %s"
 
-#: tui/labels.go:184
+#: tui/labels.go:188
 #, c-format
 msgid "The full log is in %s."
 msgstr "Das vollständige Protokoll steht in %s."
 
-#: tui/labels.go:193
+#: tui/labels.go:197
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr "Abgebrochen bei %s; alles danach wurde nicht mehr ausgeführt."
 
 #: tui/labels.go:200
-#, c-format
-msgid "%s: there is nothing to choose from."
-msgstr "%s: Es gibt nichts zur Auswahl."
-
-#: tui/labels.go:203
 msgid "Cannot continue"
 msgstr "Fortfahren nicht möglich"
 
-#: tui/labels.go:207
+#: tui/labels.go:204
 msgid "Leave"
 msgstr "Beenden"
 
-#: tui/labels.go:212
+#: tui/labels.go:209
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr "Der Vorgang läuft hinter dieser Seite weiter. Jede Auswahl hier bricht ihn ab."
 
-#: tui/labels.go:215
+#: tui/labels.go:212
 msgid "Restart"
 msgstr "Neu starten"
 
-#: tui/labels.go:216
+#: tui/labels.go:213
 msgid "Close this machine down and start it again."
 msgstr "Den Rechner herunterfahren und neu starten."
 
-#: tui/labels.go:217
+#: tui/labels.go:214
 msgid "Shut down"
 msgstr "Herunterfahren"
 
-#: tui/labels.go:218
+#: tui/labels.go:215
 msgid "Exit"
 msgstr "Beenden"
 
-#: tui/labels.go:219
+#: tui/labels.go:216
 msgid "Switch this machine off."
 msgstr "Den Rechner ausschalten."
 
-#: tui/labels.go:220
+#: tui/labels.go:217
 msgid "Restarting …"
 msgstr "Neustart läuft …"
 
-#: tui/labels.go:221
+#: tui/labels.go:218
 msgid "Shutting down …"
 msgstr "Wird heruntergefahren …"
 
-#: tui/labels.go:222
+#: tui/labels.go:219
 msgid "The machine did not respond."
 msgstr "Der Rechner hat nicht reagiert."
+
+#~ msgid "Installation scripts"
+#~ msgstr "Installationsskripte"
+
+#, c-format
+#~ msgid "%s: there is nothing to choose from."
+#~ msgstr "%s: Es gibt nichts zur Auswahl."
 
 #, c-format
 #~ msgid "Start %s"

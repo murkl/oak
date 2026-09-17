@@ -694,6 +694,16 @@ func (s *Module) checkVars() error {
 		if len(v.Values) > 0 && v.Command != "" {
 			return fmt.Errorf("%s: values and command are two answers to the same question", v.Name)
 		}
+		if v.Derived() {
+			switch {
+			case v.Secret():
+				return fmt.Errorf("%s: a secret is typed by a person, never worked out", v.Name)
+			case v.Prefill != "":
+				return fmt.Errorf("%s: answer settles the value, prefill only suggests one - a question is asked or it is not", v.Name)
+			case v.First:
+				return fmt.Errorf("%s: a derived answer is never asked, so it cannot be asked first", v.Name)
+			}
+		}
 		if v.Pattern != "" {
 			re, err := regexp.Compile(v.Pattern)
 			if err != nil {
@@ -701,7 +711,7 @@ func (s *Module) checkVars() error {
 			}
 			v.re = re
 		}
-		for _, expr := range []*string{&v.Command, &v.Prefill, &v.Apply} {
+		for _, expr := range []*string{&v.Command, &v.Prefill, &v.Apply, &v.Answer} {
 			resolved, err := shell(s.Dir, *expr)
 			if err != nil {
 				return fmt.Errorf("%s: %w", v.Name, err)

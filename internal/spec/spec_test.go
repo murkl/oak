@@ -576,6 +576,21 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "cannot have a default",
 		},
 		{
+			name:  "a secret worked out rather than typed",
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    answer: echo x\n")},
+			want:  "never worked out",
+		},
+		{
+			name:  "a question both worked out and suggested, which is asked and not asked at once",
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    answer: echo a\n    prefill: echo b\n")},
+			want:  "a question is asked or it is not",
+		},
+		{
+			name:  "a derived answer asked first, which is a question that is never asked",
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    answer: echo a\n    first: true\n")},
+			want:  "cannot be asked first",
+		},
+		{
 			name:  "both a list and a command for the same question",
 			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    values: [a]\n    command: ls\n")},
 			want:  "two answers to the same question",

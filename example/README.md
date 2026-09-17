@@ -2,7 +2,7 @@
 
 A whole Oak product, small enough to read in one sitting: an `oak.yaml`, two modules beside it, and a handful of shell scripts between them. It is what the screenshots in the [README](../docs/README.md) are taken from.
 
-Nothing here touches the machine. **Tux Setup** asks what an installer asks — a hostname, a user, a desktop — and builds a small system tree in `./tux` out of the answers. **Tux Recovery** is a second whole program from the same binary: it checks that the tree is there.
+Nothing here touches the machine. **Tux Setup** asks what an installer asks — a hostname, a user, a desktop — and builds a small system tree in `./tux` out of the answers. **Tux Recovery** is a second whole program from the same binary: it checks that the tree is there, and works out for itself which desktop it was built with rather than asking.
 
 ```
 oak.yaml                                    the product: name, colour, version, wordmark

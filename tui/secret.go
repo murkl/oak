@@ -61,7 +61,9 @@ func (s *secretScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		return s, nil
 	}
 	switch {
-	case cancels(key), erases(key) && s.input.Value() == "":
+	// Esc alone: the whole page is a box, so backspace is the delete key here
+	// and never the way out.
+	case cancels(key):
 		// Backing out of the repeat goes back to the first entry, not out of the
 		// page: the two are one question.
 		if s.again {

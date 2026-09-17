@@ -61,13 +61,15 @@ func (s *Store) Exists() bool {
 // hand can see what each line is for without a second document.
 //
 // Secrets are not written. Not masked, not empty-but-present: absent, so there
-// is no line to wonder about.
+// is no line to wonder about. Neither is a derived answer: it is read off the
+// machine on every run, and a line here could only be a second answer able to
+// disagree with it.
 func (s *Store) Save() error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", i18n.T("Answers for %s. Can be edited by hand.", s.mod.Name()))
 	group := ""
 	for _, v := range s.mod.Vars {
-		if v.Secret() {
+		if v.Secret() || v.Derived() {
 			continue
 		}
 		if v.Group != group {

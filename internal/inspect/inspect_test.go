@@ -137,7 +137,7 @@ variables:
 	for _, want := range []string{
 		"modules    installer",
 		"title      Installer",
-		"variables  2 (2 required, 1 secret)",
+		"variables  2 (2 required, 1 secret, 0 derived)",
 		"tasks      1",
 		"hooks      " + spec.HookPreflight + "(1)",
 		"1. go         first",

@@ -138,13 +138,17 @@ func labelReviewedHelp() string { return say("Leave this page. These results are
 // module's business, whether anything is tested at all is not.
 //
 // The heading is what is being decided and the row is what it is being decided
-// about, so the two read as one line: validate — the installation scripts. The
-// sentence under it says what saying yes is worth, because somebody reading it
-// is deciding whether a thing they have never seen fail is worth the time.
+// about, so the two read as one line: validate — the scripts. Neither word says
+// what the scripts are for: what a module does with them is the module's, and a
+// runtime that called them installation scripts would be naming the one thing
+// it must not know.
+//
+// The sentence under it says what saying yes is worth, because somebody reading
+// it is deciding whether a thing they have never seen fail is worth the time.
 func labelValidating() string        { return say("Validate") }
-func labelValidatingScripts() string { return say("Installation scripts") }
+func labelValidatingScripts() string { return say("Scripts") }
 func labelValidatingHelp() string {
-	return say("Reads the machine after every task: that what the task installed is really there, and set up the way it was meant to be. It is what makes an installation you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end.")
+	return say("Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end.")
 }
 
 // TRANSLATORS: %s is the name of the module whose values these are.
@@ -191,13 +195,6 @@ func labelLogHint(path string) string {
 // TRANSLATORS: %s is the name of the step the run stopped at.
 func labelRunStopped(step string) string {
 	return say("It stopped at %s, and nothing after that has run.", step)
-}
-
-// What a question put in the middle of a run says when the answers to it turn
-// out to be none. A run cannot go on past it — the value it was waiting for
-// does not exist on this machine — so it reads as the failure it is.
-func labelNothingToChoose(title string) string {
-	return say("%s: there is nothing to choose from.", title)
 }
 
 func labelCannotContinue() string { return say("Cannot continue") }
