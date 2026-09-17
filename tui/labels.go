@@ -151,9 +151,10 @@ func labelValidatingHelp() string {
 	return say("Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end.")
 }
 
-// TRANSLATORS: %s is the name of the module whose values these are.
-func labelSettingsHelp(name string) string {
-	return say("Every value %s will use. Choose one to change it.", name)
+// Nameless on purpose: the frame already carries the module's name on every
+// page, and a sentence repeating it here would be the same word twice.
+func labelSettingsHelp() string {
+	return say("Every value in use. Open one to change it.")
 }
 
 // The last row of the settings page, and the page behind it. The row says what

@@ -618,30 +618,16 @@ func TestTheLandingPageComesBeforeTheQuestionOfWhichModule(t *testing.T) {
 
 // A module has one name, and the frame carries it on every page. So the rows
 // inside it are named after what pressing them does rather than after the
-// module all over again — and the sentences the runtime writes about it are the
-// one place that name is read.
+// module all over again — and the sentence under each row stays nameless too,
+// for the same reason.
 func TestTheRowsInsideAModuleAreNamedAfterWhatTheyDo(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
 	h.wants("Start", "Settings").refuses(glyphs.cursor + "Test Installer")
 
-	// And the title is what the sentences about it are written with.
 	h.down()
-	h.wants("Every value Test Installer will use.")
-}
-
-// The pages the runtime brings with it belong to whichever module was opened and
-// are read in its name. A recovery whose settings talk about an installer is the
-// runtime putting words in a program's mouth.
-func TestTheRuntimesOwnPagesNameTheProgramThatWasOpened(t *testing.T) {
-	h := start(t, both(t)...)
-	h.down().enter() // the recovery
-	h.wants("Disk").enter()
-	h.wants("Snapshot").enter()
-
-	h.down() // the settings row, which is where its description is read
-	h.wants("Every value Test Recovery will use.").refuses("installer")
+	h.wants("Every value in use.")
 }
 
 // The frame is titled after the product on every page, and once a module is

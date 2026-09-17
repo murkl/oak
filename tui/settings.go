@@ -176,7 +176,7 @@ func (s *settingsScreen) layout() {
 		key = s.picker.selected()
 	}
 	s.picker = newPicker(s.list())
-	s.picker.describe(labelSettingsHelp(s.app.module.Name()))
+	s.picker.describe(labelSettingsHelp())
 	s.picker.focus(key)
 }
 

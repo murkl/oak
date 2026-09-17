@@ -95,11 +95,11 @@ msgstr "Sprache der Oberfläche"
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
 
-#: internal/store/store.go:206 tui/labels.go:223
+#: internal/store/store.go:206 tui/labels.go:224
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:208 tui/labels.go:224
+#: internal/store/store.go:208 tui/labels.go:225
 msgid "No"
 msgstr "Nein"
 
@@ -343,97 +343,95 @@ msgstr "Skripte"
 msgid "Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
 msgstr "Liest nach jeder Aufgabe den Rechner: ob wirklich getan ist, was sie getan hat, und ob es so ist, wie es sein soll. Das macht aus einem Durchlauf, der Erfolg gemeldet hat, einen, auf den Verlass ist. Nichts wird verändert und nichts abgebrochen. Was nicht übereinstimmt, steht am Ende."
 
-#. %s is the name of the module whose values these are.
-#: tui/labels.go:156
-#, c-format
-msgid "Every value %s will use. Choose one to change it."
-msgstr "Alle Werte, mit denen %s arbeitet. Zum Ändern einen davon öffnen."
+#: tui/labels.go:157
+msgid "Every value in use. Open one to change it."
+msgstr "Alle Werte im Einsatz. Zum Ändern einen öffnen."
 
-#: tui/labels.go:163
+#: tui/labels.go:164
 msgid "Reset all answers"
 msgstr "Alle Antworten zurücksetzen"
 
-#: tui/labels.go:165
+#: tui/labels.go:166
 msgid "Every answer is forgotten and the file they are kept in is deleted. The module starts again at its first question, and this cannot be undone."
 msgstr "Alle Antworten werden verworfen und die Datei, in der sie stehen, wird gelöscht. Das Modul beginnt wieder bei seiner ersten Frage, und das lässt sich nicht rückgängig machen."
 
-#: tui/labels.go:168
+#: tui/labels.go:169
 msgid "Repeat"
 msgstr "Wiederholen"
 
-#: tui/labels.go:169
+#: tui/labels.go:170
 msgid "The entries do not match."
 msgstr "Die Eingaben stimmen nicht überein."
 
-#: tui/labels.go:179
+#: tui/labels.go:180
 msgid "Ready to start"
 msgstr "Bereit zum Start"
 
-#: tui/labels.go:180
+#: tui/labels.go:181
 msgid "Failed"
 msgstr "Fehlgeschlagen"
 
-#: tui/labels.go:182
+#: tui/labels.go:183
 #, c-format
 msgid "Working · %s"
 msgstr "Läuft · %s"
 
-#: tui/labels.go:185
+#: tui/labels.go:186
 #, c-format
 msgid "Finished in %s"
 msgstr "Fertig in %s"
 
-#: tui/labels.go:188
+#: tui/labels.go:189
 #, c-format
 msgid "The full log is in %s."
 msgstr "Das vollständige Protokoll steht in %s."
 
-#: tui/labels.go:197
+#: tui/labels.go:198
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr "Abgebrochen bei %s; alles danach wurde nicht mehr ausgeführt."
 
-#: tui/labels.go:200
+#: tui/labels.go:201
 msgid "Cannot continue"
 msgstr "Fortfahren nicht möglich"
 
-#: tui/labels.go:204
+#: tui/labels.go:205
 msgid "Leave"
 msgstr "Beenden"
 
-#: tui/labels.go:209
+#: tui/labels.go:210
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr "Der Vorgang läuft hinter dieser Seite weiter. Jede Auswahl hier bricht ihn ab."
 
-#: tui/labels.go:212
+#: tui/labels.go:213
 msgid "Restart"
 msgstr "Neu starten"
 
-#: tui/labels.go:213
+#: tui/labels.go:214
 msgid "Close this machine down and start it again."
 msgstr "Den Rechner herunterfahren und neu starten."
 
-#: tui/labels.go:214
+#: tui/labels.go:215
 msgid "Shut down"
 msgstr "Herunterfahren"
 
-#: tui/labels.go:215
+#: tui/labels.go:216
 msgid "Exit"
 msgstr "Beenden"
 
-#: tui/labels.go:216
+#: tui/labels.go:217
 msgid "Switch this machine off."
 msgstr "Den Rechner ausschalten."
 
-#: tui/labels.go:217
+#: tui/labels.go:218
 msgid "Restarting …"
 msgstr "Neustart läuft …"
 
-#: tui/labels.go:218
+#: tui/labels.go:219
 msgid "Shutting down …"
 msgstr "Wird heruntergefahren …"
 
-#: tui/labels.go:219
+#: tui/labels.go:220
 msgid "The machine did not respond."
 msgstr "Der Rechner hat nicht reagiert."
 

@@ -40,7 +40,7 @@ func (h *hub) Refresh() {
 func (h *hub) build() {
 	h.picker = newPicker([]item{
 		{title: labelOpening(), detail: h.app.module.Help(), key: keyInstall},
-		{title: labelSettings(), detail: labelSettingsHelp(h.app.module.Name()), key: keySettings},
+		{title: labelSettings(), detail: labelSettingsHelp(), key: keySettings},
 	})
 }
 
