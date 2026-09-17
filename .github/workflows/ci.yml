@@ -1,5 +1,7 @@
 # One binary, checked and built once. A tag is the same run with a release at
-# the end of it, so what is published is the file the checks ran against.
+# the end of it, so what is published is the file the checks ran against. One
+# workflow rather than one per concern: a push to main has exactly one pipeline
+# to watch, not a CodeQL run racing the checks it has nothing to do with.
 
 name: CI
 
@@ -8,15 +10,21 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  # CodeQL alone, on what already shipped — a finding here is news about code
+  # that has not changed since, not a reason to run the rest of the file again.
+  schedule:
+    - cron: "37 4 * * 1"
   workflow_dispatch:
 
 permissions: {}
 
 # One run per pull request: pushing again cancels the one still going. On main
-# and on a tag nothing is cancelled — that is the run that releases.
+# and on a tag nothing is cancelled — that is the run that releases. A scheduled
+# run shares the group with main but is never itself cancelled, so a push
+# queues behind it instead of racing it.
 concurrency:
   group: ci-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: ${{ github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' && github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   # `make check` and nothing this file adds to it: what is checked lives in the
@@ -25,6 +33,7 @@ jobs:
   # are the same bytes because they are the same build.
   check:
     name: Check
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container: archlinux:latest
@@ -71,6 +80,7 @@ jobs:
 
   security:
     name: Security
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container: archlinux:latest
@@ -95,6 +105,35 @@ jobs:
       # credential that reached this repository would travel with it.
       - name: Secrets in the repository
         run: gitleaks dir . --redact --no-banner
+
+  # Static analysis that follows a value across functions, which is the one
+  # thing vet and staticcheck do not do. Not required by release: a finding
+  # here belongs in the security tab, not in the way of a binary check and
+  # security already passed.
+  analyze:
+    name: CodeQL
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: go
+          build-mode: manual
+
+      - run: make build
+
+      - uses: github/codeql-action/analyze@v4
 
   # Nothing is built here. A tag publishes the artefact the jobs above checked
   # and built — the same bytes, under a version.
