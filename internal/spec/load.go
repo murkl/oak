@@ -36,8 +36,7 @@ type declaration struct {
 	Language string `yaml:"language"`
 
 	// What a machine has to be for this module to be offered on it. Shell, or
-	// the file it lives in, like everything else the yaml may write outright —
-	// and left out entirely where requires.sh lies beside the declaration.
+	// the file it lives in, like everything else the yaml may write outright.
 	Requires string `yaml:"requires"`
 
 	// What this module is and what it does: one sentence about the program, the
@@ -66,15 +65,15 @@ func Load(dir string) (*Module, error) {
 	s.UI = UI{Title: head.Title, Description: head.Description, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Confirm, s.Stages = head.Confirm, head.Stages
-	// Found the way a task's script is: what the yaml wrote, the file it named,
-	// or — where it says nothing — requires.sh lying beside it. So the ordinary
-	// case is a file with the name the runtime knows it by, and module.yaml
-	// points at nothing.
-	requires, err := pick(dir, "requires", head.Requires, FileRequires)
+	requires, err := scriptFile(dir, head.Requires)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", FileModule, err)
+		return nil, fmt.Errorf("%s: requires: %w", FileModule, err)
 	}
-	s.Requires = requires
+	if requires != "" {
+		s.Requires = Script{File: requires}
+	} else if strings.TrimSpace(head.Requires) != "" {
+		s.Requires = Script{Shell: head.Requires}
+	}
 	if err := checkStages(s.Stages); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
@@ -307,7 +306,7 @@ func pick(dir, key, expr, name string) (Script, error) {
 	file := beside(dir, name)
 	switch {
 	case expr != "" && file != "":
-		return Script{}, fmt.Errorf("%s: there is a %s here as well, and only one of the two can be the answer", key, name)
+		return Script{}, fmt.Errorf("%s: there is a %s here as well, and a task runs one thing", key, name)
 	case expr == "":
 		return Script{File: file}, nil
 	}

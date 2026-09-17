@@ -34,12 +34,11 @@ import (
 // while a hook is the module's answer to a question the runtime asks. Every
 // file inside says which of the two it is, so nothing is read as the other.
 const (
-	FileModule   = "module.yaml" // the declaration: what the module is, asks, and does
-	FileShell    = "module.sh"   // shell put in front of every script this module runs
-	FileRequires = "requires.sh" // what a machine has to be for this module to be offered on it
-	DirTasks     = "tasks"       // the work, one folder per task
-	DirHooks     = "hooks"       // what the runtime runs itself, one folder per hook
-	DirLocales   = "locales"     // one catalog per language the module speaks
+	FileModule = "module.yaml" // the declaration: what the module is, asks, and does
+	FileShell  = "module.sh"   // shell put in front of every script this module runs
+	DirTasks   = "tasks"       // the work, one folder per task
+	DirHooks   = "hooks"       // what the runtime runs itself, one folder per hook
+	DirLocales = "locales"     // one catalog per language the module speaks
 
 	FileTask       = "task.yaml" // what a task is
 	FileTaskScript = "task.sh"   // what it does, where its yaml does not say so itself

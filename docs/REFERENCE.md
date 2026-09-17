@@ -38,7 +38,6 @@ One folder. Only the declaration has to be there — a module turns a part of th
 | --- | --- |
 | `module.yaml` | The declaration: what the module is, what it asks, and the order its work happens in |
 | `module.sh` | Sourced in front of everything this module runs |
-| `requires.sh` | What a machine has to be for this module to be offered on it — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `tasks/@<stage>/<task>/task.yaml` | What a task is |
 | `tasks/@<stage>/<task>/task.sh` | What it does, where its yaml does not say so itself |
 | `tasks/@<stage>/<task>/test.sh` | How to tell that it took, likewise. Optional — see [Testing the work](#testing-the-work) |
@@ -64,7 +63,10 @@ confirm: |                               # the last thing shown before anything 
 console: Run ./oak --module=setup to start it again.  # optional: read on the way out
 language: TUX_LOCALE                     # optional: ties the interface language to one answer
 
-requires: is_live_image                  # optional: what a machine must be for this
+requires: |                              # optional: what a machine must be for this
+  [ -d /run/archiso ] && return 0
+  echo "This only runs from the live image." >&2
+  exit 1
 ```
 
 | Key | Description |
@@ -75,7 +77,7 @@ requires: is_live_image                  # optional: what a machine must be for 
 | `confirm` | The last thing shown before the first task. `{{VAR}}` is filled in from the answers |
 | `console` | Read on the terminal on the way out, where the machine keeps running |
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
-| `requires` | What a machine has to be for this module to be offered on it, where it is one line. More than that is `requires.sh` beside the declaration — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
+| `requires` | What a machine has to be for this module to be offered on it — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
 
@@ -83,7 +85,7 @@ requires: is_live_image                  # optional: what a machine must be for 
 
 ### Which modules a machine is offered
 
-What a module demands is found the way a task's script is: the `requires.sh` beside the declaration, or a `requires:` in it holding shell or naming a file. Both is two answers to one question and is refused. It is the only thing Oak runs before a module has been opened. It reads the machine and nothing else — there are no answers yet — which is why it is shell rather than the `conditions:` a task is guarded with. A module that demands nothing is on offer everywhere.
+`requires:` is shell, or the file it lives in, and it is the only thing Oak runs before a module has been opened. It reads the machine and nothing else — there are no answers yet — which is why it is shell rather than the `conditions:` a task is guarded with. A module that demands nothing is on offer everywhere.
 
 What is left is what the interface does with them:
 
@@ -95,11 +97,12 @@ What is left is what the interface does with them:
 
 It answers with its exit status, and what it writes to **stderr** is the sentence somebody reads when they named that module outright with `--module=`. So a check that says no says why, in the module's own words, the way a `@preflight` step does.
 
-```bash
-# modules/imager/requires.sh
-[ "$(cat /proc/sys/kernel/hostname)" = "archiso" ] || return 0
-echo "This writes a device from an ordinary machine, not from the live image." >&2
-exit 1
+```yaml
+# modules/imager/module.yaml
+requires: |
+  [ "$(cat /proc/sys/kernel/hostname)" = "archiso" ] || return 0
+  echo "This writes a device from an ordinary machine, not from the live image." >&2
+  exit 1
 ```
 
 This is what lets one product hold modules that belong on different machines — an installer that only makes sense on a live image, and the thing that writes that image, which only makes sense anywhere else. Each says so itself, and nothing anywhere holds a list of which is which, so adding a module stays a folder.

@@ -239,7 +239,7 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 				"tasks/@go/half/task.yaml": "title: Half\nscript: echo hi\n",
 				"tasks/@go/half/task.sh":   "echo hi\n",
 			},
-			want: "only one of the two can be the answer",
+			want: "a task runs one thing",
 		},
 		{
 			name:  "a script naming a file that is not there",
@@ -342,21 +342,11 @@ func TestAHookStepRefusesWhatItCannotMean(t *testing.T) {
 	}
 }
 
-// What a machine has to be for this module to be offered on it is found the way
-// a task's script is: lying beside the declaration under the name Oak knows it
-// by, or written into the yaml where it is one line. The first is the ordinary
-// case, and it is what keeps module.yaml from pointing at a file of its own.
-func TestAModuleFindsItsRequirementBesideItsDeclaration(t *testing.T) {
-	sp, err := Load(module(t, map[string]string{FileRequires: "arch_live\n"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sp.Requires.File == "" {
-		t.Errorf("Requires = %+v, want the requires.sh beside it", sp.Requires)
-	}
-
-	// Written into the yaml instead, for a check that is one line.
-	sp, err = Load(module(t, map[string]string{FileModule: head("requires: arch_live\n")}))
+// What a machine has to be for this module to be offered on it stands in the
+// declaration, like everything else the module says about itself: shell where
+// it is short, or a file it names where it is not.
+func TestAModuleFindsItsRequirementInItsDeclaration(t *testing.T) {
+	sp, err := Load(module(t, map[string]string{FileModule: head("requires: arch_live\n")}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,28 +354,13 @@ func TestAModuleFindsItsRequirementBesideItsDeclaration(t *testing.T) {
 		t.Errorf("Requires = %+v, want the shell the yaml wrote", sp.Requires)
 	}
 
-	// And a module that demands nothing is on offer everywhere.
+	// A module that demands nothing is on offer everywhere.
 	sp, err = Load(module(t, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !sp.Requires.Empty() {
 		t.Errorf("Requires = %+v, want nothing", sp.Requires)
-	}
-}
-
-// Both is two answers to one question, and the one place a reader would look
-// for the answer is not the one that wins.
-func TestAModuleThatSaysItsRequirementTwiceIsRefused(t *testing.T) {
-	_, err := Load(module(t, map[string]string{
-		FileModule:   head("requires: arch_live\n"),
-		FileRequires: "arch_live\n",
-	}))
-	if err == nil {
-		t.Fatal("a requires: and a requires.sh loaded, want a refusal")
-	}
-	if !strings.Contains(err.Error(), FileRequires) {
-		t.Errorf("error = %v, want it to name %s", err, FileRequires)
 	}
 }
 
@@ -447,7 +422,7 @@ func TestATaskCannotSayTwiceHowItIsChecked(t *testing.T) {
 		"tasks/@go/half/task.sh":   "echo hi\n",
 		"tasks/@go/half/test.sh":   "test -e /\n",
 	}))
-	if err == nil || !strings.Contains(err.Error(), "only one of the two can be the answer") {
+	if err == nil || !strings.Contains(err.Error(), "a task runs one thing") {
 		t.Errorf("err = %v, want it to refuse two checks", err)
 	}
 }
