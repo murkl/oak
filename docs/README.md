@@ -91,16 +91,11 @@ flowchart TD
 
 ```
 curl -LO https://github.com/murkl/oak/releases/latest/download/oak-linux-amd64
-curl -LO https://github.com/murkl/oak/releases/latest/download/oak-linux-amd64.sha256
-sha256sum -c oak-linux-amd64.sha256
+gh attestation verify oak-linux-amd64 --repo murkl/oak
 install -m755 oak-linux-amd64 oak
 ```
 
-The checksum rides in the same release as the binary, so all it says is that the download is whole. What says the file came out of this repository, and out of the run that built it, is the provenance CI signs for every release:
-
-```
-gh attestation verify oak-linux-amd64 --repo murkl/oak
-```
+The middle line reads the provenance CI signed the release with: which repository the file came out of, and which run built it. Without `gh`, there is a `.sha256` beside the download — it rides in the same release, so all it can say is that the download is whole.
 
 `latest` is whatever is newest. A product that releases versions of its own pins the Oak it was built against instead — `releases/download/vX.Y.Z/oak-linux-amd64` — so the same tag builds the same thing twice. Which one drove it is under the wordmark on the way in: `powered by oak X.Y.Z`.
 

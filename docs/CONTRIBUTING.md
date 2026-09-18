@@ -43,7 +43,7 @@ make tag TAG=v0.1.0
 
 That refuses a name that is not `vMAJOR.MINOR.PATCH` before the tag exists, then tags `HEAD` and pushes it.
 
-Both land in the same place. A pushed tag has no release yet, so CI writes one — the download, the two ways of checking it, then the generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green, and what the page says about checking them is whatever was typed there.
+Both land in the same place. A pushed tag has no release yet, so CI writes one — the download, how to check where it came from, then the generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green, and what the page says about checking them is whatever was typed there.
 
 The version comes out of `git describe`, so the tag is what the binary answers with. Nothing else has to be edited, and there is nowhere it can be edited wrongly.
 

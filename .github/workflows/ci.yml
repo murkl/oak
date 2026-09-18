@@ -189,16 +189,11 @@ jobs:
           cat >"$notes" <<NOTES
           \`\`\`
           curl -LO https://github.com/${GH_REPO}/releases/download/${VERSION}/oak-linux-amd64
-          curl -LO https://github.com/${GH_REPO}/releases/download/${VERSION}/oak-linux-amd64.sha256
-          sha256sum -c oak-linux-amd64.sha256
+          gh attestation verify oak-linux-amd64 -R ${GH_REPO}
           install -m755 oak-linux-amd64 oak
           \`\`\`
 
-          The checksum rides in this release, so all it says is that the download is whole. What says the file came out of this repository, and out of the run that built it, is the provenance that run signed:
-
-          \`\`\`
-          gh attestation verify oak-linux-amd64 -R ${GH_REPO}
-          \`\`\`
+          The middle line reads the provenance this run signed: which repository the file came out of, and which run built it. Without \`gh\`, the \`.sha256\` below rides in the same release, so all it can say is that the download is whole.
           NOTES
 
           if gh release view "$VERSION" >/dev/null 2>&1; then
