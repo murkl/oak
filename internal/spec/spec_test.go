@@ -566,6 +566,21 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "has no values of its own",
 		},
 		{
+			name:  "a filter setting nobody has heard of",
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    values: [a, b]\n    filter: hidden\n")},
+			want:  "unknown filter",
+		},
+		{
+			name:  "a filter on a question with no list to narrow",
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    filter: open\n")},
+			want:  "box to type in",
+		},
+		{
+			name:  "a filter on a question asked first, which carries its box either way",
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    values: [a, b]\n    first: true\n    filter: open\n")},
+			want:  "says nothing here",
+		},
+		{
 			name:  "a secret asked first, which is a question that would never be asked",
 			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    first: true\n")},
 			want:  "cannot also be asked first",

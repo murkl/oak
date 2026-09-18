@@ -481,6 +481,15 @@ const (
 	BoolFalse = "false"
 )
 
+// What a question's list does with the narrowing box before anything is typed
+// into it. collapsed is what a question that says nothing gets: the box waits
+// for /, which costs the page nothing until somebody wants it. open is for the
+// list that would otherwise have to be scrolled through to find a row.
+const (
+	FilterOpen      = "open"
+	FilterCollapsed = "collapsed"
+)
+
 // Variable is one thing a module needs to know, and everything known
 // about what a valid answer looks like. The rules live here once and are used
 // both when asking and when reading back an answer file somebody edited by
@@ -520,6 +529,14 @@ type Variable struct {
 	// printed by a command one per line. A variable with neither is free text.
 	Values  []string `yaml:"values"`
 	Command string   `yaml:"command"`
+
+	// Filter is what this question's list does with the narrowing box — see
+	// FilterMode. Nothing counts rows for it: a list is thirty long on one
+	// machine and three on the next — the variants of a keyboard layout, the
+	// disks in a case — and a page that changed shape with that would be two
+	// pages nobody can be told apart in advance. It is declared here, once, and
+	// holds wherever the module runs.
+	Filter string `yaml:"filter"`
 
 	// Free is the row that opens a text box under a list of answers, for the
 	// variable whose list is a suggestion rather than the whole set. Its text is
@@ -616,6 +633,19 @@ func (v *Variable) Shape() string {
 // forgotten — so it is also the one required variable that does not stop the
 // program from being ready.
 func (v *Variable) Secret() bool { return v.Shape() == TypeSecret }
+
+// FilterMode is what this question's list does with its narrowing box, with the
+// default filled in. A question asked first is open whatever it says: the key
+// that would open one is typed on a layout nobody has chosen yet.
+func (v *Variable) FilterMode() string {
+	switch {
+	case v.First:
+		return FilterOpen
+	case v.Filter == "":
+		return FilterCollapsed
+	}
+	return v.Filter
+}
 
 // Matches reports whether s satisfies the declared pattern. No pattern accepts
 // anything.

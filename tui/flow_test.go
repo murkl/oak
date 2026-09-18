@@ -977,10 +977,10 @@ func TestChangingAValueInSettingsShowsTheNewOne(t *testing.T) {
 	h.wants("moritzx")
 }
 
-// A list too long to be on screen at once carries its narrowing box open.
-// Scrolling is the thing the box spares, so a list that has to be scrolled is
-// where it earns the letters it takes over — q and backspace among them.
-func TestALongListOpensItsFilterFromTheStart(t *testing.T) {
+// Length is not what decides this. A list of thirty waits for the key exactly as
+// a list of two does, because how long it turns out to be here is a fact about
+// this machine, and a page that changed shape with it would be two pages.
+func TestALongListStillWaitsForTheKey(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
 			"  - name: ZONE\n    title: Time zone\n    required: true\n    command: seq 1 30\n",
@@ -989,7 +989,9 @@ func TestALongListOpensItsFilterFromTheStart(t *testing.T) {
 	h.typeIn("moritz").enter() // the user name
 	h.enter()                  // the disk
 
-	h.wants("Time zone", "Filter …")
+	h.wants("Time zone", "/ filter").refuses("Filter …")
+
+	h.typeIn("/")
 	h.typeIn("29")
 	h.wants("29").refuses("30")
 }
@@ -1013,6 +1015,39 @@ func TestAShortListKeepsItsFilterBehindTheKey(t *testing.T) {
 	// it behind the key: on a list carrying one there is nothing to close.
 	h.esc()
 	h.wants("Disk", "/dev/sda", "/ filter")
+}
+
+// What the list will not say, the question says: a page that has to be scrolled
+// through on one machine carries its box on every machine, however few answers
+// this one turns out to have.
+func TestAQuestionCanCarryItsFilterWhateverTheList(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: testInstaller +
+			"  - name: VARIANT\n    title: Keyboard variant\n    required: true\n    filter: open\n    command: printf 'none\\ndead keys\\n'\n",
+	})
+	h.down().enter()
+	h.typeIn("moritz").enter()
+	h.enter()
+
+	h.wants("Keyboard variant", "Filter …", "dead keys")
+	h.typeIn("dead")
+	h.wants("dead keys").refuses("none")
+}
+
+// And the other way about, spelled out: a question may say it keeps its letters,
+// which is what every question that says nothing gets. The key still opens one.
+func TestAQuestionCanKeepItsFilterBehindTheKeyWhateverTheList(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: testInstaller +
+			"  - name: ZONE\n    title: Time zone\n    required: true\n    filter: collapsed\n    command: seq 1 30\n",
+	})
+	h.down().enter()
+	h.typeIn("moritz").enter()
+	h.enter()
+
+	h.wants("Time zone", "/ filter").refuses("Filter …")
+	h.typeIn("/")
+	h.wants("Filter …", "esc close")
 }
 
 // A page of answers narrows like any other long list, and keeps the heading the

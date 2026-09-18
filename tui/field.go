@@ -59,12 +59,13 @@ type fieldScreen struct {
 // NUL prefix cannot collide with a value, which is what any other row is.
 const keyFieldFree = "\x00free"
 
-// A question asked first gets its narrowing box from the first frame rather
-// than on a keypress: nothing on this machine is known to print what it looks
-// like it does yet, the / included. Every other question gets it from how long
-// its list turns out to be — see the fieldMsg case in Update.
+// A question that asked for its narrowing box gets it from the first frame
+// rather than on a keypress — as does one asked first, where nothing on this
+// machine is known to print what it looks like it does yet, the / included.
+// Every other list waits for the key.
 func newField(a *app, v *spec.Variable, done func() tea.Cmd) *fieldScreen {
-	return &fieldScreen{app: a, v: v, done: done, loading: true, filter: newFilter(v.First)}
+	open := v.FilterMode() == spec.FilterOpen
+	return &fieldScreen{app: a, v: v, done: done, loading: true, filter: newFilter(open)}
 }
 
 // counted marks this question as one of a numbered run.
@@ -153,12 +154,6 @@ func (s *fieldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		s.values = make([]item, 0, len(msg.values))
 		for _, o := range msg.values {
 			s.values = append(s.values, item{title: o.Label, key: o.Value})
-		}
-
-		// Only now is it known how long this list is, and that is what decides
-		// whether the box is worth the keys it takes over.
-		if len(s.values) > filterAlwaysFrom {
-			s.filter.stayOpen()
 		}
 
 		s.picker = newPicker(s.list())

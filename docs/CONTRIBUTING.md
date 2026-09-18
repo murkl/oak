@@ -43,11 +43,11 @@ make tag TAG=v0.1.0
 
 That refuses a name that is not `vMAJOR.MINOR.PATCH` before the tag exists, then tags `HEAD` and pushes it.
 
-Both land in the same place. A pushed tag has no release yet, so CI writes one — the download, how to check where it came from, then the generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green, and what the page says about checking them is whatever was typed there.
+Both land in the same place. A pushed tag has no release yet, so CI writes one — the download, how to check where it came from, then the generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` on it once the checks are green, and what the page says about checking it is whatever was typed there.
 
-The version comes out of `git describe`, so the tag is what the binary answers with. Nothing else has to be edited, and there is nowhere it can be edited wrongly.
+The version is the tag `git describe` finds, without its `v`, and that is the whole of what the binary answers. Nothing else has to be edited, and there is nowhere it can be edited wrongly.
 
-What that leaves is a tag pointing somewhere the build cannot follow — moved after the fact, or cut from a tree with edits still in it — and then a release would carry a version its own binary disagrees with. The last step before a download link exists refuses that: the tag has to read `vMAJOR.MINOR.PATCH`, and the binary about to be published under it has to answer to exactly that. `make tag` asks the first half. Ask the second half of a tag that already exists:
+What that leaves is a tag pointing somewhere the build cannot follow — moved after the fact, or cut from a clone too shallow to describe one — and then a release would carry a version its own binary disagrees with. The last step before a download link exists refuses that: the tag has to read `vMAJOR.MINOR.PATCH`, and the binary about to be published under it has to answer to exactly that. `make tag` asks the first half. Ask the second half of a tag that already exists:
 
 ```
 make build
@@ -64,7 +64,7 @@ Once per pull request, once per push to `main`, and once more on a tag.
 
 ```mermaid
 flowchart TD
-    P["pull request · main · tag"] --> C["check<br/>make check · race detector<br/>binary · checksum"]
+    P["pull request · main · tag"] --> C["check<br/>make check · race detector<br/>the binary answers for itself"]
     P --> S["security<br/>govulncheck · gitleaks"]
     C --> R
     S --> R["release<br/>only on a v* tag<br/>version-check · publish"]
@@ -84,7 +84,7 @@ make run ARGS=--debug        # ...without touching anything
 make inspect                 # loads the example the way a run does
 make locales                 # the template, and every catalog brought up to it
 make fmt                     # format the Go and the shell
-make build                   # bin/oak-linux-amd64, plus its checksum
+make build                   # bin/oak-linux-amd64, the file a release publishes
 make tag TAG=v0.1.0          # the release tag, checked and pushed
 make version-check TAG=v0.1.0  # would that tag be allowed to release this?
 ```

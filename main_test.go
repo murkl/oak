@@ -316,17 +316,20 @@ func TestACommandLineThatCannotBeReadIsRefused(t *testing.T) {
 	}
 }
 
-// --version is the binary answering for itself, so it says which binary: a
-// number on its own beside a product's own number says nothing about whose it
-// is. It is written the way a release names its own files, name and version as
-// one word.
-func TestTheVersionNamesTheProgramItBelongsTo(t *testing.T) {
+// --version is the release and nothing beside it: a product pins the Oak it was
+// built against by that number, and anything else on the line is something the
+// build that reads it has to strip back off.
+func TestTheVersionIsTheReleaseAndNothingElse(t *testing.T) {
+	was := version
+	t.Cleanup(func() { version = was })
+	version = "1.2.3"
+
 	out := stdout(t, func() {
 		if err := start([]string{"--version"}); err != nil {
 			t.Fatal(err)
 		}
 	})
-	if want := program + "-" + version + "\n"; out != want {
+	if want := "1.2.3\n"; out != want {
 		t.Errorf("--version printed %q, want %q", out, want)
 	}
 }

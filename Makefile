@@ -7,13 +7,15 @@ APP     := oak
 PKG     := .
 BIN_DIR := bin
 
-# The version: the tag this commit carries, or the nearest one with the distance
-# and the short SHA after it. `make run` appends "-dev" so it is obvious a binary
-# did not come from a build of an actual release.
+# The version: the release this commit belongs to — the tag on it, or the last
+# one before it. It is the whole of what `oak --version` answers, because a
+# product pins the Oak it was built against by that number and nothing beside it
+# would survive being read back. `make run` appends "-dev", so a binary that did
+# not come from a build of an actual release says so.
 #
 # The tag's leading `v` is dropped here: it belongs to the tag and to nothing
-# else, and what the binary answers is oak-0.1.0.
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)
+# else.
+VERSION := $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),dev)
 
 # One binary, for the one platform an installer runs on. Named after neither the
 # version nor the host: a stable name keeps download links and the builds that
@@ -59,7 +61,7 @@ BANNER_CARDS   := docs/screenshots/report.png docs/screenshots/run.png
 BANNER_TAGLINE := You write the YAML and the shell. Oak is the program around it.
 BANNER_CELL    := 17
 
-.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln fmt fmt-check locales locales-check tag-check tag version-check check screenshots banner docs clean
+.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln secrets-check fmt fmt-check locales locales-check tag-check tag version-check check screenshots banner docs clean
 
 all: build
 
@@ -68,7 +70,6 @@ all: build
 build:
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		go build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o $(BIN) $(PKG)
-	cd $(BIN_DIR) && sha256sum $(notdir $(BIN)) > $(notdir $(BIN)).sha256
 
 # Straight from source, into the example product, for this machine.
 example:
@@ -111,6 +112,12 @@ staticcheck:
 # of `check`. CI runs it on every push.
 vuln:
 	govulncheck ./...
+
+# This binary is downloaded and run by other projects' builds, so a credential
+# that reached the repository would travel with it. Out of `check` for the same
+# reason as `vuln`: CI runs it on every push.
+secrets-check:
+	gitleaks dir . --redact --no-banner
 
 # Reads every T("…") out of the sources and writes the template, then brings
 # each catalog up to it. msgmerge keeps every translation whose source text is
@@ -165,17 +172,17 @@ tag: tag-check
 	git tag $(TAG)
 	git push origin $(TAG)
 
-# What a tag is allowed to release. The version is `git describe` and there is
-# no second place to keep in step with it, so what can still go wrong is a tag
-# whose binary does not answer to it: a tag moved after the fact, a clone too
-# shallow to describe one, a tree with edits in it. Any of those would publish
-# a version nothing inside the file agrees with.
+# What a tag is allowed to release. The version is the tag `git describe` finds
+# and there is no second place to keep in step with it, so what can still go
+# wrong is a tag whose binary does not answer to it: a tag moved after the fact,
+# or a clone too shallow to describe one. Either would publish a version nothing
+# inside the file agrees with.
 #
 #   make version-check TAG=v0.1.0                     against what build wrote
 #   make version-check TAG=v0.1.0 BIN=dist/oak-...    against what CI will ship
 version-check: tag-check
 	@said="$$(./$(BIN) --version)"; \
-	[ "$$said" = "$(APP)-$(TAG:v%=%)" ] \
+	[ "$$said" = "$(TAG:v%=%)" ] \
 		|| { echo "$(BIN) answers '$$said' — the tag says '$(TAG)'" >&2; exit 1; }
 	@echo "$(BIN) is $(TAG)"
 

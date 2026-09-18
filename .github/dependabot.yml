@@ -8,7 +8,14 @@ updates:
     schedule:
       interval: weekly
 
+  # The workflows, and the composite action they all run on. Dependabot reads
+  # one folder per entry, and an action outside .github/workflows is its own.
   - package-ecosystem: github-actions
     directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /.github/actions/arch
     schedule:
       interval: weekly

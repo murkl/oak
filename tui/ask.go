@@ -32,7 +32,8 @@ type ask struct {
 }
 
 func newAsk(v *spec.Variable) *ask {
-	return &ask{v: v, filter: newFilter(false), loading: true}
+	open := v.FilterMode() == spec.FilterOpen
+	return &ask{v: v, filter: newFilter(open), loading: true}
 }
 
 // askedMsg is the answers coming back. Loaded off the frame like every other

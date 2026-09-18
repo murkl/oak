@@ -70,11 +70,11 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:600
+#: internal/spec/spec.go:617
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:602
+#: internal/spec/spec.go:619
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
@@ -123,37 +123,37 @@ msgstr "Verbindung mit %s fehlgeschlagen."
 msgid "%s was joined, but there is still no internet."
 msgstr "%s ist verbunden, aber es gibt weiterhin keine Internetverbindung."
 
-#: main.go:175
+#: main.go:177
 #, c-format
 msgid "%s cannot be opened on this machine."
 msgstr "%s lässt sich auf dieser Maschine nicht öffnen."
 
-#: main.go:210
+#: main.go:212
 #, c-format
 msgid "One module at a time: %s or %s."
 msgstr "Nur ein Modul auf einmal: %s oder %s."
 
-#: main.go:214
+#: main.go:216
 #, c-format
 msgid "%s needs the name of a module: %s=<id>."
 msgstr "%s braucht den Namen eines Moduls: %s=<id>."
 
-#: main.go:217
+#: main.go:219
 #, c-format
 msgid "%q is not something this program takes."
 msgstr "%q kennt dieses Programm nicht."
 
-#: main.go:218
+#: main.go:220
 #, c-format
 msgid "It takes %s."
 msgstr "Es kennt %s."
 
-#: main.go:238
+#: main.go:240
 #, c-format
 msgid "No module called %s."
 msgstr "Kein Modul namens %s."
 
-#: main.go:239
+#: main.go:241
 #, c-format
 msgid "This one offers %s."
 msgstr "Angeboten werden %s."

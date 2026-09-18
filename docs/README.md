@@ -95,7 +95,7 @@ gh attestation verify oak-linux-amd64 --repo murkl/oak
 install -m755 oak-linux-amd64 oak
 ```
 
-The middle line reads the provenance CI signed the release with: which repository the file came out of, and which run built it. Without `gh`, there is a `.sha256` beside the download — it rides in the same release, so all it can say is that the download is whole.
+The middle line reads the provenance CI signed the release with: which repository the file came out of, and which run built it. Without `gh`, GitHub prints the download's SHA-256 beside it on the release page, which says only that the file arrived whole.
 
 `latest` is whatever is newest. A product that releases versions of its own pins the Oak it was built against instead — `releases/download/vX.Y.Z/oak-linux-amd64` — so the same tag builds the same thing twice. Which one drove it is under the wordmark on the way in: `powered by oak X.Y.Z`.
 
@@ -214,7 +214,7 @@ Five options, and nothing else. Three are about a run:
 ```
 oak --module=setup     # open that module outright, instead of asking which
 oak --debug            # hand every script DEBUG=true and touch nothing
-oak --version          # print Oak's own version — `oak-0.1.0` — and exit
+oak --version          # print the Oak release this binary is — `0.1.0` — and exit
 ```
 
 Two are about the folder, for whoever is writing one. They print and draw nothing:

@@ -28,7 +28,7 @@ logo: |
 | `accent` | `#rrggbb`. The one colour the interface is built from |
 | `logo` | The wordmark. Everything above the first blank line is a dim eyebrow over it |
 
-`version` is the product's own. Oak's own is what `--version` answers — `oak-0.1.0`, name and version as one word, the way a release names its files — and what the splash signs off with under the wordmark, there as the bare release. It is never shown as though it belonged to the product.
+`version` is the product's own. Oak's own is what `--version` answers — `0.1.0`, the release and nothing beside it, so a build that pins Oak reads the line as it stands — and what the splash signs off with under the wordmark. It is never shown as though it belonged to the product.
 
 ## A module
 
@@ -147,6 +147,7 @@ What is drawn follows from the declaration — there is no switch for it:
 | `apply` | Shell run when the answer takes effect — see below |
 | `first` | Asked before everything else — see below |
 | `free` | Label of a text box under a list, for a value the list only suggests |
+| `filter` | Whether the list carries its narrowing box open: `open` or `collapsed` — see below |
 | `pattern` | A regular expression the answer has to match |
 | `error` | What a wrong answer is told. Left out, Oak names the rule that was broken |
 | `conditions` | See [Conditions](#conditions) |
@@ -171,6 +172,8 @@ It is read when the module opens and again whenever an answer changes, so a valu
 **`apply:`** is for an answer that changes the machine the program is running on rather than the one being worked on — `apply: loadkeys "$TUX_KEYMAP"`. It runs the moment the answer is given, and again at startup for an answer this run already had. A failure is logged as a warning and the answer still stands.
 
 **`first: true`** puts a question before the network screen, the preflight and the presets, so a password can be typed on a keyboard layout that has already been settled. Use it sparingly: it is asked before the check that decides whether this machine can be worked on at all.
+
+**`filter:`** says what a question's list does with the narrowing box `/` opens. `collapsed` — every question that says nothing — leaves it behind the key, which costs the page nothing until somebody wants it. `open` puts it up from the first frame, for the list that has to be scrolled through to find a row. Nothing is counted on the machine: a list of keyboard variants is thirty rows here and three there, and a page that changed shape with that would be two pages. A question asked `first` carries its box open either way, and saying so again is refused.
 
 **A `command:`** may return a value and its display text on one line, separated by a **tab**. Everything before the tab is stored, everything after it is shown:
 
@@ -447,7 +450,7 @@ Five keys, three meanings, the same on every page. Long lists narrow with `/`.
 
 **Note:** _Arrow keys only move a cursor, since an arrow key is also what a mouse wheel sends._
 
-**Note:** _A list too long to be on screen at once carries its narrowing box open rather than behind `/`, since finding a row in it means scrolling either way. In front of any box being typed into, `q` and backspace are characters rather than keys; `esc` and `ctrl+c` never are._
+**Note:** _A question whose answers have to be scrolled through declares its narrowing box open with `filter: open`, and it is then up from the first frame instead of behind `/`. In front of any box being typed into, `q` and backspace are characters rather than keys; `esc` and `ctrl+c` never are._
 
 **Note:** _Backspace never leaves a text box, a password or a narrowing box, however empty it is. A key repeat is faster than a hand, and a box cleared by holding it down would leave the page on the very next repeat — which is why no hint anywhere names backspace, and every one of them names esc._
 

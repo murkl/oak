@@ -694,6 +694,17 @@ func (s *Module) checkVars() error {
 		if len(v.Values) > 0 && v.Command != "" {
 			return fmt.Errorf("%s: values and command are two answers to the same question", v.Name)
 		}
+		switch v.Filter {
+		case "", FilterOpen, FilterCollapsed:
+		default:
+			return fmt.Errorf("%s: unknown filter %q, which is %s or %s", v.Name, v.Filter, FilterOpen, FilterCollapsed)
+		}
+		if v.Filter != "" && v.First {
+			return fmt.Errorf("%s: a question asked first carries its box open by itself, so filter says nothing here", v.Name)
+		}
+		if v.Filter != "" && len(v.Values) == 0 && v.Command == "" {
+			return fmt.Errorf("%s: filter narrows a list of answers, and this question is a box to type in", v.Name)
+		}
 		if v.Derived() {
 			switch {
 			case v.Secret():

@@ -12,12 +12,13 @@
 // different set of modules.
 //
 // The command line is five options and nothing else. Three are about a run:
-// --version says what this binary is, --module opens one of the folders
-// outright, and --debug hands every script DEBUG=true so a run can be watched
-// without it touching anything. Two are about the folder rather than the run,
-// for whoever is writing one: --inspect loads it the way a run does and reports
-// what it holds, and --strings writes a module's translation template. What a
-// product may declare is in the yaml beside the binary, never here.
+// --version says which release this binary is, --module opens one of the
+// folders outright, and --debug hands every script DEBUG=true so a run can be
+// watched without it touching anything. Two are about the folder rather than
+// the run, for whoever is writing one: --inspect loads it the way a run does
+// and reports what it holds, and --strings writes a module's translation
+// template. What a product may declare is in the yaml beside the binary, never
+// here.
 package main
 
 import (
@@ -40,8 +41,9 @@ import (
 	"github.com/murkl/oak/tui"
 )
 
-// version is set by the build (see the Makefile). It is this binary's own and
-// never a product's: what a product calls its own build is in its oak.yaml.
+// version is the release this binary came out of, set by the build (see the
+// Makefile). It is Oak's own and never a product's: what a product calls its
+// own build is in its oak.yaml.
 var version = "dev"
 
 // The answers and the log live beside whoever started the program, never inside
@@ -50,8 +52,8 @@ var version = "dev"
 // their own; Oak's own answers are named after Oak, beside them, and hold what
 // is settled before any module has been chosen.
 const (
-	// program is what this binary is called: what it answers --version with,
-	// and what its own answers are named after.
+	// program is what this binary is called, and what its own answers and log
+	// are named after.
 	program = "oak"
 
 	confExt = ".conf"
@@ -92,7 +94,7 @@ func start(args []string) error {
 	// Answered before anything is loaded: a version is what this binary is,
 	// which is true of a binary standing on its own with no product beside it.
 	if cmd.version {
-		fmt.Println(program + "-" + version)
+		fmt.Println(version)
 		return nil
 	}
 

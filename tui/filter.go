@@ -24,9 +24,8 @@ type filter struct {
 
 	// permanent is a box that is simply there rather than waiting for the key:
 	// up from the first frame and never closed. It costs the page every letter,
-	// q and backspace included, so it is set only where the list would otherwise
-	// have to be scrolled through — see filterAlwaysFrom — and for the question
-	// asked before the keyboard layout has been settled.
+	// q and backspace included, so nothing here decides it: the question says
+	// so, or it is one asked before the keyboard layout has been settled.
 	permanent bool
 }
 
@@ -35,14 +34,14 @@ type filter struct {
 // what a terminal has meant by "narrow this" since long before this program.
 const filterKey = "/"
 
-// filterAlwaysFrom is the length from which a list carries its box open instead.
-// More rows than the frame is tall cannot be on screen at once, so finding one
-// means scrolling for it — and that is what the box spares. Below it the box
-// would take q and backspace off a page for a list that is already all there.
-const filterAlwaysFrom = frameH
-
 // newFilter builds the box closed, waiting for the key. permanent — see the
 // field of that name — opens it already focused instead.
+//
+// How long the list turns out to be is deliberately no part of this. A page
+// that counted its rows would be a page that looks one way on this machine and
+// another on the next, and which of the two a person is about to get is not
+// something they can be told in advance: the declaration says it, once, for
+// every machine.
 func newFilter(permanent bool) *filter {
 	f := &filter{}
 	f.input = textinput.New()
@@ -50,18 +49,11 @@ func newFilter(permanent bool) *filter {
 	f.input.CharLimit = 64
 	styleInput(&f.input)
 	if permanent {
-		f.stayOpen()
+		f.permanent = true
+		f.open = true
+		f.input.Focus()
 	}
 	return f
-}
-
-// stayOpen turns a box that waits for the key into one that is simply there.
-// A page whose list decides this calls it once the rows are in, which is after
-// the page itself was built.
-func (f *filter) stayOpen() {
-	f.permanent = true
-	f.open = true
-	f.input.Focus()
 }
 
 // query is what has been typed so far.
