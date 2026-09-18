@@ -50,9 +50,11 @@ CATALOGS := $(wildcard locales/*.po)
 # of them under the wordmark read out of the product's own oak.yaml. A change
 # to the interface is one command away from being what the README shows.
 #
-# They need chromium, imagemagick and python-pyte, which a build does not, so
-# they stay out of `check` and are run by hand when a page has changed.
-DOCS           := tools/docs
+# Which pages are taken is docs/screenshots.yaml, and every run is started with
+# --debug, so nothing here is written to.
+#
+# They need chromium, imagemagick, python-pyte and python-yaml, which a build
+# does not, so they stay out of `check` and are run by hand.
 BANNER_CARDS   := docs/screenshots/report.png docs/screenshots/run.png
 BANNER_TAGLINE := You write the YAML and the shell. Oak is the program around it.
 BANNER_CELL    := 17
@@ -185,10 +187,10 @@ check: fmt-check tidy-check vet staticcheck locales-check lint test build inspec
 # is nothing to run. What ships is the modules with the binary beside them.
 
 screenshots: example
-	python3 $(DOCS)/screenshots.py --example $(EXAMPLE) --binary $(EXAMPLE)/$(APP)
+	python3 docs/screenshots.py --product $(EXAMPLE)
 
 banner:
-	python3 $(DOCS)/banner.py \
+	python3 docs/banner.py \
 		--product $(EXAMPLE)/oak.yaml \
 		--logo docs/logo.svg \
 		$(foreach c,$(BANNER_CARDS),--card $(c)) \

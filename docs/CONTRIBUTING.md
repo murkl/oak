@@ -125,7 +125,9 @@ make banner        # after the screenshots, the wordmark or the accent changed
 make docs          # both, in that order
 ```
 
-They need `chromium`, `imagemagick` and `python-pyte`, none of which a build or `make check` needs.
+They need `chromium`, `imagemagick`, `python-pyte` and `python-yaml`, none of which a build or `make check` needs.
+
+Every run is started with `--debug`, so the example builds nothing while it is photographed. Which pages are taken is `docs/screenshots.yaml`; `screenshots.py` beside it is the same file in every project that renders a set this way.
 
 **Note:** _Every page comes out byte for byte the same on every run except `run.png`, which catches the run while it is still going. Which task that frame lands on is a race against four tasks that take no time, so that one picture differs run to run._
 

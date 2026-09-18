@@ -1,0 +1,61 @@
+# Every picture in docs/screenshots/, and the way to it - see screenshots.py.
+#
+# One block is one take: a start of the program from a pristine copy of the
+# example, with --debug. One step is one page: wait for `page:`, photograph it
+# as `shot:`, press on.
+#
+# A take names its `module:` wherever the picture is not about choosing one -
+# counting keystrokes down a sorted list breaks the day a module is added.
+
+# The page every run opens on, and the page behind it.
+- steps:
+      - page: Please choose the language
+        shot: welcome
+        press: enter
+      - page: What to do
+        shot: choice
+
+# One question, on a page of its own.
+- module: setup
+  steps:
+      - page: Please choose the language
+        press: enter
+      - page: Hostname
+        shot: question
+
+# The run under way, and the page it stops on. It is over in about as long as it
+# takes to draw, so that frame is picked out of the ones that went by.
+- module: setup
+  steps:
+      - page: Please choose the language
+        press: enter
+      - page: Hostname
+        press: enter
+      - page: User name
+        press: enter
+      - page: Desktop
+        press: enter
+      - page: [Start, Settings]
+        press: enter
+      - page: Ready to start
+        press: enter
+      - page: tests passed
+        shot: run
+        frame: running
+      - page: tests passed
+        shot: report
+
+# A failed task: Recovery checks a tree that Setup, simulated, never built. The
+# page behind it names the script, the line, the command and the exit code.
+- module: recovery
+  steps:
+      - page: Please choose the language
+        press: enter
+      - page: [Start, Settings]
+        press: enter
+      - page: Ready to start
+        press: enter
+      - page: [Failed, continue]
+        press: enter
+      - page: Exit code
+        shot: failure
