@@ -237,9 +237,9 @@ func TestTheLandingPageFitsAConsoleFont(t *testing.T) {
 	t.Cleanup(func() { adaptGlyphs(false) })
 	adaptGlyphs(true)
 
-	// With the address and its code, because that is the page a console
-	// actually draws: an installer is exactly the kind of product that has
-	// somewhere to point at and nowhere on the machine to open it.
+	// With the address, because that is the page a console actually draws: an
+	// installer is exactly the kind of product that has somewhere to point at
+	// and nowhere on the machine to open it.
 	rt := testRuntime()
 	rt.URL = "https://example.org/test-os"
 	h := newProduct(t, rt, twoLanguageTree())

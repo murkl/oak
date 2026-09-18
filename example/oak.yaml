@@ -9,9 +9,8 @@
 title: Oak
 version: 1.0.0
 
-# Where the rest of the product is. The welcome page writes it out and draws it
-# beside as a code, for the machine that is being installed and has no browser
-# on it yet.
+# Where the rest of the product is. The welcome page writes it out, for the
+# machine that is being installed and has no browser on it yet.
 url: https://github.com/murkl/oak
 
 # Every colour on screen is derived from this one.

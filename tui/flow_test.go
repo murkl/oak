@@ -739,8 +739,8 @@ func TestTheLandingPageIsNeverTranslated(t *testing.T) {
 
 // The welcome page is read on a machine with nothing on it yet — no browser, no
 // second screen — so where the product says where the rest of it is, that is
-// where it goes: written out, and drawn again as a code, because the only
-// device in the room that can follow a link is the one in somebody's hand.
+// where it goes: written out, for whoever is in front of it to follow on the
+// machine they brought with them.
 func TestTheLandingPageCarriesTheProductsAddress(t *testing.T) {
 	rt := testRuntime()
 	rt.URL = "https://example.org/test-os"
@@ -748,9 +748,6 @@ func TestTheLandingPageCarriesTheProductsAddress(t *testing.T) {
 	h.send(tea.WindowSizeMsg{Width: 95, Height: 25})
 
 	h.wants("Welcome to Test OS.", rt.URL, landingLink, "English")
-	if !strings.Contains(h.screen(), strings.Repeat(blockFull, 2)) {
-		t.Errorf("the address is written but not drawn as a code:\n%s", h.screen())
-	}
 }
 
 // A product that named none is the page as it was: the greeting, and the
@@ -760,18 +757,15 @@ func TestAProductWithNoAddressShowsNone(t *testing.T) {
 	h.wants("Welcome to Test OS.", "English").refuses(landingLink, "https://")
 }
 
-// And the code is never the whole of what is on offer. A terminal too narrow
-// for one is exactly the terminal where the address has to be readable.
-func TestTheAddressStandsWhereTheCodeCannot(t *testing.T) {
+// And it stands whole in a frame with nothing to spare: a narrow terminal is
+// exactly the one where the address has to be readable.
+func TestTheAddressStandsInANarrowFrame(t *testing.T) {
 	rt := testRuntime()
 	rt.URL = "https://example.org/test-os"
 	h := newProduct(t, rt, twoLanguageTree())
 	h.send(tea.WindowSizeMsg{Width: 60, Height: 20})
 
 	h.wants(rt.URL)
-	if strings.Contains(h.screen(), strings.Repeat(blockFull, 2)) {
-		t.Errorf("a code was squeezed into a frame with no room for one:\n%s", h.screen())
-	}
 }
 
 // On a frame too short for all of it, the words give way and the rows do not:

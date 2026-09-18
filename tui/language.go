@@ -37,10 +37,6 @@ type languageScreen struct {
 	lead  func() string
 	words func(width int) []string
 
-	// link is the product's address, drawn beside the rows as a code to scan.
-	// Empty on every page but the landing, and on a product that declared none.
-	link string
-
 	picker *picker
 	done   func() tea.Cmd
 }
@@ -97,44 +93,24 @@ func (s *languageScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	return s, nil
 }
 
-// landingGap is the channel between the words and the code, wide enough that
-// the white of the code reads as a thing on the page rather than as its edge —
-// the same one the report page holds, for the same reason.
-const landingGap = gapL
-
 // View is the list, or — on the landing page — the page that list is part of:
-// the words, the rows under them, and the code beside both.
+// the words and the rows under them.
 //
-// The page divides in the golden ratio twice over. Across: the words and the
-// rows take the major part, the code the minor — that way round because the
-// words are what is read and the rows are what is pressed, while the code is
-// for a second machine entirely. It is drawn in a column of its own rather than
-// against the longest line beside it, so it stands in the same place whatever
-// the product is called and however many languages it was translated into.
-//
-// Down: the rows may claim up to the major part of the height, and whatever
-// they do not need is the words'. On the frame this page is drawn in that costs
-// nothing — two languages leave the words all the room they want — and it is
-// what decides who gives way on a terminal too short for both, or in a product
-// translated into twenty languages. The words do: they are what stands over the
-// page, and a greeting with no answer under it asks a question it does not
-// offer a way to answer.
+// The page divides in the golden ratio: the rows may claim up to the major part
+// of the height, and whatever they do not need is the words'. On the frame this
+// page is drawn in that costs nothing — two languages leave the words all the
+// room they want — and it is what decides who gives way on a terminal too short
+// for both, or in a product translated into twenty languages. The words do:
+// they are what stands over the page, and a greeting with no answer under it
+// asks a question it does not offer a way to answer.
 func (s *languageScreen) View(width, height int) string {
 	if s.words == nil {
 		return s.picker.View(width, height)
 	}
 
-	major, minor := split(width)
-	code := qrCode(s.link, minor, height)
-	if len(code) == 0 {
-		// Nothing beside the words, so there is no column to keep clear for it:
-		// the page is the words and the rows, at the width the frame gives them.
-		major = width
-	}
-
 	rowsWant, _ := split(height)
 	room := height - min(len(s.picker.items), rowsWant) - 1
-	words := s.words(major)
+	words := s.words(width)
 	// A paragraph at a time, from the end: the greeting is what is left last,
 	// and half of one read as the frame's edge would be worse than neither.
 	for len(words) > room {
@@ -145,9 +121,6 @@ func (s *languageScreen) View(width, height int) string {
 	if len(rows) > 0 {
 		rows = append(rows, "")
 	}
-	rows = append(rows, strings.Split(s.picker.View(major, max(height-len(rows), 1)), "\n")...)
-	if len(code) == 0 {
-		return block(rows)
-	}
-	return block(beside(rows, major, code, landingGap))
+	rows = append(rows, strings.Split(s.picker.View(width, max(height-len(rows), 1)), "\n")...)
+	return block(rows)
 }

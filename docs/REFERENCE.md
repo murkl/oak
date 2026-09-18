@@ -27,10 +27,10 @@ logo: |
 | `title` | The product's name, over every page — followed by the module's own once one is open |
 | `version` | What this build of the product is called, in the corner of every page. Left out, no version is shown |
 | `accent` | `#rrggbb`. The one colour the interface is built from |
-| `url` | Where the rest of the product is. Stands on the welcome page, written out and drawn beside it as a code to scan. Left out, that page is the greeting and the languages |
+| `url` | Where the rest of the product is. Stands written out on the welcome page. Left out, that page is the greeting and the languages |
 | `logo` | The wordmark. Everything above the first blank line is a dim eyebrow over it |
 
-`url` is an absolute address or it is refused — a scheme and a host, `https://…`. It is read off a screen by a camera as well as by a person, and what a browser would guess at from `tux.org/linux` a camera cannot.
+`url` is an absolute address or it is refused — a scheme and a host, `https://…`. It is read off one screen and typed into another, and the half a browser would fill in from `tux.org/linux` whoever types it has no way of knowing.
 
 `version` is the product's own. Oak's own is what `--version` answers — `0.1.0`, the release and nothing beside it, so a build that pins Oak reads the line as it stands — and what the splash signs off with under the wordmark. It is never shown as though it belonged to the product.
 

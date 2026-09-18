@@ -44,10 +44,9 @@ type Runtime struct {
 	Logo   string `yaml:"logo"`
 
 	// URL is where the rest of this product is: what it is, what it does, who
-	// wrote it. It stands on the welcome page, as writing and as a code to
-	// scan, because that page is read on a machine with nothing on it yet — no
-	// browser, often no second screen — and the only device that can follow a
-	// link there is the one in somebody's hand.
+	// wrote it. It stands written out on the welcome page, because that page is
+	// read on a machine with nothing on it yet — no browser, often no second
+	// screen — and whoever is in front of it follows the address elsewhere.
 	//
 	// Left out, the page is the greeting and the languages, exactly as before.
 	URL string `yaml:"url"`
@@ -109,9 +108,9 @@ func (r *Runtime) check() error {
 	if r.Accent != "" && !hexColor.MatchString(r.Accent) {
 		return fmt.Errorf("%s: accent must be #rrggbb, got %q", FileRuntime, r.Accent)
 	}
-	// Checked here rather than where it is drawn: a link is put on screen to be
-	// typed off it and scanned off it, and both want the whole address. What a
-	// browser guesses at from `github.com/...` a camera cannot.
+	// Checked here rather than where it is drawn: the address is put on screen
+	// to be typed into another machine, and half of one leads nowhere. What a
+	// browser fills in from `github.com/...` whoever types it cannot.
 	if r.URL != "" {
 		u, err := url.Parse(r.URL)
 		if err != nil || !u.IsAbs() || u.Host == "" {

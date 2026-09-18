@@ -2,6 +2,10 @@
 
 What each release changed, newest first. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](README.md#1-get-oak)**.
 
+## 0.4.1 - 2026-09-18
+
+- The welcome page carries the product's address as writing alone — the code that stood beside the languages is gone
+
 ## 0.4.0 - 2026-09-18
 
 - A product may say where the rest of it is — `url:` — and the welcome page carries it: written out, and drawn beside the languages as a code to scan

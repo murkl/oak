@@ -59,17 +59,17 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: internal/spec/runtime.go:94
+#: internal/spec/runtime.go:93
 #, c-format
 msgid "A %s file has to sit next to this program, in %s."
 msgstr ""
 
-#: internal/spec/runtime.go:140
+#: internal/spec/runtime.go:139
 #, c-format
 msgid "A %s folder with something in it has to sit next to this program, in %s."
 msgstr ""
 
-#: internal/spec/runtime.go:147
+#: internal/spec/runtime.go:146
 msgid "Nothing to run here."
 msgstr ""
 

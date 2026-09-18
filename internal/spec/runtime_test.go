@@ -105,9 +105,9 @@ func TestLoadRuntimeRefusesAnAccentThatIsNotAColour(t *testing.T) {
 	}
 }
 
-// A product's address is read off a screen by a camera and typed off it by
-// hand, and both want the whole of it — so half of one is refused where it is
-// declared rather than drawn as a code that goes nowhere.
+// A product's address is read off a screen and typed in somewhere else, so it
+// wants the whole of it — and half of one is refused where it is declared
+// rather than shown as a line that leads nowhere.
 func TestLoadRuntimeRefusesAnAddressThatIsNotOne(t *testing.T) {
 	for _, bad := range []string{"github.com/murkl/oak", "/murkl/oak", "https://"} {
 		dir := writeRuntime(t, "title: Test OS\nurl: "+bad+"\n", "installer")

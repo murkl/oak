@@ -34,11 +34,6 @@ const (
 // and the line that leads the rows — each in the ink that says what it is. The
 // greeting carries the weight, the address the colour a value is written in
 // everywhere else in the program, and what is left is body text.
-//
-// The address is written out whether or not the code beside it could be drawn.
-// A terminal too narrow for the code is exactly the one where it has to be
-// readable, and it is the address that is the answer either way: the code is
-// only the shortest way to carry it to the machine that can follow it.
 func landingWords(product, link string, width int) []string {
 	out := inked(fmt.Sprintf(landingGreeting, product), width, boldStyle)
 	if link != "" {
@@ -50,14 +45,13 @@ func landingWords(product, link string, width int) []string {
 }
 
 // newLanding is that page: the greeting, the address, and under them the
-// languages on offer, with the address drawn a second time as a code to scan.
+// languages on offer.
 //
 // It is the language screen with something else standing over its rows rather
 // than a page of its own — the choice is the same choice, and a second way of
 // making it would be a second thing to keep right.
 func newLanding(a *app, done func() tea.Cmd) *languageScreen {
 	s := newLanguagePage(a, func() string { return landingTitle }, nil, done)
-	s.link = a.link()
-	s.words = func(width int) []string { return landingWords(a.brand(), s.link, width) }
+	s.words = func(width int) []string { return landingWords(a.brand(), a.link(), width) }
 	return s
 }
