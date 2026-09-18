@@ -234,6 +234,8 @@ Nothing on the command line is an answer. Questions are answered in the interfac
 
 **[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, tests, conditions, hooks, the script contract and translations.
 
+**[➜ Changelog](CHANGELOG.md)** — what each release changed.
+
 **[➜ Contributing](CONTRIBUTING.md)** — how to work on Oak itself.
 
 ## License

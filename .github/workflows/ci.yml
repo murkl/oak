@@ -58,7 +58,8 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          # git describe needs the tags to describe anything.
+          # git describe needs the tags to describe anything, and the
+          # changelog warning compares this change against main.
           fetch-depth: 0
           persist-credentials: false
 
@@ -187,10 +188,18 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ github.ref_name }}
         run: |
-          # The download and the way to check it, on the page the download link
-          # is on. A check nobody is handed is a check nobody runs.
+          # What the release changed, read out of the changelog rather than
+          # written here a second time — a version with nothing under it stops
+          # the release here. Then the download and the way to check it, on the
+          # page the download link is on: a check nobody is handed is a check
+          # nobody runs.
           notes="$(mktemp)"
-          cat >"$notes" <<NOTES
+          {
+            make -s notes TAG="$VERSION"
+            cat <<NOTES
+
+          ---
+
           \`\`\`
           curl -LO https://github.com/${GH_REPO}/releases/download/${VERSION}/oak-linux-amd64
           gh attestation verify oak-linux-amd64 -R ${GH_REPO}
@@ -199,14 +208,14 @@ jobs:
 
           The middle line reads the provenance this run signed: which repository the file came out of, and which run built it. Without \`gh\`, GitHub prints this download's SHA-256 beside it on this page, which says only that the file arrived whole.
           NOTES
+          } >"$notes"
 
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" dist/* --clobber
           else
             gh release create "$VERSION" dist/* \
               --title "Oak $VERSION" \
-              --notes-file "$notes" \
-              --generate-notes
+              --notes-file "$notes"
           fi
 
       # Which commit and which run this file came out of, signed.

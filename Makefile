@@ -17,6 +17,13 @@ BIN_DIR := bin
 # else.
 VERSION := $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),dev)
 
+# Every release and what it changed, and the script that reads it. The entries
+# under a version are what its release page is made of, so they are written
+# here once rather than typed a second time onto the page.
+CHANGELOG      := docs/CHANGELOG.md
+CHANGELOG_SH   := docs/changelog.sh
+CHANGELOG_WARN := docs/changelog-warn.sh
+
 # One binary, for the one platform an installer runs on. Named after neither the
 # version nor the host: a stable name keeps download links and the builds that
 # follow them working across releases, and the version lives inside the file.
@@ -41,6 +48,10 @@ ARGS    ?=
 # and the indent is in .editorconfig, which is where shfmt reads it from.
 SCRIPTS := $(shell find $(EXAMPLE) -name '*.sh')
 
+# What is run rather than sourced: POSIX sh, so it is checked as sh and
+# formatted with its own flags.
+POSIX_SCRIPTS := $(CHANGELOG_SH) $(CHANGELOG_WARN)
+
 # The template every catalog here is filled in from, and the catalogs
 # themselves. Both are generated: the template out of the Go sources, the
 # catalogs out of the template.
@@ -61,7 +72,7 @@ BANNER_CARDS   := docs/screenshots/report.png docs/screenshots/run.png
 BANNER_TAGLINE := You write the YAML and the shell. Oak is the program around it.
 BANNER_CELL    := 17
 
-.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln secrets-check fmt fmt-check locales locales-check tag-check tag version-check check screenshots banner docs clean
+.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln secrets-check fmt fmt-check locales locales-check changelog-check changelog-warn notes tag-check tag version-check check screenshots banner docs clean
 
 all: build
 
@@ -143,6 +154,7 @@ locales-check:
 fmt:
 	gofmt -s -w .
 	shfmt -w $(SCRIPTS)
+	shfmt -w -ln posix -i 4 $(POSIX_SCRIPTS)
 
 # The same, asked as a question rather than made as an edit, so a branch that
 # was never formatted fails here instead of arriving later as a diff nobody
@@ -151,9 +163,11 @@ fmt-check:
 	@unformatted="$$(gofmt -s -l .)"; \
 	[ -z "$$unformatted" ] || { echo "not gofmt'd:" >&2; echo "$$unformatted" >&2; exit 1; }
 	shfmt -d $(SCRIPTS)
+	shfmt -d -ln posix -i 4 $(POSIX_SCRIPTS)
 
 lint:
 	shellcheck -x $(SCRIPTS)
+	shellcheck -s sh -S style $(POSIX_SCRIPTS)
 	yamllint .
 	actionlint
 
@@ -163,12 +177,36 @@ tag-check:
 	@[[ "$(TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] \
 		|| { echo "not a release tag: '$(TAG)' — a release is vMAJOR.MINOR.PATCH" >&2; exit 1; }
 
+# Every heading a version and a date, newest first, and no version twice. In
+# `check` rather than at the tag, so a malformed entry is found by whoever
+# wrote it instead of by the release that was about to publish it.
+changelog-check:
+	@$(CHANGELOG_SH) $(CHANGELOG)
+
+# A change that says nothing about itself, as a warning rather than a refusal:
+# the points can be written any time before the tag, and half of them are
+# written the day it goes out. It rides along in `check` so that nobody has to
+# remember to ask.
+changelog-warn:
+	@$(CHANGELOG_WARN) $(CHANGELOG)
+
+# The entries a release is published with, and the check that the version being
+# tagged has any: a heading nobody wrote under stops the tag rather than
+# reaching the release page empty.
+#
+#   make notes TAG=v0.1.0
+notes: tag-check
+	@$(CHANGELOG_SH) $(CHANGELOG) $(TAG:v%=%)
+
 # The one place a release tag is typed. The name is checked before the tag
 # exists rather than after it is pushed: a typo is a line in a terminal here,
 # and a tag to delete off the remote there.
 #
+# What the release page will say is printed on the way, out of the changelog,
+# so the last look at it happens before the tag exists rather than after.
+#
 #   make tag TAG=v0.2.0
-tag: tag-check
+tag: tag-check notes
 	git tag $(TAG)
 	git push origin $(TAG)
 
@@ -187,7 +225,7 @@ version-check: tag-check
 	@echo "$(BIN) is $(TAG)"
 
 # What has to pass before anything is committed.
-check: fmt-check tidy-check vet staticcheck locales-check lint test build inspect
+check: fmt-check tidy-check vet staticcheck locales-check changelog-check changelog-warn lint test build inspect
 
 # There is deliberately no install target: the binary looks for its oak.yaml
 # beside itself, so a copy on $$PATH with nothing next to it can only say there
