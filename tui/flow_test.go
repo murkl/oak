@@ -509,8 +509,8 @@ func TestAnAnsweredFirstQuestionIsNotAskedAgain(t *testing.T) {
 
 // A question asked first is asked before loadkeys has run, so even the key that
 // would normally open the filter is typed on a layout nobody has chosen yet.
-// Its box is up from the first frame, and typing narrows straight away — no /
-// needed first, and nothing in the yaml to say so.
+// Its box is up from the first frame however short the list is, and typing
+// narrows straight away — no / needed first, and nothing in the yaml to say so.
 func TestAQuestionAskedFirstOpensItsFilterFromTheStart(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
@@ -975,6 +975,44 @@ func TestChangingAValueInSettingsShowsTheNewOne(t *testing.T) {
 	h.wants("User name", "The account you log in with.")
 	h.typeIn("x").enter()
 	h.wants("moritzx")
+}
+
+// A list too long to be on screen at once carries its narrowing box open.
+// Scrolling is the thing the box spares, so a list that has to be scrolled is
+// where it earns the letters it takes over — q and backspace among them.
+func TestALongListOpensItsFilterFromTheStart(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: testInstaller +
+			"  - name: ZONE\n    title: Time zone\n    required: true\n    command: seq 1 30\n",
+	})
+	h.down().enter()           // Bare, past the presets
+	h.typeIn("moritz").enter() // the user name
+	h.enter()                  // the disk
+
+	h.wants("Time zone", "Filter …")
+	h.typeIn("29")
+	h.wants("29").refuses("30")
+}
+
+// A list that is already all there needs nothing in front of it, and a box
+// would take q and backspace off the page for a list nobody has to look for a
+// row in. The key still opens one.
+func TestAShortListKeepsItsFilterBehindTheKey(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter()           // Bare, past the presets
+	h.typeIn("moritz").enter() // the user name
+
+	h.wants("Disk", "/ filter").refuses("Filter …")
+
+	h.typeIn("/")
+	h.wants("Filter …", "/dev/sda", "/dev/sdb", "esc close")
+	h.typeIn("sdb")
+	h.wants("/dev/sdb").refuses("/dev/sda")
+
+	// And the box is what esc leaves first, which is the other half of keeping
+	// it behind the key: on a list carrying one there is nothing to close.
+	h.esc()
+	h.wants("Disk", "/dev/sda", "/ filter")
 }
 
 // A page of answers narrows like any other long list, and keeps the heading the

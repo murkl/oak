@@ -61,7 +61,8 @@ const keyFieldFree = "\x00free"
 
 // A question asked first gets its narrowing box from the first frame rather
 // than on a keypress: nothing on this machine is known to print what it looks
-// like it does yet, the / included.
+// like it does yet, the / included. Every other question gets it from how long
+// its list turns out to be — see the fieldMsg case in Update.
 func newField(a *app, v *spec.Variable, done func() tea.Cmd) *fieldScreen {
 	return &fieldScreen{app: a, v: v, done: done, loading: true, filter: newFilter(v.First)}
 }
@@ -153,6 +154,13 @@ func (s *fieldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		for _, o := range msg.values {
 			s.values = append(s.values, item{title: o.Label, key: o.Value})
 		}
+
+		// Only now is it known how long this list is, and that is what decides
+		// whether the box is worth the keys it takes over.
+		if len(s.values) > filterAlwaysFrom {
+			s.filter.stayOpen()
+		}
+
 		s.picker = newPicker(s.list())
 		s.picker.focus(current)
 		if s.filter.permanent {

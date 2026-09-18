@@ -447,6 +447,8 @@ Five keys, three meanings, the same on every page. Long lists narrow with `/`.
 
 **Note:** _Arrow keys only move a cursor, since an arrow key is also what a mouse wheel sends._
 
+**Note:** _A list too long to be on screen at once carries its narrowing box open rather than behind `/`, since finding a row in it means scrolling either way. In front of any box being typed into, `q` and backspace are characters rather than keys; `esc` and `ctrl+c` never are._
+
 **Note:** _Backspace never leaves a text box, a password or a narrowing box, however empty it is. A key repeat is faster than a hand, and a box cleared by holding it down would leave the page on the very next repeat — which is why no hint anywhere names backspace, and every one of them names esc._
 
 ## Checking a product
