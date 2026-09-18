@@ -189,14 +189,16 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           # What the release changed, read out of the changelog rather than
-          # written here a second time — a version with nothing under it stops
-          # the release here. Then the download and the way to check it, on the
-          # page the download link is on: a check nobody is handed is a check
-          # nobody runs.
+          # written here a second time. Then the download and the way to check
+          # it, on the page the download link is on: a check nobody is handed
+          # is a check nobody runs.
           notes="$(mktemp)"
-          {
-            make -s notes TAG="$VERSION"
-            cat <<NOTES
+          if ! make -s notes TAG="$VERSION" >"$notes"; then
+            echo "::error::${VERSION} has no section in docs/CHANGELOG.md - write it on main, delete this tag and push it again"
+            exit 1
+          fi
+
+          cat >>"$notes" <<NOTES
 
           ---
 
@@ -208,7 +210,6 @@ jobs:
 
           The middle line reads the provenance this run signed: which repository the file came out of, and which run built it. Without \`gh\`, GitHub prints this download's SHA-256 beside it on this page, which says only that the file arrived whole.
           NOTES
-          } >"$notes"
 
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" dist/* --clobber

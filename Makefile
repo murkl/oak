@@ -24,6 +24,14 @@ CHANGELOG      := docs/CHANGELOG.md
 CHANGELOG_SH   := docs/changelog.sh
 CHANGELOG_WARN := docs/changelog-warn.sh
 
+# The version the changelog opens on: the release being worked towards, and the
+# only place its number stands before a tag exists. Everything below that names
+# a release reads it rather than being handed one, so a tag naming a version
+# nothing was written under cannot be made here at all.
+#
+# TAG is what CI hands in — the tag that was actually pushed.
+TAG ?= v$(shell sed -n '/^## /{s/^## \([^ ]*\).*/\1/p;q;}' $(CHANGELOG))
+
 # One binary, for the one platform an installer runs on. Named after neither the
 # version nor the host: a stable name keeps download links and the builds that
 # follow them working across releases, and the version lives inside the file.
@@ -183,10 +191,11 @@ tag-check:
 changelog-check:
 	@$(CHANGELOG_SH) $(CHANGELOG)
 
-# A change that says nothing about itself, as a warning rather than a refusal:
-# the points can be written any time before the tag, and half of them are
-# written the day it goes out. It rides along in `check` so that nobody has to
-# remember to ask.
+# The file falling behind the work, as a warning rather than a refusal: work
+# that landed with no section open for it, or a change that wrote nothing into
+# the one that is. The points can be written any time before the tag, and half
+# of them are written the day it goes out, so neither stops anything. It rides
+# along in `check` so that nobody has to remember to ask.
 changelog-warn:
 	@$(CHANGELOG_WARN) $(CHANGELOG)
 
@@ -194,19 +203,25 @@ changelog-warn:
 # tagged has any: a heading nobody wrote under stops the tag rather than
 # reaching the release page empty.
 #
-#   make notes TAG=v0.1.0
+#   make notes                what the next release will say
+#   make notes TAG=v0.1.0     what an older one said
 notes: tag-check
 	@$(CHANGELOG_SH) $(CHANGELOG) $(TAG:v%=%)
 
-# The one place a release tag is typed. The name is checked before the tag
-# exists rather than after it is pushed: a typo is a line in a terminal here,
-# and a tag to delete off the remote there.
+# The one place a release tag is made, and the name is read rather than typed:
+# it is the version the changelog opens on. A tag the changelog says nothing
+# under is therefore not something that can be made here, and a release that
+# would arrive on its page empty is refused before the tag exists rather than
+# after it has been pushed.
 #
-# What the release page will say is printed on the way, out of the changelog,
-# so the last look at it happens before the tag exists rather than after.
+# What that page will say is printed on the way, so the last look at it happens
+# while there is still nothing to take back.
 #
-#   make tag TAG=v0.2.0
+#   make tag
 tag: tag-check notes
+	@if git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null; then \
+		echo "$(TAG) exists already — open a section for the next release in $(CHANGELOG)" >&2; exit 1; \
+	fi
 	git tag $(TAG)
 	git push origin $(TAG)
 
@@ -216,8 +231,8 @@ tag: tag-check notes
 # or a clone too shallow to describe one. Either would publish a version nothing
 # inside the file agrees with.
 #
-#   make version-check TAG=v0.1.0                     against what build wrote
-#   make version-check TAG=v0.1.0 BIN=dist/oak-...    against what CI will ship
+#   make version-check                                after `make tag`, against what build wrote
+#   make version-check TAG=v0.1.0 BIN=dist/oak-...    a pushed tag against what CI will ship
 version-check: tag-check
 	@said="$$(./$(BIN) --version)"; \
 	[ "$$said" = "$(TAG:v%=%)" ] \

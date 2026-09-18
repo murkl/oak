@@ -2,6 +2,12 @@
 
 What each release changed, newest first. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](README.md#1-get-oak)**.
 
+## 0.3.3 - 2026-09-18
+
+- A changelog, and a release page made out of the section for the version it publishes
+- The run warns when work has landed with no section open for it, or when a change wrote nothing into the one that is - without stopping either
+- `make tag` reads the version out of the changelog rather than being handed one
+
 ## 0.3.2 - 2026-09-18
 
 - The release page says how to check a download and what a version promises a product

@@ -33,25 +33,20 @@ flowchart LR
 
 A release is a `v*` tag on `main`. It publishes the artefacts of the commit it points at — nothing is rebuilt for it.
 
-The release page is that version's section of **[the changelog](CHANGELOG.md)**, so what it says was decided while the work happened rather than typed onto the page:
+Which version is being released stands in **[the changelog](CHANGELOG.md)**: the section at the top is the one being worked towards, and its entries are what the release page will say. So the tag is read rather than typed:
 
 ```
-make notes TAG=v0.4.0   # what the page will carry
+make notes   # what the page will carry
+make tag     # that version, tagged on HEAD and pushed
 ```
 
-Draft it in the browser: **Releases** → **Draft a new release** → **Choose a tag**, type `v0.1.0`, **Create new tag on publish** → target `main` → **Publish release**.
+`make tag` prints the entries first, and refuses a version the changelog says nothing about or one that has already gone out — all of it before the tag exists, where a wrong name is a line in a terminal rather than a tag to delete off the remote.
 
-Or from a terminal:
-
-```
-make tag TAG=v0.1.0
-```
-
-That refuses a name that is not `vMAJOR.MINOR.PATCH` and a version the changelog says nothing about — both before the tag exists — prints the entries, then tags `HEAD` and pushes it.
+It can also be drafted in the browser — **Releases** → **Draft a new release** → **Choose a tag**, **Create new tag on publish** → target `main` — but nothing there reads the changelog. The tag typed has to be the version the file opens on, or the run refuses to publish and the tag has to be deleted again.
 
 Both land in the same place. A pushed tag has no release yet, so CI writes one — the changelog's entries for that version, then the download and how to check where it came from; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` on it once the checks are green, and what the page says is whatever was typed there. Either way the release stops if the changelog holds no section for the version being tagged.
 
-The version is the tag `git describe` finds, without its `v`, and that is the whole of what the binary answers. Nothing else has to be edited, and there is nowhere it can be edited wrongly.
+What the binary answers is the tag `git describe` finds, without its `v`. The number itself is chosen once, in the heading `make tag` reads, and nothing else has to be edited to agree with it.
 
 What that leaves is a tag pointing somewhere the build cannot follow — moved after the fact, or cut from a clone too shallow to describe one — and then a release would carry a version its own binary disagrees with. The last step before a download link exists refuses that: the tag has to read `vMAJOR.MINOR.PATCH`, and the binary about to be published under it has to answer to exactly that. `make tag` asks the first half. Ask the second half of a tag that already exists:
 
@@ -77,8 +72,8 @@ make version-check TAG=v0.1.0
 - Newest first, `## X.Y.Z - YYYY-MM-DD`, one short line per change somebody building a product would notice
 - The date is the day it goes out, so it is the one thing to look at again before tagging
 - `make check` holds the shape, the order and that no version stands there twice
-- A change that never touched the file is a **warning** on the run and at the desk, never a refusal — the lines may be written retrospectively, up to the tag
-- A release does refuse: `make tag` and the workflow both stop on a version with nothing under it
+- Two **warnings** on the run and at the desk, never a refusal: work that landed with no section open for it, and a change that wrote nothing into the one that is — the lines may be written retrospectively, up to the tag
+- A release does refuse: the section at the top is the version `make tag` writes, and the workflow stops on a tag with nothing under it
 
 ## What CI runs
 
@@ -107,8 +102,8 @@ make inspect                 # loads the example the way a run does
 make locales                 # the template, and every catalog brought up to it
 make fmt                     # format the Go and the shell
 make build                   # bin/oak-linux-amd64, the file a release publishes
-make notes TAG=v0.1.0        # what that version's release page will say
-make tag TAG=v0.1.0          # the release tag, checked and pushed
+make notes                   # what the next release page will say
+make tag                     # that version, tagged and pushed
 make version-check TAG=v0.1.0  # would that tag be allowed to release this?
 ```
 
