@@ -156,8 +156,8 @@ Oak opens on its welcome page, asks the one question that is required and still 
 The **[example](../example)** is the same shape, filled out: two modules, three stages, a task that only runs under a condition, tests beside the work, and a page the run stops on when it is done.
 
 <p align="center">
+  <img src="screenshots/welcome.png" width="49%" alt="The page every run opens on">
   <img src="screenshots/question.png" width="49%" alt="One question, on a page of its own">
-  <img src="screenshots/report.png" width="49%" alt="The page a run stops on when a task has something to say">
 </p>
 
 ## The pipeline
@@ -186,7 +186,8 @@ flowchart LR
 ```
 
 <p align="center">
-  <img src="screenshots/run.png" width="640" alt="The run, working down the tasks in order">
+  <img src="screenshots/run.png" width="49%" alt="The run, working down the tasks in order">
+  <img src="screenshots/report.png" width="49%" alt="The page a run stops on when it is done">
 </p>
 
 A task with `conditions:` that do not hold is left out of the run entirely. Everything is checked when the module loads, so a renamed variable or a cycle is an error at startup — never a step that silently never fires.

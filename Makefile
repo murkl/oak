@@ -45,7 +45,19 @@ SCRIPTS := $(shell find $(EXAMPLE) -name '*.sh')
 POT      := locales/$(APP).pot
 CATALOGS := $(wildcard locales/*.po)
 
-.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln fmt fmt-check locales locales-check tag-check tag version-check check clean
+# The pictures in docs/. Both are generated: the screenshots by driving the
+# example on a pty and photographing what it drew, the banner by collaging two
+# of them under the wordmark read out of the product's own oak.yaml. A change
+# to the interface is one command away from being what the README shows.
+#
+# They need chromium, imagemagick and python-pyte, which a build does not, so
+# they stay out of `check` and are run by hand when a page has changed.
+DOCS           := tools/docs
+BANNER_CARDS   := docs/screenshots/report.png docs/screenshots/run.png
+BANNER_TAGLINE := You write the YAML and the shell. Oak is the program around it.
+BANNER_CELL    := 17
+
+.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln fmt fmt-check locales locales-check tag-check tag version-check check screenshots banner docs clean
 
 all: build
 
@@ -171,6 +183,23 @@ check: fmt-check tidy-check vet staticcheck locales-check lint test build inspec
 # There is deliberately no install target: the binary looks for its oak.yaml
 # beside itself, so a copy on $$PATH with nothing next to it can only say there
 # is nothing to run. What ships is the modules with the binary beside them.
+
+screenshots: example
+	python3 $(DOCS)/screenshots.py --example $(EXAMPLE) --binary $(EXAMPLE)/$(APP)
+
+banner:
+	python3 $(DOCS)/banner.py \
+		--product $(EXAMPLE)/oak.yaml \
+		--logo docs/logo.svg \
+		$(foreach c,$(BANNER_CARDS),--card $(c)) \
+		--tagline "$(BANNER_TAGLINE)" \
+		--cell $(BANNER_CELL)
+
+# The banner collages the screenshots, so it is drawn after them and never
+# beside them, whatever -j says.
+docs:
+	$(MAKE) screenshots
+	$(MAKE) banner
 
 clean:
 	rm -rf $(BIN_DIR) $(EXAMPLE)/$(APP)
