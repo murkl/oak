@@ -627,7 +627,7 @@ func TestTheRowsInsideAModuleAreNamedAfterWhatTheyDo(t *testing.T) {
 	h.wants("Start", "Settings").refuses(glyphs.cursor + "Test Installer")
 
 	h.down()
-	h.wants("Every value in use.")
+	h.wants("Every used value.")
 }
 
 // The frame is titled after the product on every page, and once a module is

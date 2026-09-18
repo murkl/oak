@@ -1,18 +1,12 @@
 <div align="center">
 
-<img src="logo.svg" width="96" alt="">
-
-<h1>Oak</h1>
-
-<p><strong>An installer runtime for Linux. You write YAML and shell scripts — Oak is the program around it.</strong></p>
+<img src="banner.png" alt="Oak - an installer runtime for Linux. You write the YAML and the shell, Oak is the program around it">
 
 <p>
   <img src="https://img.shields.io/github/v/release/murkl/oak?style=for-the-badge&label=RELEASE&color=8fbcbb" alt="">
   <img src="https://img.shields.io/badge/License-GPL_3.0-blue?style=for-the-badge" alt="">
   <img src="https://img.shields.io/badge/Linux-x86__64-2e3440?style=for-the-badge" alt="">
 </p>
-
-<img src="screenshots/splash.png" width="640" alt="Oak opening on a product's own wordmark">
 
 </div>
 

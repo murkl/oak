@@ -154,7 +154,14 @@ func labelValidatingHelp() string {
 // Nameless on purpose: the frame already carries the module's name on every
 // page, and a sentence repeating it here would be the same word twice.
 func labelSettingsHelp() string {
-	return say("Every value in use. Open one to change it.")
+	return say("Every used value. Open one to change it.")
+}
+
+// The row's own detail on the hub, read before the list behind it is open —
+// so, unlike labelSettingsHelp, without the instruction that only makes sense
+// once it is.
+func labelSettingsSummary() string {
+	return say("Every used value.")
 }
 
 // The last row of the settings page, and the page behind it. The row says what
