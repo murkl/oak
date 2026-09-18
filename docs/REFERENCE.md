@@ -15,6 +15,7 @@ Sits beside the binary and holds what no module can answer for its neighbours. E
 title: Tux Linux
 version: 1.0.0
 accent: "#8fbcbb"
+url: https://github.com/tux/tux-linux
 logo: |
   A product driven by
 
@@ -26,7 +27,10 @@ logo: |
 | `title` | The product's name, over every page — followed by the module's own once one is open |
 | `version` | What this build of the product is called, in the corner of every page. Left out, no version is shown |
 | `accent` | `#rrggbb`. The one colour the interface is built from |
+| `url` | Where the rest of the product is. Stands on the welcome page, written out and drawn beside it as a code to scan. Left out, that page is the greeting and the languages |
 | `logo` | The wordmark. Everything above the first blank line is a dim eyebrow over it |
+
+`url` is an absolute address or it is refused — a scheme and a host, `https://…`. It is read off a screen by a camera as well as by a person, and what a browser would guess at from `tux.org/linux` a camera cannot.
 
 `version` is the product's own. Oak's own is what `--version` answers — `0.1.0`, the release and nothing beside it, so a build that pins Oak reads the line as it stands — and what the splash signs off with under the wordmark. It is never shown as though it belonged to the product.
 
@@ -490,3 +494,5 @@ The language is chosen on the welcome page every run opens on, and can be change
 **Note:** _The welcome page itself is the one page no catalog is read for. It is drawn before a language has been settled, so it stays in plain English whatever the last run chose._
 
 **Note:** _The Linux virtual console holds at most 512 glyphs. A product that runs there before any desktop exists is safe with ASCII and the Latin-1 letters, and not with Greek, Cyrillic or anything written in a script of its own._
+
+**Note:** _Which 512 is the font's choice, so a product that boots to a console loads one that holds what the interface draws: the box-drawing rules, `░ ▒ •  · » ↑ ↓`, and the three cells every picture is built from — `█ ▀ ▄`. `kbd`'s own `default8x16` holds all of it; every Terminus holds the full block and neither half of it, which is exactly what a code and the mark over a finished run are drawn from. A 256-glyph font also keeps the sixteen background colours a code needs its white from — a 512-glyph one spends that bit on the glyph index._

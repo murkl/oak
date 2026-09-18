@@ -112,8 +112,8 @@ func (r *report) View(width, height int) string {
 		// half again the measure the rest of the interface reads at.
 		return block(centred(r.words(bodyWidth(width), height), height))
 	}
-	words := r.words(width-lipgloss.Width(code[0])-reportGap, height)
-	return block(beside(words, code, reportGap))
+	wordsW := width - lipgloss.Width(code[0]) - reportGap
+	return block(beside(r.words(wordsW, height), wordsW, code, reportGap))
 }
 
 // words is everything there is to read, in the order it is read: the mark, what
@@ -204,9 +204,13 @@ func inked(text string, width int, ink lipgloss.Style) []string {
 // beside lays two blocks side by side, each centred against the other, with a
 // channel between them. The taller decides the height, so whichever of the two
 // it is, the shorter sits in the middle of it rather than hanging off the top.
-func beside(left, right []string, gap int) []string {
+//
+// leftW is the column the left block stands in, not the width of the longest
+// line in it: both callers wrapped their words to a column already, and a right
+// block that moved with the longest line would sit somewhere else on every page
+// — against the frame's edge on one and halfway across it on the next.
+func beside(left []string, leftW int, right []string, gap int) []string {
 	rows := max(len(left), len(right))
-	leftW := 0
 	for _, line := range left {
 		leftW = max(leftW, lipgloss.Width(line))
 	}

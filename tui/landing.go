@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -17,22 +19,45 @@ import (
 // English, and no word that needs another language to be understood.
 const landingTitle = "Welcome"
 
-// landingText is the greeting and what the rows underneath are for, and nothing
-// else. Whoever is reading it came here to start something and is one keypress
-// from the page that says what — a paragraph about what happens next is read
-// twice by nobody and stands between them and the only thing on this page.
-func landingText(product string) string {
-	return "Welcome to " + product + ".\n\nPlease choose the language."
+// Three lines, and they are three because each says a different thing: what
+// this is, where the rest of it lives, and what the rows underneath are for.
+// Whoever is reading them came here to start something and is one keypress from
+// the page that says what — a paragraph about what happens next is read twice
+// by nobody and stands between them and the only thing on this page.
+const (
+	landingGreeting = "Welcome to %s."
+	landingLink     = "More about this project:"
+	landingChoose   = "Please choose the language."
+)
+
+// landingWords is that greeting, the product's address where it declared one,
+// and the line that leads the rows — each in the ink that says what it is. The
+// greeting carries the weight, the address the colour a value is written in
+// everywhere else in the program, and what is left is body text.
+//
+// The address is written out whether or not the code beside it could be drawn.
+// A terminal too narrow for the code is exactly the one where it has to be
+// readable, and it is the address that is the answer either way: the code is
+// only the shortest way to carry it to the machine that can follow it.
+func landingWords(product, link string, width int) []string {
+	out := inked(fmt.Sprintf(landingGreeting, product), width, boldStyle)
+	if link != "" {
+		out = append(out, "")
+		out = append(out, inked(landingLink, width, softStyle)...)
+		out = append(out, infoStyle.Render(truncate(link, width)))
+	}
+	return append(append(out, ""), inked(landingChoose, width, textStyle)...)
 }
 
-// newLanding is that page: the greeting, and under it the languages on offer.
+// newLanding is that page: the greeting, the address, and under them the
+// languages on offer, with the address drawn a second time as a code to scan.
 //
 // It is the language screen with something else standing over its rows rather
 // than a page of its own — the choice is the same choice, and a second way of
 // making it would be a second thing to keep right.
 func newLanding(a *app, done func() tea.Cmd) *languageScreen {
-	return newLanguagePage(a,
-		func() string { return landingTitle },
-		func() string { return landingText(a.brand()) },
-		done)
+	s := newLanguagePage(a, func() string { return landingTitle }, nil, done)
+	s.link = a.link()
+	s.words = func(width int) []string { return landingWords(a.brand(), s.link, width) }
+	return s
 }

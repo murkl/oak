@@ -87,7 +87,7 @@ func TestAShortFrameLosesTheParagraphBeforeTheMark(t *testing.T) {
 func TestTheTwoColumnsAreCentredAgainstEachOther(t *testing.T) {
 	left := []string{"a"}
 	right := []string{"1", "2", "3"}
-	got := beside(left, right, 2)
+	got := beside(left, 1, right, 2)
 	if len(got) != 3 {
 		t.Fatalf("%d rows, want 3", len(got))
 	}
@@ -96,5 +96,18 @@ func TestTheTwoColumnsAreCentredAgainstEachOther(t *testing.T) {
 	}
 	if strings.HasPrefix(got[0], "a") {
 		t.Errorf("the shorter block is at the top: %q", got)
+	}
+}
+
+// And the right block stands in a column of its own rather than against
+// whatever the longest line on the left happens to be: the same two blocks,
+// with the left one a word longer, and the right one starts in the same place.
+func TestTheRightBlockKeepsItsColumn(t *testing.T) {
+	const leftW, gap = 10, 2
+	for _, left := range []string{"a", "a longer"} {
+		got := beside([]string{left}, leftW, []string{"1"}, gap)
+		if at := strings.Index(got[0], "1"); at != leftW+gap {
+			t.Errorf("with %q beside it the code starts at %d, want %d", left, at, leftW+gap)
+		}
 	}
 }

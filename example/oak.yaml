@@ -1,13 +1,18 @@
-# What this product is, in the four things no module can answer for its
+# What this product is, in the few things no module can answer for its
 # neighbours: the name over the pages drawn before one has been opened, the one
-# colour the interface is built from, the wordmark it comes up out of, and what
-# this build of it is called.
+# colour the interface is built from, the wordmark it comes up out of, where the
+# rest of it lives, and what this build of it is called.
 #
 # Which modules there are is not written down here. They are the folders in
 # modules/ beside this file, each holding its own declaration.
 
 title: Oak
 version: 1.0.0
+
+# Where the rest of the product is. The welcome page writes it out and draws it
+# beside as a code, for the machine that is being installed and has no browser
+# on it yet.
+url: https://github.com/murkl/oak
 
 # Every colour on screen is derived from this one.
 accent: "#8fbcbb"

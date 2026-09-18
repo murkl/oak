@@ -174,6 +174,10 @@ func (a *app) enter(mod *spec.Module) error {
 // welcome page's greeting among them, read before a module is even on offer.
 func (a *app) brand() string { return a.runtime.Title }
 
+// link is where the rest of the product is, on the one page read before any of
+// it exists on this machine. Empty where the product named none.
+func (a *app) link() string { return a.runtime.URL }
+
 // heading is what the frame is titled, on every page: the product, and once
 // one of its modules has been opened, which one — joined onto it the way a
 // breadcrumb reads, so the header still says what this run is once the page

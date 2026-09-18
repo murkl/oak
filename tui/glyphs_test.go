@@ -9,22 +9,26 @@ import (
 	"github.com/murkl/oak/internal/i18n"
 	"github.com/murkl/oak/locales"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // consoleFont is what a Linux virtual console can draw: the printable ASCII
-// range, the Latin-1 letters, and what is left of the rest once two fonts are
-// laid over each other — the kernel's own, which is codepage 437 and is what a
-// console wears until something loads a font over it, and Lat2-Terminus16,
-// which is what the ISO loads. Neither holds everything the other does: the
-// kernel font has no ellipsis, no angle quotes, no multiplication sign; the
-// terminus font has no half blocks and no dark shade. What is below is in both.
+// range, the Latin-1 letters, and the marks below.
+//
+// It is a demand rather than an observation. A console font holds at most 512
+// glyphs and every one of them is somebody's choice, so there is no set that is
+// simply there — what is below is the set a product running on a console has to
+// load a font for, and `kbd`'s own default8x16 is one that holds all of it.
+// Several well-known ones do not: every Terminus has the full block and neither
+// half of it, which is exactly the three cells a code and the mark over a
+// finished run are drawn from.
 //
 // Written out rather than read off the running machine on purpose. What matters
 // is not which font this developer happens to have loaded — it is which
-// codepoints are safe on the machine the ISO boots on, and that is a fact about
-// console fonts rather than about anything here.
-const consoleFont = "─│┌┐└┘├┤┬┴┼░▒█■·•»«±°÷↑↓←→▲▼▶◀♦"
+// codepoints a product may count on, and that is a decision rather than a fact
+// about anything here.
+const consoleFont = "─│┌┐└┘├┤┬┴┼░▒█▀▄■·•»«±°÷↑↓←→▲▼▶◀♦"
 
 func inConsoleFont(s string) bool {
 	return undrawable(s) == 0
@@ -75,6 +79,26 @@ func TestEveryPlainGlyphIsOneAConsoleFontHas(t *testing.T) {
 	for i, frame := range append(append([]string{}, g.focus...), g.spinner...) {
 		if !inConsoleFont(frame) {
 			t.Errorf("frame %d is %q, which no console font can draw", i, frame)
+		}
+	}
+}
+
+// And the four cells everything drawn as a picture is built from, which are in
+// neither set because there is nothing to choose between — but are still four
+// glyphs a font either holds or does not. Without them the mark over a finished
+// run and the code on the welcome page come out as whatever that font puts in
+// place of a codepoint it has never heard of.
+func TestEveryPictureCellIsOneAConsoleFontHas(t *testing.T) {
+	for _, cell := range []string{blockFull, blockUpper, blockLower, blockNone} {
+		if !inConsoleFont(cell) {
+			t.Errorf("%q is drawn as a picture and no console font can draw it", cell)
+		}
+	}
+	for _, picture := range [][]string{glyphTick, glyphCross} {
+		for i, line := range picture {
+			if r := undrawable(line); r != 0 {
+				t.Errorf("row %d of a picture shows %q, which no console font can draw", i, r)
+			}
 		}
 	}
 }
@@ -213,7 +237,13 @@ func TestTheLandingPageFitsAConsoleFont(t *testing.T) {
 	t.Cleanup(func() { adaptGlyphs(false) })
 	adaptGlyphs(true)
 
-	h := newHarness(t, twoLanguageTree())
+	// With the address and its code, because that is the page a console
+	// actually draws: an installer is exactly the kind of product that has
+	// somewhere to point at and nowhere on the machine to open it.
+	rt := testRuntime()
+	rt.URL = "https://example.org/test-os"
+	h := newProduct(t, rt, twoLanguageTree())
+	h.send(tea.WindowSizeMsg{Width: 95, Height: 25})
 	if r := undrawable(h.screen()); r != 0 {
 		t.Errorf("the landing page shows %q, which no console font can draw:\n%s", r, h.screen())
 	}

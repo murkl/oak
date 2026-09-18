@@ -162,7 +162,12 @@ func openModuleIn(t *testing.T, debug bool) Open {
 
 // The runtime the flow tests run inside: a name over the modules, and nothing
 // else it needs to say for a test with no terminal to dress.
-var testRuntime = &spec.Runtime{Title: "Test OS", Modules: []string{"installer", "recovery"}}
+//
+// A fresh one each time rather than one shared: a test about what the product
+// says of itself says it here, and says it for its own run only.
+func testRuntime() *spec.Runtime {
+	return &spec.Runtime{Title: "Test OS", Modules: []string{"installer", "recovery"}}
+}
 
 // start brings the interface up around one or more modules, exactly as Run
 // does.
@@ -175,16 +180,17 @@ func start(t *testing.T, mods ...*spec.Module) *harness {
 // are drawn before any module has been opened.
 func startIn(t *testing.T, locales string, mods ...*spec.Module) *harness {
 	t.Helper()
-	return startWith(t, openModule(t), locales, mods...)
+	return startWith(t, testRuntime(), openModule(t), locales, mods...)
 }
 
 // startWith is the same again for a run opened some other way — with --debug,
-// for the tests that are about what a script is handed.
-func startWith(t *testing.T, open Open, locales string, mods ...*spec.Module) *harness {
+// for the tests that are about what a script is handed, and for the pages that
+// are about the product rather than about any of its modules.
+func startWith(t *testing.T, rt *spec.Runtime, open Open, locales string, mods ...*spec.Module) *harness {
 	t.Helper()
 	i18n.Use(i18n.SourceLang)
 	a := &app{
-		runtime: testRuntime, modules: mods, open: open, version: "test",
+		runtime: rt, modules: mods, open: open, version: "test",
 		prefs: store.NewPreferences(filepath.Join(t.TempDir(), "runtime.conf")),
 	}
 	if locales != "" {
@@ -208,11 +214,18 @@ func newHarness(t *testing.T, files map[string]string) *harness {
 	return start(t, loadModule(t, writeModule(t, t.TempDir(), files)))
 }
 
+// newProduct is the same around a product that says more about itself than its
+// name — an address, for the one page that shows one.
+func newProduct(t *testing.T, rt *spec.Runtime, files map[string]string) *harness {
+	t.Helper()
+	return startWith(t, rt, openModule(t), "", loadModule(t, writeModule(t, t.TempDir(), files)))
+}
+
 // newSimulated is the same for a run started with --debug: every script is
 // handed DEBUG=true, which is the one thing no page can stand in for.
 func newSimulated(t *testing.T, files map[string]string) *harness {
 	t.Helper()
-	return startWith(t, openModuleIn(t, true), "", loadModule(t, writeModule(t, t.TempDir(), files)))
+	return startWith(t, testRuntime(), openModuleIn(t, true), "", loadModule(t, writeModule(t, t.TempDir(), files)))
 }
 
 // The loop, as the real program runs it: a command goes off on its own and
@@ -597,7 +610,7 @@ func TestTheOtherProgramsQuestionsAreNotAsked(t *testing.T) {
 // gave itself.
 func TestTheQuestionOfWhichModuleIsHeadedByTheRuntime(t *testing.T) {
 	h := start(t, both(t)...)
-	h.wants(testRuntime.Title, "What to do")
+	h.wants(testRuntime().Title, "What to do")
 }
 
 // And the landing page comes in front of that: the words the rest is read in
@@ -638,7 +651,7 @@ func TestTheFrameIsTitledAfterTheProductAndTheModuleOnceOneIsOpen(t *testing.T) 
 	h.down().enter() // the recovery
 	h.wants("Disk").enter()
 	h.wants("Snapshot").enter()
-	h.wants(testRuntime.Title + " " + glyphs.crumb + " Test Recovery")
+	h.wants(testRuntime().Title + " " + glyphs.crumb + " Test Recovery")
 }
 
 // ─── Starting points ─────────────────────────────────────────────────────────
@@ -722,6 +735,56 @@ func TestTheLandingPageIsNeverTranslated(t *testing.T) {
 	h.down().enter() // Deutsch
 	h.restart()
 	h.wants("Welcome", "Welcome to Test OS.").refuses("Willkommen")
+}
+
+// The welcome page is read on a machine with nothing on it yet — no browser, no
+// second screen — so where the product says where the rest of it is, that is
+// where it goes: written out, and drawn again as a code, because the only
+// device in the room that can follow a link is the one in somebody's hand.
+func TestTheLandingPageCarriesTheProductsAddress(t *testing.T) {
+	rt := testRuntime()
+	rt.URL = "https://example.org/test-os"
+	h := newProduct(t, rt, twoLanguageTree())
+	h.send(tea.WindowSizeMsg{Width: 95, Height: 25})
+
+	h.wants("Welcome to Test OS.", rt.URL, landingLink, "English")
+	if !strings.Contains(h.screen(), strings.Repeat(blockFull, 2)) {
+		t.Errorf("the address is written but not drawn as a code:\n%s", h.screen())
+	}
+}
+
+// A product that named none is the page as it was: the greeting, and the
+// languages under it.
+func TestAProductWithNoAddressShowsNone(t *testing.T) {
+	h := newHarness(t, twoLanguageTree())
+	h.wants("Welcome to Test OS.", "English").refuses(landingLink, "https://")
+}
+
+// And the code is never the whole of what is on offer. A terminal too narrow
+// for one is exactly the terminal where the address has to be readable.
+func TestTheAddressStandsWhereTheCodeCannot(t *testing.T) {
+	rt := testRuntime()
+	rt.URL = "https://example.org/test-os"
+	h := newProduct(t, rt, twoLanguageTree())
+	h.send(tea.WindowSizeMsg{Width: 60, Height: 20})
+
+	h.wants(rt.URL)
+	if strings.Contains(h.screen(), strings.Repeat(blockFull, 2)) {
+		t.Errorf("a code was squeezed into a frame with no room for one:\n%s", h.screen())
+	}
+}
+
+// On a frame too short for all of it, the words give way and the rows do not:
+// a greeting with no languages under it is a page asking a question it offers
+// no way to answer.
+func TestTheLanguagesOutliveTheWordsOverThem(t *testing.T) {
+	rt := testRuntime()
+	rt.URL = "https://example.org/test-os"
+	h := newProduct(t, rt, twoLanguageTree())
+	h.send(tea.WindowSizeMsg{Width: 95, Height: 17})
+
+	h.wants("Welcome to Test OS.", rt.URL, "English", "Deutsch")
+	h.refuses(landingChoose)
 }
 
 // The landing page leads, because every word of every page after it is in the

@@ -63,6 +63,7 @@ func reportRuntime(w io.Writer, rt *spec.Runtime) {
 	fmt.Fprintf(w, "  title      %s\n", rt.Title)
 	fmt.Fprintf(w, "  version    %s\n", rt.Version)
 	fmt.Fprintf(w, "  accent     %s\n", rt.Accent)
+	fmt.Fprintf(w, "  url        %s\n", rt.URL)
 	fmt.Fprintf(w, "  logo       %d lines\n", len(strings.Split(strings.TrimRight(rt.Logo, "\n"), "\n")))
 	fmt.Fprintf(w, "  modules    %s\n", strings.Join(rt.Modules, " "))
 }

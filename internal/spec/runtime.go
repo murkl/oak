@@ -2,6 +2,7 @@ package spec
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -41,6 +42,15 @@ type Runtime struct {
 	// first blank line a dim eyebrow over it.
 	Accent string `yaml:"accent"`
 	Logo   string `yaml:"logo"`
+
+	// URL is where the rest of this product is: what it is, what it does, who
+	// wrote it. It stands on the welcome page, as writing and as a code to
+	// scan, because that page is read on a machine with nothing on it yet — no
+	// browser, often no second screen — and the only device that can follow a
+	// link there is the one in somebody's hand.
+	//
+	// Left out, the page is the greeting and the languages, exactly as before.
+	URL string `yaml:"url"`
 
 	// Version is what this product calls this build of itself, in the corner of
 	// every page. It is the product's own and not the binary's: a release of the
@@ -98,6 +108,15 @@ func LoadRuntime(explicit string) (*Runtime, error) {
 func (r *Runtime) check() error {
 	if r.Accent != "" && !hexColor.MatchString(r.Accent) {
 		return fmt.Errorf("%s: accent must be #rrggbb, got %q", FileRuntime, r.Accent)
+	}
+	// Checked here rather than where it is drawn: a link is put on screen to be
+	// typed off it and scanned off it, and both want the whole address. What a
+	// browser guesses at from `github.com/...` a camera cannot.
+	if r.URL != "" {
+		u, err := url.Parse(r.URL)
+		if err != nil || !u.IsAbs() || u.Host == "" {
+			return fmt.Errorf("%s: url must be an absolute address, got %q", FileRuntime, r.URL)
+		}
 	}
 	return nil
 }

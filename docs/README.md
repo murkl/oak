@@ -72,7 +72,7 @@ Every page appears only when it has something to show. A module with no presets 
 
 ```mermaid
 flowchart TD
-    L["Welcome<br/>the language"] --> W["Which module"] --> Q1["Questions marked first"]
+    L["Welcome<br/>the link · the language"] --> W["Which module"] --> Q1["Questions marked first"]
     Q1 --> N["Network"] --> P["Preflight check"] --> PR["Presets"]
     PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
@@ -107,6 +107,7 @@ Oak is versioned by what a product may declare: a new key is a minor version, an
 title: Tux Linux
 version: 1.0.0
 accent: "#8fbcbb"
+url: https://github.com/tux/tux-linux
 ```
 
 ### 3. Write a module — `modules/setup/module.yaml`
