@@ -179,13 +179,34 @@ jobs:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           VERSION: ${{ github.ref_name }}
         run: |
+          # The download and the two ways of checking it, on the page the
+          # download link is on. A checksum nobody is handed is a checksum
+          # nobody runs.
+          notes="$(mktemp)"
+          cat >"$notes" <<NOTES
+          \`\`\`
+          curl -LO https://github.com/${GH_REPO}/releases/download/${VERSION}/oak-linux-amd64
+          curl -LO https://github.com/${GH_REPO}/releases/download/${VERSION}/oak-linux-amd64.sha256
+          sha256sum -c oak-linux-amd64.sha256
+          install -m755 oak-linux-amd64 oak
+          \`\`\`
+
+          The checksum rides in this release, so all it says is that the download is whole. What says the file came out of this repository, and out of the run that built it, is the provenance that run signed:
+
+          \`\`\`
+          gh attestation verify oak-linux-amd64 -R ${GH_REPO}
+          \`\`\`
+          NOTES
+
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" dist/* --clobber
           else
             gh release create "$VERSION" dist/* \
               --title "Oak $VERSION" \
+              --notes-file "$notes" \
               --generate-notes
           fi
 

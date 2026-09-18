@@ -43,7 +43,7 @@ make tag TAG=v0.1.0
 
 That refuses a name that is not `vMAJOR.MINOR.PATCH` before the tag exists, then tags `HEAD` and pushes it.
 
-Both land in the same place. A pushed tag has no release yet, so CI writes one with generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green.
+Both land in the same place. A pushed tag has no release yet, so CI writes one — the download, the two ways of checking it, then the generated notes; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` and its checksum on it once the checks are green, and what the page says about checking them is whatever was typed there.
 
 The version comes out of `git describe`, so the tag is what the binary answers with. Nothing else has to be edited, and there is nowhere it can be edited wrongly.
 
@@ -56,7 +56,7 @@ make version-check TAG=v0.1.0
 
 **Note:** _The `v` is what CI watches for. A tag without it builds nothing and releases nothing._
 
-**Note:** _Semantic versions. A change to what a product may declare is a minor version; a change that stops an existing product from loading is a major one._
+**Note:** _Semantic versions. What decides which number moves is the promise the [README](README.md#1-get-oak) makes to a product, so it is written down once, there._
 
 ## What CI runs
 

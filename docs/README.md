@@ -90,11 +90,21 @@ flowchart TD
 ### 1. Get Oak
 
 ```
-curl -Lo oak https://github.com/murkl/oak/releases/latest/download/oak-linux-amd64
-chmod +x oak
+curl -LO https://github.com/murkl/oak/releases/latest/download/oak-linux-amd64
+curl -LO https://github.com/murkl/oak/releases/latest/download/oak-linux-amd64.sha256
+sha256sum -c oak-linux-amd64.sha256
+install -m755 oak-linux-amd64 oak
 ```
 
-`latest` is whatever is newest. A product that releases versions of its own pins the Oak it was built against instead — `releases/download/v0.1.0/oak-linux-amd64` — so the same tag builds the same thing twice. Which one drove it is under the wordmark on the way in: `powered by oak 0.1.0`.
+The checksum rides in the same release as the binary, so all it says is that the download is whole. What says the file came out of this repository, and out of the run that built it, is the provenance CI signs for every release:
+
+```
+gh attestation verify oak-linux-amd64 --repo murkl/oak
+```
+
+`latest` is whatever is newest. A product that releases versions of its own pins the Oak it was built against instead — `releases/download/vX.Y.Z/oak-linux-amd64` — so the same tag builds the same thing twice. Which one drove it is under the wordmark on the way in: `powered by oak X.Y.Z`.
+
+Oak is versioned by what a product may declare: a new key is a minor version, and anything that stops a product loading that used to load is a major one. An upgrade inside a major is safe to take, so pinning is for building the same thing twice, not for surviving the next release.
 
 ### 2. Say what the product is — `oak.yaml`
 
