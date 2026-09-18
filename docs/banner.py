@@ -207,8 +207,8 @@ def page(args):
     width:560px; z-index:5;
   }}
   .mark, .mark svg {{ width:64px; height:64px; display:block; }}
-  /* a selector, so the mark wears the product's accent rather than the
-     fallback colour its own file carries */
+  /* a selector, so a mark drawn in currentColor takes the product's accent
+     rather than the fallback its own file carries */
   .mark svg {{ color:{accent}; }}
   .eyebrow {{
     margin-top:30px; font-size:13px; letter-spacing:.34em;
