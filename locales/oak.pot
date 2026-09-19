@@ -73,11 +73,11 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:617
+#: internal/spec/spec.go:628
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:619
+#: internal/spec/spec.go:630
 msgid "This value is required."
 msgstr ""
 

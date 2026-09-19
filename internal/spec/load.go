@@ -389,7 +389,27 @@ func (s *Module) check(tasks []*Task, hooks map[string][]*Task) error {
 	if err := s.checkPresets(); err != nil {
 		return fmt.Errorf("%s: %w", FileModule, err)
 	}
+	if err := s.checkText("confirm", s.Confirm); err != nil {
+		return fmt.Errorf("%s: %w", FileModule, err)
+	}
 	return s.checkTasks(tasks, hooks)
+}
+
+// checkText holds a sentence to the answers this module has. A {{VAR}} naming
+// none of them is filled in with nothing and leaves a sentence that still reads
+// as one — "everything on will be erased" — at the moment somebody is deciding
+// whether to go ahead. Refused where it is written rather than noticed where it
+// is read, which is too late by then.
+//
+// Checked once the variables are known, so a sentence may name one declared
+// after it.
+func (s *Module) checkText(key, text string) error {
+	for _, name := range Names(text) {
+		if s.byName[name] == nil {
+			return fmt.Errorf("%s: {{%s}} is not a variable of this module", key, name)
+		}
+	}
+	return nil
 }
 
 // checkTasks settles what runs and in what order: every task checked over, the
@@ -448,6 +468,12 @@ func (s *Module) checkTask(t *Task) error {
 		return err
 	}
 	if err := checkConfirm(t); err != nil {
+		return err
+	}
+	if err := s.checkText("confirm", t.Confirm); err != nil {
+		return err
+	}
+	if err := s.checkText("report", t.Report); err != nil {
 		return err
 	}
 	if err := s.checkShows(t); err != nil {
@@ -690,6 +716,9 @@ func (s *Module) checkVars() error {
 		}
 		if v.Secret() && v.First {
 			return fmt.Errorf("%s: a secret is asked for immediately before the run that needs it, so it cannot also be asked first", v.Name)
+		}
+		if v.Existing && !v.Secret() {
+			return fmt.Errorf("%s: existing says a password is entered rather than chosen, and only a secret is either", v.Name)
 		}
 		if len(v.Values) > 0 && v.Command != "" {
 			return fmt.Errorf("%s: values and command are two answers to the same question", v.Name)

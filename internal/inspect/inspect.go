@@ -7,11 +7,13 @@
 package inspect
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/murkl/oak/internal/i18n"
@@ -25,21 +27,32 @@ import (
 // over to work out how much of it a language actually covers.
 func Report(w io.Writer, rt *spec.Runtime, mods []*spec.Module, base fs.FS) error {
 	reportRuntime(w, rt)
-	unread := 0
+	unread, drifted := 0, 0
 	for _, mod := range mods {
-		if err := report(w, mod, base); err != nil {
+		d, err := report(w, mod, base)
+		if err != nil {
 			return err
 		}
+		drifted += d
 		n, err := reportUnread(w, mod)
 		if err != nil {
 			return err
 		}
 		unread += n
 	}
-	// The one thing here that is a verdict rather than a description, so this
-	// fails where a build script runs it — see spec.Unread.
+	// The two things here that are verdicts rather than descriptions, so this
+	// fails where a build script runs it — see spec.Unread and drift. Both are
+	// said at once: a run that reported them wants them all fixed, not the
+	// first one found.
+	var faults []string
 	if unread > 0 {
-		return fmt.Errorf("%d question(s) asked where nothing reads the answer", unread)
+		faults = append(faults, fmt.Sprintf("%d question(s) asked where nothing reads the answer", unread))
+	}
+	if drifted > 0 {
+		faults = append(faults, fmt.Sprintf("%d translation(s) naming other {{VAR}} than the source", drifted))
+	}
+	if len(faults) > 0 {
+		return errors.New(strings.Join(faults, "; "))
 	}
 	return nil
 }
@@ -69,7 +82,7 @@ func reportRuntime(w io.Writer, rt *spec.Runtime) {
 }
 
 // report is what one module holds, printed.
-func report(w io.Writer, mod *spec.Module, base fs.FS) error {
+func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 	required, secret, derived := 0, 0, 0
 	for _, v := range mod.Vars {
 		switch {
@@ -111,7 +124,7 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	// shell it is an empty string rather than an error. See spec.Unset.
 	unset, err := mod.Unset()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if len(unset) > 0 {
 		fmt.Fprintf(w, "  unset      %s\n", strings.Join(unset, " "))
@@ -131,6 +144,12 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 	// A catalog whose keys have drifted from the yaml shows up here as a
 	// coverage that dropped, which is the only way a stale translation is
 	// noticed.
+	//
+	// What a translation says with the {{VAR}} is its own business — German
+	// puts them in another order - but which ones it says is not: one dropped
+	// leaves the sentence naming no disk, and one misspelled is the same thing
+	// with the typo out of sight in a file nobody rereads.
+	drifted := 0
 	msgs := mod.Messages()
 	for _, l := range langs {
 		if l.Code == i18n.SourceLang {
@@ -139,13 +158,56 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) error {
 		i18n.Activate(l.Code, sources...)
 		done := 0
 		for _, m := range msgs {
-			if i18n.Has(m.Text) {
-				done++
+			if !i18n.Has(m.Text) {
+				continue
+			}
+			done++
+			for _, said := range drift(m.Text, i18n.T(m.Text)) {
+				fmt.Fprintf(w, "  %-10s %s: %s\n", l.Code, said, oneSentence(m.Text))
+				drifted++
 			}
 		}
 		fmt.Fprintf(w, "  %-10s %d of %d strings translated\n", l.Code, done, len(msgs))
 	}
-	return nil
+	return drifted, nil
+}
+
+// drift says what a translation does with the source's {{VAR}} that it should
+// not: the ones it leaves out and the ones it made up. Sets rather than lists,
+// since the order they appear in is the translator's to choose.
+func drift(source, translated string) []string {
+	var said []string
+	for _, name := range missing(spec.Names(source), spec.Names(translated)) {
+		said = append(said, "translation drops {{"+name+"}}")
+	}
+	for _, name := range missing(spec.Names(translated), spec.Names(source)) {
+		said = append(said, "translation adds {{"+name+"}}")
+	}
+	return said
+}
+
+// missing is every name in want that have does not have, once each and in the
+// order want has them.
+func missing(want, have []string) []string {
+	var out []string
+	for _, name := range want {
+		if !slices.Contains(have, name) && !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// oneSentence is as much of a message as names it in a table: a report is read
+// down its left edge, and a confirm text runs to five lines. Cut by character
+// rather than by byte — the strings it cuts are the ones with the em dashes in
+// them.
+func oneSentence(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > 48 {
+		return string(r[:47]) + "\u2026"
+	}
+	return s
 }
 
 // oneLine is a piece of a module's shell as a report can print it: the file it

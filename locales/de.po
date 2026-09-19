@@ -70,11 +70,11 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:617
+#: internal/spec/spec.go:628
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:619
+#: internal/spec/spec.go:630
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 

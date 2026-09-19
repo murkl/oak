@@ -1237,6 +1237,24 @@ func TestTheSecretIsAskedForTwiceAndOnlyThenTheRunBegins(t *testing.T) {
 	h.wants("Finished in", "First", "Second").refuses("Only with extras")
 }
 
+// A password the machine already has is asked once. The repeat is there to
+// catch a typo nothing else would - and here the disk catches it seconds later
+// and says which entry was wrong, which is more than a second box can.
+func TestASecretThatAlreadyExistsIsAskedOnce(t *testing.T) {
+	h := newHarness(t, map[string]string{treeFile: strings.Replace(testInstaller,
+		"    title: Password\n    type: secret\n",
+		"    title: Password\n    type: secret\n    existing: true\n", 1)})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().enter() // Install, then start
+
+	h.wants("Password")
+	h.typeIn("hunter2").enter()
+	h.refuses("Repeat")
+
+	h.ran()
+	h.wants("Finished in", "First", "Second")
+}
+
 // A task that fails stops the run there, on the same page a finished run stops
 // on and under the other mark. Everything about the failure is one keystroke
 // behind it, laid out the way every other failure in this program is.

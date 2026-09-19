@@ -78,7 +78,7 @@ requires: |                              # optional: what a machine must be for 
 | `title` | **Required.** What the module is called, everywhere: the row that opens it, the trail across the top of every page once it is open, and every sentence the interface writes about it |
 | `stages` | **Required.** The phases the work happens in, in order. Each is a folder under `tasks/`, marked — `tasks/@install/` — and the name written here carries no `@` of its own |
 | `description` | One sentence, read on the page that offers the modules |
-| `confirm` | The last thing shown before the first task. `{{VAR}}` is filled in from the answers |
+| `confirm` | The last thing shown before the first task. `{{VAR}}` is filled in from the answers — see [Placeholders](#placeholders) |
 | `console` | Read on the terminal on the way out, where the machine keeps running |
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
 | `requires` | What a machine has to be for this module to be offered on it — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
@@ -86,6 +86,15 @@ requires: |                              # optional: what a machine must be for 
 | `variables` | See [Questions](#questions) |
 
 **One name and no second word for pressing it.** The frame carries the title on every page, so the rows inside a module are named after what they do — `Start`, `Settings` — and the lines a run writes about itself say `Failed` rather than the module's name over again. A name read twice on one screen is a line that says nothing, and three words for one module would be three entries in every catalog that no language forms out of each other.
+
+### Placeholders
+
+Three texts are filled in from the answers: a module's `confirm:`, and a task's `confirm:` and `report:`. `{{TUX_DISK}}` is the answer to `TUX_DISK`, and nothing else is: this is not a template language, and it is deliberately not `$VAR`, which means something else entirely two lines away in the same folder.
+
+A name is filled in with nothing where nothing answers it, because braces on screen at the moment somebody is reading carefully are worse than a short sentence. Which is why a name nothing answers is not allowed to get that far:
+
+- **A module is refused** if any of the three names a variable it does not declare. The typo is found where it was written.
+- **`--inspect` fails** if a translation names other `{{VAR}}` than the string it came from. Which order they appear in is the translator's to choose — German moves them — but which ones appear is not, and a sentence that quietly stopped naming the disk reads exactly like a finished one.
 
 ### Which modules a machine is offered
 
@@ -137,6 +146,7 @@ What is drawn follows from the declaration — there is no switch for it:
 | `command: timedatectl list-timezones` | A list, built from what the command printed |
 | `type: bool` | Yes / No, in the interface's language |
 | `type: secret` | A password field, asked twice, never written to disk |
+| `type: secret` with `existing: true` | The same field, asked once |
 
 | Field | Description |
 | --- | --- |
@@ -145,6 +155,7 @@ What is drawn follows from the declaration — there is no switch for it:
 | `description` | What this value is for, read above the question |
 | `group` | The heading this row and the ones after it sit under, on the settings page |
 | `required` | Required and unanswered is what makes Oak ask |
+| `existing` | On a secret: the password already exists and is only being handed over, so it is asked once — see below |
 | `default` | The answer to start from. Any scalar: `true`, `8`, `pc105` |
 | `prefill` | Shell that prints a suggestion into the box. A suggestion is not an answer, so it does not stop Oak asking |
 | `answer` | Shell that works the value out instead of asking for it — see below |
@@ -159,6 +170,16 @@ What is drawn follows from the declaration — there is no switch for it:
 `true` and `false` are shown as Yes and No wherever they appear, so `values: [auto, true, false]` is a boolean with a third option.
 
 **A secret** is the one required value that does not hold up the rest of the program. It is asked for immediately before the run that needs it, used, and forgotten — never written to the answer file or the log, and never on the settings page: a row that can show nothing and open on nothing only raises the question of why not.
+
+It is typed twice, because a password being **chosen** is checked by nothing: a typo in it is found at the first boot of a system that took twenty minutes to build, and four seconds against that is no trade. `existing: true` says this one is not being chosen but entered — the disk already has it — and asks once. Whatever it is handed to refuses a wrong one within seconds and says so, which is more than a second box can. On anything but a secret the key is refused.
+
+```yaml
+  - name: TUX_PASSWORD
+    title: Encryption password
+    type: secret
+    existing: true                   # the disk has it already; asked once
+    required: true
+```
 
 **`answer:`** is for the question a machine can see the answer to: whether the disk in front of it is encrypted is a fact, not an opinion. The shell prints the value, and printing nothing leaves it empty.
 
@@ -248,7 +269,7 @@ Seven more keys change what a task **is** rather than what it does:
 | `asks: VAR` | The run pauses to ask for that value first, for something not knowable before the work started. The variable must have a fixed set of answers and must not be a secret. A list that comes back **empty** is a task with nothing to do, and the task is skipped; a command that **fails** stops the run |
 | `confirm:` | Asked as a yes/no before it runs. Declining skips it and the run carries on |
 | `default: no` | That yes/no opens on No instead of Yes |
-| `report:` | The run stops on a page of its own once this task has finished. The first paragraph is the headline; `{{VAR}}` is filled in. Where anything has been tested, the page also says how many passed |
+| `report:` | The run stops on a page of its own once this task has finished. The first paragraph is the headline; `{{VAR}}` is filled in — see [Placeholders](#placeholders). Where anything has been tested, the page also says how many passed |
 | `shows: VAR` | Puts that answer on the report page as a scannable code, and under it as text |
 | `quits: true` | The program does not return after this task — a reboot |
 | `tty: true` | The interface steps aside and hands the script the whole terminal |
@@ -468,13 +489,14 @@ oak --inspect --module=setup     # just that one module
 oak --strings --module=setup     # write that module's translation template
 ```
 
-`--inspect` loads a product exactly as a run does — every task ordered, every condition resolved — and prints what it found. **This is the check to put in a build script.** Two of its lines are about the gap between the yaml and the shell, in opposite directions:
+`--inspect` loads a product exactly as a run does — every task ordered, every condition resolved — and prints what it found. **This is the check to put in a build script.** Three of its lines are about the gap between the yaml and what reads it, in different directions:
 
 | Line | Meaning |
 | --- | --- |
 | `unread` | A question asked where no task that reads the answer can run. **This fails the check** — it is the one authoring mistake a module's shape does not rule out on its own |
 | `unset` | A name in capitals the module's shell reads that nothing here answers. A description, not a verdict — `$HOME` and `$PATH` belong on that line |
 | `needs` | A `needs:` naming a task in another stage. Also a description: the stages already put the two in that order |
+| `translation drops` / `adds` | A catalog naming other `{{VAR}}` than the string it translates. **This fails the check** — see [Placeholders](#placeholders) |
 
 `unset` is where a name that used to arrive and no longer does becomes visible. In shell an unset name is an empty string rather than an error, so nothing else would ever say so.
 

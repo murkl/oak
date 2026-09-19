@@ -187,6 +187,38 @@ variables:
 	}
 }
 
+// A translation may put the {{VAR}} where its own grammar wants them, but not
+// leave one out and not invent one: either way the sentence somebody reads
+// before an irreversible step is missing the disk it was naming, and the
+// mistake sits in a file nobody rereads.
+func TestInspectingRefusesATranslationThatNamesOtherPlaceholders(t *testing.T) {
+	mod := writeModule(t, `
+title: Installer
+stages: [go]
+confirm: Erasing {{DISK}}.
+variables:
+  - name: DISK
+    title: Disk
+    required: true
+`, map[string]string{
+		"tasks/@go/first/task.sh": "echo \"$DISK\"\n",
+		spec.DirLocales + "/de.po": "msgid \"\"\nmsgstr \"Language: de\\n\"\n\n" +
+			"msgid \"Erasing {{DISK}}.\"\nmsgstr \"Wird gelöscht.\"\n",
+	})
+	rt, mods := product(t, around(t, mod))
+	var out strings.Builder
+	err := Report(&out, rt, mods, locales.FS)
+	if err == nil {
+		t.Fatal("a translation that lost its placeholder was reported as fine")
+	}
+	if !strings.Contains(err.Error(), "other {{VAR}} than the source") {
+		t.Errorf("Report() = %v, want it to name the drifted translations", err)
+	}
+	if want := "de         translation drops {{DISK}}"; !strings.Contains(out.String(), want) {
+		t.Errorf("the report does not say %q:\n%s", want, out.String())
+	}
+}
+
 func TestOnlyTheHooksAModuleActuallyFillsAreListed(t *testing.T) {
 	mod, err := spec.Load(writeModule(t, "title: T\nstages: [go]\n", map[string]string{
 		"hooks/" + spec.HookPreflight + "/root/hook.yaml": "title: Root\nscript: \"true\"\n",

@@ -11,9 +11,12 @@ import (
 
 // secretScreen asks for a value that is never written down.
 //
-// Twice, always, and that is not a setting: a password typed once and mistyped
-// is discovered at the first boot of a system that took twenty minutes to
-// build. The second entry costs four seconds.
+// Twice, where the password is being chosen: nothing can check one that does
+// not exist yet, and a typo in it is discovered at the first boot of a system
+// that took twenty minutes to build. The second entry costs four seconds.
+// Once, where it already exists and is only being handed over — see
+// Variable.Existing — because the thing it is handed to answers within seconds
+// and says which of the two it was.
 //
 // What is typed reaches exactly one place — the environment of the bash process
 // that runs the stages. Not the answer file, not the log, not the argument list
@@ -83,16 +86,17 @@ func (s *secretScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 
 func (s *secretScreen) commit() (screen, tea.Cmd) {
 	value := s.input.Value()
-	if !s.again {
-		if value == "" && s.v.Required {
-			s.problem = s.v.Why()
-			return s, nil
-		}
+	switch {
+	case !s.again && value == "" && s.v.Required:
+		s.problem = s.v.Why()
+		return s, nil
+
+	case !s.again && s.v.Repeats():
 		s.first, s.again, s.problem = value, true, ""
 		s.box()
 		return s, nil
-	}
-	if value != s.first {
+
+	case s.again && value != s.first:
 		// Back to the beginning rather than asking for the repeat again: one of
 		// the two was wrong and there is no telling which.
 		s.first, s.again = "", false

@@ -508,6 +508,17 @@ type Variable struct {
 	Default  Scalar `yaml:"default"`
 	Required bool   `yaml:"required"`
 
+	// Existing marks a secret that is not chosen here but entered: the disk
+	// already has this password, and whatever it is handed to refuses it within
+	// seconds. That one is asked once.
+	//
+	// The repeat everywhere else is not a setting either, and this is not a way
+	// to turn it off. A password being chosen is checked by nothing — a typo in
+	// it is found at the first boot of a system that took twenty minutes to
+	// build — and four seconds against that is no trade. Typing a password
+	// twice to open something that would have said no is.
+	Existing bool `yaml:"existing"`
+
 	// First puts this question before everything else the program does — before
 	// the network screen, before the module's own check of the machine, before the
 	// starting point is chosen. For the answer that everything after it is typed
@@ -633,6 +644,11 @@ func (v *Variable) Shape() string {
 // forgotten — so it is also the one required variable that does not stop the
 // program from being ready.
 func (v *Variable) Secret() bool { return v.Shape() == TypeSecret }
+
+// Repeats reports whether this secret is typed twice to catch a typo in it.
+// Every one that is being chosen; none that already exists somewhere and is
+// only being handed over.
+func (v *Variable) Repeats() bool { return v.Secret() && !v.Existing }
 
 // FilterMode is what this question's list does with its narrowing box, with the
 // default filled in. A question asked first is open whatever it says: the key

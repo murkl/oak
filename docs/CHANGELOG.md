@@ -2,6 +2,12 @@
 
 What each release changed, newest first. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](README.md#1-get-oak)**.
 
+## 0.5.0 - 2026-09-19
+
+- A password the machine already has is asked once rather than twice — `existing: true` on a secret. The repeat catches a typo in a password being chosen, which nothing else would; one that already exists is refused within seconds by whatever it is handed to, which says more than a second box can
+- A `confirm:` or `report:` naming a variable its module does not declare no longer loads. The name was filled in with nothing, and a warning that has quietly stopped naming the disk reads exactly like a finished sentence
+- `--inspect` fails on a translation naming other `{{VAR}}` than the string it came from. Which order they appear in is the translator's to choose; which ones appear is not
+
 ## 0.4.1 - 2026-09-18
 
 - The welcome page carries the product's address as writing alone — the code that stood beside the languages is gone

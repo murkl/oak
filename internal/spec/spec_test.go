@@ -596,6 +596,28 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "never worked out",
 		},
 		{
+			name:  "existing on a question that is not a password at all",
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    existing: true\n")},
+			want:  "only a secret is either",
+		},
+		{
+			name:  "a confirm text naming a variable nothing declares",
+			files: map[string]string{FileModule: "title: T\nstages: [go]\nconfirm: Erasing {{DSIK}}.\nvariables:\n  - name: DISK\n    title: D\n"},
+			want:  "{{DSIK}} is not a variable of this module",
+		},
+		{
+			name: "a task's offer naming a variable nothing declares",
+			files: units(map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n")},
+				unit("go", "a", "title: A\nconfirm: Erase {{DSIK}}?\n")),
+			want: "{{DSIK}} is not a variable of this module",
+		},
+		{
+			name: "a task's report naming a variable nothing declares",
+			files: units(map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n")},
+				unit("go", "a", "title: A\nreport: It went to {{DSIK}}.\n")),
+			want: "{{DSIK}} is not a variable of this module",
+		},
+		{
 			name:  "a question both worked out and suggested, which is asked and not asked at once",
 			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    answer: echo a\n    prefill: echo b\n")},
 			want:  "a question is asked or it is not",
