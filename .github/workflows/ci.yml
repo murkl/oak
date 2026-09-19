@@ -1,15 +1,25 @@
-# One binary, checked and built once. A tag is the same run with a release at
-# the end of it, so what is published is the file the checks ran against. One
-# workflow rather than one per concern: a push to main has exactly one pipeline
-# to watch, not a CodeQL run racing the checks it has nothing to do with.
+# One workflow, and a commit is under exactly one run of it.
+#
+# What a run does is decided once, by the gate below: a branch on its own is
+# checked, a pull request out of draft is taken apart further, and a push to
+# main is where the next version is decided. Nothing further down asks again.
+#
+# A tag is written here rather than pushed by hand, and the binary published
+# under it is built at that tag - see docs/CONTRIBUTING.md.
 
 name: CI
 
 on:
+  # Every branch and no tags: a tag here is written by the release below, out of
+  # a commit that has already been through this file. Dependabot is the one
+  # branch left out - it pushes and opens its pull request in the same breath,
+  # so the gate below cannot yet see the one from the other.
   push:
-    branches: [main]
-    tags: ["v*"]
+    branches-ignore: ["dependabot/**"]
+  # `ready_for_review` on top of the three defaults: leaving draft is what turns
+  # the fast gate into the full one.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   # CodeQL alone, on what already shipped — a finding here is news about code
   # that has not changed since, not a reason to run the rest of the file again.
   schedule:
@@ -23,27 +33,89 @@ defaults:
   run:
     shell: bash
 
-# One run per pull request: pushing again cancels the one still going. Only a
-# pull request is cancelled — main and a tag are the runs that release, and a
-# scheduled run shares main's group so a push queues behind it instead of
-# racing it. The number rather than the branch name, so a fork whose branch is
-# called main cannot land in main's group.
+# One run per pull request and one per branch, and a push that arrives while an
+# older one is still going takes its place. main is never cancelled — it is the
+# run that releases — and neither is a run somebody asked for by hand. The pull
+# request's number rather than its branch, so a fork whose branch is called main
+# cannot land in main's group.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.ref_name != 'main' }}
 
 # Every job names its runner rather than leaving it to `ubuntu-latest`, which
 # moves to a new Ubuntu on a date GitHub picks: a toolchain that changes under a
 # branch nobody touched is a change nobody made. It is raised here deliberately,
 # like any other dependency.
 jobs:
+  # The one place that decides what the rest of the file does.
+  gate:
+    name: Gate
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      deep: ${{ steps.decide.outputs.deep }}
+    steps:
+      # A squash merge makes the pull request's title the commit on main, and
+      # the next version is read out of that line. A title that names no kind of
+      # change releases nothing, which is worth finding while the title can
+      # still be edited.
+      - name: The title says what kind of change this is
+        if: github.event_name == 'pull_request'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! grep -qE '^(feat|fix|perf|refactor|docs|test|build|ci|chore|revert)(\([^)]+\))?!?: .' <<<"$TITLE"; then
+            echo "::error::'${TITLE}' opens on no type — feat:, fix:, feat!: … see docs/CONTRIBUTING.md"
+            exit 1
+          fi
+
+      - name: What this run does
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          run=true
+          deep=false
+
+          case "$GITHUB_EVENT_NAME" in
+          pull_request)
+            # A draft says itself that it is not ready. The race detector and
+            # the vulnerability database are for what is about to be merged.
+            if [ "$DRAFT" = false ]; then deep=true; fi
+            ;;
+          workflow_dispatch)
+            deep=true
+            ;;
+          push)
+            if [ "$BRANCH" = main ]; then
+              # Three minutes, and a release is written at the end of it.
+              deep=true
+            else
+              # A branch with a pull request open is under that run already,
+              # and one commit under two runs is one run too many.
+              open="$(gh pr list --head "$BRANCH" --state open --json number --jq length)"
+              if [ "$open" != 0 ]; then run=false; fi
+            fi
+            ;;
+          esac
+
+          echo "run=${run}" >>"$GITHUB_OUTPUT"
+          echo "deep=${deep}" >>"$GITHUB_OUTPUT"
+          echo "checked: ${run}, raced and scanned: ${deep}" >>"$GITHUB_STEP_SUMMARY"
+
   # `make check` and nothing this file adds to it: what is checked lives in the
-  # Makefile, so a rule that holds in CI holds at a desk. The binary it builds
-  # on the way through is the one the release publishes — checked and shipped
-  # are the same bytes because they are the same build.
+  # Makefile, so a rule that holds in CI holds at a desk.
   check:
     name: Check
-    if: github.event_name != 'schedule'
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     container: archlinux:latest
@@ -59,39 +131,38 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          # git describe needs the tags to describe anything, and the
-          # changelog warning compares this change against main.
+          # git describe needs the tags to describe anything.
           fetch-depth: 0
           persist-credentials: false
 
-      # gcc is for the race detector below, which is built on cgo.
       - uses: ./.github/actions/arch
         with:
-          packages: go gcc make shellcheck shfmt staticcheck yamllint actionlint gettext diffutils
+          packages: go make shellcheck shfmt staticcheck yamllint actionlint gettext diffutils gitleaks
 
       - run: make check
-
-      # Once per push rather than once per save: it doubles a test run that
-      # already takes over a minute.
-      - name: Tests under the race detector
-        run: make test-race
 
       # A binary with nothing beside it can still answer for itself, which is
       # the whole of what this asks.
       - name: The binary says what it is
         run: bin/oak-linux-amd64 --version
 
+      # Not what a release publishes — that one is built at its tag, under the
+      # version the tag carries. This is the build a change can be tried with.
       - uses: actions/upload-artifact@v7
         with:
           name: binary
           path: bin/
           retention-days: 7
 
-  security:
-    name: Security
-    if: github.event_name != 'schedule'
+  # The two checks that ask something outside the tree: a race the ordinary test
+  # run cannot see, and the vulnerability database. Beside `check` rather than
+  # in it, because neither is a rule about this code that a desk could settle.
+  deep:
+    name: Race and vulnerabilities
+    needs: [gate, check]
+    if: needs.gate.outputs.deep == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     container: archlinux:latest
     permissions:
       contents: read
@@ -103,23 +174,22 @@ jobs:
         with:
           persist-credentials: false
 
+      # gcc is for the race detector, which is built on cgo.
       - uses: ./.github/actions/arch
         with:
-          packages: go make govulncheck gitleaks
+          packages: go gcc make govulncheck
 
-      - name: Vulnerabilities
-        run: make vuln
+      - run: make test-race
 
-      - name: Secrets in the repository
-        run: make secrets-check
+      - run: make vuln
 
   # Static analysis that follows a value across functions, which is the one
-  # thing vet and staticcheck do not do. Not required by release: a finding
-  # here belongs in the security tab, not in the way of a binary check and
-  # security already passed.
+  # thing vet and staticcheck do not do. Not in the way of a release: a finding
+  # here belongs in the security tab, and the code it is about has already
+  # shipped.
   analyze:
     name: CodeQL
-    if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref_name == 'main')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -144,84 +214,106 @@ jobs:
 
       - uses: github/codeql-action/analyze@v4
 
-  # Nothing is built here. A tag publishes the artefact the jobs above checked
-  # and built — the same bytes, under a version.
+  # The version, out of the commits since the last release: a `fix:` is a patch,
+  # a `feat:` a minor, a `!` a major. Nothing here is typed, and nothing is
+  # pushed to main — this opens a pull request like anybody else.
+  #
+  # Which of its two outcomes this is depends on what just landed: an ordinary
+  # merge updates that pull request, and the merge of that pull request is what
+  # writes the tag, the changelog and the release page the job below fills.
   release:
     name: Release
-    needs: [check, security]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [check, deep]
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # the tag and the release page
+      pull-requests: write # the release pull request
+    outputs:
+      created: ${{ steps.please.outputs.release_created }}
+      tag: ${{ steps.please.outputs.tag_name }}
+      notes: ${{ steps.please.outputs.body }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: please
+        with:
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
+
+  # The binary a release is downloaded as, built at the tag that names it: the
+  # version is what `git describe` finds, and until the job above wrote that tag
+  # there was nothing to find. Same sources as the run that checked them, one
+  # commit ago and one version further on.
+  publish:
+    name: Publish
+    needs: release
+    if: needs.release.outputs.created == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    container: archlinux:latest
     permissions:
-      contents: write # the release
+      contents: write # the asset and the page it hangs on
       id-token: write # the provenance below is signed
       attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.release.outputs.tag }}
     steps:
+      - name: Make the checkout a repository
+        run: pacman -Syu --needed --noconfirm git
+
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.release.outputs.tag }}
+          fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/download-artifact@v8
+      - uses: ./.github/actions/arch
         with:
-          name: binary
-          path: dist
+          packages: go make github-cli
 
-      # The last thing between a tag and a download link. The tag has to be a
-      # release tag, and the binary about to be published under it has to
-      # answer to exactly that — the same rule `make version-check` applies at
-      # a desk before the tag is ever pushed.
-      - name: The tag is the version the binary answers to
-        env:
-          VERSION: ${{ github.ref_name }}
-        run: |
-          # An artefact comes back without the bit it went up with: uploading
-          # does not carry file permissions, and the next line runs the file.
-          chmod +x dist/oak-linux-amd64
-          make version-check TAG="$VERSION" BIN=dist/oak-linux-amd64
+      - run: make build
 
-      # Two ways in, one outcome. A tag pushed from a terminal has no release
-      # yet, so this writes one; a release that is already there — made on the
-      # web page, or by a run of this that had to be repeated — has its page
-      # written again out of the changelog, which is where what it says is kept.
+      # The last thing between a tag and a download link: the binary about to be
+      # published under it has to answer to exactly that.
+      - name: The binary answers to the tag
+        run: make version-check TAG="$TAG"
+
       - name: Publish the release
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          VERSION: ${{ github.ref_name }}
+          NOTES: ${{ needs.release.outputs.notes }}
         run: |
-          # What the release changed, read out of the changelog rather than
-          # written here a second time. Then the download and the way to check
-          # it, on the page the download link is on: a check nobody is handed
-          # is a check nobody runs.
-          notes="$(mktemp)"
-          if ! make -s notes TAG="$VERSION" >"$notes"; then
-            echo "::error::${VERSION} has no section in docs/CHANGELOG.md - write it on main, delete this tag and push it again"
+          # What the release changed, as the changelog says it, and under it the
+          # download and the way to check it — a check nobody is handed is a
+          # check nobody runs. Written whole rather than appended, so a run
+          # repeated on the same tag leaves the page saying the same thing.
+          [ -n "$NOTES" ] || {
+            echo "::error::${TAG} was released with nothing written under it"
             exit 1
-          fi
+          }
 
-          cat >>"$notes" <<NOTES
+          notes="$(mktemp)"
+          printf '%s\n' "$NOTES" >"$notes"
+          cat >>"$notes" <<FOOTER
 
           ---
 
           \`\`\`
-          curl -LO https://github.com/${GH_REPO}/releases/download/${VERSION}/oak-linux-amd64
+          curl -LO https://github.com/${GH_REPO}/releases/download/${TAG}/oak-linux-amd64
           gh attestation verify oak-linux-amd64 -R ${GH_REPO}
           install -m755 oak-linux-amd64 oak
           \`\`\`
 
           The middle line reads the provenance this run signed: which repository the file came out of, and which run built it. Without \`gh\`, GitHub prints this download's SHA-256 beside it on this page, which says only that the file arrived whole.
-          NOTES
+          FOOTER
 
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            gh release edit "$VERSION" --notes-file "$notes"
-            gh release upload "$VERSION" dist/* --clobber
-          else
-            gh release create "$VERSION" dist/* \
-              --title "Oak $VERSION" \
-              --notes-file "$notes"
-          fi
+          gh release upload "$TAG" bin/oak-linux-amd64 --clobber
+          gh release edit "$TAG" --notes-file "$notes"
 
-      # Which commit and which run this file came out of, signed.
+      # Which commit and which run this file came out of, signed where it was
+      # made rather than where it is downloaded.
       - uses: actions/attest-build-provenance@v4
         with:
-          subject-path: dist/oak-linux-amd64
+          subject-path: bin/oak-linux-amd64

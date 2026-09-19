@@ -99,7 +99,7 @@ The middle line reads the provenance CI signed the release with: which repositor
 
 `latest` is whatever is newest. A product that releases versions of its own pins the Oak it was built against instead — `releases/download/vX.Y.Z/oak-linux-amd64` — so the same tag builds the same thing twice. Which one drove it is under the wordmark on the way in: `powered by oak X.Y.Z`.
 
-Oak is versioned by what a product may declare: a new key is a minor version, and anything that stops a product loading that used to load is a major one. An upgrade inside a major is safe to take, so pinning is for building the same thing twice, not for surviving the next release.
+Oak is versioned by what a product may declare: a new key is a minor version, and anything that stops a product loading that used to load is a major one. Below 1.0.0 that major is a decision rather than a count, so a break moves the minor until the first one is chosen. An upgrade inside a major is safe to take, so pinning is for building the same thing twice, not for surviving the next release.
 
 ### 2. Say what the product is — `oak.yaml`
 
@@ -235,7 +235,7 @@ Nothing on the command line is an answer. Questions are answered in the interfac
 
 **[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, tests, conditions, hooks, the script contract and translations.
 
-**[➜ Changelog](CHANGELOG.md)** — what each release changed.
+**[➜ Changelog](../CHANGELOG.md)** — what each release changed.
 
 **[➜ Contributing](CONTRIBUTING.md)** — how to work on Oak itself.
 

@@ -9,87 +9,100 @@ There is one long-lived branch, `main`. Work happens on a branch off it and come
 ```mermaid
 flowchart LR
     M["main"] -->|branch off| F["feature/*"]
-    F -->|pull request| C["CI checks it"]
-    C -->|squash merge| M2["main<br/>one commit per change"]
-    M2 -->|tag v0.1.0| R["Release<br/>artefacts of that commit"]
+    F -->|push| C["CI checks it"]
+    C -->|squash merge| M2["main"]
+    M2 --> P["Release pull request<br/>version · changelog"]
+    P -->|squash merge| R["Release<br/>tag · binary · page"]
 
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
 ```
 
 - Branch off `main`, name it `feature/<what>`
-- Open a pull request. CI checks it
-- **Merge with squash.** One pull request is one commit, so `main` stays a straight line and its title is what ends up in the history
+- Every push to it is checked, with or without a pull request open. Open one as a draft while there is nothing to read yet; leaving draft is what adds the race detector and the vulnerability scan
+- **Merge with squash.** One pull request is one commit, so `main` stays a straight line - and its title is the line the next version and the changelog are read out of
 
-**Repository settings this relies on** — Settings → General → Pull Requests:
+**Note:** _A commit is under one run and never two: while a pull request is open, a push to its branch is left to the run that pull request already has._
 
-| Setting | Value |
+**Repository settings this relies on:**
+
+| Where | Setting | Value |
+| --- | --- | --- |
+| General → Pull Requests | Allow merge commits | off |
+| General → Pull Requests | Allow squash merging | on |
+| General → Pull Requests | Allow rebase merging | off |
+| Branch protection on `main` | Require linear history | on |
+| Actions → General | Allow GitHub Actions to create and approve pull requests | on |
+
+## The Title
+
+The title of a pull request is read by a machine, so it is written for one - [Conventional Commits](https://www.conventionalcommits.org): a type, a colon, and what changed.
+
+| A title that reads | Does |
 | --- | --- |
-| Allow merge commits | off |
-| Allow squash merging | on |
-| Allow rebase merging | off |
-| Require linear history (branch protection on `main`) | on |
+| `fix: a secret the machine already has is asked once` | 0.5.0 → 0.5.1, on the page under **Bug Fixes** |
+| `feat: a product may say where the rest of it is` | 0.5.0 → 0.6.0, under **Features** |
+| `feat!: a module declares its hooks by folder` | 0.5.0 → 0.6.0, and says on the page what to do about it |
+| `docs:` `refactor:` `test:` `build:` `ci:` `chore:` | Nothing. Work nobody building a product would notice |
+
+- `!` marks a change a product has to be edited for; the reason goes in the body as `BREAKING CHANGE: …`
+- The gate refuses a title that opens on no type, because a title nothing can read releases nothing
+- Below 1.0.0 a break moves the minor rather than the major - 1.0.0 is a decision, not a count
 
 ## Releasing
 
-A release is a `v*` tag on `main`. It publishes the artefacts of the commit it points at — nothing is rebuilt for it.
+Two merges, both of them ordinary, and nothing typed:
 
-Which version is being released stands in **[the changelog](CHANGELOG.md)**: the section at the top is the one being worked towards, and its entries are what the release page will say. So the tag is read rather than typed:
+1. **Squash merge the work into `main`.** The run checks it and opens - or updates - a pull request called `chore(main): release 0.6.0`, which writes that version's section of the changelog
+2. **Merge that pull request.** The run on `main` writes the tag `v0.6.0` and the release page out of the changelog, builds `oak-linux-amd64` at that tag and hangs it there under signed provenance
+
+Several merges collect in the one release pull request until it is merged, and a merge that releases nothing - `docs:`, `chore:` - opens none at all.
+
+A version that is chosen rather than counted - 0.9.3 straight to 1.0.0 - is a footer on the commit that decides it:
 
 ```
-make notes   # what the page will carry
-make tag     # that version, tagged on HEAD and pushed
+git commit --allow-empty -m "chore: release 1.0.0" -m "Release-As: 1.0.0"
 ```
 
-`make tag` prints the entries first, and refuses a version the changelog says nothing about or one that has already gone out — all of it before the tag exists, where a wrong name is a line in a terminal rather than a tag to delete off the remote.
-
-It can also be drafted in the browser — **Releases** → **Draft a new release** → **Choose a tag**, **Create new tag on publish** → target `main`. The tag typed has to be the version the file opens on, or the run refuses to publish and the tag has to be deleted again.
-
-Both land in the same place. Once the checks are green, CI hangs `oak-linux-amd64` on the release and writes the page out of the changelog — that version's entries, then the download and how to check where it came from. Notes typed into the browser form are replaced by them, and a run repeated on the same tag writes the page again, so what it says is what the file says. A version the changelog holds no section for stops the release before a download link exists.
-
-What the binary answers is the tag `git describe` finds, without its `v`. The number itself is chosen once, in the heading `make tag` reads, and nothing else has to be edited to agree with it.
-
-What that leaves is a tag pointing somewhere the build cannot follow — moved after the fact, or cut from a clone too shallow to describe one — and then a release would carry a version its own binary disagrees with. The last step before a download link exists refuses that: the tag has to read `vMAJOR.MINOR.PATCH`, and the binary about to be published under it has to answer to exactly that. `make tag` asks the first half. Ask the second half of a tag that already exists:
+What the binary answers is the version its tag carries, without the `v`. It is built after that tag exists, and the last step before a download link refuses a binary that answers to anything else. Ask that of a tag that is already out:
 
 ```
 make build
-make version-check TAG=v0.1.0
+make version-check TAG=v0.5.0
 ```
 
-**Note:** _The `v` is what CI watches for. A tag without it builds nothing and releases nothing._
+**Note:** _What each number promises a product is written down once, in the **[README](README.md#1-get-oak)**. What counts as a break below 1.0.0 is `.github/release-please-config.json`._
 
-**Note:** _Semantic versions. What decides which number moves is the promise the [README](README.md#1-get-oak) makes to a product, so it is written down once, there._
+**Note:** _No run starts on the release pull request: GitHub starts none for what its own token opened. It needs none - the merge of it is checked on `main` before the tag exists, which is also why `main` must not require a check that never starts there._
 
-## The changelog
+## The Changelog
 
-**[CHANGELOG.md](CHANGELOG.md)** is kept as the work happens, not written at the tag. Open a section for the release being worked towards, and append one line per change under it:
-
-```
-## 0.4.0 - 2026-02-14
-
-- A list too long for one screen opens a box that narrows it
-```
-
-- Newest first, `## X.Y.Z - YYYY-MM-DD`, one short line per change somebody building a product would notice
-- The date is the day it goes out, so it is the one thing to look at again before tagging
-- `make check` holds the shape, the order and that no version stands there twice
-- Two **warnings** on the run and at the desk, never a refusal: work that landed with no section open for it, and a change that wrote nothing into the one that is — the lines may be written retrospectively, up to the tag
-- A release does refuse: the section at the top is the version `make tag` writes, and the workflow stops on a tag with nothing under it
+**[CHANGELOG.md](../CHANGELOG.md)** is written by the release run out of the titles that landed since the release before, and is never edited by hand. Which section a line lands in is the type it opens on, and the types nothing is released for land in none of them.
 
 ## What CI runs
 
-Once per pull request, once per push to `main`, and once more on a tag.
-
 ```mermaid
 flowchart TD
-    P["pull request · main · tag"] --> C["check<br/>make check · race detector<br/>the binary answers for itself"]
-    P --> S["security<br/>govulncheck · gitleaks"]
-    C --> R
-    S --> R["release<br/>only on a v* tag<br/>version-check · publish"]
+    G["Gate<br/><small>what this run does</small>"] --> C["Check<br/><small>make check</small>"]
+    G --> D["Race and vulnerabilities<br/><small>make test-race · make vuln</small>"]
+    C --> R["Release<br/><small>version · changelog · tag</small>"]
+    D --> R
+    R --> P["Publish<br/><small>builds at the tag, signs it, hangs it up</small>"]
+    W["weekly · main"] --> Q["CodeQL<br/><small>the security tab</small>"]
 
-    style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
+    style D stroke-dasharray: 4 4
+    style P fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
 ```
 
-`make check` builds the release artefact on its way through, so the binary the checks ran against is the binary uploaded, and the release publishes that file rather than building a second one. What is downloaded is what was checked, because there was only ever one of them.
+| Job | Where | Description |
+| --- | --- | --- |
+| `Gate` | every run | What the rest of the run does, decided once |
+| `Check` | every run | `make check`, and the binary answering for itself |
+| `Race and vulnerabilities` | a pull request out of draft, `main`, on demand | The two checks that ask something outside the tree |
+| `CodeQL` | `main`, and weekly | Static analysis that follows a value across functions |
+| `Release` | a push to `main` | The version, the changelog and the tag - or the pull request that will carry them |
+| `Publish` | a release | Builds `oak-linux-amd64` at that tag and hangs it on the page |
+
+The binary a release publishes is built once the tag exists, because the version it answers to is that tag. Same sources the checks ran on, one commit back and one version further on.
 
 ## Doing the work
 
@@ -102,9 +115,9 @@ make inspect                 # loads the example the way a run does
 make locales                 # the template, and every catalog brought up to it
 make fmt                     # format the Go and the shell
 make build                   # bin/oak-linux-amd64, the file a release publishes
-make notes                   # what the next release page will say
-make tag                     # that version, tagged and pushed
-make version-check TAG=v0.1.0  # would that tag be allowed to release this?
+make test-race               # the tests under the race detector
+make vuln                    # known vulnerabilities in what this imports
+make version-check TAG=v0.5.0  # would that tag be allowed to release this?
 ```
 
 Install the required packages:

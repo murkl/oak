@@ -17,20 +17,10 @@ BIN_DIR := bin
 # else.
 VERSION := $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),dev)
 
-# Every release and what it changed, and the script that reads it. The entries
-# under a version are what its release page is made of, so they are written
-# here once rather than typed a second time onto the page.
-CHANGELOG      := docs/CHANGELOG.md
-CHANGELOG_SH   := docs/changelog.sh
-CHANGELOG_WARN := docs/changelog-warn.sh
-
-# The version the changelog opens on: the release being worked towards, and the
-# only place its number stands before a tag exists. Everything below that names
-# a release reads it rather than being handed one, so a tag naming a version
-# nothing was written under cannot be made here at all.
-#
-# TAG is what CI hands in — the tag that was actually pushed.
-TAG ?= v$(shell sed -n '/^## /{s/^## \([^ ]*\).*/\1/p;q;}' $(CHANGELOG))
+# What a release is called: `v` + the version above. CI hands in the tag its
+# release run actually wrote, so what is checked is that tag rather than one
+# worked out a second time.
+TAG ?= v$(VERSION)
 
 # One binary, for the one platform an installer runs on. Named after neither the
 # version nor the host: a stable name keeps download links and the builds that
@@ -56,10 +46,6 @@ ARGS    ?=
 # and the indent is in .editorconfig, which is where shfmt reads it from.
 SCRIPTS := $(shell find $(EXAMPLE) -name '*.sh')
 
-# What is run rather than sourced: POSIX sh, so it is checked as sh and
-# formatted with its own flags.
-POSIX_SCRIPTS := $(CHANGELOG_SH) $(CHANGELOG_WARN)
-
 # The template every catalog here is filled in from, and the catalogs
 # themselves. Both are generated: the template out of the Go sources, the
 # catalogs out of the template.
@@ -80,7 +66,7 @@ BANNER_CARDS   := docs/screenshots/report.png docs/screenshots/run.png
 BANNER_TAGLINE := You write the YAML and the shell. Oak is the program around it.
 BANNER_CELL    := 17
 
-.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln secrets-check fmt fmt-check locales locales-check changelog-check changelog-warn notes tag-check tag version-check check screenshots banner docs clean
+.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln secrets-check fmt fmt-check locales locales-check tag-check version-check check screenshots banner docs clean
 
 all: build
 
@@ -133,8 +119,8 @@ vuln:
 	govulncheck ./...
 
 # This binary is downloaded and run by other projects' builds, so a credential
-# that reached the repository would travel with it. Out of `check` for the same
-# reason as `vuln`: CI runs it on every push.
+# that reached the repository would travel with it. It reads the tree and
+# nothing else, which is why it rides along in `check` and `vuln` does not.
 secrets-check:
 	gitleaks dir . --redact --no-banner
 
@@ -162,7 +148,6 @@ locales-check:
 fmt:
 	gofmt -s -w .
 	shfmt -w $(SCRIPTS)
-	shfmt -w -ln posix -i 4 $(POSIX_SCRIPTS)
 
 # The same, asked as a question rather than made as an edit, so a branch that
 # was never formatted fails here instead of arriving later as a diff nobody
@@ -171,59 +156,17 @@ fmt-check:
 	@unformatted="$$(gofmt -s -l .)"; \
 	[ -z "$$unformatted" ] || { echo "not gofmt'd:" >&2; echo "$$unformatted" >&2; exit 1; }
 	shfmt -d $(SCRIPTS)
-	shfmt -d -ln posix -i 4 $(POSIX_SCRIPTS)
 
 lint:
 	shellcheck -x $(SCRIPTS)
-	shellcheck -s sh -S style $(POSIX_SCRIPTS)
 	yamllint .
 	actionlint
 
-# What a release is called. On its own so that the tag being made and the
-# binary being published are held to the same rule.
+# A release tag and nothing else. On its own so that the tag a run wrote and the
+# binary published under it are held to the same rule.
 tag-check:
 	@[[ "$(TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] \
 		|| { echo "not a release tag: '$(TAG)' — a release is vMAJOR.MINOR.PATCH" >&2; exit 1; }
-
-# Every heading a version and a date, newest first, and no version twice. In
-# `check` rather than at the tag, so a malformed entry is found by whoever
-# wrote it instead of by the release that was about to publish it.
-changelog-check:
-	@$(CHANGELOG_SH) $(CHANGELOG)
-
-# The file falling behind the work, as a warning rather than a refusal: work
-# that landed with no section open for it, or a change that wrote nothing into
-# the one that is. The points can be written any time before the tag, and half
-# of them are written the day it goes out, so neither stops anything. It rides
-# along in `check` so that nobody has to remember to ask.
-changelog-warn:
-	@$(CHANGELOG_WARN) $(CHANGELOG)
-
-# The entries a release is published with, and the check that the version being
-# tagged has any: a heading nobody wrote under stops the tag rather than
-# reaching the release page empty.
-#
-#   make notes                what the next release will say
-#   make notes TAG=v0.1.0     what an older one said
-notes: tag-check
-	@$(CHANGELOG_SH) $(CHANGELOG) $(TAG:v%=%)
-
-# The one place a release tag is made, and the name is read rather than typed:
-# it is the version the changelog opens on. A tag the changelog says nothing
-# under is therefore not something that can be made here, and a release that
-# would arrive on its page empty is refused before the tag exists rather than
-# after it has been pushed.
-#
-# What that page will say is printed on the way, so the last look at it happens
-# while there is still nothing to take back.
-#
-#   make tag
-tag: tag-check notes
-	@if git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null; then \
-		echo "$(TAG) exists already — open a section for the next release in $(CHANGELOG)" >&2; exit 1; \
-	fi
-	git tag $(TAG)
-	git push origin $(TAG)
 
 # What a tag is allowed to release. The version is the tag `git describe` finds
 # and there is no second place to keep in step with it, so what can still go
@@ -231,8 +174,8 @@ tag: tag-check notes
 # or a clone too shallow to describe one. Either would publish a version nothing
 # inside the file agrees with.
 #
-#   make version-check                                after `make tag`, against what build wrote
-#   make version-check TAG=v0.1.0 BIN=dist/oak-...    a pushed tag against what CI will ship
+#   make version-check                                against what build wrote
+#   make version-check TAG=v0.1.0 BIN=dist/oak-...    a published tag against what ships under it
 version-check: tag-check
 	@said="$$(./$(BIN) --version)"; \
 	[ "$$said" = "$(TAG:v%=%)" ] \
@@ -240,7 +183,7 @@ version-check: tag-check
 	@echo "$(BIN) is $(TAG)"
 
 # What has to pass before anything is committed.
-check: fmt-check tidy-check vet staticcheck locales-check changelog-check changelog-warn lint test build inspect
+check: fmt-check tidy-check vet staticcheck secrets-check locales-check lint test build inspect
 
 # There is deliberately no install target: the binary looks for its oak.yaml
 # beside itself, so a copy on $$PATH with nothing next to it can only say there
