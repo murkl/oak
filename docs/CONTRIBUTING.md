@@ -45,7 +45,7 @@ The title of a pull request is read by a machine, so it is written for one - [Co
 | `docs:` `refactor:` `test:` `build:` `ci:` `chore:` | Nothing. Work nobody building a product would notice |
 
 - `!` marks a change a product has to be edited for; the reason goes in the body as `BREAKING CHANGE: …`
-- The gate refuses a title that opens on no type, because a title nothing can read releases nothing
+- A check of its own refuses a title that opens on no type, because a title nothing can read releases nothing. It is the one check that reads the title again when it is corrected - everything else waits for a commit
 - Below 1.0.0 a break moves the minor rather than the major - 1.0.0 is a decision, not a count
 
 ## Releasing
@@ -95,6 +95,7 @@ flowchart TD
 
 | Job | Where | Description |
 | --- | --- | --- |
+| `Title` | a pull request opened or renamed | The line the next version is read out of. Its own workflow, so a rename re-reads it and rebuilds nothing |
 | `Gate` | every run | What the rest of the run does, decided once |
 | `Check` | every run | `make check`, and the binary answering for itself |
 | `Race and vulnerabilities` | a pull request out of draft, `main`, on demand | The two checks that ask something outside the tree |
