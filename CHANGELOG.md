@@ -2,6 +2,19 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.5.0](https://github.com/murkl/oak/compare/v0.4.1...v0.5.0) (2026-09-19)
+
+
+### Features
+
+* ask a password the machine already has once rather than twice ([45a24b2](https://github.com/murkl/oak/commit/45a24b28bc14e4edb59f83970e2219ade679e0c7))
+
+
+### Bug Fixes
+
+* refuse a confirm or report naming a variable nothing declares ([51bf6b6](https://github.com/murkl/oak/commit/51bf6b67e63008cae6a6e6ed265d2dcdabe46052))
+* refuse a translation naming other placeholders than its source ([ab6b80a](https://github.com/murkl/oak/commit/ab6b80aec055ba09ab6b2c6b67ad9b8f991b9c58))
+
 ## 0.4.1 - 2026-09-18
 
 - The welcome page carries the product's address as writing alone — the code that stood beside the languages is gone
