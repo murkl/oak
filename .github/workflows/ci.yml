@@ -179,9 +179,9 @@ jobs:
           make version-check TAG="$VERSION" BIN=dist/oak-linux-amd64
 
       # Two ways in, one outcome. A tag pushed from a terminal has no release
-      # yet, so this writes one; a release published from the web page has the
-      # tag and the notes already, so this only hangs the binary on it. Either
-      # way the step can be run again on a half-finished run.
+      # yet, so this writes one; a release that is already there — made on the
+      # web page, or by a run of this that had to be repeated — has its page
+      # written again out of the changelog, which is where what it says is kept.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -212,6 +212,7 @@ jobs:
           NOTES
 
           if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release edit "$VERSION" --notes-file "$notes"
             gh release upload "$VERSION" dist/* --clobber
           else
             gh release create "$VERSION" dist/* \

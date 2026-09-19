@@ -42,9 +42,9 @@ make tag     # that version, tagged on HEAD and pushed
 
 `make tag` prints the entries first, and refuses a version the changelog says nothing about or one that has already gone out — all of it before the tag exists, where a wrong name is a line in a terminal rather than a tag to delete off the remote.
 
-It can also be drafted in the browser — **Releases** → **Draft a new release** → **Choose a tag**, **Create new tag on publish** → target `main` — but nothing there reads the changelog. The tag typed has to be the version the file opens on, or the run refuses to publish and the tag has to be deleted again.
+It can also be drafted in the browser — **Releases** → **Draft a new release** → **Choose a tag**, **Create new tag on publish** → target `main`. The tag typed has to be the version the file opens on, or the run refuses to publish and the tag has to be deleted again.
 
-Both land in the same place. A pushed tag has no release yet, so CI writes one — the changelog's entries for that version, then the download and how to check where it came from; a release published from the page already has its notes, so CI only hangs `oak-linux-amd64` on it once the checks are green, and what the page says is whatever was typed there. Either way the release stops if the changelog holds no section for the version being tagged.
+Both land in the same place. Once the checks are green, CI hangs `oak-linux-amd64` on the release and writes the page out of the changelog — that version's entries, then the download and how to check where it came from. Notes typed into the browser form are replaced by them, and a run repeated on the same tag writes the page again, so what it says is what the file says. A version the changelog holds no section for stops the release before a download link exists.
 
 What the binary answers is the tag `git describe` finds, without its `v`. The number itself is chosen once, in the heading `make tag` reads, and nothing else has to be edited to agree with it.
 
