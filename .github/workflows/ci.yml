@@ -23,13 +23,14 @@ defaults:
   run:
     shell: bash
 
-# One run per pull request: pushing again cancels the one still going. On main
-# and on a tag nothing is cancelled — that is the run that releases. A scheduled
-# run shares the group with main but is never itself cancelled, so a push
-# queues behind it instead of racing it.
+# One run per pull request: pushing again cancels the one still going. Only a
+# pull request is cancelled — main and a tag are the runs that release, and a
+# scheduled run shares main's group so a push queues behind it instead of
+# racing it. The number rather than the branch name, so a fork whose branch is
+# called main cannot land in main's group.
 concurrency:
-  group: ci-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: ${{ github.event_name != 'schedule' && github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Every job names its runner rather than leaving it to `ubuntu-latest`, which
 # moves to a new Ubuntu on a date GitHub picks: a toolchain that changes under a
@@ -118,7 +119,7 @@ jobs:
   # security already passed.
   analyze:
     name: CodeQL
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
