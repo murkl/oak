@@ -97,7 +97,7 @@ jobs:
     needs: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    container: archlinux:latest
+    container: archlinux:latest # zizmor: ignore[unpinned-images] - see the top of this file
     permissions:
       contents: read
     steps:
@@ -116,7 +116,7 @@ jobs:
 
       - uses: ./.github/actions/arch
         with:
-          packages: go make shellcheck shfmt staticcheck yamllint actionlint gettext diffutils gitleaks
+          packages: go make shellcheck shfmt staticcheck yamllint actionlint zizmor gettext diffutils gitleaks
 
       - run: make check
 
@@ -142,7 +142,7 @@ jobs:
     if: needs.gate.outputs.deep == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    container: archlinux:latest
+    container: archlinux:latest # zizmor: ignore[unpinned-images] - see the top of this file
     permissions:
       contents: read
     steps:
@@ -173,7 +173,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      security-events: write
+      security-events: write # the findings go to the security tab
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -229,11 +229,11 @@ jobs:
     if: needs.release.outputs.created == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    container: archlinux:latest
+    container: archlinux:latest # zizmor: ignore[unpinned-images] - see the top of this file
     permissions:
       contents: write # the asset and the page it hangs on
       id-token: write # the provenance below is signed
-      attestations: write
+      attestations: write # and stored beside the release
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}

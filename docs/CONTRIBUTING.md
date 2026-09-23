@@ -124,7 +124,7 @@ make version-check TAG=v0.5.0  # would that tag be allowed to release this?
 Install the required packages:
 
 ```
-sudo pacman -S --needed go gcc make shellcheck shfmt staticcheck yamllint actionlint gettext govulncheck gitleaks
+sudo pacman -S --needed go gcc make shellcheck shfmt staticcheck yamllint actionlint zizmor gettext govulncheck gitleaks
 ```
 
 **Note:** _CI installs the same packages and runs the same commands in an Arch container. There is no second definition of green._

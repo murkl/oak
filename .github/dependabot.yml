@@ -6,11 +6,16 @@
 
 version: 2
 
+# A week before any release is taken: a compromised one is usually pulled again
+# within days, and one taken the hour it appears is the one that gets in.
+
 updates:
   - package-ecosystem: gomod
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "build"
       include: scope
@@ -21,6 +26,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci"
 
@@ -28,5 +35,7 @@ updates:
     directory: /.github/actions/arch
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci"

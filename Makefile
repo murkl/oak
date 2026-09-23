@@ -157,10 +157,15 @@ fmt-check:
 	[ -z "$$unformatted" ] || { echo "not gofmt'd:" >&2; echo "$$unformatted" >&2; exit 1; }
 	shfmt -d $(SCRIPTS)
 
+# actionlint reads the workflows for what a yaml linter cannot see, and zizmor
+# for what makes one unsafe - offline, so a finding is always about a change
+# here rather than news from somewhere else. What it is told to leave alone is
+# .github/zizmor.yml.
 lint:
 	shellcheck -x $(SCRIPTS)
 	yamllint .
 	actionlint
+	zizmor --offline --persona auditor .github
 
 # A release tag and nothing else. On its own so that the tag a run wrote and the
 # binary published under it are held to the same rule.
