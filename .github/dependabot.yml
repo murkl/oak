@@ -1,4 +1,8 @@
 # Dependencies and actions, kept current without anybody remembering to.
+#
+# Every pull request here is titled the way title.yml demands of any other, or
+# it could never be merged: `build(deps): bump …` for what the binary is built
+# from, `ci: bump …` for what the workflows run on.
 
 version: 2
 
@@ -7,6 +11,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: "build"
+      include: scope
 
   # The workflows, and the composite action they all run on. Dependabot reads
   # one folder per entry, and an action outside .github/workflows is its own.
@@ -14,8 +21,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: "ci"
 
   - package-ecosystem: github-actions
     directory: /.github/actions/arch
     schedule:
       interval: weekly
+    commit-message:
+      prefix: "ci"

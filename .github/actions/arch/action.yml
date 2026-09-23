@@ -19,7 +19,7 @@ runs:
     # A key nothing can hit, over a prefix that almost always does: the restore
     # takes the newest cache this job wrote, and the save at the end writes a
     # fresh one.
-    - uses: actions/cache@v6
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: /var/cache/pacman/pkg
         key: pacman-${{ github.job }}-${{ github.run_id }}
@@ -44,7 +44,7 @@ runs:
     # Every job here compiles the module, so every job wants what the last one
     # left. It belongs with the toolchain rather than beside each job, so there
     # is one definition of what a job arrives with.
-    - uses: actions/cache@v6
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.cache/go-build

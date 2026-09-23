@@ -9,7 +9,7 @@ There is one long-lived branch, `main`. Work happens on a branch off it and come
 ```mermaid
 flowchart LR
     M["main"] -->|branch off| F["feature/*"]
-    F -->|push| C["CI checks it"]
+    F -->|pull request| C["CI checks it"]
     C -->|squash merge| M2["main"]
     M2 --> P["Release pull request<br/>version · changelog"]
     P -->|squash merge| R["Release<br/>tag · binary · page"]
@@ -18,10 +18,10 @@ flowchart LR
 ```
 
 - Branch off `main`, name it `feature/<what>`
-- Every push to it is checked, with or without a pull request open. Open one as a draft while there is nothing to read yet; leaving draft is what adds the race detector and the vulnerability scan
+- Open a pull request right away, as a draft while there is nothing to read yet: a branch is checked through its pull request and not on its own. Leaving draft is what adds the race detector and the vulnerability scan
 - **Merge with squash.** One pull request is one commit, so `main` stays a straight line - and its title is the line the next version and the changelog are read out of
 
-**Note:** _A commit is under one run and never two: while a pull request is open, a push to its branch is left to the run that pull request already has._
+**Note:** _A commit is under one run and never two: CI runs on pull requests and on `main`, and nowhere else, so there is nothing to ask about which of them a push belongs to._
 
 **Repository settings this relies on:**
 
@@ -96,8 +96,8 @@ flowchart TD
 | Job | Where | Description |
 | --- | --- | --- |
 | `Title` | a pull request opened or renamed | The line the next version is read out of. Its own workflow, so a rename re-reads it and rebuilds nothing |
-| `Gate` | every run | What the rest of the run does, decided once |
-| `Check` | every run | `make check`, and the binary answering for itself |
+| `Gate` | a pull request, `main`, on demand | What the rest of the run does, decided once |
+| `Check` | a pull request, `main`, on demand | `make check`, and the binary answering for itself |
 | `Race and vulnerabilities` | a pull request out of draft, `main`, on demand | The two checks that ask something outside the tree |
 | `CodeQL` | `main`, and weekly | Static analysis that follows a value across functions |
 | `Release` | a push to `main` | The version, the changelog and the tag - or the pull request that will carry them |

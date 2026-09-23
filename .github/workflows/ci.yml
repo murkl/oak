@@ -1,8 +1,9 @@
 # One workflow, and a commit is under exactly one run of it.
 #
-# What a run does is decided once, by the gate below: a branch on its own is
-# checked, a pull request out of draft is taken apart further, and a push to
-# main is where the next version is decided. Nothing further down asks again.
+# What a run does is decided once, by the gate below: a pull request checks it,
+# one out of draft is taken apart further, and a push to main — the only branch
+# push triggers on — is where the next version is decided. Nothing further down
+# asks again.
 #
 # A tag is written here rather than pushed by hand, and the binary published
 # under it is built at that tag - see docs/CONTRIBUTING.md.
@@ -10,12 +11,12 @@
 name: CI
 
 on:
-  # Every branch and no tags: a tag here is written by the release below, out of
-  # a commit that has already been through this file. Dependabot is the one
-  # branch left out - it pushes and opens its pull request in the same breath,
-  # so the gate below cannot yet see the one from the other.
+  # main only: a tag here is written by the release below, out of a commit that
+  # has already been through this file, and every other branch is checked
+  # through its pull request instead — one trigger, one run, no branch left to
+  # exclude by name.
   push:
-    branches-ignore: ["dependabot/**"]
+    branches: [main]
   # `ready_for_review` on top of the three defaults: leaving draft is what turns
   # the fast gate into the full one.
   pull_request:
@@ -33,8 +34,8 @@ defaults:
   run:
     shell: bash
 
-# One run per pull request and one per branch, and a push that arrives while an
-# older one is still going takes its place. main is never cancelled — it is the
+# One run per pull request and one per ref for everything else, and a push that
+# arrives while an older one is still going takes its place. main is never cancelled — it is the
 # run that releases — and neither is a run somebody asked for by hand. The pull
 # request's number rather than its branch, so a fork whose branch is called main
 # cannot land in main's group.
@@ -46,6 +47,15 @@ concurrency:
 # moves to a new Ubuntu on a date GitHub picks: a toolchain that changes under a
 # branch nobody touched is a change nobody made. It is raised here deliberately,
 # like any other dependency.
+#
+# Every action is named by the commit it is, with its version beside it: a tag
+# is whatever its owner points it at next, and some of these run with the right
+# to write a release. Dependabot raises both together.
+#
+# The container is the one moving name here, on purpose. Every job upgrades it
+# to today's Arch before doing anything else - that is what this is checked
+# against - so a pinned image would only be an older starting point, and one
+# whose keyring stops trusting the packages it is upgrading to.
 jobs:
   # The one place that decides what the rest of the file does.
   gate:
@@ -53,10 +63,7 @@ jobs:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    permissions:
-      pull-requests: read
     outputs:
-      run: ${{ steps.decide.outputs.run }}
       deep: ${{ steps.decide.outputs.deep }}
     steps:
       # The title a version is read out of is checked by title.yml, which is
@@ -64,12 +71,8 @@ jobs:
       - name: What this run does
         id: decide
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
           DRAFT: ${{ github.event.pull_request.draft }}
         run: |
-          run=true
           deep=false
 
           case "$GITHUB_EVENT_NAME" in
@@ -78,32 +81,20 @@ jobs:
             # the vulnerability database are for what is about to be merged.
             if [ "$DRAFT" = false ]; then deep=true; fi
             ;;
-          workflow_dispatch)
+          # Three minutes, and on main a release is written at the end of it.
+          push | workflow_dispatch)
             deep=true
-            ;;
-          push)
-            if [ "$BRANCH" = main ]; then
-              # Three minutes, and a release is written at the end of it.
-              deep=true
-            else
-              # A branch with a pull request open is under that run already,
-              # and one commit under two runs is one run too many.
-              open="$(gh pr list --head "$BRANCH" --state open --json number --jq length)"
-              if [ "$open" != 0 ]; then run=false; fi
-            fi
             ;;
           esac
 
-          echo "run=${run}" >>"$GITHUB_OUTPUT"
           echo "deep=${deep}" >>"$GITHUB_OUTPUT"
-          echo "checked: ${run}, raced and scanned: ${deep}" >>"$GITHUB_STEP_SUMMARY"
+          echo "raced and scanned: ${deep}" >>"$GITHUB_STEP_SUMMARY"
 
   # `make check` and nothing this file adds to it: what is checked lives in the
   # Makefile, so a rule that holds in CI holds at a desk.
   check:
     name: Check
     needs: gate
-    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     container: archlinux:latest
@@ -117,7 +108,7 @@ jobs:
       - name: Make the checkout a repository
         run: pacman -Syu --needed --noconfirm git
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # git describe needs the tags to describe anything.
           fetch-depth: 0
@@ -136,7 +127,7 @@ jobs:
 
       # Not what a release publishes — that one is built at its tag, under the
       # version the tag carries. This is the build a change can be tried with.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: binary
           path: bin/
@@ -158,7 +149,7 @@ jobs:
       - name: Make the checkout a repository
         run: pacman -Syu --needed --noconfirm git
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -184,24 +175,23 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - uses: github/codeql-action/init@v4
+      - uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           languages: go
           build-mode: manual
 
       - run: make build
 
-      - uses: github/codeql-action/analyze@v4
-
+      - uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
   # The version, out of the commits since the last release: a `fix:` is a patch,
   # a `feat:` a minor, a `!` a major. Nothing here is typed, and nothing is
   # pushed to main — this opens a pull request like anybody else.
@@ -223,7 +213,7 @@ jobs:
       tag: ${{ steps.please.outputs.tag_name }}
       notes: ${{ steps.please.outputs.body }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: please
         with:
           config-file: .github/release-please-config.json
@@ -252,7 +242,7 @@ jobs:
       - name: Make the checkout a repository
         run: pacman -Syu --needed --noconfirm git
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release.outputs.tag }}
           fetch-depth: 0
@@ -302,6 +292,6 @@ jobs:
 
       # Which commit and which run this file came out of, signed where it was
       # made rather than where it is downloaded.
-      - uses: actions/attest-build-provenance@v4
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: bin/oak-linux-amd64
