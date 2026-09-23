@@ -20,6 +20,13 @@ const (
 	DirModules  = "modules"
 )
 
+// FileRuntimeShell is the shell every module of the product shares, beside
+// oak.yaml: what two modules would otherwise each carry a copy of and have to
+// keep in step by hand. It is loaded in front of each module's own module.sh,
+// which may therefore build on it and override it. Being there is the
+// declaration, the same as for module.sh.
+const FileRuntimeShell = "oak.sh"
+
 // Runtime is the whole of what a binary and the folders beside it add up to.
 //
 // It is what no module can answer for itself. An installer and a recovery of
@@ -73,6 +80,10 @@ type Runtime struct {
 	// Where this was read: the file itself, and the folder its modules sit in.
 	File string `yaml:"-"`
 	Dir  string `yaml:"-"`
+
+	// Shell is FileRuntimeShell where the product has one, and empty where it
+	// has not.
+	Shell string `yaml:"-"`
 }
 
 // LoadRuntime reads the declaration beside the binary, or in the folder named
@@ -95,6 +106,7 @@ func LoadRuntime(explicit string) (*Runtime, error) {
 		return nil, err
 	}
 	r.File, r.Dir = path, dir
+	r.Shell = beside(dir, FileRuntimeShell)
 	if err := r.check(); err != nil {
 		return nil, err
 	}
@@ -162,6 +174,7 @@ func (r *Runtime) LoadModules() ([]*Module, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", id, err)
 		}
+		mod.Shared = r.Shell
 		out = append(out, mod)
 	}
 	return out, nil

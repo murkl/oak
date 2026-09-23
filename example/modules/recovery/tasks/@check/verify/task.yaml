@@ -1,5 +1,9 @@
 title: Check the system tree
 
+# It only reads, so there is nothing a simulated run has to keep it from
+# doing: --debug runs it like any other run does.
+simulates: true
+
 report: |
   {{TUX_TARGET}} is complete.
 

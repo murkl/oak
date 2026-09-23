@@ -12,11 +12,7 @@ conditions:
 # Short enough to read here, so there is no task.sh beside this file. The other
 # form is a single line naming one: `script: ./install.sh`.
 script: |
-  simulating && return 0
-
   echo "$TUX_DESKTOP" >"$TUX_TARGET/etc/desktop"
 
 test: |
-  simulating && return 0
-
   grep -q "^$TUX_DESKTOP$" "$TUX_TARGET/etc/desktop"

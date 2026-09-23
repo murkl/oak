@@ -33,6 +33,7 @@ Oak looks next to itself, and nowhere else:
 ```
 oak                       the binary
 oak.yaml                  the product: name, colour, version, wordmark
+oak.sh                    optional: shell every module of the product gets
 modules/setup/            one module — everything below belongs to it
   module.yaml             what it asks and what order it works in
   module.sh               optional: shell everything this module runs gets
@@ -210,19 +211,20 @@ A test that disagrees is not that. The work said it worked, so the run carries o
 
 ## The command line
 
-Five options, and nothing else. Three are about a run:
+Six options, and nothing else. Three are about a run:
 
 ```
 oak --module=setup     # open that module outright, instead of asking which
-oak --debug            # hand every script DEBUG=true and touch nothing
+oak --debug            # show the run and start nothing that has not said it simulates itself
 oak --version          # print the Oak release this binary is — `0.1.0` — and exit
 ```
 
-Two are about the folder, for whoever is writing one. They print and draw nothing:
+Three are for whoever is writing a product. They print and draw nothing:
 
 ```
 oak --inspect          # load the product the way a run does, and report what it holds
 oak --strings          # write a module's translation template
+oak --glyphs           # every character the interface can put on a console
 ```
 
 Nothing on the command line is an answer. Questions are answered in the interface.

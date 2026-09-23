@@ -275,3 +275,24 @@ func TestEveryTranslationFitsAConsoleFont(t *testing.T) {
 		}
 	}
 }
+
+// What the binary says it can put on a console is what the reduced set draws,
+// the frame included, with the words as that set spells them — never a mark of
+// the full set, and never one a console font does not have.
+func TestConsoleGlyphsIsWhatTheReducedSetDraws(t *testing.T) {
+	got := ConsoleGlyphs("Press ⏎ to go on…", "Zurück")
+
+	for _, want := range []string{plainGlyphs.ok, plainGlyphs.cursor[:2], "┌", "▀", "ü"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("%q is missing %q", got, want)
+		}
+	}
+	for _, unwanted := range []string{fullGlyphs.ok, "⏎", "…", " ", "a"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("%q holds %q", got, unwanted)
+		}
+	}
+	if r := undrawable(got); r != 0 {
+		t.Errorf("%q holds %q, which no console font can draw", got, r)
+	}
+}

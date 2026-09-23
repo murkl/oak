@@ -79,6 +79,9 @@ func (s *Store) Env() exec.Env {
 	return env
 }
 
+// Debug reports whether this run only pretends to work.
+func (s *Store) Debug() bool { return s.debug }
+
 // Apply takes the values of a chosen preset option. Nothing else about it
 // survives being chosen: it is a set of answers, not a mode the installer stays
 // in, so from here on every one of them is an ordinary value that can be

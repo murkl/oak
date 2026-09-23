@@ -261,9 +261,9 @@ func TestAModuleThatWillNotLoadSaysWhatIsWrongWithIt(t *testing.T) {
 	}
 }
 
-// The whole of what a command line says: five options, each spelled out, and
+// The whole of what a command line says: six options, each spelled out, and
 // nothing else on the line at all.
-func TestACommandLineIsFiveOptionsAndNothingElse(t *testing.T) {
+func TestACommandLineIsSixOptionsAndNothingElse(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -278,6 +278,7 @@ func TestACommandLineIsFiveOptionsAndNothingElse(t *testing.T) {
 		{name: "a report on the whole product", args: []string{"--inspect"}, want: command{inspect: true}},
 		{name: "a report on one module", args: []string{"--inspect", "--module=installer"}, want: command{module: "installer", inspect: true}},
 		{name: "one module's template", args: []string{"--strings", "--module=installer"}, want: command{module: "installer", strings: true}},
+		{name: "what the binary can draw", args: []string{"--glyphs"}, want: command{glyphs: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parse(tc.args)
@@ -331,6 +332,24 @@ func TestTheVersionIsTheReleaseAndNothingElse(t *testing.T) {
 	})
 	if want := "1.2.3\n"; out != want {
 		t.Errorf("--version printed %q, want %q", out, want)
+	}
+}
+
+// --glyphs answers for the binary alone, with no product beside it, and names
+// the marks it draws on a console along with its own words.
+func TestTheGlyphsAreTheBinarysOwn(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	out := stdout(t, func() {
+		if err := start([]string{"--glyphs"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	for _, want := range []string{"─", "█", "»", "ü"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("--glyphs printed %q, which is missing %q", out, want)
+		}
 	}
 }
 

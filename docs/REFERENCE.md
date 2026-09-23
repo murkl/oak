@@ -32,6 +32,10 @@ logo: |
 
 `url` is an absolute address or it is refused — a scheme and a host, `https://…`. It is read off one screen and typed into another, and the half a browser would fill in from `tux.org/linux` whoever types it has no way of knowing.
 
+### The product's shell — `oak.sh`
+
+Optional, beside `oak.yaml`. It is loaded in front of every script of every module, before that module's own `module.sh` — so what two modules of one product have to agree about is written once rather than kept in step by hand, and a module can still build on it or replace a function of it. Everything [`module.sh`](#what-a-script-receives) is held to, it is held to as well.
+
 `version` is the product's own. Oak's own is what `--version` answers — `0.1.0`, the release and nothing beside it, so a build that pins Oak reads the line as it stands — and what the splash signs off with under the wordmark. It is never shown as though it belonged to the product.
 
 ## A module
@@ -41,7 +45,7 @@ One folder. Only the declaration has to be there — a module turns a part of th
 | Path | Description |
 | --- | --- |
 | `module.yaml` | The declaration: what the module is, what it asks, and the order its work happens in |
-| `module.sh` | Sourced in front of everything this module runs |
+| `module.sh` | Sourced in front of everything this module runs, after the product's [`oak.sh`](#the-products-shell--oaksh) |
 | `tasks/@<stage>/<task>/task.yaml` | What a task is |
 | `tasks/@<stage>/<task>/task.sh` | What it does, where its yaml does not say so itself |
 | `tasks/@<stage>/<task>/test.sh` | How to tell that it took, likewise. Optional — see [Testing the work](#testing-the-work) |
@@ -262,7 +266,7 @@ script: |                            # shell, for a step short enough to read he
 
 A `script:` **and** a `task.sh` is two answers to the same question and is refused, as is neither. Shell written in the yaml has no file for a failure to point at, so what a failure names is the command and the exit code rather than a file and a line.
 
-Seven more keys change what a task **is** rather than what it does:
+Eight more keys change what a task **is** rather than what it does:
 
 | Key | Description |
 | --- | --- |
@@ -273,6 +277,9 @@ Seven more keys change what a task **is** rather than what it does:
 | `shows: VAR` | Puts that answer on the report page as a scannable code, and under it as text |
 | `quits: true` | The program does not return after this task — a reboot |
 | `tty: true` | The interface steps aside and hands the script the whole terminal |
+| `simulates: true` | Run under `--debug` as well, test and all, because the task reads `DEBUG` itself — see [Simulating](#simulating) |
+
+The terminal is handed over **outright**: all three channels are the terminal itself, whatever Oak's own were pointed at — a service on a console has its stderr in the journal, and a shell draws its prompt on stderr. The script gets a foreground process group of its own on it, so an interactive shell does its job control there, and Oak takes the terminal back when the script exits. A shell inside another system is therefore one line: `arch-chroot /mnt || true`.
 
 `shows:` is for a value meant to be used on a different machine than the one displaying it. It is read back from the answer file after the task has run, which is also how the task puts it there:
 
@@ -303,7 +310,7 @@ Its exit status is the answer, the same way a task's own is: a command that fail
 
 A script can say no without any command having failed — `return 1` and a guard that does not fire both look like that, and the trap sees neither — and the report still names the line: what comes back then is the last line the script itself was on. A command that really did fail is named where that command is, which for a function out of `module.sh` is the line inside `module.sh`.
 
-A run started with `--debug` runs them like any other. A test is a module's own script under the same contract as the work: it is handed `DEBUG` and decides for itself what a run that changed nothing has to say. So it opens with the same guard its task does.
+A run started with `--debug` starts a test only where its task declares `simulates: true` — see [Simulating](#simulating).
 
 A test that fails does not fail the run. The work said it worked, and something looking at the machine afterwards disagreed — that is a thing to read, not a reason to abandon an installation that is already on the disk.
 
@@ -403,6 +410,8 @@ A step is written like any other unit — a `title:`, what it `needs:`, and its 
 
 The title of a `@preflight` step is read: it is what the failure page names when that check is the one that said no. Everywhere else it is what the file calls itself, and nothing more.
 
+Under `--debug`, `@preflight`, `@restart` and `@shutdown` are not run: the first passes, the other two leave without touching the machine.
+
 `@restart` and `@shutdown` turn leaving the interface into a choice rather than a plain exit: a module that fills them is saying the machine booted specifically to run it. A module with neither exits like any ordinary program.
 
 ## What a script receives
@@ -412,7 +421,7 @@ Every declared variable under its own name, answered or not, and two names of Oa
 | Variable | Description |
 | --- | --- |
 | `MODULE_CONF` | The answer file. Also how a script answers a question back: append `KEY='value'` to it |
-| `DEBUG` | `true` when the run was started with `--debug`. Absent otherwise |
+| `DEBUG` | `true` when the run was started with `--debug`. Absent otherwise — see [Simulating](#simulating) |
 
 That is the whole list, and it is meant to stay that way. Anything else a script needs it works out for itself — its own folder, for instance, is where `module.sh` was sourced from:
 
@@ -420,9 +429,9 @@ That is the whole list, and it is meant to stay that way. Anything else a script
 MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ```
 
-Scripts run in a shell that already carries an `ERR` trap and, where the module has one, `module.sh`. They need no preamble: no shebang, no `set -e`, no error handling. **Any non-zero status is a failure** — a command that failed anywhere in the script, or whatever the script itself hands back at the end. If one fails, the unit fails, the run stops there, and the page it stops on is the one a finished run stops on under the other mark. Behind it is the module, the unit, the file, the line, the command, the exit code and what the tool said — the same page every failure in the program opens on.
+Scripts run in a shell that already carries an `ERR` trap and, where there are any, `oak.sh` and `module.sh`. They need no preamble: no shebang, no `set -e`, no error handling. **Any non-zero status is a failure** — a command that failed anywhere in the script, or whatever the script itself hands back at the end. If one fails, the unit fails, the run stops there, and the page it stops on is the one a finished run stops on under the other mark. Behind it is the module, the unit, the file, the line, the command, the exit code and what the tool said — the same page every failure in the program opens on.
 
-**`module.sh` is sourced in front of everything** — every task, every test, every step of every hook, and every piece of shell the yaml writes for a `command:`, a `prefill:`, an `apply:`, a `script:` or a `test:`. So a function defined there is called by name from the yaml:
+**`oak.sh` and then `module.sh` are sourced in front of everything** — every task, every test, every step of every hook, and every piece of shell the yaml writes for a `command:`, a `prefill:`, an `apply:`, a `script:` or a `test:`. So a function defined in either is called by name from the yaml:
 
 ```yaml
 apply: load_console_keyboard
@@ -437,14 +446,21 @@ script: is_online
 
 It is **loaded, not run**. A lookup in it that tries one thing and falls back to another is ordinary shell and is nobody's failure, so it is sourced outside the trap: what it recovers from is never reported as the failure of the unit that was about to run. The one thing that is its own failure is a shell that will not load at all, and that fails the unit with whatever it said on the way out.
 
-Four rules, and no more:
+Three rules, and no more:
 
-- **Change nothing while simulating.** `simulating && return 0` before the first line that touches anything, with `simulating()` defined in your `module.sh` as `[ "$DEBUG" = true ]`
 - **Never end on a command that can fail unless you mean it.** A script answers with its exit status, so `[ "$X" = y ] && do_it` as the last line fails it when the test is false. End on the real work, on an `if` block or on an `echo` — and where you do mean it, `exit 1` and `return 1` both say so
 - **Ask nothing.** Every question is declared in the yaml, unless the task declares `tty: true`
 - **Print nothing for a person to read.** stdout and stderr go to the log; the screen shows the task's name
 
-A `test:` keeps all four and adds a fifth: **change nothing at all**. It reads a machine somebody is still installing onto, and its exit code is the whole of what it has to say. The first rule is the one that matters most there — a simulated run wrote nothing, so a test that does not open with the same guard its task does will fail for the one reason that is not a fault.
+A `test:` keeps all three and adds a fourth: **change nothing at all**. It reads a machine somebody is still installing onto, and its exit code is the whole of what it has to say.
+
+### Simulating
+
+`--debug` shows a run without doing it. **No task and no test is started**: each is shown running for a moment and marked done, its `report:` still stops the run, and the pages look as they would. `@preflight`, `@restart` and `@shutdown` are not run either. So a script needs no guard against it.
+
+What still runs is what reads rather than acts — the shell a question is offered, suggested, applied and worked out with, and `@online` and the wireless hooks. It is handed `DEBUG=true` and decides for itself; an `apply:` that loads a keyboard, for one, has no business doing so on somebody's own machine.
+
+A task that has something worth showing and can produce it without touching anything declares `simulates: true`. It is then started like any other, its test with it, and reads `DEBUG` to decide what a simulated run does — a task that only reads, or one that fills in the value its report shows with an example.
 
 `command:`, `prefill:`, `apply:`, `script:` and `test:` each accept either shell or a file. A single line starting with `./` or `../` names a file, relative to the folder of the yaml it was written in; anything else is the shell itself.
 
@@ -481,12 +497,13 @@ Five keys, three meanings, the same on every page. Long lists narrow with `/`.
 
 ## Checking a product
 
-Two options that answer on stdout instead of drawing anything. They read the product beside the binary, the same one a run would open, and `--module=` narrows both to one of its modules:
+Three options that answer on stdout instead of drawing anything. The first two read the product beside the binary, the same one a run would open, and `--module=` narrows them to one of its modules. `--glyphs` is about the binary alone:
 
 ```
 oak --inspect                    # load the product beside the binary, and report
 oak --inspect --module=setup     # just that one module
 oak --strings --module=setup     # write that module's translation template
+oak --glyphs                     # every character the interface can put on a console
 ```
 
 `--inspect` loads a product exactly as a run does — every task ordered, every condition resolved — and prints what it found. **This is the check to put in a build script.** Three of its lines are about the gap between the yaml and what reads it, in different directions:
@@ -517,4 +534,4 @@ The language is chosen on the welcome page every run opens on, and can be change
 
 **Note:** _The Linux virtual console holds at most 512 glyphs. A product that runs there before any desktop exists is safe with ASCII and the Latin-1 letters, and not with Greek, Cyrillic or anything written in a script of its own._
 
-**Note:** _Which 512 is the font's choice, so a product that boots to a console loads one that holds what the interface draws: the box-drawing rules, `░ ▒ •  · » ↑ ↓`, and the three cells every picture is built from — `█ ▀ ▄`. `kbd`'s own `default8x16` holds all of it; every Terminus holds the full block and neither half of it, which is exactly what a code and the mark over a finished run are drawn from. A 256-glyph font also keeps the sixteen background colours a code needs its white from — a 512-glyph one spends that bit on the glyph index._
+**Note:** _Which 512 is the font's choice, so a product that boots to a console loads one that holds what the interface draws. `oak --glyphs` prints every character outside ASCII it can put there — the rules, the marks, the three cells every picture is built from, and its own words in every language it ships — so a build holds the font to that line rather than to a copy of it. `kbd`'s own `default8x16` holds all of it; every Terminus holds the full block and neither half of it, which is exactly what a code and the mark over a finished run are drawn from. A 256-glyph font also keeps the sixteen background colours a code needs its white from — a 512-glyph one spends that bit on the glyph index._

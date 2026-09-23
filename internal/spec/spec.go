@@ -178,6 +178,11 @@ type Module struct {
 	Shell   string
 	Locales string
 
+	// Shared is the product's own shell, FileRuntimeShell, which every module
+	// of it is given in front of its own. Empty where the product has none, and
+	// for a module loaded on its own rather than as part of one.
+	Shared string
+
 	// Requires is what this module demands of a machine before it is offered on
 	// one at all, and it is the only thing the runtime runs before a module has
 	// been opened. A module that demands nothing is on offer everywhere.
@@ -242,6 +247,18 @@ func (s *Module) Help() string { return i18n.T(s.UI.Description) }
 // {{VAR}} filled in from the answers.
 func (s *Module) ConfirmText(get func(string) string) string {
 	return strings.TrimSpace(Expand(i18n.T(s.Confirm), get))
+}
+
+// Shells is everything loaded in front of a script of this module, in the
+// order it is loaded: the product's shell, then the module's own.
+func (s *Module) Shells() []string {
+	var out []string
+	for _, path := range []string{s.Shared, s.Shell} {
+		if path != "" {
+			out = append(out, path)
+		}
+	}
+	return out
 }
 
 // Hook is what this module put in one of the runtime's hooks, in the order it
@@ -398,6 +415,14 @@ type Task struct {
 	// kind of unit that is a session rather than a step — a shell in the system
 	// that was just installed.
 	TTY bool `yaml:"tty"`
+
+	// Simulates marks a task that is run under --debug as well, because it reads
+	// DEBUG and decides for itself what a simulated run does — a task whose
+	// report is worth seeing, and which can fill it in without touching
+	// anything. Every other task, and its test, is only shown as run: the
+	// runtime cannot know what a script would change, so it does not start one
+	// that has not said it knows.
+	Simulates bool `yaml:"simulates"`
 
 	id    string
 	stage string

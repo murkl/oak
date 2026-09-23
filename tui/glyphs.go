@@ -1,9 +1,14 @@
 package tui
 
 import (
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Every glyph the interface draws, in one place, so the set can be checked
@@ -243,4 +248,42 @@ const spinEvery = 100 * time.Millisecond
 // redraw; it no longer decides the phase.
 func spinFrame() string {
 	return glyphs.spinner[int(time.Now().UnixNano()/int64(spinEvery))%len(glyphs.spinner)]
+}
+
+// ConsoleGlyphs is every character outside ASCII this interface can put on a
+// Linux virtual console, in code point order: the marks of the reduced set, the
+// pictures, the frame, and every word handed in as the reduced set spells it.
+//
+// A product that loads a console font holds that font to this rather than to a
+// copy of it — a copy is the one list here that nothing would keep in step.
+func ConsoleGlyphs(words ...string) string {
+	g := plainGlyphs
+	marks := []string{
+		g.cursor, g.crumb, g.rule, g.dash, g.scrollTrack, g.scrollThumb,
+		g.ok, g.fail, g.ask, g.skip, g.add, g.secret,
+		blockFull, blockUpper, blockLower, blockNone,
+	}
+	marks = append(marks, g.focus...)
+	marks = append(marks, g.spinner...)
+	marks = append(marks, glyphTick...)
+	marks = append(marks, glyphCross...)
+
+	border := lipgloss.NormalBorder()
+	marks = append(marks, border.Top, border.Bottom, border.Left, border.Right,
+		border.TopLeft, border.TopRight, border.BottomLeft, border.BottomRight)
+
+	for _, word := range words {
+		marks = append(marks, g.spell.Replace(word))
+	}
+
+	seen := map[rune]bool{}
+	for _, mark := range marks {
+		for _, r := range mark {
+			if r > unicode.MaxASCII {
+				seen[r] = true
+			}
+		}
+	}
+	out := slices.Sorted(maps.Keys(seen))
+	return string(out)
 }

@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -142,11 +143,17 @@ func short(p string) string {
 
 // exitCode digs the status out of whatever error exec returned.
 func exitCode(err error) int {
-	type coder interface{ ExitCode() int }
-	if e, ok := err.(coder); ok {
+	if e, ok := exited(err); ok {
 		return e.ExitCode()
 	}
 	return 1
+}
+
+// exited is the status a script answered with, wherever it sits in err. An
+// error without one is a script that never got as far as answering.
+func exited(err error) (interface{ ExitCode() int }, bool) {
+	var e interface{ ExitCode() int }
+	return e, errors.As(err, &e)
 }
 
 // Fail wraps whatever comes back from a script that ran outside a Session — one
@@ -156,10 +163,16 @@ func (r Runner) Fail(step Step, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &Failure{
+	f := &Failure{
 		Module: r.Module, Unit: step.Name, Hook: step.Hook,
 		Script: short(step.Script.File), Code: exitCode(err),
 	}
+	// What stopped it before it could answer is the whole of what there is to
+	// say — the terminal it was to be handed was not there.
+	if _, ok := exited(err); !ok {
+		f.Stderr = err.Error()
+	}
+	return f
 }
 
 // failure turns an exit status into that one shape, filling in whatever the

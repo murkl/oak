@@ -26,16 +26,17 @@ type Env []string
 
 // Runner starts scripts, each wrapped in the same failure-reporting trap.
 //
-// Shell is what the module hands to everything it runs, in front of that
-// script's own text — one place for what several of them share, and the
-// functions its yaml calls by name. The runtime never reads it and has no idea
-// what is in it; it only makes sure everything it starts gets the same one.
+// Shells is what the product and the module hand to everything they run, in
+// front of that script's own text and in that order — one place for what
+// several scripts share, and the functions a yaml calls by name. The runtime
+// never reads them and has no idea what is in them; it only makes sure
+// everything it starts gets the same ones.
 //
 // Module is that module's name, and it is here rather than at every call site
 // because every failure this package builds carries it: a run has one module in
 // it, and which one is the first thing somebody reading a failure needs.
 type Runner struct {
-	Shell  string
+	Shells []string
 	Module string
 }
 
@@ -93,11 +94,10 @@ const strict = `set -Eo pipefail
 const strictTrace = `set -Eo pipefail -T
 `
 
-// The two arguments every invocation is given: the script to run, and the
-// module's own shell to put in front of it. Sourcing that here is what lets a
-// script be plain shell with no preamble at all, and what puts the module's
-// functions within reach of everything — its tasks, and the shell its yaml
-// wrote.
+// The arguments every invocation is given: the script to run, and the shells
+// to put in front of it. Sourcing those here is what lets a script be plain
+// shell with no preamble at all, and what puts the module's functions within
+// reach of everything — its tasks, and the shell its yaml wrote.
 //
 // It is **loaded, not run**, and that is why the trap is installed after it
 // rather than before. A lookup that tries one thing and falls back to another
@@ -107,7 +107,7 @@ const strictTrace = `set -Eo pipefail -T
 //
 // The one failure that is the module's own is a shell that will not load at
 // all, and that is caught here, with whatever it said on the way out.
-const preamble = `if [ -n "$2" ]; then source "$2" || exit $?; fi
+const preamble = `for oak_shell in "${@:2}"; do source "$oak_shell" || exit $?; done
 `
 
 // The trap, in its two shapes. A file names the file and the line it broke in;
@@ -185,8 +185,15 @@ exit $?`
 
 // handover runs a script that takes the terminal over. No trap and no pipes:
 // what it does is a session somebody is sitting in front of, so its output is
-// the terminal's and its exit code is the whole of what comes back.
+// the terminal's and its exit code is the whole of what comes back. See
+// Handover for how it is given that terminal.
 const handover = preamble + `eval "$1"`
+
+// args is how bash is handed a wrapper: the wrapper itself, then what it runs
+// as $1 and the shells to load in front of it after that.
+func (r Runner) args(wrapper, payload string) []string {
+	return append([]string{"-c", wrapper, "--", payload}, r.Shells...)
+}
 
 // Run executes a one-liner and returns its trimmed stdout. Used for the small
 // reads: an option list, a suggested value.
@@ -243,7 +250,7 @@ func (r Runner) say(s string, env Env) (out, said string, err error) {
 
 // ask is that, under whichever wrapper the caller's shell is written to.
 func (r Runner) ask(wrapper, s string, env Env) (out, said string, err error) {
-	cmd := exec.Command("bash", "-c", wrapper, "--", s, r.Shell)
+	cmd := exec.Command("bash", r.args(wrapper, s)...)
 	cmd.Env = env
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -368,7 +375,7 @@ func (r Runner) Start(step Step, env Env) (*Session, error) {
 // closes the write end right after starting (see drain).
 func (r Runner) command(step Step, env Env) (*exec.Cmd, *os.File, error) {
 	wrapper, payload := wrap(step)
-	cmd := exec.Command("bash", "-c", wrapper, "--", payload, r.Shell)
+	cmd := exec.Command("bash", r.args(wrapper, payload)...)
 	cmd.Env = env
 	// A process group of its own, so that stopping a stage stops everything it
 	// started. A stage is one line of shell that runs a package manager that
@@ -389,10 +396,10 @@ func (r Runner) command(step Step, env Env) (*exec.Cmd, *os.File, error) {
 // It is deliberately not a Session: nothing is captured, nothing is logged, and
 // there is no process group to kill — the user is at the keyboard, and what
 // they see is what the script prints. All that comes back is the exit code.
-func (r Runner) Terminal(script Script, env Env) *exec.Cmd {
-	cmd := exec.Command("bash", "-c", handover, "--", script.shell(), r.Shell)
+func (r Runner) Terminal(script Script, env Env) *Handover {
+	cmd := exec.Command("bash", r.args(handover, script.shell())...)
 	cmd.Env = env
-	return cmd
+	return &Handover{cmd: cmd, tty: controllingTerminal}
 }
 
 // drain closes this side of the write end — without it, reading the report

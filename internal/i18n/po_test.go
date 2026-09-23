@@ -181,3 +181,30 @@ func TestOnlyRealPlaceholdersMakeAnEntryCFormat(t *testing.T) {
 		}
 	}
 }
+
+// Every text a catalog could put on a screen: the source and the translation
+// alike, fuzzy or untranslated, and never the header.
+func TestTextsIsEverythingACatalogHoldsButTheHeader(t *testing.T) {
+	raw := []byte(`msgid ""
+msgstr "Content-Type: text/plain; charset=Ünicode\n"
+
+msgid "Start"
+msgstr "Los"
+
+#, fuzzy
+msgid "Back"
+msgstr "Zurück"
+
+msgid "Untranslated"
+msgstr ""
+`)
+
+	got, err := Texts(raw)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got, "|") != "Start|Los|Back|Zurück|Untranslated" {
+		t.Errorf("texts = %q", got)
+	}
+}

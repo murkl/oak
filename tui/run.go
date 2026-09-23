@@ -235,10 +235,16 @@ func clock(d time.Duration) string {
 }
 
 type (
-	stepDoneMsg struct{ err error }
-	testedMsg   struct{ err error }
-	settleMsg   struct{}
+	stepDoneMsg  struct{ err error }
+	simulatedMsg struct{}
+	testedMsg    struct{ err error }
+	settleMsg    struct{}
 )
+
+// simulateFor is how long a simulated task is shown running. Long enough for
+// the row to be read as it passes, which is what makes a simulated run
+// something to watch and to photograph.
+const simulateFor = time.Second
 
 // step takes on the task at the cursor: asks it whatever it said it needed,
 // offers it if it is an offer, runs it, and ends the run when there are none
@@ -290,10 +296,9 @@ func (s *runScreen) step() tea.Cmd {
 // It answers nil for a task that declares none and for a run with validation
 // switched off, which is what carries the run straight on to the next phase.
 //
-// A simulated run is not one of those. It runs its tests like any other,
-// because a test is a module's own script under the same contract as the work:
-// it is handed DEBUG and decides for itself what a run that changed nothing has
-// to say. Deciding that here would be the runtime knowing what a script does.
+// A simulated task never gets here, and one that simulates itself runs its
+// test like any other: that test is handed DEBUG and decides for itself what a
+// run that changed nothing has to say.
 //
 // A test that will not even start is a failed test rather than a failed run:
 // the work is done either way, and this page is not where that is argued.
@@ -351,11 +356,15 @@ func (s *runScreen) advance() tea.Cmd {
 func (s *runScreen) start() tea.Cmd {
 	s.settled = false
 	e := s.steps[s.at]
+	if s.app.runner.Simulated(e) {
+		logging.Info("%s: simulated", e.Title)
+		return after(simulateFor, func(time.Time) tea.Msg { return simulatedMsg{} })
+	}
 	if e.TTY {
 		// The interface stands down for the length of this one: bubbletea
 		// releases the terminal, the script has it whole, and the frame is
 		// restored exactly as it was when the script exits.
-		return tea.ExecProcess(s.app.runner.Terminal(e), func(err error) tea.Msg {
+		return tea.Exec(s.app.runner.Terminal(e), func(err error) tea.Msg {
 			return stepDoneMsg{s.app.runner.Fail(e, err)}
 		})
 	}
@@ -431,6 +440,16 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			return s, quit()
 		}
 		s.stage = phaseCheck
+		return s, s.step()
+
+	case simulatedMsg:
+		s.state[s.at] = ran
+		if s.steps[s.at].Quits {
+			return s, quit()
+		}
+		// Straight to what it has to report: there is nothing on the machine
+		// for its test to read.
+		s.stage = phaseReport
 		return s, s.step()
 
 	case testedMsg:

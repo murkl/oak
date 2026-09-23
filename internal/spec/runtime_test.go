@@ -3,6 +3,7 @@ package spec
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -142,5 +143,81 @@ func TestAModuleIsIdentifiedByItsFolder(t *testing.T) {
 	}
 	if mod.ID() != "recovery" {
 		t.Errorf("ID() = %q, want recovery", mod.ID())
+	}
+}
+
+// The product's own shell is found by its name beside oak.yaml and handed to
+// every module in front of the module's own, which may then build on it.
+func TestEveryModuleIsGivenTheProductsShellBeforeItsOwn(t *testing.T) {
+	dir := writeRuntime(t, testRuntime, "installer", "recovery")
+	shared := filepath.Join(dir, FileRuntimeShell)
+	if err := os.WriteFile(shared, []byte("shared() { :; }\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	own := filepath.Join(dir, DirModules, "installer", FileShell)
+	if err := os.WriteFile(own, []byte("own() { :; }\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := strings.Join(mods[0].Shells(), " "); got != shared+" "+own {
+		t.Errorf("installer shells = %q, want the product's, then its own", got)
+	}
+	if got := strings.Join(mods[1].Shells(), " "); got != shared {
+		t.Errorf("recovery shells = %q, want the product's alone", got)
+	}
+}
+
+// A product without one hands its modules nothing extra, the same as before
+// the file existed.
+func TestAProductWithoutAShellOfItsOwnSharesNothing(t *testing.T) {
+	rt, err := LoadRuntime(writeRuntime(t, testRuntime, "installer"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mods[0].Shells(); len(got) != 0 {
+		t.Errorf("shells = %q, want none", got)
+	}
+}
+
+// A name the product's shell sets is answered for every module of it, the same
+// as one the module's own sets.
+func TestANameTheProductsShellSetsIsNotUnset(t *testing.T) {
+	dir := writeRuntime(t, testRuntime, "installer")
+	if err := os.WriteFile(filepath.Join(dir, FileRuntimeShell), []byte("SHARED=yes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	task := filepath.Join(dir, DirModules, "installer", DirTasks, Stage("go"), "do", FileTaskScript)
+	if err := os.WriteFile(task, []byte("echo \"$SHARED\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unset, err := mods[0].Unset()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(unset, "SHARED") {
+		t.Errorf("unset = %v, want SHARED answered by the product's shell", unset)
 	}
 }

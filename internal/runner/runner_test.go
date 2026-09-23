@@ -142,13 +142,16 @@ func TestPreflightPassesWhenTheTreeHasNoHook(t *testing.T) {
 	}
 }
 
-func TestPreflightCarriesWhatTheCheckSaid(t *testing.T) {
+// hooked is a module whose one hook step says no, loaded for a run started
+// with or without --debug.
+func hooked(t *testing.T, hook string, debug bool) *Runner {
+	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		spec.FileModule:           "title: T\nstages: [go]\nvariables: []\n",
-		"tasks/@go/run/task.yaml": "title: Go\n",
-		"tasks/@go/run/task.sh":   "true\n",
-		"hooks/" + spec.HookPreflight + "/firmware/hook.yaml": "title: Firmware\nscript: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n",
+		spec.FileModule:                     "title: T\nstages: [go]\nvariables: []\n",
+		"tasks/@go/run/task.yaml":           "title: Go\n",
+		"tasks/@go/run/task.sh":             "true\n",
+		"hooks/" + hook + "/step/hook.yaml": "title: Step\nscript: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n",
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, name)
@@ -163,13 +166,27 @@ func TestPreflightCarriesWhatTheCheckSaid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st := store.New(sp, filepath.Join(t.TempDir(), "c"), false)
-	err = New(sp, st).Preflight()
+	return New(sp, store.New(sp, filepath.Join(t.TempDir(), "c"), debug))
+}
+
+func TestPreflightCarriesWhatTheCheckSaid(t *testing.T) {
+	err := hooked(t, spec.HookPreflight, false).Preflight()
 	if err == nil {
 		t.Fatal("a failing check passed")
 	}
 	if !strings.Contains(err.Error(), "Set the boot mode to UEFI.") {
 		t.Errorf("err = %q, want what the check said", err)
+	}
+}
+
+// A simulated run is read on somebody's own machine, which is neither the one
+// the checks are about nor one to switch off.
+func TestASimulatedRunNeitherChecksNorLeavesTheMachine(t *testing.T) {
+	if err := hooked(t, spec.HookPreflight, true).Preflight(); err != nil {
+		t.Errorf("preflight = %v, want it passed without asking", err)
+	}
+	if err := hooked(t, spec.HookRestart, true).Leave(true); err != nil {
+		t.Errorf("restart = %v, want nothing run", err)
 	}
 }
 

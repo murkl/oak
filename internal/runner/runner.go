@@ -7,7 +7,6 @@
 package runner
 
 import (
-	osexec "os/exec"
 	"strings"
 
 	"github.com/murkl/oak/internal/exec"
@@ -25,7 +24,7 @@ type Runner struct {
 }
 
 func New(mod *spec.Module, st *store.Store) *Runner {
-	sh := exec.Runner{Shell: mod.Shell, Module: mod.Name()}
+	sh := exec.Runner{Shells: mod.Shells(), Module: mod.Name()}
 	cfg := wlan.Config{
 		Online:   steps(mod, spec.HookOnline),
 		Device:   steps(mod, spec.HookDevice),
@@ -228,6 +227,13 @@ func (r *Runner) Tasks() []*spec.Task {
 	return out
 }
 
+// Simulated reports whether this task is only shown as run: under --debug,
+// everything but a task that declared it simulates itself. Its test goes with
+// it, since there is nothing a run that changed nothing could have left behind.
+func (r *Runner) Simulated(t *spec.Task) bool {
+	return r.store.Debug() && !t.Simulates
+}
+
 // Start runs one task in the background. Its output goes to the log and
 // nowhere else; what comes back here is whether it worked.
 func (r *Runner) Start(t *spec.Task) (*exec.Session, error) {
@@ -250,7 +256,7 @@ func (r *Runner) Test(t *spec.Task) (*exec.Session, error) {
 
 // Terminal is a task that takes the terminal over, built but not started —
 // the interface has to stand aside first, and only it knows how.
-func (r *Runner) Terminal(t *spec.Task) *osexec.Cmd {
+func (r *Runner) Terminal(t *spec.Task) *exec.Handover {
 	logging.Info("%s", t.Title)
 	work := t.Work()
 	return r.sh.Terminal(exec.Script{File: work.File, Shell: work.Shell}, r.store.Env())
@@ -278,6 +284,12 @@ func (r *Runner) Leave(restart bool) error {
 	if len(put) == 0 {
 		return nil
 	}
+	// A simulated run is on somebody's own machine, which is not the one to
+	// switch off.
+	if r.store.Debug() {
+		logging.Info("leaving: %s: simulated", hook)
+		return nil
+	}
 	logging.Info("leaving: %s", hook)
 	_, err := r.sh.Hook(put, r.store.Env())
 	return err
@@ -291,7 +303,13 @@ func (r *Runner) Leave(restart bool) error {
 // It runs before anything is asked bar the few questions a module marks `first`,
 // which is the whole point: being told the firmware is wrong is worth very
 // little after twenty questions.
+//
+// A simulated run passes without asking: it is read on whatever machine
+// somebody is sitting at, which is not the one the checks are about.
 func (r *Runner) Preflight() error {
+	if r.store.Debug() {
+		return nil
+	}
 	for _, t := range r.mod.Hook(spec.HookPreflight) {
 		logging.Info("%s", t.Title)
 		session, err := r.sh.Start(step(t, t.Work()), r.store.Env())

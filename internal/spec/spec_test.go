@@ -332,6 +332,7 @@ func TestAHookStepRefusesWhatItCannotMean(t *testing.T) {
 		"report":     "report: Done\n",
 		"quits":      "quits: true\n",
 		"tty":        "tty: true\n",
+		"simulates":  "simulates: true\n",
 	} {
 		t.Run(key, func(t *testing.T) {
 			_, err := Load(module(t, hook(HookPreflight, "check", "title: Check\n"+line)))

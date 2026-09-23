@@ -6,8 +6,8 @@ Nothing here touches the machine. **Tux Setup** asks what an installer asks — 
 
 ```
 oak.yaml                                    the product: name, colour, version, wordmark
+oak.sh                                      what the two modules agree about
 modules/setup/module.yaml                   what it asks, and the order its work happens in
-modules/setup/module.sh                     what more than one of its scripts agrees about
 modules/setup/hooks/@preflight/writable/    a hook: can this folder be written to at all
 modules/setup/tasks/@prepare/target/        make the folder, and a test.sh beside it
 modules/setup/tasks/@install/base/          hostname and os-release, tested inline
@@ -26,11 +26,11 @@ From the repository root:
 ```
 make run                     # asks which module to open
 make run MODULE=setup        # opens Tux Setup outright
-make run ARGS=--debug        # every script is handed DEBUG=true and changes nothing
+make run ARGS=--debug        # shows the run and starts nothing but the check that only reads
 make inspect                 # loads it the way a run does, and reports what it found
 ```
 
-Every task here says how to tell that it took, in a `test:` or a `test.sh`. Those run after the work, read the tree and change nothing, and the run ends by saying how many of them passed. Each opens with the same `simulating` guard its task does, so `make run ARGS=--debug` reports them all as passed rather than all as failed. The switch that turns them off for good is in the settings.
+Every task here says how to tell that it took, in a `test:` or a `test.sh`. Those run after the work, read the tree and change nothing, and the run ends by saying how many of them passed. A run under `--debug` starts neither, so none of them needs a guard. The switch that turns them off for good is in the settings.
 
 A run leaves `setup.conf`, `setup.log` and `./tux` beside this file. Delete `setup.conf` to be asked everything again.
 

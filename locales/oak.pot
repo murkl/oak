@@ -22,62 +22,66 @@ msgstr ""
 #. belongs to, the step itself, the script and line it was in, what ran, and
 #. what it returned. Each is one column of a narrow table, so short wins
 #. over exact.
-#: internal/exec/failure.go:67
+#: internal/exec/failure.go:68
 msgid "Module"
 msgstr ""
 
-#: internal/exec/failure.go:69
+#: internal/exec/failure.go:70
 msgid "Hook"
 msgstr ""
 
-#: internal/exec/failure.go:70
+#: internal/exec/failure.go:71
 msgid "Step"
 msgstr ""
 
-#: internal/exec/failure.go:72
+#: internal/exec/failure.go:73
 msgid "Task"
 msgstr ""
 
-#: internal/exec/failure.go:81
+#: internal/exec/failure.go:82
 msgid "Script"
 msgstr ""
 
-#: internal/exec/failure.go:83
+#: internal/exec/failure.go:84
 msgid "Command"
 msgstr ""
 
-#: internal/exec/failure.go:85
+#: internal/exec/failure.go:86
 msgid "Exit code"
 msgstr ""
 
-#: internal/exec/failure.go:93
+#: internal/exec/failure.go:94
 #, c-format
 msgid "%s failed"
 msgstr ""
 
-#: internal/exec/failure.go:98
+#: internal/exec/failure.go:99
 msgid "Error"
 msgstr ""
 
-#: internal/spec/runtime.go:93
+#: internal/exec/handover.go:49
+msgid "There is no terminal to hand over."
+msgstr ""
+
+#: internal/spec/runtime.go:104
 #, c-format
 msgid "A %s file has to sit next to this program, in %s."
 msgstr ""
 
-#: internal/spec/runtime.go:139
+#: internal/spec/runtime.go:151
 #, c-format
 msgid "A %s folder with something in it has to sit next to this program, in %s."
 msgstr ""
 
-#: internal/spec/runtime.go:146
+#: internal/spec/runtime.go:158
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:628
+#: internal/spec/spec.go:653
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:630
+#: internal/spec/spec.go:655
 msgid "This value is required."
 msgstr ""
 
@@ -98,11 +102,11 @@ msgstr ""
 msgid "Check every step on the machine it was done to"
 msgstr ""
 
-#: internal/store/store.go:206 tui/labels.go:231
+#: internal/store/store.go:209 tui/labels.go:231
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:208 tui/labels.go:232
+#: internal/store/store.go:211 tui/labels.go:232
 msgid "No"
 msgstr ""
 
@@ -126,37 +130,37 @@ msgstr ""
 msgid "%s was joined, but there is still no internet."
 msgstr ""
 
-#: main.go:177
+#: main.go:183
 #, c-format
 msgid "%s cannot be opened on this machine."
 msgstr ""
 
-#: main.go:212
+#: main.go:221
 #, c-format
 msgid "One module at a time: %s or %s."
 msgstr ""
 
-#: main.go:216
+#: main.go:225
 #, c-format
 msgid "%s needs the name of a module: %s=<id>."
 msgstr ""
 
-#: main.go:219
+#: main.go:228
 #, c-format
 msgid "%q is not something this program takes."
 msgstr ""
 
-#: main.go:220
+#: main.go:229
 #, c-format
 msgid "It takes %s."
 msgstr ""
 
-#: main.go:240
+#: main.go:249
 #, c-format
 msgid "No module called %s."
 msgstr ""
 
-#: main.go:241
+#: main.go:250
 #, c-format
 msgid "This one offers %s."
 msgstr ""

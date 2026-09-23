@@ -1,0 +1,9 @@
+# The scripts here are sourced by Oak, never executed, so none of them carries a
+# shebang for shellcheck to read the dialect from.
+shell=bash
+
+# Oak loads oak.sh in front of every one of them, and a module's own module.sh
+# where it has one, so what those define is in scope without any script saying
+# so. shellcheck cannot see that, and takes an all-caps name it cannot resolve
+# for an environment variable, which is exactly right here: every answer arrives
+# as one.

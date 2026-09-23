@@ -11,14 +11,15 @@
 // drives a different product by sitting next to a different oak.yaml and a
 // different set of modules.
 //
-// The command line is five options and nothing else. Three are about a run:
+// The command line is six options and nothing else. Three are about a run:
 // --version says which release this binary is, --module opens one of the
-// folders outright, and --debug hands every script DEBUG=true so a run can be
-// watched without it touching anything. Two are about the folder rather than
-// the run, for whoever is writing one: --inspect loads it the way a run does
-// and reports what it holds, and --strings writes a module's translation
-// template. What a product may declare is in the yaml beside the binary, never
-// here.
+// folders outright, and --debug shows the run without starting anything that
+// has not said it simulates itself. Two are about the folder rather than the
+// run, for whoever is writing one: --inspect loads it the way a run does and
+// reports what it holds, and --strings writes a module's translation template.
+// And --glyphs is about the binary: every character it can put on a console,
+// for a product that picks the console font to hold that font to. What a
+// product may declare is in the yaml beside the binary, never here.
 package main
 
 import (
@@ -72,6 +73,7 @@ const (
 	flagModule  = "--module"
 	flagInspect = "--inspect"
 	flagStrings = "--strings"
+	flagGlyphs  = "--glyphs"
 )
 
 func main() {
@@ -96,6 +98,10 @@ func start(args []string) error {
 	if cmd.version {
 		fmt.Println(version)
 		return nil
+	}
+	// The same: what this binary can draw is true of it with nothing beside it.
+	if cmd.glyphs {
+		return glyphs()
 	}
 
 	rt, err := spec.LoadRuntime("")
@@ -153,7 +159,7 @@ func offered(mods []*spec.Module, debug bool) ([]*spec.Module, error) {
 			open = append(open, mod)
 			continue
 		}
-		sh := exec.Runner{Shell: mod.Shell, Module: mod.ID()}
+		sh := exec.Runner{Shells: mod.Shells(), Module: mod.ID()}
 		if err := sh.Guard(mod.Requires.Text(), os.Environ()); err != nil {
 			refused = append(refused, said(mod, err))
 			continue
@@ -188,6 +194,7 @@ type command struct {
 	version bool
 	inspect bool
 	strings bool
+	glyphs  bool
 }
 
 // parse reads one. Which module names exist is not decided here but by what is
@@ -207,6 +214,8 @@ func parse(args []string) (command, error) {
 			c.inspect = true
 		case name == flagStrings && !valued:
 			c.strings = true
+		case name == flagGlyphs && !valued:
+			c.glyphs = true
 		case name == flagModule && value != "":
 			if c.module != "" {
 				return c, fmt.Errorf("%s", i18n.T("One module at a time: %s or %s.", c.module, value))
@@ -217,7 +226,7 @@ func parse(args []string) (command, error) {
 		default:
 			return c, fmt.Errorf("%s\n%s",
 				i18n.T("%q is not something this program takes.", arg),
-				i18n.T("It takes %s.", strings.Join([]string{flagDebug, flagVersion, flagModule + "=<id>", flagInspect, flagStrings}, ", ")))
+				i18n.T("It takes %s.", strings.Join([]string{flagDebug, flagVersion, flagModule + "=<id>", flagInspect, flagStrings, flagGlyphs}, ", ")))
 		}
 	}
 	return c, nil
@@ -258,6 +267,29 @@ func run(rt *spec.Runtime, mods []*spec.Module, debug bool) error {
 	return tui.Run(opening, func(mod *spec.Module) (*tui.Program, error) {
 		return open(mod, debug)
 	})
+}
+
+// glyphs prints every character outside ASCII the interface can put on a
+// console, its own words in every language it ships included, on one line.
+func glyphs() error {
+	files, err := fs.Glob(locales.FS, "*"+i18n.Ext)
+	if err != nil {
+		return err
+	}
+	var words []string
+	for _, name := range files {
+		raw, err := fs.ReadFile(locales.FS, name)
+		if err != nil {
+			return err
+		}
+		texts, err := i18n.Texts(raw)
+		if err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		words = append(words, texts...)
+	}
+	fmt.Println(tui.ConsoleGlyphs(words...))
+	return nil
 }
 
 // saved is the runtime's own answers: the language and whether a run checks its

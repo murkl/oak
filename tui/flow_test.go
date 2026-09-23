@@ -2060,16 +2060,41 @@ func TestARunWithNoTestsReportsNone(t *testing.T) {
 	}
 }
 
-// A simulated run runs its tests like any other. What a run that changed
-// nothing has to say about itself is the script's decision, not the runtime's:
-// it is handed DEBUG and guards itself, exactly as the task it belongs to does.
-func TestASimulatedRunStillRunsItsTests(t *testing.T) {
+// A simulated run starts no task and no test: the runtime cannot know what a
+// script would change, so everything that has not said it simulates itself is
+// only shown as run.
+func TestASimulatedRunStartsNoTaskAndNoTest(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "touched")
 	h := newSimulated(t, map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\ntest: '[ \"$DEBUG\" = true ]'\n",
+		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"false\"\n",
+		"tasks/@go/a-first/task.sh":   "touch '" + marker + "'\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().enter().typeIn("x").enter().typeIn("x").enter()
+
+	h.ran().refuses("tests passed")
+
+	if _, err := os.Stat(marker); err == nil {
+		t.Error("a simulated run started the task")
+	}
+}
+
+// A task that declares it simulates itself is run under --debug, test and all,
+// and decides with DEBUG what a run that changes nothing does.
+func TestATaskThatSimulatesItselfRunsUnderDebug(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "simulated")
+	h := newSimulated(t, map[string]string{
+		"tasks/@go/a-first/task.yaml": "title: First\nsimulates: true\ntest: '[ \"$DEBUG\" = true ]'\n",
+		"tasks/@go/a-first/task.sh":   "[ \"$DEBUG\" = true ] && touch '" + marker + "'\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().enter().typeIn("x").enter().typeIn("x").enter()
+
 	h.ran().wants("1 of 1 tests passed")
+
+	if _, err := os.Stat(marker); err != nil {
+		t.Error("the task that simulates itself was not run")
+	}
 }
 
 // The switch is the runtime's own, and it holds for every module: turned off,

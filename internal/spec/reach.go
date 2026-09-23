@@ -120,14 +120,11 @@ func (s *Module) readers(sh *refs, name string) []*Task {
 }
 
 // everywhere is every file of this module that runs whatever the answers say:
-// the declaration and the shell in it, the module's own shell, and every step
-// of every hook. Nothing here is guarded by anything, so a value one of them
-// reads is read on every run there is.
+// the declaration and the shell in it, the product's and the module's own
+// shell, and every step of every hook. Nothing here is guarded by anything, so
+// a value one of them reads is read on every run there is.
 func (s *Module) everywhere() ([]string, error) {
-	out := []string{filepath.Join(s.Dir, FileModule)}
-	if s.Shell != "" {
-		out = append(out, s.Shell)
-	}
+	out := append([]string{filepath.Join(s.Dir, FileModule)}, s.Shells()...)
 	for _, name := range Hooks {
 		for _, t := range s.Hook(name) {
 			paths, err := filesUnder(t.Dir())
@@ -161,7 +158,7 @@ type refs struct {
 	tasks map[*Task]names
 
 	// sets is every name the module's shell puts a value into, wherever it did
-	// so: a name a task reads and lib.sh assigns is answered by the module.
+	// so: a name a task reads and oak.sh or module.sh assigns is answered.
 	sets names
 }
 

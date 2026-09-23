@@ -33,6 +33,43 @@ const LanguageName = "English"
 // an entry carrying one was written by something that knows more than this does.
 func Parse(raw []byte) (*Catalog, error) {
 	c := &Catalog{Messages: map[string]string{}}
+	err := entries(raw, func(id, str string, usable bool) {
+		// The header is the entry with no source text, and an empty translation
+		// is one nobody has written yet. Neither is a message.
+		if usable && id != "" && str != "" {
+			c.Messages[id] = str
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	c.Language = c.Messages[LanguageName]
+	return c, nil
+}
+
+// Texts is every source text and every translation a catalog or a template
+// holds, fuzzy or not, the header left out: all of it that could end up on a
+// screen.
+func Texts(raw []byte) ([]string, error) {
+	var out []string
+	err := entries(raw, func(id, str string, _ bool) {
+		if id == "" {
+			return
+		}
+		out = append(out, id)
+		if str != "" {
+			out = append(out, str)
+		}
+	})
+	return out, err
+}
+
+// entries reads a po file as gettext writes one and hands over each entry: its
+// source text, its translation, and whether this program can act on it. A
+// fuzzy entry is not — the source text changed under the translation — and
+// nor is one with a context or plural forms, which nothing here writes, so an
+// entry carrying one was written by something that knows more than this does.
+func entries(raw []byte, each func(id, str string, usable bool)) error {
 	var (
 		id, str  strings.Builder
 		into     *strings.Builder
@@ -41,10 +78,8 @@ func Parse(raw []byte) (*Catalog, error) {
 		unusable bool
 	)
 	flush := func() {
-		// The header is the entry with no source text, and an empty translation
-		// is one nobody has written yet. Neither is a message.
-		if k, v := id.String(), str.String(); started && !fuzzy && !unusable && k != "" && v != "" {
-			c.Messages[k] = v
+		if started {
+			each(id.String(), str.String(), !fuzzy && !unusable)
 		}
 		id.Reset()
 		str.Reset()
@@ -85,24 +120,22 @@ func Parse(raw []byte) (*Catalog, error) {
 			into = &str
 			line = strings.TrimSpace(line[len("msgstr"):])
 		case line[0] != '"':
-			return nil, fmt.Errorf("line %d: %s", n, line)
+			return fmt.Errorf("line %d: %s", n, line)
 		}
 		if into == nil {
 			continue
 		}
 		text, err := strconv.Unquote(line)
 		if err != nil {
-			return nil, fmt.Errorf("line %d: %s", n, line)
+			return fmt.Errorf("line %d: %s", n, line)
 		}
 		into.WriteString(text)
 	}
 	if err := sc.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	flush()
-
-	c.Language = c.Messages[LanguageName]
-	return c, nil
+	return nil
 }
 
 // hasFlag reports whether a #, line carries one flag, whatever else is on it.

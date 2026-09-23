@@ -511,6 +511,7 @@ func (t *Task) checkHook() error {
 		{"shows", t.Shows != ""},
 		{"quits", t.Quits},
 		{"tty", t.TTY},
+		{"simulates", t.Simulates},
 	}
 	for _, k := range said {
 		if k.used {

@@ -191,10 +191,10 @@ func TestWhatTheModuleShellRecoversFromIsNotTheUnitsFailure(t *testing.T) {
 	shell := script(t, "lib_recovered=$(grep nothing /dev/null || true)\n")
 	// The same shape the real one had: a pipeline whose first command finds
 	// nothing, under pipefail, inside a substitution the shell goes on from.
-	noisy := Runner{Module: "Test Module", Shell: script(t,
-		`: "${found:=$(grep nothing /dev/null | tail -n1)}"`+"\n")}
+	noisy := Runner{Module: "Test Module", Shells: []string{script(t,
+		`: "${found:=$(grep nothing /dev/null | tail -n1)}"`+"\n")}}
 
-	for _, r := range []Runner{{Module: "Test Module", Shell: shell}, noisy} {
+	for _, r := range []Runner{{Module: "Test Module", Shells: []string{shell}}, noisy} {
 		s, err := r.Start(Step{Name: "Test", Script: sourced(t, "return 1\n")}, Env(os.Environ()))
 		if err != nil {
 			t.Fatal(err)
@@ -217,7 +217,7 @@ func TestWhatTheModuleShellRecoversFromIsNotTheUnitsFailure(t *testing.T) {
 // And a shell that will not load at all is still the unit's failure, with
 // whatever it said on the way out.
 func TestAModuleShellThatWillNotLoadFailsTheUnit(t *testing.T) {
-	r := Runner{Module: "Test Module", Shell: script(t, "echo broken >&2\nexit 3\n")}
+	r := Runner{Module: "Test Module", Shells: []string{script(t, "echo broken >&2\nexit 3\n")}}
 	s, err := r.Start(Step{Name: "Test", Script: sourced(t, "echo never\n")}, Env(os.Environ()))
 	if err != nil {
 		t.Fatal(err)
@@ -266,7 +266,7 @@ func TestAScriptThatSaysNoWithoutFailingStillNamesTheLine(t *testing.T) {
 // module's shell, where a function it called lives — and naming the call site
 // instead would be pointing away from the line somebody has to open.
 func TestAFailureInsideTheModuleShellIsReportedThere(t *testing.T) {
-	r := Runner{Module: "Test Module", Shell: script(t, "no_thanks() { ls /definitely/not/here; }\n")}
+	r := Runner{Module: "Test Module", Shells: []string{script(t, "no_thanks() { ls /definitely/not/here; }\n")}}
 	own := sourced(t, "# a comment\nno_thanks\n")
 	s, err := r.Start(Step{Name: "Test", Script: own}, Env(os.Environ()))
 	if err != nil {
@@ -402,5 +402,23 @@ func TestReasonFallsBackToTheExitStatusWhenNothingWasSaid(t *testing.T) {
 func TestReasonIsSilentWhenTheScriptWorks(t *testing.T) {
 	if err := sh.Reason("echo fine", Env(os.Environ())); err != nil {
 		t.Errorf("err = %v, want nothing", err)
+	}
+}
+
+// Every shell is loaded before the script, in the order given, so a module's
+// own can build on the product's and replace what it needs to.
+func TestShellsAreLoadedInOrderBeforeTheScript(t *testing.T) {
+	r := Runner{Module: "Test Module", Shells: []string{
+		script(t, "greet() { echo product; }\nshared=yes\n"),
+		script(t, "greet() { echo \"module after $shared\"; }\n"),
+	}}
+
+	out, err := r.Run("greet", Env(os.Environ()))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "module after yes" {
+		t.Errorf("out = %q, want the module's own, built on the product's", out)
 	}
 }
