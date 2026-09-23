@@ -2,6 +2,17 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.6.0](https://github.com/murkl/oak/compare/v0.5.0...v0.6.0) (2026-09-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* add a shared product shell, Oak-side simulation, a real terminal handover and --glyphs
+
+### Features
+
+* add a shared product shell, Oak-side simulation, a real terminal handover and --glyphs ([3e2eb98](https://github.com/murkl/oak/commit/3e2eb98cec1c24bce1b6b406db07ff6af4808f14))
+
 ## [0.5.0](https://github.com/murkl/oak/compare/v0.4.1...v0.5.0) (2026-09-19)
 
 
