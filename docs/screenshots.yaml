@@ -39,10 +39,12 @@
         press: enter
       - page: Ready to start
         press: enter
-      - page: tests passed
+      # The report's headline. A simulated run starts no test, so there is no
+      # tally under it to wait for.
+      - page: is ready for
         shot: run
         frame: running
-      - page: tests passed
+      - page: is ready for
         shot: report
 
 # A failed task: Recovery checks a tree that Setup, simulated, never built. The
