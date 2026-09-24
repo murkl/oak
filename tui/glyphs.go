@@ -50,6 +50,12 @@ type glyphSet struct {
 	// than one of the items themselves.
 	add string
 
+	// The two marks the header's status is shown with: its check said yes, or
+	// it said no. Filled and hollow, so the difference is a shape and not only
+	// a colour.
+	on  string
+	off string
+
 	// What a secret looks like while it is being typed. One cell wide in every
 	// font, unlike the asterisk, which is drawn high in most of them and makes
 	// a password field look like a footnote.
@@ -150,6 +156,8 @@ var fullGlyphs = glyphSet{
 	ask:         "?",
 	skip:        "·",
 	add:         "+",
+	on:          "●",
+	off:         "○",
 	secret:      "•",
 	focus:       []string{"░", "▒", "▓", string(glyphBlockPixel)},
 
@@ -190,6 +198,12 @@ var plainGlyphs = glyphSet{
 	add:    "+",
 	secret: "•",
 	focus:  []string{"░", "▒", string(glyphBlockPixel)},
+
+	// No console font has a circle, filled or not. The small square codepage
+	// 437 has is the nearest thing to a lit lamp, and the middle dot beside it
+	// reads as one that is out.
+	on:  "■",
+	off: "·",
 
 	// One stroke turning on the spot: upright, leaning, flat, leaning back.
 	// The full set's circle is nowhere in a console font, and the shaded
@@ -260,7 +274,7 @@ func ConsoleGlyphs(words ...string) string {
 	g := plainGlyphs
 	marks := []string{
 		g.cursor, g.crumb, g.rule, g.dash, g.scrollTrack, g.scrollThumb,
-		g.ok, g.fail, g.ask, g.skip, g.add, g.secret,
+		g.ok, g.fail, g.ask, g.skip, g.add, g.on, g.off, g.secret,
 		blockFull, blockUpper, blockLower, blockNone,
 	}
 	marks = append(marks, g.focus...)
@@ -272,7 +286,8 @@ func ConsoleGlyphs(words ...string) string {
 	marks = append(marks, border.Top, border.Bottom, border.Left, border.Right,
 		border.TopLeft, border.TopRight, border.BottomLeft, border.BottomRight)
 
-	for _, word := range words {
+	// The landing page's own words are in no catalog, so nobody hands them in.
+	for _, word := range append([]string{landingChoose, landingHint}, words...) {
 		marks = append(marks, g.spell.Replace(word))
 	}
 

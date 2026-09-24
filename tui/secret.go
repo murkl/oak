@@ -18,18 +18,30 @@ import (
 // Variable.Existing — because the thing it is handed to answers within seconds
 // and says which of the two it was.
 //
-// What is typed reaches exactly one place — the environment of the bash process
-// that runs the stages. Not the answer file, not the log, not the argument list
-// of anything, and not the screen, which shows one dot per character.
+// Where the module declares a check, the password is tried on what it opens
+// before it is taken, and a wrong one is refused here rather than halfway
+// through the run that needed it — see Variable.Check.
+//
+// What is typed reaches the environment of the bash process that runs the
+// stages, and of the check before it where there is one. Not the answer file,
+// not the log, not the argument list of anything, and not the screen, which
+// shows one dot per character.
 type secretScreen struct {
 	app  *app
 	v    *spec.Variable
 	done func() tea.Cmd
 
-	input   textinput.Model
-	first   string
-	again   bool
-	problem string
+	input    textinput.Model
+	first    string
+	again    bool
+	problem  string
+	checking bool
+}
+
+// triedMsg is what the module's check made of the password it was handed.
+type triedMsg struct {
+	value string
+	ok    bool
 }
 
 func newSecret(a *app, v *spec.Variable, done func() tea.Cmd) *secretScreen {
@@ -55,12 +67,25 @@ func (s *secretScreen) Init() tea.Cmd { return textinput.Blink }
 // allowed every letter there is — q included.
 func (s *secretScreen) takesText() bool { return true }
 
+// working is the check, while it runs: the mark turns in the header, and the
+// box takes nothing until the answer is in.
+func (s *secretScreen) working() bool { return s.checking }
+
 func (s *secretScreen) Title() string { return s.v.Label() }
-func (s *secretScreen) Hint() string  { return labelHintInput() }
+
+func (s *secretScreen) Hint() string {
+	if s.checking {
+		return labelHintRunning()
+	}
+	return labelHintInput()
+}
 
 func (s *secretScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
+	if msg, ok := msg.(triedMsg); ok {
+		return s.tried(msg)
+	}
 	key, ok := msg.(tea.KeyMsg)
-	if !ok {
+	if !ok || s.checking {
 		return s, nil
 	}
 	switch {
@@ -104,7 +129,25 @@ func (s *secretScreen) commit() (screen, tea.Cmd) {
 		s.box()
 		return s, nil
 	}
+	if check := s.app.runner.Check(s.v, value); check != nil {
+		s.checking, s.problem = true, ""
+		return s, func() tea.Msg { return triedMsg{value: value, ok: check()} }
+	}
 	s.app.store.Set(s.v.Name, value)
+	return s, s.done()
+}
+
+// tried takes the password the check accepted, or starts the page over under
+// the reason it was refused: one of the two entries was the wrong one, and
+// there is no telling which.
+func (s *secretScreen) tried(msg triedMsg) (screen, tea.Cmd) {
+	s.checking = false
+	if !msg.ok {
+		s.first, s.again, s.problem = "", false, s.v.WhyRefused()
+		s.box()
+		return s, nil
+	}
+	s.app.store.Set(s.v.Name, msg.value)
 	return s, s.done()
 }
 

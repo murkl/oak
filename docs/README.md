@@ -80,6 +80,7 @@ flowchart TD
     PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
     H --> SE["Settings"] --> H
+    H --> NW["Wireless network<br/>where it is optional"] --> H
     H --> CF["Last warning"] --> R["The run<br/>tasks, top to bottom"]
     R --> OK["Done"]
     R --> ER["Failure<br/>script · line · command"]

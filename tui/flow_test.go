@@ -319,9 +319,10 @@ func (h *harness) handle(msg tea.Msg) {
 		for _, c := range msg {
 			h.run(c)
 		}
-	case tickMsg, spinMsg, animMsg:
+	case tickMsg, spinMsg, statusDueMsg:
 		// A clock. It carries nothing and re-arms itself, so handling one
-		// would be a test that never ends.
+		// would be a test that never ends. The opening's is the exception: it
+		// runs out, and what the palette is left at when it has is behaviour.
 	default:
 		if blink(msg) {
 			return
@@ -644,7 +645,7 @@ func TestTheLandingPageComesBeforeTheQuestionOfWhichModule(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := startIn(t, dir, mods...)
-	h.wants("Welcome", "Welcome to Test OS,", "English").refuses("What to do")
+	h.wants(landingChoose, "English").refuses("What to do")
 
 	h.down().enter() // Deutsch
 	h.wants("Was tun", "Test Installer", "Test Recovery")
@@ -673,6 +674,36 @@ func TestTheFrameIsTitledAfterTheProductAndTheModuleOnceOneIsOpen(t *testing.T) 
 	h.wants("Disk").enter()
 	h.wants("Snapshot").enter()
 	h.wants(testRuntime().Title + " " + glyphs.crumb + " Test Recovery")
+}
+
+// ─── The header's status ─────────────────────────────────────────────────────
+
+// statusTree is a module whose header keeps an eye on something, and whose check
+// answers the way it is told to.
+func statusTree(answer string) map[string]string {
+	return map[string]string{treeFile: testInstaller +
+		"status:\n  script: " + answer + "\n  pass: Online\n  fail: Offline\n"}
+}
+
+// Opposite the name, as the check last answered: Oak's own mark for yes or no,
+// and the module's words for it.
+func TestTheHeaderSaysWhatTheStatusCheckAnswered(t *testing.T) {
+	online := newHarness(t, statusTree("exit 0"))
+	online.wants(glyphs.on + " Online").refuses("Offline")
+
+	offline := newHarness(t, statusTree("exit 1"))
+	offline.wants(glyphs.off + " Offline").refuses("Online")
+}
+
+// It shares its place with the mark that turns while something runs, and with a
+// page's own count: those are about what is happening now, and it is not.
+func TestTheStatusGivesWayToWhatIsHappening(t *testing.T) {
+	h := newHarness(t, statusTree("exit 0"))
+	h.down().enter() // Bare, and on to the questions
+	h.wants(labelCounter(1, 2)).refuses("Online")
+
+	h.typeIn("moritz").enter().enter()
+	h.wants("Online")
 }
 
 // ─── Starting points ─────────────────────────────────────────────────────────
@@ -747,26 +778,133 @@ func twoLanguageTree() map[string]string {
 // And it is read before there is a language to read it in, so it is written in
 // one and stays there: a catalog offering a translation of its words is never
 // asked for one, and a machine that chose German last time opens on the same
-// English page.
+// English page — the name of the module under the wordmark included.
 func TestTheLandingPageIsNeverTranslated(t *testing.T) {
 	tree := twoLanguageTree()
-	tree["locales/de.po"] += "\nmsgid \"Welcome\"\nmsgstr \"Willkommen\"\n" +
-		"\nmsgid \"Welcome to %s,\"\nmsgstr \"Willkommen bei %s,\"\n"
+	tree["locales/de.po"] += "\nmsgid \"" + landingChoose + "\"\nmsgstr \"Bitte Sprache wählen:\"\n" +
+		"\nmsgid \"" + landingHint + "\"\nmsgstr \"↑↓ bewegen · ⏎ bestätigen · q beenden\"\n" +
+		"\nmsgid \"Test Installer\"\nmsgstr \"Test-Einrichtung\"\n"
 	h := newHarness(t, tree)
 	h.down().enter() // Deutsch
 	h.restart()
-	h.wants("Welcome", "Welcome to Test OS,").refuses("Willkommen")
+	h.wants(landingChoose, landingHint, "Test Installer").refuses("Bitte", "bewegen", "Einrichtung")
 }
 
-// On a frame too short for all of it, the words give way and the rows do not:
-// a greeting with no languages under it is a page asking a question it offers
-// no way to answer.
-func TestTheLanguagesOutliveTheWordsOverThem(t *testing.T) {
-	h := newHarness(t, twoLanguageTree())
-	h.send(tea.WindowSizeMsg{Width: 95, Height: 15})
+// A product that draws a wordmark, for the pages that stand under one. Letters
+// rather than block pixels, so what the tests read is what the logo says.
+const testLogo = "Made for testing\n\nTEST OS\n"
 
-	h.wants("Welcome to Test OS,", "English", "Deutsch")
-	h.refuses(landingChoose)
+// dressed is a run of a product with a wordmark: the splash comes up first and
+// the welcome page stands under it, as it does on a real terminal.
+func dressed(t *testing.T, files map[string]string) *harness {
+	t.Helper()
+	h := newHarness(t, files)
+	h.m = newModel(h.a, testLogo)
+	h.run(h.m.Init())
+	h.drain()
+	return h
+}
+
+// The welcome page stands under the wordmark the splash left, on the field
+// rather than in the frame. What opens the frame is answering it.
+func TestTheWelcomePageStandsUnderTheWordmarkRatherThanInTheFrame(t *testing.T) {
+	corner := lipgloss.NormalBorder().TopLeft
+	h := dressed(t, twoLanguageTree())
+	h.wants("TEST OS", landingChoose, "English", landingHint).refuses(corner, labelOpening())
+
+	h.enter() // English
+	h.wants(corner, testRuntime().Title).refuses("TEST OS")
+}
+
+// The splash hands over without the wordmark moving: the page lays it out on the
+// rows it will take, and only the sign-off under it gives way to the question.
+func TestTheWordmarkStaysWhereTheSplashLeftIt(t *testing.T) {
+	h := newHarness(t, twoLanguageTree())
+	m := newModel(h.a, testLogo)
+	m.width, m.height = 100, 30
+
+	m.splash.skip() // swept in and signed off, the one stretch left to run
+	during := strings.Split(m.View(), "\n")
+	run(m.splash)
+	after := strings.Split(m.View(), "\n")
+
+	if !slices.ContainsFunc(during, func(l string) bool { return strings.Contains(l, "powered by oak") }) {
+		t.Fatalf("the splash is not signed off:\n%s", strings.Join(during, "\n"))
+	}
+	if strings.Contains(strings.Join(after, "\n"), "powered by oak") {
+		t.Errorf("the sign-off outstayed the splash:\n%s", strings.Join(after, "\n"))
+	}
+	for i, line := range during {
+		if !strings.Contains(line, "TEST OS") && !strings.Contains(line, "Made for testing") {
+			continue
+		}
+		if i >= len(after) || after[i] != line {
+			t.Fatalf("the wordmark moved when the question arrived:\n%s\n---\n%s",
+				strings.Join(during, "\n"), strings.Join(after, "\n"))
+		}
+	}
+}
+
+// A module named on the way in is said under the wordmark, since the page that
+// would name it is never drawn. One chosen after the welcome page is not put
+// back over it.
+func TestTheWelcomePageNamesTheModuleOnlyWhereItWasSettledOnTheWayIn(t *testing.T) {
+	dressed(t, twoLanguageTree()).wants("TEST OS", "Test Installer", landingChoose)
+
+	mods := both(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "de.po"), []byte("msgid \"What to do\"\nmsgstr \"Was tun\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := startIn(t, dir, mods...)
+	h.wants(landingChoose).refuses("Test Installer", "Test Recovery")
+	h.enter().enter() // English, then the installer
+	h.esc().esc()
+	h.wants(landingChoose).refuses("Test Installer")
+}
+
+// Answering it brings the frame up out of the field, the way the splash hands
+// over to a frame, and leaves the palette whole once it is up.
+func TestTheFrameComesUpOutOfTheFieldOnceTheWelcomePageIsAnswered(t *testing.T) {
+	t.Cleanup(func() { setFade(1) })
+	h := newHarness(t, twoLanguageTree())
+
+	_, cmd := h.m.Update(pushScreenMsg{h.a.chooseModule()})
+	if fadeLevel != 0 {
+		t.Errorf("the frame appeared at %v rather than out of the field", fadeLevel)
+	}
+	h.run(cmd)
+	h.drain()
+	if fadeLevel != 1 {
+		t.Errorf("the frame came up to %v and stopped", fadeLevel)
+	}
+}
+
+// On a terminal too short for all of it, the wordmark gives way and the rows do
+// not: a page that says whose it is with no languages under it asks a question
+// it offers no way to answer.
+func TestTheLanguagesOutliveTheWordmarkOverThem(t *testing.T) {
+	h := dressed(t, twoLanguageTree())
+	h.send(tea.WindowSizeMsg{Width: 95, Height: 12})
+
+	h.wants(landingChoose, "English", "Deutsch").refuses("TEST OS")
+}
+
+// And whatever the terminal, the page stays inside it.
+func TestTheWelcomePageNeverRunsPastTheEdge(t *testing.T) {
+	h := dressed(t, twoLanguageTree())
+	for _, size := range [][2]int{{80, 24}, {100, 30}, {200, 60}, {34, 13}, {20, 6}} {
+		h.send(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		lines := strings.Split(h.screen(), "\n")
+		if len(lines) > size[1] {
+			t.Errorf("at %dx%d the page is %d rows tall:\n%s", size[0], size[1], len(lines), h.screen())
+		}
+		for _, line := range lines {
+			if w := lipgloss.Width(line); w > size[0] {
+				t.Errorf("at %dx%d a line is %d wide:\n%s", size[0], size[1], w, line)
+			}
+		}
+	}
 }
 
 // A language named on the command line is the answer the welcome page would
@@ -775,14 +913,14 @@ func TestTheLanguagesOutliveTheWordsOverThem(t *testing.T) {
 func TestALanguageNamedOnTheCommandLineSkipsTheWelcomePage(t *testing.T) {
 	mod := loadModule(t, writeModule(t, t.TempDir(), twoLanguageTree()))
 	h := startAs(t, testRuntime(), openModule(t), "", Opening{Settled: true}, mod)
-	h.wants("Setup", "Full", "Bare").refuses("Welcome", landingChoose)
+	h.wants("Setup", "Full", "Bare").refuses(landingChoose)
 }
 
 // The landing page leads, because every word of every page after it is in the
 // language chosen on it.
 func TestTheLandingPageIsTheFirstThingDrawn(t *testing.T) {
 	h := newHarness(t, twoLanguageTree())
-	h.wants("Welcome", "Deutsch").refuses("Full", "Bare")
+	h.wants(landingChoose, "Deutsch").refuses("Full", "Bare")
 
 	h.down().enter() // Deutsch
 	h.wants("Einrichtung", "Full", "Bare")
@@ -846,13 +984,62 @@ func TestNetworkScreenJoinsAWirelessNetworkWhenOffline(t *testing.T) {
 	h.wants("Full", "Bare") // online now, straight into the installer's own opening
 }
 
+// joinTree is a module that can join a wireless network and asks nothing about
+// the internet: joining writes marker, and the header's status reads it.
+func joinTree(marker string) map[string]string {
+	return map[string]string{
+		treeFile: testInstaller +
+			"status:\n  script: test -e " + marker + "\n  pass: Online\n  fail: Offline\n",
+		"hooks/@wlan-device/station/hook.yaml": "title: Device\nscript: printf wlan0\n",
+		"hooks/@wlan-networks/scan/hook.yaml":  "title: Networks\nscript: printf 'HomeNet\\nCafeNet\\n'\n",
+		"hooks/@wlan-connect/join/hook.yaml":   "title: Join\nscript: touch " + marker + "\n",
+	}
+}
+
+// A module that can do without the internet is not stopped on the way in to be
+// offered it: joining a network is a row on the hub, taken whenever somebody
+// wants it, and it leads back there.
+func TestAModuleThatCanDoWithoutTheInternetOffersANetworkOnTheHub(t *testing.T) {
+	h := newHarness(t, joinTree(filepath.Join(t.TempDir(), "online")))
+	h.wants("Full", "Bare").refuses("Wireless network")
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.wants("Settings", "Wireless network")
+
+	h.down().down().enter()
+	h.wants("HomeNet", "CafeNet")
+	h.enter().typeIn("secret").enter()
+	h.wants("Settings", "Wireless network").refuses("Passphrase")
+}
+
+// The header says so the moment it is joined, not an interval later: the read
+// that was already out was taken before the network was there.
+func TestJoiningANetworkReadsTheStatusAgainAtOnce(t *testing.T) {
+	h := newHarness(t, joinTree(filepath.Join(t.TempDir(), "online")))
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.wants("Offline")
+
+	h.down().down().enter().enter().typeIn("secret").enter()
+	h.wants("Online").refuses("Offline")
+}
+
+// Where the module asks for the internet on the way in, the opening has already
+// put the network page in front of the work, and the hub offers no second one.
+func TestAModuleThatAsksForTheInternetOffersNoNetworkOnTheHub(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "online")
+	tree := joinTree(marker)
+	tree["hooks/@online/check/hook.yaml"] = "title: Online\nscript: true\n"
+	h := newHarness(t, tree)
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.wants("Settings").refuses("Wireless network")
+}
+
 // ─── The opening ─────────────────────────────────────────────────────────────
 
 // One language on offer means no landing page: the one thing it asks is not a
 // question, and a greeting is not reason enough to stop a run on a page nobody
 // can answer.
 func TestOneLanguageIsNoLandingPage(t *testing.T) {
-	newHarness(t, nil).wants("Full", "Bare").refuses("Welcome", "Language")
+	newHarness(t, nil).wants("Full", "Bare").refuses(landingChoose, "Language")
 }
 
 // A module may tie the words on screen to one of its own answers — see
@@ -1284,6 +1471,28 @@ func TestASecretThatAlreadyExistsIsAskedOnce(t *testing.T) {
 
 	h.ran()
 	h.wants("Finished in", "First", "Second")
+}
+
+// Where the module can tell a wrong one, it says so on the page it was typed on,
+// in its own words, and asks again — rather than starting a run that stops on
+// the first step that needed it.
+func TestASecretTheModuleChecksIsRefusedWhereItWasTyped(t *testing.T) {
+	h := newHarness(t, map[string]string{treeFile: strings.Replace(testInstaller,
+		"    title: Password\n    type: secret\n",
+		"    title: Password\n    type: secret\n    existing: true\n"+
+			"    check: '[ \"$PW\" = hunter2 ]'\n    error: That is not the password.\n", 1)})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().enter() // Install, then start
+
+	h.typeIn("hunter3").enter()
+	h.wants("Password", "That is not the password.").refuses("Finished in")
+	if got := h.a.store.Get("PW"); got != "" {
+		t.Errorf("PW = %q, want a refused password never taken", got)
+	}
+
+	h.typeIn("hunter2").enter()
+	h.ran()
+	h.wants("Finished in")
 }
 
 // A task that fails stops the run there, on the same page a finished run stops
@@ -1852,7 +2061,7 @@ func TestTheQuestionOfWhichModuleIsBackedOutOfLikeAnyOther(t *testing.T) {
 	h.enter() // English, and on to the question of which module
 	h.wants("What to do", "Test Installer")
 	h.esc()
-	h.wants("Welcome", "English")
+	h.wants(landingChoose, "English")
 }
 
 // q asks to leave from wherever it is pressed, not only from the menu — and
@@ -2288,6 +2497,24 @@ func TestTheValidationSettingIsOfferedOnlyWhereThereIsSomethingToTest(t *testing
 	plain := newHarness(t, nil)
 	plain.down().enter().typeIn("moritz").enter().enter()
 	plain.down().enter().refuses("Verify steps")
+}
+
+// The two rows about the run rather than about a value stand together under
+// everything else, with nothing between them.
+func TestTheRowsAboutTheRunStandTogether(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.down().enter()
+	for range 20 {
+		h.down()
+	}
+	lines := strings.Split(h.screen(), "\n")
+	verify := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "Verify steps") })
+	if verify < 0 || verify+1 >= len(lines) || !strings.Contains(lines[verify+1], "Reset all answers") {
+		t.Errorf("the reset does not stand right under the validation:\n%s", h.screen())
+	}
 }
 
 // Turning it off from the settings page is what the switch is for, and the row

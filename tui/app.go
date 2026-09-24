@@ -318,9 +318,10 @@ func (a *app) start() screen { return a.landing() }
 
 // landing is the page a run opens on: what this is, and the words the rest of
 // it is read in. It is drawn whether or not a module was named on the way in —
-// what it says is the runtime's, and it is read before anything else is — but
-// not where there is only one language to offer, or the command line already
-// named one, because then the one thing it asks is not a question.
+// what it says is the runtime's, and it is read before anything else is, with
+// that module named under the wordmark — but not where there is only one
+// language to offer, or the command line already named one, because then the
+// one thing it asks is not a question.
 func (a *app) landing() screen {
 	if len(a.langs) < 2 || a.settled {
 		return a.chooseModule()
@@ -352,10 +353,11 @@ func (a *app) upfront() screen {
 	return newField(a, open[0], func() tea.Cmd { return push(a.upfront()) }).opening()
 }
 
-// network is where a module that describes one gets the chance to join it,
-// because every stage past this point downloads something.
+// network is where a module that can tell whether there is internet gets the
+// chance to join a network, because every stage past this point downloads
+// something. One that can only join one is offered that on the hub instead.
 func (a *app) network() screen {
-	if radio := a.runner.Radio(); radio != nil {
+	if radio := a.runner.Radio(); radio != nil && radio.Checks() {
 		return newNetwork(a, radio)
 	}
 	return a.afterNetwork()

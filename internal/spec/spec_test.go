@@ -604,6 +604,11 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "only a secret is either",
 		},
 		{
+			name:  "a check on an answer the settings page shows and its pattern holds",
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    check: exit 1\n")},
+			want:  "any other answer is held to its pattern",
+		},
+		{
 			name:  "a confirm text naming a variable nothing declares",
 			files: map[string]string{FileModule: "title: T\nstages: [go]\nconfirm: Erasing {{DSIK}}.\nvariables:\n  - name: DISK\n    title: D\n"},
 			want:  "{{DSIK}} is not a variable of this module",

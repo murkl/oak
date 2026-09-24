@@ -40,16 +40,15 @@ type settingsScreen struct {
 // line where one changes. The NUL prefix cannot collide with a group the folder
 // named.
 //
-// None of them carries a heading. Each is one row that says what it is, and the
-// blank line is what sets it apart from the module's own.
+// Neither carries a heading. The rows say what they are, and the blank line is
+// what sets them apart from the module's own: the language over them, and the
+// two rows about the run itself under them, which stand together.
 const (
 	groupLanguage = "\x00language"
-	groupValidate = "\x00validate"
-	groupReset    = "\x00reset"
+	groupRun      = "\x00run"
 )
 
-// The row that undoes the rest of them. It is the runtime's like the two above,
-// and its own group, so a blank line stands between it and the row over it.
+// The row that undoes the rest of them. It is the runtime's like the two above.
 const keyReset = "\x00reset-row"
 
 // settingRow is one setting beside the heading it sits under. Both the module's
@@ -109,8 +108,8 @@ func (s *settingsScreen) collect() []settingRow {
 	// And under everything, the two rows that are about the run rather than
 	// about a value: whether it checks its own work, and the one that throws
 	// every answer away. Neither is an answer, so both stand where the page is
-	// finished being read rather than among the rows they act on — and the one
-	// that cannot be taken back stands last of all.
+	// finished being read rather than among the rows they act on — together, as
+	// one group — and the one that cannot be taken back stands last of all.
 	//
 	// Validating is offered only where this module has something to check: a
 	// switch for a thing that would never happen is a row that reads as a
@@ -120,12 +119,12 @@ func (s *settingsScreen) collect() []settingRow {
 			title: labelVerifySteps(),
 			value: store.Label(truth(s.app.prefs.Validates())),
 			key:   store.ValidateVar,
-		}, group: groupValidate})
+		}, group: groupRun})
 	}
 	rows = append(rows, settingRow{item: item{
 		title: labelReset(),
 		key:   keyReset,
-	}, group: groupReset})
+	}, group: groupRun})
 	return rows
 }
 

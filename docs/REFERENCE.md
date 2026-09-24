@@ -26,7 +26,24 @@ logo: |
 | `title` | The product's name, over every page — followed by the module's own once one is open |
 | `version` | What this build of the product is called, in the corner of every page. Left out, no version is shown |
 | `accent` | `#rrggbb`. The one colour the interface is built from |
-| `logo` | The wordmark. Everything above the first blank line is a dim eyebrow over it |
+| `logo` | The wordmark the run comes up out of, and the welcome page stands under. Everything above the first blank line is a dim eyebrow over it |
+| `status` | What the header keeps an eye on while a module is open — see [The header's status](#the-headers-status) |
+
+### The header's status
+
+One thing about the machine, opposite the name on every page of every module: shell run every so often, and the words it reads as while that shell says yes and while it says no.
+
+```yaml
+status:
+  script: is_online      # shell or ./file, with oak.sh and module.sh loaded: exit 0 is yes
+  every: 10              # seconds between two runs. Left out, 10
+  pass: Online           # what it reads while the script says yes
+  fail: Offline          # ...and while it says no
+```
+
+The mark in front of it is Oak's, filled for yes and hollow for no, so it is one a console font holds wherever the interface can be drawn at all. Nothing is shown until the script has answered once, and the line gives way to whatever is happening now: the mark that turns while something runs takes its place, and so does a page's own count. A network joined on the network page is read again at once rather than an interval later.
+
+Written in `oak.yaml`, it is every module's. A module that writes `status:` in its own declaration has that one and none of the product's. `pass` and `fail` are read through the module's catalog, and `oak --strings` puts them in its template.
 
 ### The product's shell — `oak.sh`
 
@@ -82,6 +99,7 @@ requires: |                              # optional: what a machine must be for 
 | `console` | Read on the terminal on the way out, where the machine keeps running |
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
 | `requires` | What a machine has to be for this module to be offered on it — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
+| `status` | This module's own line in the header, in place of the product's — see [The header's status](#the-headers-status) |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
 
@@ -156,6 +174,7 @@ What is drawn follows from the declaration — there is no switch for it:
 | `group` | The heading this row and the ones after it sit under, on the settings page |
 | `required` | Required and unanswered is what makes Oak ask |
 | `existing` | On a secret: the password already exists and is only being handed over, so it is asked once — see below |
+| `check` | On a secret: shell that tries it before it is taken — see below |
 | `default` | The answer to start from. Any scalar: `true`, `8`, `pc105` |
 | `prefill` | Shell that prints a suggestion into the box. A suggestion is not an answer, so it does not stop Oak asking |
 | `answer` | Shell that works the value out instead of asking for it — see below |
@@ -181,6 +200,18 @@ It is typed twice, because a password being **chosen** is checked by nothing: a 
     required: true
 ```
 
+**`check:`** tries a secret on what it opens before it is taken — shell, or a file, run with the value under its own name like every answer a script is handed. A non-zero exit refuses it on the page it was typed on, under the module's `error:` or a sentence of Oak's own, and the box starts over; what the shell said goes to the log. So a typo costs a second go at the box rather than a run that stops halfway, on the step that needed the password. The mark in the header turns while it runs, since a wrong password is refused slowly on purpose. On anything but a secret the key is refused.
+
+```yaml
+  - name: TUX_PASSWORD
+    title: Encryption password
+    type: secret
+    existing: true
+    required: true
+    check: printf '%s' "$TUX_PASSWORD" | cryptsetup open --test-passphrase --key-file=- /dev/sda2
+    error: That is not the password of this disk.
+```
+
 **`answer:`** is for the question a machine can see the answer to: whether the disk in front of it is encrypted is a fact, not an opinion. The shell prints the value, and printing nothing leaves it empty.
 
 ```yaml
@@ -194,7 +225,7 @@ It is read when the module opens and again whenever an answer changes, so a valu
 
 **Note:** _Where there is something to decide, there is a question. `answer:` is refused on a secret, alongside `prefill:` and together with `first:`._
 
-**`apply:`** is for an answer that changes the machine the program is running on rather than the one being worked on — `apply: loadkeys "$TUX_KEYMAP"`. It runs the moment the answer is given, and again at startup for an answer this run already had. A failure is logged as a warning and the answer still stands.
+**`apply:`** is for an answer that changes the machine the program is running on rather than the one being worked on — `apply: loadkeys "$TUX_KEYMAP"`. It runs the moment the answer is given, and again at startup for an answer this run already had. Where the answer was just given, a failure is logged as a warning and the answer still stands: whoever chose it is looking at what it did. At startup — and after a preset filled it in — the answer goes back to what it was before anybody answered, and is asked again: nobody watched it being put in force, and a password typed next on a keymap that never loaded is refused without a word about why.
 
 **`first: true`** puts a question before the network screen, the preflight and the presets, so a password can be typed on a keyboard layout that has already been settled. Use it sparingly: it is asked before the check that decides whether this machine can be worked on at all.
 
@@ -393,7 +424,7 @@ Oak decides when a hook runs. A module that fills none of them has no `hooks/` f
 | Hook | Description |
 | --- | --- |
 | `@preflight` | Can this machine be worked on at all. A hard stop, run before everything except the `first` questions. What it writes to stderr is what the user reads |
-| `@online` | Is there internet. Without it the network screen never appears |
+| `@online` | Is there internet. Where it says no, the network screen stands in front of the work on the way in — see below |
 | `@wlan-device` | Which wireless device to use |
 | `@wlan-networks` | The networks in range, one SSID per line |
 | `@wlan-connect` | Join one, with `WLAN_DEVICE`, `WLAN_SSID` and `WLAN_PASSPHRASE` in the environment |
@@ -405,6 +436,8 @@ hooks/@preflight/root/hook.yaml       title: Running as root
 hooks/@preflight/firmware/hook.yaml   title: UEFI, Secure Boot off
 hooks/@online/https/hook.yaml         title: Reach the network
 ```
+
+**The network screen** is where a module joins a wireless network, with the three `@wlan-` hooks. A module that also fills `@online` needs the internet: the screen stands in front of the work on the way in wherever `@online` says no, and a join counts once `@online` says yes. One that fills only the three can do without it: the screen is a row of the menu instead, **Wireless network**, taken whenever somebody wants it, and a join counts once `@wlan-connect` returns.
 
 Every step of a hook runs in order, one process each, and `@preflight` stops at the first that says no — so a check that is really four checks is written as four, each with a name of its own. `needs:` orders them the way it orders a stage. What they print comes back as one answer, which is how `@wlan-networks` hands over a list.
 
@@ -534,7 +567,7 @@ cp modules/setup/locales/setup.pot modules/setup/locales/fr.po
 
 Two catalogs are merged: Oak's own, compiled into the binary, and the module's under `locales/`. A catalog names its own language as the translation of `English`, and that is what the language picker lists — so a language is always shown in its own words.
 
-The language is chosen on the welcome page every run opens on, and can be changed in the settings afterwards. It opens on whatever `oak.conf` last recorded, or on whatever `LC_ALL`, `LC_MESSAGES` or `LANG` comes closest to. It never reaches a script: what a script does is the same in every language.
+The language is chosen on the welcome page every run opens on, and can be changed in the settings afterwards. The page stands on its own rather than in the frame: the wordmark stays where the splash left it, a module named on the command line — or the only one there is — stands under it, and choosing a language is what opens the frame. It opens on whatever `oak.conf` last recorded, or on whatever `LC_ALL`, `LC_MESSAGES` or `LANG` comes closest to. It never reaches a script: what a script does is the same in every language.
 
 `oak --language=de` names it on the command line instead, and the welcome page is not drawn at all: its one question is answered. It is matched the way a locale is, so `de_DE.UTF-8` is German too, and a language no catalog answers to is refused before anything is drawn. It is recorded in `oak.conf` the way a choice made on that page is, so whatever reads that file afterwards reads the language the run was read in.
 

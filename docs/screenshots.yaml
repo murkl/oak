@@ -9,7 +9,7 @@
 
 # The page every run opens on, and the page behind it.
 - steps:
-      - page: please choose your language
+      - page: Please choose your language
         shot: welcome
         press: enter
       - page: What to do
@@ -18,7 +18,7 @@
 # One question, on a page of its own.
 - module: setup
   steps:
-      - page: please choose your language
+      - page: Please choose your language
         press: enter
       - page: Hostname
         shot: question
@@ -27,7 +27,7 @@
 # takes to draw, so that frame is picked out of the ones that went by.
 - module: setup
   steps:
-      - page: please choose your language
+      - page: Please choose your language
         press: enter
       - page: Hostname
         press: enter
@@ -51,7 +51,7 @@
 # page behind it names the script, the line, the command and the exit code.
 - module: recovery
   steps:
-      - page: please choose your language
+      - page: Please choose your language
         press: enter
       - page: [Start, Settings]
         press: enter

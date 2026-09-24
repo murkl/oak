@@ -69,6 +69,8 @@ func TestEveryPlainGlyphIsOneAConsoleFontHas(t *testing.T) {
 		"ask":         g.ask,
 		"skip":        g.skip,
 		"add":         g.add,
+		"on":          g.on,
+		"off":         g.off,
 		"secret":      g.secret,
 	}
 	for name, mark := range marks {

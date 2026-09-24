@@ -18,10 +18,18 @@ import (
 // It is not a wall. Carrying on without a connection is a normal thing to do
 // here — the module's own preflight check runs right after this one and refuses
 // properly if it still matters.
+//
+// The same page is also a row on the hub, for a module that can join a network
+// and can do without one — see newJoin.
 type networkScreen struct {
-	opening
 	app   *app
 	radio *wlan.Radio
+
+	// asked is whether somebody chose to join a network from the hub, rather
+	// than the opening putting the page in front of the work. Then there is
+	// nothing to check first and nothing to carry on to: it looks for networks
+	// at once, and every way out is back to the hub.
+	asked bool
 
 	step  netStep
 	list  *picker
@@ -46,6 +54,22 @@ const (
 
 func newNetwork(a *app, r *wlan.Radio) *networkScreen {
 	return &networkScreen{app: a, radio: r}
+}
+
+// newJoin is the page the hub's row opens.
+func newJoin(a *app, r *wlan.Radio) *networkScreen {
+	return &networkScreen{app: a, radio: r, asked: true}
+}
+
+// In the opening it stands under the opening's heading like the pages beside
+// it. Asked for from the hub, it is a page under the hub like the settings.
+func (s *networkScreen) crumbRoot() bool { return !s.asked }
+
+func (s *networkScreen) crumbHead() string {
+	if s.asked {
+		return ""
+	}
+	return labelOpening()
 }
 
 func (s *networkScreen) Title() string { return labelNetwork() }
@@ -76,6 +100,9 @@ type (
 )
 
 func (s *networkScreen) Init() tea.Cmd {
+	if s.asked {
+		return s.scan()
+	}
 	s.step, s.busy = netChecking, labelNetworkChecking()
 	r := s.radio
 	return func() tea.Msg { return netOnlineMsg{ok: r.Online()} }
@@ -121,7 +148,7 @@ func (s *networkScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			s.step, s.err = netChoosing, msg.err.Error()
 			return s, nil
 		}
-		return s, reset(s.app.afterNetwork())
+		return s, tea.Batch(recheck(), s.leave())
 
 	case tea.KeyMsg:
 		return s, s.key(msg)
@@ -179,7 +206,7 @@ func (s *networkScreen) key(k tea.KeyMsg) tea.Cmd {
 		case confirms(k):
 			// Carry on without. The module's preflight check runs next and
 			// refuses properly if it still matters.
-			return reset(s.app.afterNetwork())
+			return s.leave()
 		case k.String() == "r":
 			return s.Init()
 		case backs(k):
@@ -188,6 +215,15 @@ func (s *networkScreen) key(k tea.KeyMsg) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// leave is where this page hands over, joined or not: on into the opening, or
+// back to the hub it was opened from.
+func (s *networkScreen) leave() tea.Cmd {
+	if s.asked {
+		return pop()
+	}
+	return reset(s.app.afterNetwork())
 }
 
 func (s *networkScreen) scan() tea.Cmd {
@@ -242,8 +278,13 @@ func (s *networkScreen) View(width, height int) string {
 		help = labelNetworkOfflineHelpUnjoinable()
 	}
 	var b strings.Builder
-	b.WriteString(failStyle.Render(glyphs.fail) + field(" ") + boldStyle.Render(body) + "\n\n")
-	b.WriteString(paragraph(help, width) + "\n\n")
+	b.WriteString(failStyle.Render(glyphs.fail) + field(" ") + boldStyle.Render(body))
+	// Asked for, there is nothing to carry on to and nothing downloaded that
+	// the sentence under it would be about: what went wrong is the page.
+	if s.asked {
+		return b.String()
+	}
+	b.WriteString("\n\n" + paragraph(help, width) + "\n\n")
 	b.WriteString(accentBold.Render(glyphs.cursor + labelContinueAnyway()))
 	return b.String()
 }
@@ -256,6 +297,9 @@ func (s *networkScreen) Hint() string {
 		return labelHintNetworkChoosing()
 	case netPassphrase:
 		return labelHintInput()
+	}
+	if s.asked {
+		return labelHintNetworkRetry()
 	}
 	return labelHintNetworkOffline()
 }
