@@ -260,14 +260,18 @@ func init() {
 	cursorMode = cursor.CursorStatic
 }
 
-// quiet is how long the loop waits on a command that is still out there before
-// it takes the interface to have settled anyway.
-//
-// With the clocks stopped this is only ever the installation: a page reacting
-// answers in microseconds, and what is left taking real time is a task, which
-// is a real process. A test watching a run needs the screen while that is still
-// going, so this is the one thing here deliberately not waited out.
+// quiet is how long the loop waits on a command that is still out there while a
+// task runs, before it takes the interface to have settled anyway. A task is a
+// real process, and a test watching a run needs the screen while that is still
+// going, so it is the one thing here deliberately not waited out.
 const quiet = 60 * time.Millisecond
+
+// patience is how long anything else is waited for. A page reacting answers in
+// microseconds - a page fetching what it offers, the next page after a choice -
+// but on a machine busy with the race detector that can take longer than any
+// guess, and a key sent before its page has arrived is a key lost. So it is
+// waited out, and this is only the bound on a command that never answers.
+const patience = 20 * time.Second
 
 // drain handles everything waiting, and everything that arrives while it is
 // handling it, until nothing is left and nothing is still coming.
@@ -282,14 +286,29 @@ func (h *harness) drain() {
 			if h.inflight.Load() == 0 {
 				return
 			}
+			wait := patience
+			if h.running() {
+				wait = quiet
+			}
 			select {
 			case msg = <-h.msgs:
-			case <-time.After(quiet):
+			case <-time.After(wait):
 				return
 			}
 		}
 		h.handle(msg)
 	}
+}
+
+// running is whether a task is out there - anywhere on the stack, since a page
+// asking to leave is drawn over a run that carries on behind it.
+func (h *harness) running() bool {
+	for _, s := range h.m.stack {
+		if r, ok := s.(*runScreen); ok && r.session != nil && !r.done {
+			return true
+		}
+	}
+	return false
 }
 
 // handle is one message put through the program, exactly as bubbletea would.
