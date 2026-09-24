@@ -2,6 +2,17 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.9.0](https://github.com/murkl/oak/compare/v0.8.0...v0.9.0) (2026-09-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* `url` is no longer a key of oak.yaml. The welcome page was its only reader. Delete the line.
+
+### Features
+
+* name the language and run as a kiosk from the command line, and greet in one sentence ([#16](https://github.com/murkl/oak/issues/16)) ([b1c730b](https://github.com/murkl/oak/commit/b1c730b9d20c58aeab881ac20bd13fba06c05b20))
+
 ## [0.8.0](https://github.com/murkl/oak/compare/v0.7.0...v0.8.0) (2026-09-24)
 
 
