@@ -21,6 +21,15 @@ on:
   # the fast gate into the full one.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    # Not the release pull request, which touches nothing but these two. It is
+    # opened with the workflow's own token, and since June 2026 GitHub holds
+    # every run such a pull request starts until somebody approves it - one
+    # nobody does fails the moment it is merged, and the release on main goes
+    # ahead regardless. What it changes is checked where it lands, on main.
+    # https://github.com/orgs/community/discussions/199292
+    paths-ignore:
+      - CHANGELOG.md
+      - .github/.release-please-manifest.json
   # CodeQL alone, on what already shipped — a finding here is news about code
   # that has not changed since, not a reason to run the rest of the file again.
   schedule:
