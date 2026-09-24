@@ -72,7 +72,7 @@ make version-check TAG=v0.5.0
 
 **Note:** _What each number promises a product is written down once, in the **[README](README.md#1-get-oak)**. What counts as a break below 1.0.0 is `.github/release-please-config.json`._
 
-**Note:** _No run starts on the release pull request: GitHub starts none for what its own token opened. It needs none - the merge of it is checked on `main` before the tag exists, which is also why `main` must not require a check that never starts there._
+**Note:** _No run starts on the release pull request: it touches only `CHANGELOG.md` and the release manifest, and both workflows leave a pull request of nothing else out with `paths-ignore`. GitHub itself starts runs for what its own token opened since June 2026, and holds each for an approval - one nobody gives fails the moment the pull request is merged. It needs none - the merge of it is checked on `main` before the tag exists, which is also why `main` must not require a check that never starts there._
 
 ## The Changelog
 
