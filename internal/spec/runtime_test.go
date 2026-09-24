@@ -106,32 +106,6 @@ func TestLoadRuntimeRefusesAnAccentThatIsNotAColour(t *testing.T) {
 	}
 }
 
-// A product's address is read off a screen and typed in somewhere else, so it
-// wants the whole of it — and half of one is refused where it is declared
-// rather than shown as a line that leads nowhere.
-func TestLoadRuntimeRefusesAnAddressThatIsNotOne(t *testing.T) {
-	for _, bad := range []string{"github.com/murkl/oak", "/murkl/oak", "https://"} {
-		dir := writeRuntime(t, "title: Test OS\nurl: "+bad+"\n", "installer")
-		if _, err := LoadRuntime(dir); err == nil {
-			t.Errorf("%q was accepted as an address", bad)
-		} else if !strings.Contains(err.Error(), "url must be") {
-			t.Errorf("error for %q = %q, want it to mention the url", bad, err)
-		}
-	}
-}
-
-func TestLoadRuntimeReadsTheProductsAddress(t *testing.T) {
-	dir := writeRuntime(t, "title: Test OS\nurl: https://github.com/murkl/oak\n", "installer")
-
-	rt, err := LoadRuntime(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rt.URL != "https://github.com/murkl/oak" {
-		t.Errorf("url = %q", rt.URL)
-	}
-}
-
 // The module's identity is its folder: what the page offering it is keyed on,
 // what the command line names, and what its answers are kept under are one word.
 func TestAModuleIsIdentifiedByItsFolder(t *testing.T) {

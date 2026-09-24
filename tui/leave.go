@@ -17,7 +17,8 @@ import (
 // something there. So every way out of the interface arrives here instead, and
 // what is offered is what this machine can actually be left in — off, starting
 // again, or, where the module names a console to go back to, running with the
-// interface closed.
+// interface closed. In a kiosk there is no console to go back to, whatever the
+// module names, and that last row starts the program over instead.
 //
 // It is drawn over whatever was happening rather than in place of it, and
 // nothing is stopped by its appearing: a run carries on behind it and the
@@ -41,9 +42,10 @@ type leaveScreen struct {
 
 // The rows. The NUL prefix cannot collide with anything a module names.
 const (
-	keyRestart  = "\x00restart"
-	keyShutdown = "\x00shutdown"
-	keyConsole  = "\x00console"
+	keyRestart   = "\x00restart"
+	keyShutdown  = "\x00shutdown"
+	keyConsole   = "\x00console"
+	keyStartOver = "\x00start-over"
 )
 
 func newLeave(a *app, halt func(), running bool) *leaveScreen {
@@ -59,8 +61,12 @@ func newLeave(a *app, halt func(), running bool) *leaveScreen {
 	}
 	// Last, and only where the module names a way back: the two rows above end
 	// this machine's session, and this one only ends the program. It reads as
-	// the smallest of the three and belongs under them.
-	if a.module.UI.Console != "" {
+	// the smallest of the three and belongs under them. A kiosk has nothing to
+	// go back to, so the same place holds the one thing it can do instead.
+	switch {
+	case a.kiosk:
+		items = append(items, item{title: labelStartOver(), detail: labelStartOverHelp(), key: keyStartOver})
+	case a.module.UI.Console != "":
 		items = append(items, item{
 			title:  labelConsole(),
 			detail: a.module.ConsoleHelp(),
@@ -147,6 +153,18 @@ func (s *leaveScreen) carryOut(key string) tea.Cmd {
 	// the first thing on the terminal somebody is left looking at.
 	if key == keyConsole {
 		s.app.farewell = s.app.module.ConsoleHelp()
+		return quit()
+	}
+	// Starting over is every answer forgotten and the program closed, for
+	// whatever keeps a kiosk running to start it again: a new process is the
+	// one start that owes nothing to the run before it. Answers that will not
+	// go are said the way the settings page says so, while the program is still
+	// standing to say it.
+	if key == keyStartOver {
+		if err := s.app.store.Reset(); err != nil {
+			logging.Error("%s", err)
+			return flashBad(err.Error())
+		}
 		return quit()
 	}
 	s.doing, s.err = key, nil

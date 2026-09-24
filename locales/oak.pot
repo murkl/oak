@@ -63,17 +63,17 @@ msgstr ""
 msgid "There is no terminal to hand over."
 msgstr ""
 
-#: internal/spec/runtime.go:104
+#: internal/spec/runtime.go:95
 #, c-format
 msgid "A %s file has to sit next to this program, in %s."
 msgstr ""
 
-#: internal/spec/runtime.go:151
+#: internal/spec/runtime.go:133
 #, c-format
 msgid "A %s folder with something in it has to sit next to this program, in %s."
 msgstr ""
 
-#: internal/spec/runtime.go:158
+#: internal/spec/runtime.go:140
 msgid "Nothing to run here."
 msgstr ""
 
@@ -106,11 +106,11 @@ msgstr ""
 msgid "Check every step on the machine it was done to"
 msgstr ""
 
-#: internal/store/store.go:229 tui/labels.go:240
+#: internal/store/store.go:229 tui/labels.go:245
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:231 tui/labels.go:241
+#: internal/store/store.go:231 tui/labels.go:246
 msgid "No"
 msgstr ""
 
@@ -134,39 +134,54 @@ msgstr ""
 msgid "%s was joined, but there is still no internet."
 msgstr ""
 
-#: main.go:183
+#: main.go:187
 #, c-format
 msgid "%s cannot be opened on this machine."
 msgstr ""
 
-#: main.go:221
+#: main.go:234
+#, c-format
+msgid "One language at a time: %s or %s."
+msgstr ""
+
+#: main.go:238
+#, c-format
+msgid "%s needs the code of a language: %s=<code>."
+msgstr ""
+
+#: main.go:241
 #, c-format
 msgid "One module at a time: %s or %s."
 msgstr ""
 
-#: main.go:225
+#: main.go:245
 #, c-format
 msgid "%s needs the name of a module: %s=<id>."
 msgstr ""
 
-#: main.go:228
+#: main.go:248
 #, c-format
 msgid "%q is not something this program takes."
 msgstr ""
 
-#: main.go:229
+#: main.go:249
 #, c-format
 msgid "It takes %s."
 msgstr ""
 
-#: main.go:249
+#: main.go:269
 #, c-format
 msgid "No module called %s."
 msgstr ""
 
-#: main.go:250
+#: main.go:270 main.go:322
 #, c-format
 msgid "This one offers %s."
+msgstr ""
+
+#: main.go:321
+#, c-format
+msgid "No language called %s."
 msgstr ""
 
 #: tui/labels.go:22
@@ -348,110 +363,114 @@ msgstr ""
 msgid "Leave this page. These results are not shown again."
 msgstr ""
 
-#: tui/labels.go:157
-msgid "Validate"
+#: tui/labels.go:156
+msgid "Verify steps"
 msgstr ""
 
 #: tui/labels.go:158
-msgid "Scripts"
-msgstr ""
-
-#: tui/labels.go:160
 msgid "Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
 msgstr ""
 
-#: tui/labels.go:166
+#: tui/labels.go:164
 msgid "Every used value. Open one to change it."
 msgstr ""
 
-#: tui/labels.go:173
+#: tui/labels.go:171
 msgid "Every used value."
 msgstr ""
 
-#: tui/labels.go:180
+#: tui/labels.go:178
 msgid "Reset all answers"
 msgstr ""
 
-#: tui/labels.go:182
+#: tui/labels.go:180
 msgid "Every answer is forgotten and the file they are kept in is deleted. The module starts again at its first question, and this cannot be undone."
 msgstr ""
 
-#: tui/labels.go:185
+#: tui/labels.go:183
 msgid "Repeat"
 msgstr ""
 
-#: tui/labels.go:186
+#: tui/labels.go:184
 msgid "The entries do not match."
 msgstr ""
 
-#: tui/labels.go:196
+#: tui/labels.go:194
 msgid "Ready to start"
 msgstr ""
 
-#: tui/labels.go:197
+#: tui/labels.go:195
 msgid "Failed"
 msgstr ""
 
-#: tui/labels.go:199
+#: tui/labels.go:197
 #, c-format
 msgid "Working · %s"
 msgstr ""
 
-#: tui/labels.go:202
+#: tui/labels.go:200
 #, c-format
 msgid "Finished in %s"
 msgstr ""
 
-#: tui/labels.go:205
+#: tui/labels.go:203
 #, c-format
 msgid "The full log is in %s."
 msgstr ""
 
-#: tui/labels.go:214
+#: tui/labels.go:212
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr ""
 
-#: tui/labels.go:217
+#: tui/labels.go:215
 msgid "Cannot continue"
 msgstr ""
 
-#: tui/labels.go:221
+#: tui/labels.go:219
 msgid "Leave"
 msgstr ""
 
-#: tui/labels.go:226
+#: tui/labels.go:224
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr ""
 
-#: tui/labels.go:229
+#: tui/labels.go:227
 msgid "Restart"
 msgstr ""
 
-#: tui/labels.go:230
+#: tui/labels.go:228
 msgid "Close this machine down and start it again."
 msgstr ""
 
-#: tui/labels.go:231
+#: tui/labels.go:229
 msgid "Shut down"
 msgstr ""
 
-#: tui/labels.go:232
+#: tui/labels.go:230
 msgid "Exit"
 msgstr ""
 
-#: tui/labels.go:233
+#: tui/labels.go:231
 msgid "Switch this machine off."
 msgstr ""
 
-#: tui/labels.go:234
+#: tui/labels.go:235
+msgid "Reset"
+msgstr ""
+
+#: tui/labels.go:237
+msgid "Forget every answer and start again from the beginning."
+msgstr ""
+
+#: tui/labels.go:239
 msgid "Restarting …"
 msgstr ""
 
-#: tui/labels.go:235
+#: tui/labels.go:240
 msgid "Shutting down …"
 msgstr ""
 
-#: tui/labels.go:236
+#: tui/labels.go:241
 msgid "The machine did not respond."
 msgstr ""

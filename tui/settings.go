@@ -40,10 +40,8 @@ type settingsScreen struct {
 // line where one changes. The NUL prefix cannot collide with a group the folder
 // named.
 //
-// Only the middle one carries a heading. The language row is the page's own
-// first line and reads as what it is; the validation row is about the work
-// rather than about a value, and a word over it is what says so; and the row
-// that throws every answer away needs no word at all.
+// None of them carries a heading. Each is one row that says what it is, and the
+// blank line is what sets it apart from the module's own.
 const (
 	groupLanguage = "\x00language"
 	groupValidate = "\x00validate"
@@ -119,10 +117,10 @@ func (s *settingsScreen) collect() []settingRow {
 	// promise nothing keeps.
 	if s.app.module.Checks() {
 		rows = append(rows, settingRow{item: item{
-			title: labelValidatingScripts(),
+			title: labelVerifySteps(),
 			value: store.Label(truth(s.app.prefs.Validates())),
 			key:   store.ValidateVar,
-		}, group: groupValidate, label: labelValidating()})
+		}, group: groupValidate})
 	}
 	rows = append(rows, settingRow{item: item{
 		title: labelReset(),
@@ -242,7 +240,7 @@ func (s *settingsScreen) open(name string) tea.Cmd {
 	case name == store.LangVar:
 		return push(newLanguage(s.app, pop))
 	case name == store.ValidateVar:
-		return push(newSwitch(s.app, labelValidatingScripts(), labelValidatingHelp(), s.app.prefs.Validates(), s.app.validate))
+		return push(newSwitch(s.app, labelVerifySteps(), labelVerifyStepsHelp(), s.app.prefs.Validates(), s.app.validate))
 	case name == keyReset:
 		return push(newReset(s.app))
 	}

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="banner.png" alt="Oak - an installer runtime for Linux. You write the YAML and the shell, Oak is the program around it">
+<img src="banner.png" alt="Oak - build your own Arch Linux distribution. You write the questions and the steps, Oak is the installer around them">
 
 <p>
   <img src="https://img.shields.io/github/v/release/murkl/oak?style=for-the-badge&label=RELEASE&color=8fbcbb" alt="">
@@ -10,11 +10,13 @@
 
 </div>
 
-Every installer is the same program twice: a menu, a set of questions, somewhere to keep the answers, a list of steps and a way to say which one broke. **Oak is that program, written once.** You supply the part that is actually yours — the questions, in YAML, and the work, in shell.
+<p align="center"><b>Build your own Arch Linux distribution — the installer is already written.</b></p>
 
-Oak knows nothing about any operating system. Not a disk, not a package, not a bootloader. That half stays in shell, where you can read it.
+A distribution is mostly its installer, and the installer is where the time goes: menus, questions, keeping the answers, running the steps in order, and saying clearly which one broke. **Oak is all of that, ready to use.** You write only what makes your distribution yours: the questions in YAML and the steps in shell. Oak turns them into a finished installer on the terminal, with languages, starting points, a settings page, progress and error reports.
 
-**[Arch OS](https://github.com/murkl/arch-os)** is a full Arch Linux installer built this way — a good place to see a real one. The **[example](../example)** in this repository is a small one you can run in a minute: every screenshot below comes out of it.
+Oak itself has no opinion about your system: no disk, no package and no boot loader is built in. That part stays in your shell scripts, where you can read it.
+
+**[Arch OS](https://github.com/murkl/arch-os)** is a complete Arch Linux distribution built this way, and a good place to see a real one. The **[example](../example)** in this repository is a small one you can run in a minute: every screenshot below comes out of it.
 
 ## What you get
 
@@ -73,7 +75,7 @@ Every page appears only when it has something to show. A module with no presets 
 
 ```mermaid
 flowchart TD
-    L["Welcome<br/>the link · the language"] --> W["Which module"] --> Q1["Questions marked first"]
+    L["Welcome<br/>the language"] --> W["Which module"] --> Q1["Questions marked first"]
     Q1 --> N["Network"] --> P["Preflight check"] --> PR["Presets"]
     PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
@@ -108,7 +110,6 @@ Oak is versioned by what a product may declare: a new key is a minor version, an
 title: Tux Linux
 version: 1.0.0
 accent: "#8fbcbb"
-url: https://github.com/tux/tux-linux
 ```
 
 ### 3. Write a module — `modules/setup/module.yaml`
@@ -213,11 +214,13 @@ Neither is a task marked `optional: true` that fails: the result stands without 
 
 ## The command line
 
-Six options, and nothing else. Three are about a run:
+Eight options, and nothing else. Five are about a run:
 
 ```
 oak --module=setup     # open that module outright, instead of asking which
+oak --language=de      # read it in that language, and skip the welcome page that asks
 oak --debug            # show the run and start nothing that has not said it simulates itself
+oak --kiosk            # the program is all this machine is for: leaving starts it over
 oak --version          # print the Oak release this binary is — `0.1.0` — and exit
 ```
 
@@ -229,11 +232,11 @@ oak --strings          # write a module's translation template
 oak --glyphs           # every character the interface can put on a console
 ```
 
-Nothing on the command line is an answer. Questions are answered in the interface.
+Nothing on the command line answers a module's question. Those are answered in the interface.
 
 ## Built with Oak
 
-**[Arch OS](https://github.com/murkl/arch-os)** — a reproducible Arch Linux installation: an installer and a recovery, both modules, on one bootable image.
+**[Arch OS](https://github.com/murkl/arch-os)** — Arch Linux installed with ease, as a desktop or a TTY system: an installer and a recovery, both modules, on one bootable image.
 
 ## Everything else
 

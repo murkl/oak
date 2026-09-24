@@ -11,15 +11,17 @@
 // drives a different product by sitting next to a different oak.yaml and a
 // different set of modules.
 //
-// The command line is six options and nothing else. Three are about a run:
+// The command line is eight options and nothing else. Five are about a run:
 // --version says which release this binary is, --module opens one of the
-// folders outright, and --debug shows the run without starting anything that
-// has not said it simulates itself. Two are about the folder rather than the
-// run, for whoever is writing one: --inspect loads it the way a run does and
-// reports what it holds, and --strings writes a module's translation template.
-// And --glyphs is about the binary: every character it can put on a console,
-// for a product that picks the console font to hold that font to. What a
-// product may declare is in the yaml beside the binary, never here.
+// folders outright, --language settles the words it is read in, --debug shows
+// the run without starting anything that has not said it simulates itself, and
+// --kiosk says the program is all its machine is for. Two are about the folder
+// rather than the run, for whoever is writing one: --inspect loads it the way a
+// run does and reports what it holds, and --strings writes a module's
+// translation template. And --glyphs is about the binary: every character it
+// can put on a console, for a product that picks the console font to hold that
+// font to. What a product may declare is in the yaml beside the binary, never
+// here.
 package main
 
 import (
@@ -68,12 +70,14 @@ const (
 // somebody is reading a line off a screen onto, and there is nothing here worth
 // abbreviating.
 const (
-	flagDebug   = "--debug"
-	flagVersion = "--version"
-	flagModule  = "--module"
-	flagInspect = "--inspect"
-	flagStrings = "--strings"
-	flagGlyphs  = "--glyphs"
+	flagDebug    = "--debug"
+	flagVersion  = "--version"
+	flagModule   = "--module"
+	flagLanguage = "--language"
+	flagKiosk    = "--kiosk"
+	flagInspect  = "--inspect"
+	flagStrings  = "--strings"
+	flagGlyphs   = "--glyphs"
 )
 
 func main() {
@@ -132,7 +136,7 @@ func start(args []string) error {
 	if err != nil {
 		return err
 	}
-	return run(rt, mods, cmd.debug)
+	return run(rt, mods, cmd)
 }
 
 // offered cuts the modules down to the ones this machine belongs to, by asking
@@ -189,8 +193,15 @@ type command struct {
 	// the question the interface then asks. The two below narrow to it as well:
 	// a report is about every module unless one was named, and a template
 	// belongs to exactly one.
-	module  string
+	module string
+
+	// language is the language it named, as a catalog's code or a locale the
+	// way the environment writes one, or empty where it named none — which is
+	// the question the welcome page then asks.
+	language string
+
 	debug   bool
+	kiosk   bool
 	version bool
 	inspect bool
 	strings bool
@@ -216,6 +227,15 @@ func parse(args []string) (command, error) {
 			c.strings = true
 		case name == flagGlyphs && !valued:
 			c.glyphs = true
+		case name == flagKiosk && !valued:
+			c.kiosk = true
+		case name == flagLanguage && value != "":
+			if c.language != "" {
+				return c, fmt.Errorf("%s", i18n.T("One language at a time: %s or %s.", c.language, value))
+			}
+			c.language = value
+		case name == flagLanguage:
+			return c, fmt.Errorf("%s", i18n.T("%s needs the code of a language: %s=<code>.", flagLanguage, flagLanguage))
 		case name == flagModule && value != "":
 			if c.module != "" {
 				return c, fmt.Errorf("%s", i18n.T("One module at a time: %s or %s.", c.module, value))
@@ -226,7 +246,7 @@ func parse(args []string) (command, error) {
 		default:
 			return c, fmt.Errorf("%s\n%s",
 				i18n.T("%q is not something this program takes.", arg),
-				i18n.T("It takes %s.", strings.Join([]string{flagDebug, flagVersion, flagModule + "=<id>", flagInspect, flagStrings, flagGlyphs}, ", ")))
+				i18n.T("It takes %s.", strings.Join([]string{flagDebug, flagVersion, flagModule + "=<id>", flagLanguage + "=<code>", flagKiosk, flagInspect, flagStrings, flagGlyphs}, ", ")))
 		}
 	}
 	return c, nil
@@ -250,23 +270,56 @@ func narrow(rt *spec.Runtime, mods []*spec.Module, id string) ([]*spec.Module, e
 		i18n.T("This one offers %s.", strings.Join(rt.Modules, ", ")))
 }
 
-func run(rt *spec.Runtime, mods []*spec.Module, debug bool) error {
+func run(rt *spec.Runtime, mods []*spec.Module, cmd command) error {
 	// The language is asked before a module is opened, so it is offered in every
 	// language any of them speaks and their catalogs are laid over the runtime's
 	// until one has been. Opening a module narrows them to its own.
 	sources := catalogs(mods...)
 	langs := i18n.Discover(sources...)
 
+	// Named on the command line, it is the answer the welcome page would have
+	// asked for, and a name no catalog answers to is said so before anything is
+	// drawn, with everything on offer under it.
+	named, err := chosen(cmd.language, langs)
+	if err != nil {
+		return err
+	}
+
+	// Recorded like a choice made on that page, because it is one: whatever
+	// reads Oak's own file afterwards reads the language this run was read in.
+	// A folder that cannot keep it cannot keep a module's answers either, which
+	// is said now rather than at the first answer.
 	prefs := saved()
+	if named != "" {
+		prefs.SetLang(named)
+		if err := prefs.Save(); err != nil {
+			return err
+		}
+	}
 	i18n.Activate(language(prefs.Lang(), langs), sources...)
 
 	opening := &tui.Opening{
 		Runtime: rt, Modules: mods, Prefs: prefs, Langs: langs, Sources: sources,
-		Oak: version,
+		Oak: version, Settled: named != "", Kiosk: cmd.kiosk,
 	}
 	return tui.Run(opening, func(mod *spec.Module) (*tui.Program, error) {
-		return open(mod, debug)
+		return open(mod, cmd.debug)
 	})
+}
+
+// chosen is the language the command line named, matched the way the
+// environment's own locale is — `de`, `de_DE` and `de_DE.UTF-8` are all German —
+// or nothing where it named none.
+func chosen(name string, langs []i18n.Lang) (string, error) {
+	if name == "" {
+		return "", nil
+	}
+	if code := i18n.Match(name, codes(langs)); code != "" {
+		return code, nil
+	}
+	return "", fmt.Errorf("%s\n%s",
+		i18n.T("No language called %s.", name),
+		i18n.T("This one offers %s.", strings.Join(codes(langs), ", ")))
 }
 
 // glyphs prints every character outside ASCII the interface can put on a

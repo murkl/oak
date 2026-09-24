@@ -2,7 +2,6 @@ package spec
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 
@@ -49,14 +48,6 @@ type Runtime struct {
 	// first blank line a dim eyebrow over it.
 	Accent string `yaml:"accent"`
 	Logo   string `yaml:"logo"`
-
-	// URL is where the rest of this product is: what it is, what it does, who
-	// wrote it. It stands written out on the welcome page, because that page is
-	// read on a machine with nothing on it yet — no browser, often no second
-	// screen — and whoever is in front of it follows the address elsewhere.
-	//
-	// Left out, the page is the greeting and the languages, exactly as before.
-	URL string `yaml:"url"`
 
 	// Version is what this product calls this build of itself, in the corner of
 	// every page. It is the product's own and not the binary's: a release of the
@@ -119,15 +110,6 @@ func LoadRuntime(explicit string) (*Runtime, error) {
 func (r *Runtime) check() error {
 	if r.Accent != "" && !hexColor.MatchString(r.Accent) {
 		return fmt.Errorf("%s: accent must be #rrggbb, got %q", FileRuntime, r.Accent)
-	}
-	// Checked here rather than where it is drawn: the address is put on screen
-	// to be typed into another machine, and half of one leads nowhere. What a
-	// browser fills in from `github.com/...` whoever types it cannot.
-	if r.URL != "" {
-		u, err := url.Parse(r.URL)
-		if err != nil || !u.IsAbs() || u.Host == "" {
-			return fmt.Errorf("%s: url must be an absolute address, got %q", FileRuntime, r.URL)
-		}
 	}
 	return nil
 }

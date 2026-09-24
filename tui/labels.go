@@ -142,21 +142,19 @@ func labelHintChecks() string { return say("↑↓ move · ⏎ select") }
 func labelReviewed() string     { return say("Continue") }
 func labelReviewedHelp() string { return say("Leave this page. These results are not shown again.") }
 
-// The switch in the settings, and the heading it stands under. It is the
-// runtime's own answer and holds for every module: what a task tests is the
-// module's business, whether anything is tested at all is not.
+// The switch in the settings. It is the runtime's own answer and holds for every
+// module: what a task tests is the module's business, whether anything is tested
+// at all is not.
 //
-// The heading is what is being decided and the row is what it is being decided
-// about, so the two read as one line: validate — the scripts. Neither word says
-// what the scripts are for: what a module does with them is the module's, and a
-// runtime that called them installation scripts would be naming the one thing
-// it must not know.
+// One row and no heading over it: the row says what happens, and a heading would
+// only say it a second time. It says steps rather than what they install, because
+// what a module does with them is the module's, and a runtime that called them
+// installation steps would be naming the one thing it must not know.
 //
 // The sentence under it says what saying yes is worth, because somebody reading
 // it is deciding whether a thing they have never seen fail is worth the time.
-func labelValidating() string        { return say("Validate") }
-func labelValidatingScripts() string { return say("Scripts") }
-func labelValidatingHelp() string {
+func labelVerifySteps() string { return say("Verify steps") }
+func labelVerifyStepsHelp() string {
 	return say("Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end.")
 }
 
@@ -231,6 +229,13 @@ func labelRestartHelp() string  { return say("Close this machine down and start 
 func labelShutdown() string     { return say("Shut down") }
 func labelConsole() string      { return say("Exit") }
 func labelShutdownHelp() string { return say("Switch this machine off.") }
+
+// The row a kiosk has where a console would be: every answer forgotten and the
+// program started again, the way it came up the first time.
+func labelStartOver() string { return say("Reset") }
+func labelStartOverHelp() string {
+	return say("Forget every answer and start again from the beginning.")
+}
 func labelRestarting() string   { return say("Restarting …") }
 func labelShuttingDown() string { return say("Shutting down …") }
 func labelLeaveFailed() string  { return say("The machine did not respond.") }

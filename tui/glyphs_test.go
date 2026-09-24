@@ -237,12 +237,7 @@ func TestTheLandingPageFitsAConsoleFont(t *testing.T) {
 	t.Cleanup(func() { adaptGlyphs(false) })
 	adaptGlyphs(true)
 
-	// With the address, because that is the page a console actually draws: an
-	// installer is exactly the kind of product that has somewhere to point at
-	// and nowhere on the machine to open it.
-	rt := testRuntime()
-	rt.URL = "https://example.org/test-os"
-	h := newProduct(t, rt, twoLanguageTree())
+	h := newHarness(t, twoLanguageTree())
 	h.send(tea.WindowSizeMsg{Width: 95, Height: 25})
 	if r := undrawable(h.screen()); r != 0 {
 		t.Errorf("the landing page shows %q, which no console font can draw:\n%s", r, h.screen())

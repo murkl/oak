@@ -67,7 +67,7 @@ CATALOGS := $(wildcard locales/*.po)
 # They need chromium, imagemagick, python-pyte and python-yaml, which a build
 # does not, so they stay out of `check` and are run by hand.
 BANNER_CARDS   := docs/screenshots/report.png docs/screenshots/run.png
-BANNER_TAGLINE := You write the YAML and the shell. Oak is the program around it.
+BANNER_TAGLINE := Build your own Arch Linux distribution. The installer is already written.
 BANNER_CELL    := 17
 
 .PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln secrets-check fmt fmt-check locales locales-check tag-check version-check check github screenshots banner docs clean
