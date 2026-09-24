@@ -516,6 +516,7 @@ func (t *Task) checkHook() error {
 		{"tty", t.TTY},
 		{"progress", t.Progress},
 		{"simulates", t.Simulates},
+		{"optional", t.Optional},
 	}
 	for _, k := range said {
 		if k.used {

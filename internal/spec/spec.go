@@ -431,6 +431,13 @@ type Task struct {
 	// that has not said it knows.
 	Simulates bool `yaml:"simulates"`
 
+	// Optional marks a task the result stands without. Its failure does not
+	// stop the run: the row keeps a cross, the tasks after it run, and what went
+	// wrong is counted and read the way a failed test is. For the work that
+	// hangs on something outside the machine — a download from a service that
+	// may be down — and that nothing after it builds on.
+	Optional bool `yaml:"optional"`
+
 	id    string
 	stage string
 	hook  string

@@ -268,23 +268,26 @@ script: |                            # shell, for a step short enough to read he
 
 A `script:` **and** a `task.sh` is two answers to the same question and is refused, as is neither. Shell written in the yaml has no file for a failure to point at, so what a failure names is the command and the exit code rather than a file and a line.
 
-Nine more keys change what a task **is** rather than what it does:
+Ten more keys change what a task **is** rather than what it does:
 
 | Key | Description |
 | --- | --- |
 | `asks: VAR` | The run pauses to ask for that value first, for something not knowable before the work started. The variable must have a fixed set of answers and must not be a secret. A list that comes back **empty** is a task with nothing to do, and the **whole task** is skipped, so work that has to happen either way sits in a task of its own ahead of the question; a command that **fails** stops the run |
 | `confirm:` | Asked as a yes/no before it runs. Declining skips it and the run carries on |
 | `default: no` | That yes/no opens on No instead of Yes |
-| `report:` | The run stops on a page of its own once this task has finished. The first paragraph is the headline; `{{VAR}}` is filled in — see [Placeholders](#placeholders). Where anything has been tested, the page also says how many passed |
+| `report:` | The run stops on a page of its own once this task has finished. The first paragraph is the headline; `{{VAR}}` is filled in — see [Placeholders](#placeholders). Where anything has been tested, the page also says how many passed, and where an optional task failed, how many did |
 | `shows: VAR` | Puts that answer on the report page as a scannable code, and under it as text |
 | `quits: true` | The program does not return after this task — a reboot |
 | `tty: true` | The interface steps aside and hands the script the whole terminal |
 | `progress: true` | The last line the script drew is shown, dimmed, under its name while it runs — see below |
 | `simulates: true` | Run under `--debug` as well, test and all, because the task reads `DEBUG` itself — see [Simulating](#simulating) |
+| `optional: true` | The result stands without it: a failure does not stop the run — see below |
 
 The terminal is handed over **outright**: all three channels are the terminal itself, whatever Oak's own were pointed at — a service on a console has its stderr in the journal, and a shell draws its prompt on stderr. The script gets a foreground process group of its own on it, so an interactive shell does its job control there, and Oak takes the terminal back when the script exits. A shell inside another system is therefore one line: `arch-chroot /mnt || true`.
 
 **`progress: true`** is for the task nobody can guess the length of and whose output is a bar rather than chatter — an image of several gigabytes arriving over a home connection. Everything any other task prints goes to the log and nowhere else. Here the one line it drew last, on either channel, is shown under its name: a bar redrawn in place counts as the line it was redrawn to, colour is stripped, a line wider than the page loses its start rather than the percentage at its end, and the line is gone as soon as the task is. Together with `tty:` it is refused, because a task handed the terminal already shows everything it prints.
+
+**`optional: true`** is for work that hangs on something outside the machine — a download from a service that may be down — and that nothing after it builds on. Where it fails, its row keeps a cross, its test and its report are left out, and the run goes on with the next task. It still counts: every page the run stops on says how many optional tasks failed, and the list after it opens each one on the same file-and-line report a failed test gets — see [Testing the work](#testing-the-work). A task that everything after it needs is not optional, and saying so would only move the failure to wherever the missing work is first missed.
 
 `shows:` is for a value meant to be used on a different machine than the one displaying it. It is read back from the answer file after the task has run, which is also how the task puts it there:
 
@@ -321,7 +324,7 @@ A test that fails does not fail the run. The work said it worked, and something 
 
 So the tally is read where somebody is actually looking: on every page a `report:` stops the run on, and again under the line that says the run is over. A run whose last offer is a restart is a run most people never see the end of, which is why it is not only said there.
 
-Where something disagreed, the next page is the list of what did — offered **once**, at the first of those stops, and not at all where everything passed. Choosing a row opens the same file-and-line report a failed task gets: the module, the task, the file and line in its `test.sh`, the command and what the tool said. Leaving the list carries the run on into whatever it was going to offer next.
+Where something disagreed, the next page is the list of what did — offered **once**, at the first of those stops, and not at all where everything passed. An optional task that failed is on the same list, ahead of the tests. Choosing a row opens the same file-and-line report a failed task gets: the module, the task, the file and line in its `test.sh`, the command and what the tool said. Leaving the list carries the run on into whatever it was going to offer next.
 
 Both of those pages are left **only by saying so**: the list by choosing the row at the end of it, the report behind it by pressing enter. Esc and backspace do nothing on either. Everywhere else in the program a page that is only read answers to them as well, because leaving it costs nothing — here it costs the only account of what went wrong this run is going to give, and reaching for the key that means back is exactly what somebody does who has just been told something failed.
 

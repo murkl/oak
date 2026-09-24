@@ -77,15 +77,15 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:660
+#: internal/spec/spec.go:667
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:662
+#: internal/spec/spec.go:669
 msgid "This value is required."
 msgstr ""
 
-#: internal/spec/spec.go:672
+#: internal/spec/spec.go:679
 msgid "This answer is not among the ones offered here."
 msgstr ""
 
@@ -106,11 +106,11 @@ msgstr ""
 msgid "Check every step on the machine it was done to"
 msgstr ""
 
-#: internal/store/store.go:229 tui/labels.go:231
+#: internal/store/store.go:229 tui/labels.go:240
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:231 tui/labels.go:232
+#: internal/store/store.go:231 tui/labels.go:241
 msgid "No"
 msgstr ""
 
@@ -326,126 +326,132 @@ msgstr ""
 msgid "%d of %d tests passed"
 msgstr ""
 
-#: tui/labels.go:128
-msgid "Validation"
+#. the first %d is how many optional tasks failed, the second how many ran.
+#: tui/labels.go:134
+#, c-format
+msgid "%d of %d optional tasks failed"
 msgstr ""
 
-#: tui/labels.go:129
+#: tui/labels.go:137
+msgid "Results"
+msgstr ""
+
+#: tui/labels.go:138
 msgid "↑↓ move · ⏎ select"
 msgstr ""
 
-#: tui/labels.go:133
+#: tui/labels.go:142
 msgid "Continue"
 msgstr ""
 
-#: tui/labels.go:134
+#: tui/labels.go:143
 msgid "Leave this page. These results are not shown again."
 msgstr ""
 
-#: tui/labels.go:148
+#: tui/labels.go:157
 msgid "Validate"
 msgstr ""
 
-#: tui/labels.go:149
+#: tui/labels.go:158
 msgid "Scripts"
 msgstr ""
 
-#: tui/labels.go:151
+#: tui/labels.go:160
 msgid "Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
 msgstr ""
 
-#: tui/labels.go:157
+#: tui/labels.go:166
 msgid "Every used value. Open one to change it."
 msgstr ""
 
-#: tui/labels.go:164
+#: tui/labels.go:173
 msgid "Every used value."
 msgstr ""
 
-#: tui/labels.go:171
+#: tui/labels.go:180
 msgid "Reset all answers"
 msgstr ""
 
-#: tui/labels.go:173
+#: tui/labels.go:182
 msgid "Every answer is forgotten and the file they are kept in is deleted. The module starts again at its first question, and this cannot be undone."
 msgstr ""
 
-#: tui/labels.go:176
+#: tui/labels.go:185
 msgid "Repeat"
 msgstr ""
 
-#: tui/labels.go:177
+#: tui/labels.go:186
 msgid "The entries do not match."
 msgstr ""
 
-#: tui/labels.go:187
+#: tui/labels.go:196
 msgid "Ready to start"
 msgstr ""
 
-#: tui/labels.go:188
+#: tui/labels.go:197
 msgid "Failed"
 msgstr ""
 
-#: tui/labels.go:190
+#: tui/labels.go:199
 #, c-format
 msgid "Working · %s"
 msgstr ""
 
-#: tui/labels.go:193
+#: tui/labels.go:202
 #, c-format
 msgid "Finished in %s"
 msgstr ""
 
-#: tui/labels.go:196
+#: tui/labels.go:205
 #, c-format
 msgid "The full log is in %s."
 msgstr ""
 
-#: tui/labels.go:205
+#: tui/labels.go:214
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr ""
 
-#: tui/labels.go:208
+#: tui/labels.go:217
 msgid "Cannot continue"
 msgstr ""
 
-#: tui/labels.go:212
+#: tui/labels.go:221
 msgid "Leave"
 msgstr ""
 
-#: tui/labels.go:217
+#: tui/labels.go:226
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr ""
 
-#: tui/labels.go:220
+#: tui/labels.go:229
 msgid "Restart"
 msgstr ""
 
-#: tui/labels.go:221
+#: tui/labels.go:230
 msgid "Close this machine down and start it again."
 msgstr ""
 
-#: tui/labels.go:222
+#: tui/labels.go:231
 msgid "Shut down"
 msgstr ""
 
-#: tui/labels.go:223
+#: tui/labels.go:232
 msgid "Exit"
 msgstr ""
 
-#: tui/labels.go:224
+#: tui/labels.go:233
 msgid "Switch this machine off."
 msgstr ""
 
-#: tui/labels.go:225
+#: tui/labels.go:234
 msgid "Restarting …"
 msgstr ""
 
-#: tui/labels.go:226
+#: tui/labels.go:235
 msgid "Shutting down …"
 msgstr ""
 
-#: tui/labels.go:227
+#: tui/labels.go:236
 msgid "The machine did not respond."
 msgstr ""

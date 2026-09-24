@@ -209,6 +209,8 @@ The run stops there and says so, on the page a finished run stops on with the ma
 
 A test that disagrees is not that. The work said it worked, so the run carries on and says how many of how many passed — on every page it stops to report something, and again when it is over. Where any of them disagreed, the next page lists them once and opens each on the same report. One switch in the settings turns the whole of it off.
 
+Neither is a task marked `optional: true` that fails: the result stands without it, so its row keeps a cross, the run goes on, and it is counted and listed beside the tests.
+
 ## The command line
 
 Six options, and nothing else. Three are about a run:
