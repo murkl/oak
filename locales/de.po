@@ -171,12 +171,12 @@ msgstr "Es kennt %s."
 msgid "No module called %s."
 msgstr "Kein Modul namens %s."
 
-#: main.go:270 main.go:316
+#: main.go:270 main.go:322
 #, c-format
 msgid "This one offers %s."
 msgstr "Angeboten werden %s."
 
-#: main.go:315
+#: main.go:321
 #, c-format
 msgid "No language called %s."
 msgstr "Keine Sprache namens %s."
