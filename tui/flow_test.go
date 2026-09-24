@@ -1978,7 +1978,7 @@ func TestAFailedTestDoesNotStopTheRun(t *testing.T) {
 	h.wants("Finished in", "First", "0 of 1 tests passed")
 	h.refuses("failed")
 
-	h.enter().wants("Validation", "0 of 1 tests passed", "First")
+	h.enter().wants("Results", "0 of 1 tests passed", "First")
 }
 
 // Opening one is the whole point of the list: what somebody needs from here is
@@ -2042,10 +2042,10 @@ func TestAReportWithAFailedTestIsFollowedByTheList(t *testing.T) {
 
 	// The list, then the one failure on it: which module, which task, which
 	// file and line, and what the tool said.
-	h.enter().wants("Validation", "1 of 2 tests passed", "Second")
+	h.enter().wants("Results", "1 of 2 tests passed", "Second")
 	// Where first, then what the tool said.
 	h.enter().wants("Module", "Task", "Second", "Script", "test.sh", "Exit code", "the disk is empty")
-	h.enter().wants("Validation", "Second")
+	h.enter().wants("Results", "Second")
 
 	// And on into the offer the run was going to make anyway, once the row that
 	// leaves this page has been chosen.
@@ -2062,11 +2062,11 @@ func TestTheListOfFailedTestsIsOfferedOnce(t *testing.T) {
 		"tasks/@go/b-second/task.sh":   "true\n",
 	})
 	h.wants("Installed")
-	h.enter().wants("Validation")
+	h.enter().wants("Results")
 	// The last row leaves it; enter on any other opens the failure under it.
 	h.down().enter().wants("Shared", "0 of 1 tests passed")
 	// On to the end of the run, which counts them again and offers nothing.
-	h.enter().wants("Finished in", "0 of 1 tests passed").refuses("Validation")
+	h.enter().wants("Finished in", "0 of 1 tests passed").refuses("Results")
 	h.enter()
 	if !h.m.quitting {
 		t.Error("the list was put up a second time")
@@ -2082,7 +2082,94 @@ func TestAReportWithNoFailedTestGoesStraightOn(t *testing.T) {
 		"tasks/@go/b-second/task.yaml": "title: Share this configuration\nconfirm: Put these answers online?\n",
 	})
 	h.wants("Installed", "1 of 1 tests passed")
-	h.enter().wants("Put these answers online?").refuses("Validation")
+	h.enter().wants("Put these answers online?").refuses("Results")
+}
+
+// ─── What a run went on past ─────────────────────────────────────────────────
+
+// A task the result stands without is gone past when it fails: the row keeps a
+// cross, the task after it runs, and the run ends as finished rather than as
+// stopped.
+func TestAFailedOptionalTaskDoesNotStopTheRun(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "second")
+	h := installed(t, map[string]string{
+		"tasks/@go/a-first/task.yaml":  "title: First\noptional: true\n",
+		"tasks/@go/a-first/task.sh":    "echo the mirror is down >&2\nexit 1\n",
+		"tasks/@go/b-second/task.yaml": "title: Second\n",
+		"tasks/@go/b-second/task.sh":   "touch '" + marker + "'\n",
+	})
+	h.wants("Finished in", "1 of 1 optional tasks failed", glyphs.fail+" First")
+	h.refuses("Failed")
+	if _, err := os.Stat(marker); err != nil {
+		t.Errorf("the task after the failed one did not run: %v", err)
+	}
+}
+
+// Opening it is the same as opening a failed test: where it broke, and what the
+// tool said.
+func TestAFailedOptionalTaskOpensOnWhereItBroke(t *testing.T) {
+	h := installed(t, map[string]string{
+		"tasks/@go/a-first/task.yaml": "title: First\noptional: true\n",
+		"tasks/@go/a-first/task.sh":   "echo the mirror is down >&2\nexit 1\n",
+	})
+	h.enter().wants("Results", "1 of 1 optional tasks failed", "First")
+	h.enter().wants("Module", "Task", "First", "Script", "task.sh", "Exit code", "the mirror is down")
+	h.enter().wants("Results")
+	h.down().enter()
+	if !h.m.quitting {
+		t.Error("the row that leaves the results page did not leave")
+	}
+}
+
+// Work that did not happen has nothing for a test to read or a report to say.
+func TestAFailedOptionalTaskSkipsItsTestAndReport(t *testing.T) {
+	h := installed(t, map[string]string{
+		"tasks/@go/a-first/task.yaml": "title: First\noptional: true\ntest: \"true\"\nreport: Themed\n",
+		"tasks/@go/a-first/task.sh":   "exit 1\n",
+	})
+	h.wants("Finished in", "1 of 1 optional tasks failed").refuses("tests passed", "Themed")
+}
+
+// Optional work that came off is not news: nothing is counted and nothing is
+// offered.
+func TestAnOptionalTaskThatWorksSaysNothing(t *testing.T) {
+	h := installed(t, map[string]string{
+		"tasks/@go/a-first/task.yaml": "title: First\noptional: true\n",
+		"tasks/@go/a-first/task.sh":   "true\n",
+	})
+	h.wants("Finished in").refuses("optional tasks failed")
+	h.enter()
+	if !h.m.quitting {
+		t.Error("a run whose optional work came off stopped on a page")
+	}
+}
+
+// Both counts on one line, and both kinds on one page: the work that did not
+// happen first, then the checks that disagreed with work that did.
+func TestFailedOptionalTasksAndTestsAreReadTogether(t *testing.T) {
+	h := installed(t, map[string]string{
+		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"false\"\n",
+		"tasks/@go/b-second/task.yaml": "title: Second\noptional: true\n",
+		"tasks/@go/b-second/task.sh":   "exit 1\n",
+	})
+	h.wants("1 of 1 optional tasks failed · 0 of 1 tests passed")
+	view := h.enter().wants("Results", "First", "Second").screen()
+	if strings.Index(view, "Second") > strings.Index(view, "First") {
+		t.Errorf("the failed task is not listed before the failed test:\n%s", view)
+	}
+}
+
+// The page a task stops the run on is the one somebody reads, so it counts the
+// optional work that failed before it, and the list follows it.
+func TestAReportCountsTheOptionalTasksThatFailedBeforeIt(t *testing.T) {
+	h := installed(t, map[string]string{
+		"tasks/@go/a-first/task.yaml":  "title: First\noptional: true\n",
+		"tasks/@go/a-first/task.sh":    "exit 1\n",
+		"tasks/@go/b-second/task.yaml": "title: Second\nreport: Installed\n",
+		"tasks/@go/b-second/task.sh":   "true\n",
+	})
+	h.wants("Installed", "1 of 1 optional tasks failed")
+	h.enter().wants("Results", "First")
 }
 
 // A run with nothing to test says nothing about testing and never stops on a
@@ -2276,13 +2363,13 @@ func TestAFailureIsNotClosedByTheKeyThatMeansBack(t *testing.T) {
 		"tasks/@go/b-second/task.yaml": "title: Second\n",
 		"tasks/@go/b-second/test.sh":   "ls /definitely/not/here\n",
 	})
-	h.enter().wants("Validation", "Second")
+	h.enter().wants("Results", "Second")
 	h.enter().wants("Module", "Task", "Second", "Exit code")
 
 	for _, press := range []func() *harness{h.esc, h.erase, h.down} {
 		press().wants("Module", "Task", "Second", "Exit code")
 	}
-	h.enter().wants("Validation", "Second")
+	h.enter().wants("Results", "Second")
 }
 
 // And the list they are laid out on is left by choosing the row that says so,
@@ -2297,11 +2384,11 @@ func TestTheListOfFailuresIsLeftByTheRowThatSaysSo(t *testing.T) {
 		"tasks/@go/c-extras/task.sh":   "true\n",
 	})
 	h.wants("Installed", "1 of 2 tests passed")
-	h.enter().wants("Validation", "Second", "Continue")
+	h.enter().wants("Results", "Second", "Continue")
 
 	// Every way of saying back leaves the page standing.
-	h.esc().wants("Validation", "Second")
-	h.erase().wants("Validation", "Second")
+	h.esc().wants("Results", "Second")
+	h.erase().wants("Results", "Second")
 
 	// The row says what it costs, and choosing it is what moves the run on.
 	h.down().wants("not shown again")

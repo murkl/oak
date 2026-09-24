@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -65,7 +66,12 @@ type runScreen struct {
 	// stop anything — the work itself said it worked — so they are collected
 	// here, counted under the line that says the run is over, and read in full
 	// on the page after it.
-	tests []testResult
+	tests []outcome
+
+	// optional is every task that declared the result stands without it, and
+	// what its work came to. A failed one is gone past rather than stopped at,
+	// so it is counted and read beside the tests.
+	optional []outcome
 
 	// settled is whether a keystroke means anything yet. It is false while
 	// something is running and for a moment after every question and every
@@ -87,6 +93,7 @@ const (
 	pending mark = iota
 	ran
 	skipped
+	broken
 )
 
 // phase is how far the task at the cursor has got through what it declared
@@ -105,20 +112,21 @@ const (
 	phaseReport
 )
 
-// testResult is what one task's own test came to: the task it belongs to, and
+// outcome is what something the run went on past came to — a task's own test,
+// or the work of a task the result stands without: the task it belongs to, and
 // the failure where there was one.
-type testResult struct {
+type outcome struct {
 	task *spec.Task
 	err  error
 }
 
 // failed reports whether this one is worth reading about afterwards.
-func (r testResult) failed() bool { return r.err != nil }
+func (r outcome) failed() bool { return r.err != nil }
 
-// passed is how many of them the machine agreed with.
-func passed(tests []testResult) int {
+// passed is how many of them came out well.
+func passed(outcomes []outcome) int {
 	n := 0
-	for _, r := range tests {
+	for _, r := range outcomes {
 		if !r.failed() {
 			n++
 		}
@@ -195,8 +203,8 @@ func (s *runScreen) Hint() string {
 		return labelHintRunning()
 	case s.told != nil:
 		return s.told.Hint()
-	case len(s.tests) > 0:
-		// Enter opens what the tests came to, so this is not the last page.
+	case len(s.tests) > 0 || len(s.optional) > 0:
+		// Enter opens what the run went on past, so this is not the last page.
 		return labelHintContinue()
 	}
 	return s.app.hintEnd(labelHintClose())
@@ -315,7 +323,7 @@ func (s *runScreen) prove(e *spec.Task) tea.Cmd {
 	}
 	session, err := s.app.runner.Test(e)
 	if err != nil {
-		s.tests = append(s.tests, testResult{task: e, err: err})
+		s.tests = append(s.tests, outcome{task: e, err: err})
 		return nil
 	}
 	s.settled = false
@@ -377,7 +385,7 @@ func (s *runScreen) start() tea.Cmd {
 	}
 	session, err := s.app.runner.Start(e)
 	if err != nil {
-		return s.finish(err)
+		return s.fell(err)
 	}
 	s.session = session
 	// No clock of its own: the frame already repaints while a page reports it is
@@ -391,6 +399,21 @@ func waitFor(session *exec.Session) tea.Cmd {
 		<-session.Done()
 		return stepDoneMsg{session.Err()}
 	}
+}
+
+// fell is what becomes of a task whose work failed. One the result stands
+// without is written down and gone past, test and report and all — neither has
+// anything to say about work that did not happen. Any other ends the run.
+func (s *runScreen) fell(err error) tea.Cmd {
+	e := s.steps[s.at]
+	if !e.Optional {
+		return s.finish(err)
+	}
+	logging.Warn("%s: %s", e.Title, err)
+	s.session = nil
+	s.state[s.at] = broken
+	s.optional = append(s.optional, outcome{task: e, err: err})
+	return s.advance()
 }
 
 // finish ends the run, one way or the other.
@@ -438,9 +461,12 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case stepDoneMsg:
 		if msg.err != nil {
-			return s, s.finish(msg.err)
+			return s, s.fell(msg.err)
 		}
 		s.state[s.at] = ran
+		if s.steps[s.at].Optional {
+			s.optional = append(s.optional, outcome{task: s.steps[s.at]})
+		}
 		// A task the program does not come back from — a reboot — ends it
 		// here rather than carrying on into a list nobody will ever see again.
 		if s.steps[s.at].Quits {
@@ -462,7 +488,7 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	case testedMsg:
 		e := s.steps[s.at]
 		s.session = nil
-		s.tests = append(s.tests, testResult{task: e, err: msg.err})
+		s.tests = append(s.tests, outcome{task: e, err: msg.err})
 		if msg.err != nil {
 			// Not a failed run: the work said it worked, and something looking
 			// at the machine afterwards disagreed. The run carries on and the
@@ -620,36 +646,60 @@ func (s *runScreen) verdict(width int) string {
 	return field(glyphBlank) + ink.Render(truncate(note, width-markW))
 }
 
-// review is the page listing the tests the machine disagreed with, and nil
-// where there is nothing to put on it.
+// review is the page listing what the run went on past — the optional tasks
+// that failed and the tests the machine disagreed with — and nil where there is
+// nothing to put on it.
 //
-// Offered once. A disagreement is a fact about the run rather than about the
-// moment, so reading it a second time at the next stop would be the same page
-// again. Where everything passed there is no page at all: the count is already
-// under the words, and nothing on it could be opened.
+// Offered once. A failure is a fact about the run rather than about the moment,
+// so reading it a second time at the next stop would be the same page again.
+// Where nothing failed there is no page at all: the count is already under the
+// words, and nothing on it could be opened.
 func (s *runScreen) review(then func() tea.Cmd) tea.Cmd {
-	if s.reviewed || passed(s.tests) == len(s.tests) {
+	failed := s.failures()
+	if s.reviewed || len(failed) == 0 {
 		return nil
 	}
 	s.reviewed, s.reviewing = true, true
-	return push(newValidation(s.app, s.tests, func() tea.Cmd {
+	note, _ := s.tally()
+	return push(newResults(note, failed, func() tea.Cmd {
 		s.reviewing = false
 		return then()
 	}))
 }
 
-// tally is what the tests have come to so far, and whether it is something to
-// look at rather than something to note. Empty where none has run.
+// failures is everything the run went on past, in the order it is read: the
+// work that did not happen before the checks that disagreed with work that did.
+func (s *runScreen) failures() []outcome {
+	var out []outcome
+	for _, r := range slices.Concat(s.optional, s.tests) {
+		if r.failed() {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// tally is what the run has come to so far beyond its own list, and whether it
+// is something to look at rather than something to note: the optional tasks
+// that failed, where any did, and the tests, where any ran. Empty where there is
+// neither.
 //
 // Read at more than one moment — a page a task stops the run on, and the end of
 // the run — so it is one sentence worked out in one place rather than two that
 // could come to disagree.
 func (s *runScreen) tally() (string, bool) {
-	if len(s.tests) == 0 {
-		return "", false
+	var said []string
+	alarm := false
+	if missed := len(s.optional) - passed(s.optional); missed > 0 {
+		said = append(said, labelOptionalFailed(missed, len(s.optional)))
+		alarm = true
 	}
-	ok := passed(s.tests)
-	return labelTestsPassed(ok, len(s.tests)), ok < len(s.tests)
+	if len(s.tests) > 0 {
+		ok := passed(s.tests)
+		said = append(said, labelTestsPassed(ok, len(s.tests)))
+		alarm = alarm || ok < len(s.tests)
+	}
+	return strings.Join(said, " · "), alarm
 }
 
 // headline is the run itself: what is happening, or what happened — and, either
@@ -750,6 +800,8 @@ func (s *runScreen) line(i, width int) string {
 		return accentStyle.Render(glyphs.ok) + field(" ") + softStyle.Render(title)
 	case s.state[i] == skipped:
 		return mutedStyle.Render(glyphs.skip) + field(" ") + mutedStyle.Render(title)
+	case s.state[i] == broken:
+		return failStyle.Render(glyphs.fail) + field(" ") + softStyle.Render(title)
 	case i == s.at && !s.done:
 		return accentStyle.Render(spinFrame()) + field(" ") + boldStyle.Render(title)
 	}

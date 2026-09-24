@@ -334,6 +334,7 @@ func TestAHookStepRefusesWhatItCannotMean(t *testing.T) {
 		"tty":        "tty: true\n",
 		"progress":   "progress: true\n",
 		"simulates":  "simulates: true\n",
+		"optional":   "optional: true\n",
 	} {
 		t.Run(key, func(t *testing.T) {
 			_, err := Load(module(t, hook(HookPreflight, "check", "title: Check\n"+line)))
@@ -1046,5 +1047,19 @@ func TestATaskMayDeclareItsOutputItsProgress(t *testing.T) {
 	_, err = Load(module(t, unit("go", "shell", "title: Shell\nprogress: true\ntty: true\n")))
 	if err == nil || !strings.Contains(err.Error(), "progress") {
 		t.Errorf("err = %v, want progress refused beside tty", err)
+	}
+}
+
+// A task may say the result stands without it, and the load keeps that on that
+// task alone.
+func TestATaskMayDeclareItselfOptional(t *testing.T) {
+	sp, err := Load(module(t, unit("go", "theme", "title: Theme\noptional: true\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range sp.Tasks {
+		if task.Optional != (task.ID() == "theme") {
+			t.Errorf("%s: Optional = %v, want it only where it was declared", task.ID(), task.Optional)
+		}
 	}
 }

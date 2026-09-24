@@ -125,11 +125,20 @@ func labelSettings() string { return say("Settings") }
 // TRANSLATORS: the first %d is how many tests passed, the second how many ran.
 func labelTestsPassed(passed, ran int) string { return say("%d of %d tests passed", passed, ran) }
 
-func labelValidation() string { return say("Validation") }
+// And what it went on past without: how many of the tasks it could do without
+// failed. Said only where one did, since a run whose optional work all came off
+// has nothing to report about it that its list does not already show.
+
+// TRANSLATORS: the first %d is how many optional tasks failed, the second how many ran.
+func labelOptionalFailed(failed, ran int) string {
+	return say("%d of %d optional tasks failed", failed, ran)
+}
+
+func labelResults() string    { return say("Results") }
 func labelHintChecks() string { return say("↑↓ move · ⏎ select") }
 
-// The row that closes the page a run's failed checks are laid out on. It says
-// what pressing it costs, because nothing brings the page back.
+// The row that closes the page a run's failures are laid out on. It says what
+// pressing it costs, because nothing brings the page back.
 func labelReviewed() string     { return say("Continue") }
 func labelReviewedHelp() string { return say("Leave this page. These results are not shown again.") }
 

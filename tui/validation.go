@@ -6,30 +6,31 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// validationScreen is what a run proved about itself, read once it is over.
+// resultsScreen is what a run went on past, read once it stops for something.
 //
 // A task says what it does and, where it can, how to tell that it took: a
 // second script that reads the machine the work was done to and changes nothing
 // on it. Those run as the work goes, and none of them can stop it — a check
 // that disagrees with a task that succeeded is a thing to look at, not a reason
-// to abandon an installation that is already on the disk.
+// to abandon an installation that is already on the disk. The same goes for a
+// task that declared the result stands without it: its failure is gone past
+// rather than stopped at.
 //
-// So this is where they are read: the count, and under it the tasks the machine
-// disagreed with. Open one and the failure is laid out exactly as a failed
-// run's is, because it is the same thing — a module, a task, a script, a line,
-// a command and what it said.
+// So this is where they are read: the count, and under it the tasks that
+// failed or that the machine disagreed with. Open one and the failure is laid
+// out exactly as a failed run's is, because it is the same thing — a module, a
+// task, a script, a line, a command and what it said.
 //
 // The page only exists where there is something on it to open. A run that
 // agreed with itself has already said so in one line, under the words of
 // whatever page it stopped on.
-type validationScreen struct {
-	app *app
-
-	// Every test that ran, and the ones worth opening. Both, because the page
-	// is a proportion: three failures mean something different out of four than
+type resultsScreen struct {
+	// verdict is the count the run worked out, and failed what is worth
+	// opening. The count rather than the rows alone, because the page is a
+	// proportion: three failures mean something different out of four than
 	// out of forty.
-	tests  []testResult
-	failed []testResult
+	verdict string
+	failed  []outcome
 
 	picker *picker
 	done   func() tea.Cmd
@@ -41,14 +42,10 @@ type validationScreen struct {
 // cannot collide with the numbers the other rows are keyed by.
 const keyReviewed = "\x00reviewed"
 
-func newValidation(a *app, tests []testResult, done func() tea.Cmd) *validationScreen {
-	s := &validationScreen{app: a, tests: tests, done: done}
-	items := []item{}
-	for i, r := range tests {
-		if !r.failed() {
-			continue
-		}
-		s.failed = append(s.failed, r)
+func newResults(verdict string, failed []outcome, done func() tea.Cmd) *resultsScreen {
+	s := &resultsScreen{verdict: verdict, failed: failed, done: done}
+	items := make([]item, 0, len(failed)+1)
+	for i, r := range failed {
 		items = append(items, item{title: r.task.Label(), key: strconv.Itoa(i)})
 	}
 	items = append(items, item{title: labelReviewed(), detail: labelReviewedHelp(), key: keyReviewed})
@@ -56,13 +53,13 @@ func newValidation(a *app, tests []testResult, done func() tea.Cmd) *validationS
 	return s
 }
 
-func (s *validationScreen) Title() string { return labelValidation() }
+func (s *resultsScreen) Title() string { return labelResults() }
 
 // Hint: enter opens the failure under the cursor, and the last row is the way
 // on. Esc is not offered and does nothing here — see keyReviewed.
-func (s *validationScreen) Hint() string { return labelHintChecks() }
+func (s *resultsScreen) Hint() string { return labelHintChecks() }
 
-func (s *validationScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
+func (s *resultsScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	s.picker.Update(msg)
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
@@ -84,28 +81,27 @@ func (s *validationScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	return s, nil
 }
 
-// at finds the test a row stands for.
-func (s *validationScreen) at(key string) (testResult, bool) {
+// at finds the failure a row stands for.
+func (s *resultsScreen) at(key string) (outcome, bool) {
 	i, err := strconv.Atoi(key)
-	if err != nil || i < 0 || i >= len(s.tests) {
-		return testResult{}, false
+	if err != nil || i < 0 || i >= len(s.failed) {
+		return outcome{}, false
 	}
-	return s.tests[i], true
+	return s.failed[i], true
 }
 
 // With the sentence under the rows, because the last of them is the one row
 // here that cannot be taken back and has to say so. The others carry none, and
 // the space for it is held either way — a cursor moving must not shift the list
 // above it.
-func (s *validationScreen) View(width, height int) string {
+func (s *resultsScreen) View(width, height int) string {
 	return s.headline() + "\n\n" + withDetail(s.picker, width, height-2)
 }
 
 // headline is the whole verdict in one line: the mark, and how many of how
 // many.
-func (s *validationScreen) headline() string {
-	return failStyle.Render(glyphs.fail) + field(" ") +
-		boldStyle.Render(labelTestsPassed(passed(s.tests), len(s.tests)))
+func (s *resultsScreen) headline() string {
+	return failStyle.Render(glyphs.fail) + field(" ") + boldStyle.Render(s.verdict)
 }
 
 // failureScreen is one failure, opened: everything there is to know about it,
