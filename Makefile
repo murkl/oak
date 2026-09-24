@@ -46,6 +46,10 @@ ARGS    ?=
 # and the indent is in .editorconfig, which is where shfmt reads it from.
 SCRIPTS := $(shell find $(EXAMPLE) -name '*.sh')
 
+# POSIX sh, and executed rather than sourced: one job each rather than a
+# program.
+POSIX_SCRIPTS := .github/settings.sh
+
 # The template every catalog here is filled in from, and the catalogs
 # themselves. Both are generated: the template out of the Go sources, the
 # catalogs out of the template.
@@ -66,7 +70,7 @@ BANNER_CARDS   := docs/screenshots/report.png docs/screenshots/run.png
 BANNER_TAGLINE := You write the YAML and the shell. Oak is the program around it.
 BANNER_CELL    := 17
 
-.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln secrets-check fmt fmt-check locales locales-check tag-check version-check check screenshots banner docs clean
+.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln secrets-check fmt fmt-check locales locales-check tag-check version-check check github screenshots banner docs clean
 
 all: build
 
@@ -153,6 +157,7 @@ locales-check:
 fmt:
 	gofmt -s -w .
 	shfmt -w $(SCRIPTS)
+	shfmt -w -ln posix -i 4 $(POSIX_SCRIPTS)
 
 # The same, asked as a question rather than made as an edit, so a branch that
 # was never formatted fails here instead of arriving later as a diff nobody
@@ -161,6 +166,7 @@ fmt-check:
 	@unformatted="$$(gofmt -s -l .)"; \
 	[ -z "$$unformatted" ] || { echo "not gofmt'd:" >&2; echo "$$unformatted" >&2; exit 1; }
 	shfmt -d $(SCRIPTS)
+	shfmt -d -ln posix -i 4 $(POSIX_SCRIPTS)
 
 # actionlint reads the workflows for what a yaml linter cannot see, and zizmor
 # for what makes one unsafe - offline, so a finding is always about a change
@@ -168,6 +174,7 @@ fmt-check:
 # .github/zizmor.yml.
 lint:
 	shellcheck -x $(SCRIPTS)
+	shellcheck -s sh -S style $(POSIX_SCRIPTS)
 	yamllint .
 	actionlint
 	zizmor --offline --persona auditor .github
@@ -194,6 +201,13 @@ version-check: tag-check
 
 # What has to pass before anything is committed.
 check: fmt-check tidy-check vet staticcheck secrets-check locales-check lint test build inspect
+
+# The repository's settings on GitHub - how a pull request is merged, what main
+# holds one to, what a workflow's token may do - out of .github/settings/. Run
+# by hand after one of them changes, as an admin logged in with gh: no workflow
+# can, since a workflow's token may not change the rules it is held to itself.
+github:
+	.github/settings.sh
 
 # There is deliberately no install target: the binary looks for its oak.yaml
 # beside itself, so a copy on $$PATH with nothing next to it can only say there

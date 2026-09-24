@@ -21,6 +21,15 @@ on:
   # the fast gate into the full one.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    # Not the release pull request, which touches nothing but these two. It is
+    # opened with the workflow's own token, and since June 2026 GitHub holds
+    # every run such a pull request starts until somebody approves it - one
+    # nobody does fails the moment it is merged. The release run reports its
+    # checks instead, and its merge is checked on main.
+    # https://github.com/orgs/community/discussions/199292
+    paths-ignore:
+      - CHANGELOG.md
+      - .github/.release-please-manifest.json
   # CodeQL alone, on what already shipped — a finding here is news about code
   # that has not changed since, not a reason to run the rest of the file again.
   schedule:
@@ -162,6 +171,31 @@ jobs:
 
       - run: make vuln
 
+  # The one check of this file a pull request has to pass before it can be
+  # merged - see .github/settings/ruleset.json. One name for all of them, so a
+  # job listed here is required from the moment it is, and one skipped on a
+  # draft counts as what it is rather than as missing.
+  ready:
+    name: Ready
+    needs: [gate, check, deep]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every job this pull request needed came out well
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            case "$result" in
+            success | skipped) ;;
+            *)
+              echo "::error::a job this pull request needs ended as ${result}"
+              exit 1
+              ;;
+            esac
+          done
+
   # Static analysis that follows a value across functions, which is the one
   # thing vet and staticcheck do not do. Not in the way of a release: a finding
   # here belongs in the security tab, and the code it is about has already
@@ -208,6 +242,7 @@ jobs:
     permissions:
       contents: write # the tag and the release page
       pull-requests: write # the release pull request
+      statuses: write # the two checks it is cleared by
     outputs:
       created: ${{ steps.please.outputs.release_created }}
       tag: ${{ steps.please.outputs.tag_name }}
@@ -218,6 +253,25 @@ jobs:
         with:
           config-file: .github/release-please-config.json
           manifest-file: .github/.release-please-manifest.json
+
+      # The release pull request starts no run - see pull_request above - so
+      # nothing would ever report the two checks main asks of a pull request,
+      # and it could never be merged. It needs neither: it holds what this very
+      # run wrote out of a main that was checked a moment ago, and its merge is
+      # checked again on main before a tag exists. This says so, on the commit it
+      # was written in.
+      - name: The release pull request is cleared to merge
+        if: steps.please.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ fromJSON(steps.please.outputs.pr).headBranchName }}
+        run: |
+          sha="$(gh api "repos/${GH_REPO}/branches/${BRANCH}" --jq .commit.sha)"
+          for check in Ready Title; do
+            gh api --silent "repos/${GH_REPO}/statuses/${sha}" -f state=success -f context="$check" \
+              -f description="Release pull request - checked on main once merged"
+          done
 
   # The binary a release is downloaded as, built at the tag that names it: the
   # version is what `git describe` finds, and until the job above wrote that tag
@@ -259,6 +313,17 @@ jobs:
       - name: The binary answers to the tag
         run: make version-check TAG="$TAG"
 
+      # Which commit and which run this file came out of, signed where it was
+      # made rather than where it is downloaded - and before anything is on the
+      # page, so a signature that fails leaves nothing unsigned behind.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: bin/oak-linux-amd64
+
+      # The release was written as a draft, and a draft is what nobody downloads:
+      # it is made public here, last, once the file is on it. A run that fails
+      # before this leaves a draft to be re-run rather than a release without a
+      # binary that every download link already points at.
       - name: Publish the release
         env:
           NOTES: ${{ needs.release.outputs.notes }}
@@ -288,10 +353,4 @@ jobs:
           FOOTER
 
           gh release upload "$TAG" bin/oak-linux-amd64 --clobber
-          gh release edit "$TAG" --notes-file "$notes"
-
-      # Which commit and which run this file came out of, signed where it was
-      # made rather than where it is downloaded.
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: bin/oak-linux-amd64
+          gh release edit "$TAG" --notes-file "$notes" --draft=false --latest
