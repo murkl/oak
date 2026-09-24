@@ -416,6 +416,13 @@ type Task struct {
 	// that was just installed.
 	TTY bool `yaml:"tty"`
 
+	// Progress marks a task whose output is its progress: the one line it drew
+	// last is shown under its name while it runs. For the few whose running time
+	// nobody can guess and whose output is a bar rather than chatter - an image
+	// of several gigabytes arriving over a home connection. Everything any other
+	// task prints stays in the log, which is the promise the run page makes.
+	Progress bool `yaml:"progress"`
+
 	// Simulates marks a task that is run under --debug as well, because it reads
 	// DEBUG and decides for itself what a simulated run does — a task whose
 	// report is worth seeing, and which can fill it in without touching
@@ -653,6 +660,16 @@ func (v *Variable) Why() string {
 		return i18n.T("This value has the wrong format.")
 	}
 	return i18n.T("This value is required.")
+}
+
+// WhyUnoffered is what an answer is told that its list no longer offers: a
+// disk that is not in this machine, a keymap this system does not have. The
+// module's own words where it wrote any, since it knows what its list is of.
+func (v *Variable) WhyUnoffered() string {
+	if v.Error != "" {
+		return i18n.T(v.Error)
+	}
+	return i18n.T("This answer is not among the ones offered here.")
 }
 
 // Shape is the type with the empty default filled in, so everything else can

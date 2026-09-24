@@ -77,12 +77,16 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:653
+#: internal/spec/spec.go:660
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:655
+#: internal/spec/spec.go:662
 msgid "This value is required."
+msgstr ""
+
+#: internal/spec/spec.go:672
+msgid "This answer is not among the ones offered here."
 msgstr ""
 
 #: internal/store/conf.go:69
@@ -102,11 +106,11 @@ msgstr ""
 msgid "Check every step on the machine it was done to"
 msgstr ""
 
-#: internal/store/store.go:209 tui/labels.go:231
+#: internal/store/store.go:229 tui/labels.go:231
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:211 tui/labels.go:232
+#: internal/store/store.go:231 tui/labels.go:232
 msgid "No"
 msgstr ""
 

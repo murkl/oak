@@ -223,8 +223,8 @@ func (s *settingsScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 
 // leave is what backing out of the page does — ordinarily straight to the hub,
 // but through whatever answer is now missing first. Turning a setting on can
-// call for values nothing has asked for yet — dual boot names two partitions
-// only once it is on — and letting the hub come up before those are answered
+// call for values nothing has asked for yet — a desktop asks for its graphics
+// driver only once it is on — and letting the hub come up before those are answered
 // would leave an install one enter key away from running without them.
 func (s *settingsScreen) leave() tea.Cmd {
 	if missing := s.app.store.Missing(); len(missing) > 0 {

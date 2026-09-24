@@ -213,6 +213,8 @@ lsblk -dn -o PATH,SIZE,MODEL | awk '{printf "%s\t%s  %s %s\n", $1, $1, $2, $3}'
 
 An empty value before the tab is a real answer ("no variant", "the default"), not a blank line to be dropped.
 
+**An answer from such a list is read against it once more** on the page the run is started from, because that is the last moment it can still be put again. A device name is a path, and what is at the path is whatever this machine has plugged in now; an answer file copied over from another machine, or edited by hand, names a disk or a keymap as it stood there. An answer the list no longer prints is asked again, with the module's `error:` — or a sentence of Oak's own — above a list that opens on the `prefill:`, and taken again as soon as the list prints it once more. A list that also takes a typed answer under `free:` is not read, since that answer is not supposed to be in it, and a list that cannot be read vouches neither way.
+
 ## Conditions
 
 One condition, or a list where every one must hold:
@@ -266,20 +268,23 @@ script: |                            # shell, for a step short enough to read he
 
 A `script:` **and** a `task.sh` is two answers to the same question and is refused, as is neither. Shell written in the yaml has no file for a failure to point at, so what a failure names is the command and the exit code rather than a file and a line.
 
-Eight more keys change what a task **is** rather than what it does:
+Nine more keys change what a task **is** rather than what it does:
 
 | Key | Description |
 | --- | --- |
-| `asks: VAR` | The run pauses to ask for that value first, for something not knowable before the work started. The variable must have a fixed set of answers and must not be a secret. A list that comes back **empty** is a task with nothing to do, and the task is skipped; a command that **fails** stops the run |
+| `asks: VAR` | The run pauses to ask for that value first, for something not knowable before the work started. The variable must have a fixed set of answers and must not be a secret. A list that comes back **empty** is a task with nothing to do, and the **whole task** is skipped, so work that has to happen either way sits in a task of its own ahead of the question; a command that **fails** stops the run |
 | `confirm:` | Asked as a yes/no before it runs. Declining skips it and the run carries on |
 | `default: no` | That yes/no opens on No instead of Yes |
 | `report:` | The run stops on a page of its own once this task has finished. The first paragraph is the headline; `{{VAR}}` is filled in — see [Placeholders](#placeholders). Where anything has been tested, the page also says how many passed |
 | `shows: VAR` | Puts that answer on the report page as a scannable code, and under it as text |
 | `quits: true` | The program does not return after this task — a reboot |
 | `tty: true` | The interface steps aside and hands the script the whole terminal |
+| `progress: true` | The last line the script drew is shown, dimmed, under its name while it runs — see below |
 | `simulates: true` | Run under `--debug` as well, test and all, because the task reads `DEBUG` itself — see [Simulating](#simulating) |
 
 The terminal is handed over **outright**: all three channels are the terminal itself, whatever Oak's own were pointed at — a service on a console has its stderr in the journal, and a shell draws its prompt on stderr. The script gets a foreground process group of its own on it, so an interactive shell does its job control there, and Oak takes the terminal back when the script exits. A shell inside another system is therefore one line: `arch-chroot /mnt || true`.
+
+**`progress: true`** is for the task nobody can guess the length of and whose output is a bar rather than chatter — an image of several gigabytes arriving over a home connection. Everything any other task prints goes to the log and nowhere else. Here the one line it drew last, on either channel, is shown under its name: a bar redrawn in place counts as the line it was redrawn to, colour is stripped, a line wider than the page loses its start rather than the percentage at its end, and the line is gone as soon as the task is. Together with `tty:` it is refused, because a task handed the terminal already shows everything it prints.
 
 `shows:` is for a value meant to be used on a different machine than the one displaying it. It is read back from the answer file after the task has run, which is also how the task puts it there:
 
@@ -406,7 +411,7 @@ Every step of a hook runs in order, one process each, and `@preflight` stops at 
 
 Running them one at a time is what makes a mistake in one findable. A hook is a module's own shell, and a typo in it is an authoring bug like any other: the failure names the module, the hook, the step, the file, the line and the command, exactly as a failed task does.
 
-A step is written like any other unit — a `title:`, what it `needs:`, and its `hook.sh` or `script:` — but it is run at a fixed moment rather than listed, offered, reported on or tested afterwards, so `test:`, `conditions:`, `asks:`, `confirm:`, `default:`, `report:`, `shows:`, `quits:` and `tty:` are refused: a line that can never take effect is a line somebody will read as though it could.
+A step is written like any other unit — a `title:`, what it `needs:`, and its `hook.sh` or `script:` — but it is run at a fixed moment rather than listed, offered, reported on or tested afterwards, so `test:`, `conditions:`, `asks:`, `confirm:`, `default:`, `report:`, `shows:`, `quits:`, `tty:` and `progress:` are refused: a line that can never take effect is a line somebody will read as though it could.
 
 The title of a `@preflight` step is read: it is what the failure page names when that check is the one that said no. Everywhere else it is what the file calls itself, and nothing more.
 
@@ -471,7 +476,7 @@ Beside wherever the program was started, never inside a module — which may be 
 | File | Description |
 | --- | --- |
 | `oak.conf` | What Oak keeps across every module: `OAK_LANG`, the language, and `OAK_VALIDATE`, whether a run checks its own work |
-| `<module>.conf` | Every answer, as `KEY='value'`. Plain shell, editable by hand. A secret and a derived answer are not in it |
+| `<module>.conf` | Every answer, as `KEY='value'`. Plain shell, editable by hand. A secret and a derived answer are not in it. Written out whole when a run starts, so a task that copies it hands on exactly what the run ran with |
 | `<module>.log` | Oak's own progress plus every line every script printed |
 
 A second module writes its own pair beside the first, so two started from the same folder never collide.

@@ -479,6 +479,9 @@ func (s *Module) checkTask(t *Task) error {
 	if err := s.checkShows(t); err != nil {
 		return err
 	}
+	if t.Progress && t.TTY {
+		return fmt.Errorf("progress: a task handed the terminal already shows everything it prints")
+	}
 	cond, err := s.conditions(t.Conditions)
 	if err != nil {
 		return err
@@ -511,6 +514,7 @@ func (t *Task) checkHook() error {
 		{"shows", t.Shows != ""},
 		{"quits", t.Quits},
 		{"tty", t.TTY},
+		{"progress", t.Progress},
 		{"simulates", t.Simulates},
 	}
 	for _, k := range said {

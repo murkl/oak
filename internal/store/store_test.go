@@ -443,3 +443,43 @@ func TestADerivedAnswerIsNeitherAskedNorShownNorWritten(t *testing.T) {
 		t.Errorf("the answer file carries a derived answer:\n%s", raw)
 	}
 }
+
+// An answer a list no longer offers is turned away like one that breaks a rule,
+// in the module's own words where it wrote any, and stays missing until another
+// is given. The rule knows the value, not the list, so another value is judged
+// on its own again.
+func TestAnAnswerAListNoLongerOffersIsMissingAgain(t *testing.T) {
+	s := setup(t, `
+variables:
+  - name: DISK
+    title: Disk
+    required: true
+    command: echo /dev/sda
+    error: Choose a disk that exists.
+  - name: KEYMAP
+    title: Keyboard
+    command: echo us
+`)
+	s.Set("DISK", "/dev/sdz")
+	s.Set("KEYMAP", "xx")
+	if names := names(s.Missing()); len(names) != 0 {
+		t.Fatalf("missing = %v before any list was read, want none", names)
+	}
+
+	s.Unoffer("DISK")
+	s.Unoffer("KEYMAP")
+	if names := names(s.Missing()); strings.Join(names, ",") != "DISK,KEYMAP" {
+		t.Errorf("missing = %v, want both answers the lists turned away", names)
+	}
+	if why := s.Invalid(s.mod.Var("DISK"), "/dev/sdz"); why != "Choose a disk that exists." {
+		t.Errorf("why = %q, want the module's own words", why)
+	}
+	if why := s.Invalid(s.mod.Var("KEYMAP"), "xx"); why == "" {
+		t.Error("an answer turned away is accepted where the module wrote no words for it")
+	}
+
+	s.Set("DISK", "/dev/sda")
+	if why := s.Invalid(s.mod.Var("DISK"), "/dev/sda"); why != "" {
+		t.Errorf("another answer is refused: %q", why)
+	}
+}

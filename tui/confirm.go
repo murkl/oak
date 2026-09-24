@@ -15,26 +15,63 @@ import (
 //
 // It answers to enter and nothing else. Every other key, and every scroll — a
 // wheel arrives here as an arrow — leaves the page exactly where it is.
+//
+// It is also the last moment an answer can still be put again, so every answer
+// a list vouches for is read against that list once more on the way in — see
+// Runner.Unoffered. One the list no longer offers sends the run of questions
+// back to it rather than on into the work.
 type confirmScreen struct {
 	app *app
+
+	// checking is whether the lists are still being read; pressed, whether
+	// enter came while they were. Enter is the cheapest key, and it starts the
+	// run the moment they are through rather than being lost.
+	checking, pressed bool
 }
 
-func newConfirm(a *app) *confirmScreen { return &confirmScreen{app: a} }
+func newConfirm(a *app) *confirmScreen { return &confirmScreen{app: a, checking: true} }
 
 func (s *confirmScreen) Title() string { return s.app.module.Name() }
 
 func (s *confirmScreen) Hint() string { return labelHintStart() }
 
+// working puts the turning mark in the header while the lists are read.
+func (s *confirmScreen) working() bool { return s.checking }
+
+func (s *confirmScreen) Init() tea.Cmd {
+	check := s.app.runner.Unoffered()
+	return func() tea.Msg { return unofferedMsg{check()} }
+}
+
+// unofferedMsg is the answers the lists no longer offer.
+type unofferedMsg struct{ names []string }
+
 func (s *confirmScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return s, nil
-	}
-	switch {
-	case confirms(key):
-		return s, push(startInstall(s.app, 0))
-	case backs(key):
-		return s, pop()
+	switch msg := msg.(type) {
+	case unofferedMsg:
+		s.checking = false
+		for _, name := range msg.names {
+			s.app.store.Unoffer(name)
+		}
+		// Asked again in place of this page, as a run of questions that lands
+		// on the hub once it is through: what is about to happen is worth
+		// reading a second time with the new answer in it. The hub stays
+		// underneath, so esc on the question is a step back and not the way out.
+		if missing := s.app.store.Missing(); len(missing) > 0 {
+			return s, replace(newWizard(s.app).screen(missing[0]))
+		}
+		if s.pressed {
+			return s, push(startInstall(s.app, 0))
+		}
+	case tea.KeyMsg:
+		switch {
+		case confirms(msg) && s.checking:
+			s.pressed = true
+		case confirms(msg):
+			return s, push(startInstall(s.app, 0))
+		case backs(msg):
+			return s, pop()
+		}
 	}
 	return s, nil
 }

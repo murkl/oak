@@ -422,3 +422,43 @@ func TestShellsAreLoadedInOrderBeforeTheScript(t *testing.T) {
 		t.Errorf("out = %q, want the module's own, built on the product's", out)
 	}
 }
+
+// A progress bar draws itself over and over on one line, with a carriage return
+// between the drawings, so the line a task last drew is the latest drawing
+// rather than the line the bar will end on - and it is the same whichever of
+// the two channels it was drawn on.
+func TestLatestIsTheLineDrawnLast(t *testing.T) {
+	for _, tc := range []struct{ name, body, want string }{
+		{"lines", "echo first\necho second\n", "second"},
+		{"a bar redrawn in place", "printf 'start\\n\\r 25%%\\r 50%%\\r 75%%'\n", "75%"},
+		{"on stderr", "echo said >&2\n", "said"},
+		{"blank lines after it", "echo kept\necho\necho '   '\n", "kept"},
+		{"colour stripped", "printf '\\033[1;32mdone\\033[0m\\n'\n", "done"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := sh.Start(Step{Name: "Test", Script: sourced(t, tc.body)}, Env(os.Environ()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			<-s.Done()
+			if got := s.Latest(); got != tc.want {
+				t.Fatalf("latest line is %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// A line still being drawn is shown while it is drawn, not only once it ends.
+func TestLatestFollowsALineThatHasNotEndedYet(t *testing.T) {
+	w := &progressWriter{}
+	var got string
+	w.sink = func(line string) { got = line }
+	w.Write([]byte("downloading\n######"))
+	if got != "######" {
+		t.Fatalf("latest line is %q, want the unfinished bar", got)
+	}
+	w.Write([]byte("####  40%"))
+	if got != "##########  40%" {
+		t.Fatalf("latest line is %q, want the bar drawn so far", got)
+	}
+}
