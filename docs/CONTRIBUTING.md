@@ -19,19 +19,28 @@ flowchart LR
 
 - Branch off `main`, name it `feature/<what>`
 - Open a pull request right away, as a draft while there is nothing to read yet: a branch is checked through its pull request and not on its own. Leaving draft is what adds the race detector and the vulnerability scan
-- **Merge with squash.** One pull request is one commit, so `main` stays a straight line - and its title is the line the next version and the changelog are read out of
+- **Merge with squash**, and only once `Ready` and `Title` have passed - `main` refuses anything else. One pull request is one commit, so `main` stays a straight line - and its title is the line the next version and the changelog are read out of
+- **Or switch on auto-merge** on the pull request, and it squashes itself into `main` the moment both have passed
 
 **Note:** _A commit is under one run and never two: CI runs on pull requests and on `main`, and nowhere else, so there is nothing to ask about which of them a push belongs to._
 
-**Repository settings this relies on:**
+## The Repository
 
-| Where | Setting | Value |
-| --- | --- | --- |
-| General → Pull Requests | Allow merge commits | off |
-| General → Pull Requests | Allow squash merging | on |
-| General → Pull Requests | Allow rebase merging | off |
-| Branch protection on `main` | Require linear history | on |
-| Actions → General | Allow GitHub Actions to create and approve pull requests | on |
+What GitHub holds this repository to is kept in **[.github/settings/](../.github/settings)** rather than clicked, and applied with one command by an admin logged in with `gh`:
+
+```
+make github
+```
+
+| File | Says |
+| --- | --- |
+| `repository.json` | Squash merges only, under the pull request's title and body; auto-merge on; a merged branch is deleted |
+| `ruleset.json` | `main` takes nothing but a pull request, squashed, once `Ready` and `Title` have passed; no force push, no deletion |
+| `actions.json` | A workflow's token reads unless it says otherwise, and may open the release pull request |
+
+Run it again after changing one of them - every call sets the whole state, so a second run changes nothing. No workflow does it: a workflow's token may not change the rules it is itself held to. The files and the script are the same in every project released this way.
+
+**Note:** _`Ready` passes a draft, whose race detector and vulnerability scan are skipped - a draft cannot be merged anyway, and leaving draft starts the run that decides it. The release pull request starts no run, and the release run reports both checks on it itself - see **[Releasing](#releasing)**._
 
 ## The Title
 
@@ -53,7 +62,7 @@ The title of a pull request is read by a machine, so it is written for one - [Co
 Two merges, both of them ordinary, and nothing typed:
 
 1. **Squash merge the work into `main`.** The run checks it and opens - or updates - a pull request called `chore(main): release 0.6.0`, which writes that version's section of the changelog
-2. **Merge that pull request.** The run on `main` writes the tag `v0.6.0` and the release page out of the changelog, builds `oak-linux-amd64` at that tag and hangs it there under signed provenance
+2. **Merge that pull request.** The run on `main` writes the tag `v0.6.0` and the release page out of the changelog as a draft, builds `oak-linux-amd64` at that tag, hangs it there under signed provenance and only then publishes the page. A run that fails on the way leaves a draft to re-run, never a release without its binary
 
 Several merges collect in the one release pull request until it is merged, and a merge that releases nothing - `docs:`, `chore:` - opens none at all.
 
@@ -72,7 +81,7 @@ make version-check TAG=v0.5.0
 
 **Note:** _What each number promises a product is written down once, in the **[README](README.md#1-get-oak)**. What counts as a break below 1.0.0 is `.github/release-please-config.json`._
 
-**Note:** _No run starts on the release pull request: it touches only `CHANGELOG.md` and the release manifest, and both workflows leave a pull request of nothing else out with `paths-ignore`. GitHub itself starts runs for what its own token opened since June 2026, and holds each for an approval - one nobody gives fails the moment the pull request is merged. It needs none - the merge of it is checked on `main` before the tag exists, which is also why `main` must not require a check that never starts there._
+**Note:** _No run starts on the release pull request: it touches only `CHANGELOG.md` and the release manifest, and both workflows leave a pull request of nothing else out with `paths-ignore`. GitHub itself starts runs for what its own token opened since June 2026, and holds each for an approval - one nobody gives fails the moment the pull request is merged. It needs none - it holds what the release run wrote out of a `main` checked a moment before, and its merge is checked on `main` before the tag exists. So the release run itself reports `Ready` and `Title` on the commit it wrote, which is what lets `main` require both of every other pull request._
 
 ## The Changelog
 
@@ -95,13 +104,14 @@ flowchart TD
 
 | Job | Where | Description |
 | --- | --- | --- |
-| `Title` | a pull request opened or renamed | The line the next version is read out of. Its own workflow, so a rename re-reads it and rebuilds nothing |
+| `Title` | a pull request opened, pushed to or renamed | The line the next version is read out of. Its own workflow, so a rename re-reads it and rebuilds nothing |
 | `Gate` | a pull request, `main`, on demand | What the rest of the run does, decided once |
 | `Check` | a pull request, `main`, on demand | `make check`, and the binary answering for itself |
 | `Race and vulnerabilities` | a pull request out of draft, `main`, on demand | The two checks that ask something outside the tree |
+| `Ready` | a pull request | Every job above it needed has passed. Together with `Title`, what `main` requires before a merge |
 | `CodeQL` | `main`, and weekly | Static analysis that follows a value across functions |
 | `Release` | a push to `main` | The version, the changelog and the tag - or the pull request that will carry them |
-| `Publish` | a release | Builds `oak-linux-amd64` at that tag and hangs it on the page |
+| `Publish` | a release | Builds `oak-linux-amd64` at that tag, hangs it on the page and makes the page public |
 
 The binary a release publishes is built once the tag exists, because the version it answers to is that tag. Same sources the checks ran on, one commit back and one version further on.
 
