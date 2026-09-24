@@ -195,3 +195,61 @@ func TestANameTheProductsShellSetsIsNotUnset(t *testing.T) {
 		t.Errorf("unset = %v, want SHARED answered by the product's shell", unset)
 	}
 }
+
+// The header's status is the product's for every module that says nothing of
+// its own, and its words are in that module's template — a module's catalog is
+// what the line is read through while the module is open.
+func TestAModuleWithoutAStatusOfItsOwnTakesTheProducts(t *testing.T) {
+	dir := writeRuntime(t, testRuntime+"status:\n  script: is_online\n  every: 5\n  pass: Online\n  fail: Offline\n", "installer")
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := mods[0].Status
+	if st == nil || st.Script != "is_online" || st.Words(true) != "Online" || st.Interval().Seconds() != 5 {
+		t.Fatalf("status = %+v, want the product's", st)
+	}
+	var files []string
+	for _, m := range mods[0].Messages() {
+		if m.Text == "Offline" {
+			files = m.Files
+		}
+	}
+	if want := []string{"../../" + FileRuntime}; !slices.Equal(files, want) {
+		t.Errorf("Offline is said in %v, want %v", files, want)
+	}
+}
+
+// A module that declares one has that one, and none of the product's.
+func TestAModulesOwnStatusReplacesTheProducts(t *testing.T) {
+	dir := writeRuntime(t, testRuntime+"status:\n  script: is_online\n  pass: Online\n", "installer")
+	decl := filepath.Join(dir, DirModules, "installer", FileModule)
+	if err := os.WriteFile(decl, []byte("title: The installer\nstages: [go]\nstatus:\n  script: exit 0\n  fail: Down\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := mods[0].Status
+	if st.Script != "exit 0" || st.Words(true) != "" || st.Words(false) != "Down" || st.Interval().Seconds() != statusEvery {
+		t.Errorf("status = %+v, want the module's own and nothing of the product's", st)
+	}
+}
+
+// A status is read with its script, so one without is refused where it was
+// written rather than showing nothing and saying nothing about why.
+func TestAStatusWithoutAScriptIsRefused(t *testing.T) {
+	_, err := LoadRuntime(writeRuntime(t, testRuntime+"status:\n  pass: Online\n", "installer"))
+	if err == nil || !strings.Contains(err.Error(), "script is what the status is read with") {
+		t.Errorf("err = %v, want a status without a script refused", err)
+	}
+}

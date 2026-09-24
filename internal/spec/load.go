@@ -47,6 +47,9 @@ type declaration struct {
 
 	Presets   []*Preset   `yaml:"presets"`
 	Variables []*Variable `yaml:"variables"`
+
+	// The header's line for this module, in place of the product's.
+	Status *Status `yaml:"status"`
 }
 
 // Load reads one module folder and checks it over — every reference resolved,
@@ -65,6 +68,10 @@ func Load(dir string) (*Module, error) {
 	s.UI = UI{Title: head.Title, Description: head.Description, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Confirm, s.Stages = head.Confirm, head.Stages
+	if err := head.Status.settle(dir, FileModule); err != nil {
+		return nil, fmt.Errorf("%s: %w", FileModule, err)
+	}
+	s.Status = head.Status
 	requires, err := scriptFile(dir, head.Requires)
 	if err != nil {
 		return nil, fmt.Errorf("%s: requires: %w", FileModule, err)
@@ -726,6 +733,9 @@ func (s *Module) checkVars() error {
 		if v.Existing && !v.Secret() {
 			return fmt.Errorf("%s: existing says a password is entered rather than chosen, and only a secret is either", v.Name)
 		}
+		if v.Check != "" && !v.Secret() {
+			return fmt.Errorf("%s: check looks at a secret as it is typed, and any other answer is held to its pattern", v.Name)
+		}
 		if len(v.Values) > 0 && v.Command != "" {
 			return fmt.Errorf("%s: values and command are two answers to the same question", v.Name)
 		}
@@ -757,7 +767,7 @@ func (s *Module) checkVars() error {
 			}
 			v.re = re
 		}
-		for _, expr := range []*string{&v.Command, &v.Prefill, &v.Apply, &v.Answer} {
+		for _, expr := range []*string{&v.Command, &v.Prefill, &v.Apply, &v.Answer, &v.Check} {
 			resolved, err := shell(s.Dir, *expr)
 			if err != nil {
 				return fmt.Errorf("%s: %w", v.Name, err)

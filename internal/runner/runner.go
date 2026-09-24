@@ -189,16 +189,20 @@ func (r *Runner) Prefill(v *spec.Variable) string {
 // unusable as a stored string and has to be loaded before the next thing is
 // typed.
 //
-// A failure is a warning and no more, like a prefill's: the answer stands
-// either way, and an installer that stops because a keymap would not load is
-// worse than one carrying on with the layout it already had.
-func (r *Runner) Apply(v *spec.Variable) {
+// A failure is logged and handed back. Where the answer was just given, it
+// stands all the same: an installer that stops because a keymap would not load
+// is worse than one carrying on with the layout it already had, and whoever
+// chose it is looking at the keyboard it did or did not change. See Settle for
+// the answer nobody is looking at.
+func (r *Runner) Apply(v *spec.Variable) error {
 	if v.Apply == "" {
-		return
+		return nil
 	}
-	if _, err := r.sh.Run(v.Apply, r.store.Env()); err != nil {
+	_, err := r.sh.Run(v.Apply, r.store.Env())
+	if err != nil {
 		logging.Warn("apply for %s: %s", v.Name, err)
 	}
+	return err
 }
 
 // Import is shell that answers questions rather than reporting anything: a
@@ -214,6 +218,28 @@ func (r *Runner) Apply(v *spec.Variable) {
 func (r *Runner) Import(shell string) func() error {
 	env := r.store.Env()
 	return func() error { return r.sh.Reason(shell, env) }
+}
+
+// Check hands a secret to the module's check before it is taken — an existing
+// password, tried on what it opens — and answers whether it was accepted. What
+// the check said where it said no goes to the log, since the page reads the
+// module's own words. Nil where the variable declares none.
+//
+// Handed back as something to run, like Import: the environment is taken now,
+// with the value in it under its own name, and the shell runs off the frame —
+// a wrong password is refused slowly on purpose.
+func (r *Runner) Check(v *spec.Variable, value string) func() bool {
+	if v.Check == "" {
+		return nil
+	}
+	env := append(r.store.Env(), v.Name+"="+value)
+	return func() bool {
+		err := r.sh.Reason(v.Check, env)
+		if err != nil {
+			logging.Warn("check for %s: %s", v.Name, err)
+		}
+		return err == nil
+	}
 }
 
 // Imported reads back what such a script left in the answer file and puts
@@ -258,12 +284,40 @@ func (r *Runner) Resolve() {
 // startup, so a second start stands where the first one left off, and after a
 // preset, whose values were never typed at a prompt that could have applied
 // them one at a time.
+//
+// An answer that cannot be put in force goes back to what it was before anybody
+// answered, so it is asked again. Nobody watched it being applied: an answer
+// file handed over from another machine names a keymap that loaded there, and a
+// password typed next on the layout it failed to load is refused without a word
+// about why.
 func (r *Runner) Settle() {
 	r.Resolve()
 	for _, v := range r.mod.Vars {
-		if r.store.Get(v.Name) != "" {
-			r.Apply(v)
+		if r.store.Get(v.Name) == "" {
+			continue
 		}
+		if err := r.Apply(v); err != nil {
+			r.store.Set(v.Name, v.Default.String())
+		}
+	}
+}
+
+// Status reads the header's status once, as the machine stands now: whether
+// its script says yes. Nil where neither the module nor the product declares
+// one.
+//
+// Handed back as something to run, like Import: the environment is taken now,
+// on the goroutine that owns the answers, and the shell — which may go out to
+// the network — runs off the frame.
+func (r *Runner) Status() func() bool {
+	st := r.mod.Status
+	if st == nil {
+		return nil
+	}
+	env := r.store.Env()
+	return func() bool {
+		_, err := r.sh.Run(st.Script, env)
+		return err == nil
 	}
 }
 

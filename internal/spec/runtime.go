@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/murkl/oak/internal/i18n"
 )
@@ -59,6 +61,10 @@ type Runtime struct {
 	// though it were the product's.
 	Version string `yaml:"version"`
 
+	// Status is the line opposite the name in every module's header, unless a
+	// module says one of its own — see Status.
+	Status *Status `yaml:"status"`
+
 	// Modules is what this runtime offers, in the order it offers them: the
 	// folders in DirModules, by name.
 	//
@@ -100,6 +106,9 @@ func LoadRuntime(explicit string) (*Runtime, error) {
 	r.Shell = beside(dir, FileRuntimeShell)
 	if err := r.check(); err != nil {
 		return nil, err
+	}
+	if err := r.Status.settle(dir, FileRuntime); err != nil {
+		return nil, fmt.Errorf("%s: %w", FileRuntime, err)
 	}
 	if r.Modules, err = discover(filepath.Join(dir, DirModules)); err != nil {
 		return nil, err
@@ -157,6 +166,17 @@ func (r *Runtime) LoadModules() ([]*Module, error) {
 			return nil, fmt.Errorf("%s: %w", id, err)
 		}
 		mod.Shared = r.Shell
+		if mod.Status == nil && r.Status != nil {
+			// Named from the module's folder, the way a translator's template
+			// names every other file a string of the module came out of.
+			from, err := filepath.Rel(mod.Dir, r.File)
+			if err != nil {
+				return nil, err
+			}
+			inherited := *r.Status
+			inherited.file = filepath.ToSlash(from)
+			mod.Status = &inherited
+		}
 		out = append(out, mod)
 	}
 	return out, nil
@@ -170,4 +190,74 @@ func root(explicit string) (string, error) {
 		dir = binaryDir()
 	}
 	return filepath.Abs(dir)
+}
+
+// Status is one thing about the machine the header keeps an eye on while a
+// module is open — whether it is online, most of all. Shell run every so often,
+// and the few words it reads as while that shell says yes and while it says no.
+//
+// It stands opposite the name on the pages where nothing else does: the mark
+// that turns while something runs takes its place, and so does a page's own
+// count. The two marks it is shown with are Oak's, drawn from the same set as
+// every other mark, so a console font that holds the interface holds them too.
+//
+// Declared once in oak.yaml for every module of the product, and in a module's
+// own declaration for that module alone, which replaces the product's outright.
+type Status struct {
+	// Script is shell, or the file it lives in, whose exit status is the answer:
+	// zero for yes. Run with the module's shell loaded and its answers in the
+	// environment, like everything else a module runs.
+	Script string `yaml:"script"`
+
+	// Every is how many seconds lie between two runs of it. Left out, ten.
+	Every int `yaml:"every"`
+
+	// Pass and Fail are what the line reads while the script says yes and while
+	// it says no. Either may be left out, and the mark alone says it.
+	Pass string `yaml:"pass"`
+	Fail string `yaml:"fail"`
+
+	// file is where it was declared, as the module's folder names it.
+	file string
+}
+
+// statusEvery is how often a status is read where its declaration says nothing:
+// often enough for a cable plugged in to show before anybody wonders, rarely
+// enough that a check going out to the network is not a load of its own.
+const statusEvery = 10
+
+// settle checks a status over and resolves its script against the folder it
+// was declared in. Nothing declared is nothing to check.
+func (st *Status) settle(dir, file string) error {
+	if st == nil {
+		return nil
+	}
+	switch {
+	case strings.TrimSpace(st.Script) == "":
+		return fmt.Errorf("status: script is what the status is read with, and it is missing")
+	case st.Every < 0:
+		return fmt.Errorf("status: every is a number of seconds, and %d is not one", st.Every)
+	}
+	script, err := shell(dir, st.Script)
+	if err != nil {
+		return fmt.Errorf("status: %w", err)
+	}
+	st.Script, st.file = script, file
+	return nil
+}
+
+// Interval is how long lies between two reads of it.
+func (st *Status) Interval() time.Duration {
+	if st.Every == 0 {
+		return statusEvery * time.Second
+	}
+	return time.Duration(st.Every) * time.Second
+}
+
+// Words is what the line reads as for an answer, translated.
+func (st *Status) Words(pass bool) string {
+	if pass {
+		return i18n.T(st.Pass)
+	}
+	return i18n.T(st.Fail)
 }

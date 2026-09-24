@@ -199,6 +199,10 @@ type Module struct {
 	// itself, and nothing anywhere holds a list of which is which.
 	Requires Script
 
+	// Status is what the header keeps an eye on while this module is open: its
+	// own, or the product's where it declares none. Nil where neither does.
+	Status *Status
+
 	// Language names the variable whose answer also settles the words this
 	// interface is read in — a module that asks where a machine is has asked which
 	// language it speaks, and asking again would be the same question twice. The
@@ -558,6 +562,17 @@ type Variable struct {
 	// twice to open something that would have said no is.
 	Existing bool `yaml:"existing"`
 
+	// Check looks at a secret before it is taken, with the value under its own
+	// name like every answer a script is handed: an existing password, tried on
+	// the thing it opens. A non-zero exit refuses it on the page it was typed
+	// on, in the words the shell said on stderr — so a typo costs a second go at
+	// the box rather than a run that stops halfway on the step that needed it.
+	//
+	// Only a secret has one. Every other answer is on the settings page to be
+	// read again and held to its pattern, while a secret is typed once, right
+	// before the run, and gone afterwards.
+	Check string `yaml:"check"`
+
 	// First puts this question before everything else the program does — before
 	// the network screen, before the module's own check of the machine, before the
 	// starting point is chosen. For the answer that everything after it is typed
@@ -616,7 +631,8 @@ type Variable struct {
 	// answer is a string a script reads later — but a console keyboard is not a
 	// string: until it is loaded, every answer after it is typed on a layout
 	// nobody chose. It runs when the answer is given, and once at startup for an
-	// answer this run began with.
+	// answer this run began with — which is asked again where it fails, since
+	// nobody watched it being put in force.
 	Apply string `yaml:"apply"`
 
 	Pattern    string     `yaml:"pattern"`
@@ -677,6 +693,16 @@ func (v *Variable) WhyUnoffered() string {
 		return i18n.T(v.Error)
 	}
 	return i18n.T("This answer is not among the ones offered here.")
+}
+
+// WhyRefused is what a secret is told that its check turned away: the module's
+// own words where it wrote any. Never what the check printed, which is a tool
+// talking to a log in whatever language it was built in.
+func (v *Variable) WhyRefused() string {
+	if v.Error != "" {
+		return i18n.T(v.Error)
+	}
+	return i18n.T("This password was not accepted.")
 }
 
 // Shape is the type with the empty default filled in, so everything else can
@@ -795,6 +821,10 @@ func (s *Module) Messages() []Message {
 		add(decl, v.Name+": the heading its row sits under", v.Group)
 		add(decl, v.Name+": the row that opens a box for an answer of one's own", v.Free)
 		add(decl, v.Name+": what a wrong answer is told", v.Error)
+	}
+	if st := s.Status; st != nil {
+		add(st.file, "the header's status, while its check says yes", st.Pass)
+		add(st.file, "the header's status, while its check says no", st.Fail)
 	}
 	for _, t := range s.Tasks {
 		file := path.Join(DirTasks, Stage(t.Stage()), t.ID(), FileTask)

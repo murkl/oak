@@ -16,8 +16,9 @@ import (
 )
 
 // Config is the shell one module uses to find and join a network, one hook to
-// a field. Every one is optional bar Online: a module may say only "tell me if
-// I am offline".
+// a field. A module may say only "tell me if I am offline", or only how to join
+// one — a machine that can do without the internet has nothing to ask about it
+// on the way in, and still somebody may want it there.
 type Config struct {
 	Online   []exec.Step
 	Device   []exec.Step
@@ -56,15 +57,20 @@ const (
 	defaultTries  = 4
 )
 
-// New builds the module's radio. A module that cannot even say whether it is online
-// gets a nil Radio, which is not an error — it just never gets offered the
-// screen.
+// New builds the module's radio. A module that can neither say whether it is
+// online nor join anything gets a nil Radio, which is not an error — it just
+// never gets offered the screen.
 func New(cfg Config, sh exec.Runner, env func() exec.Env) *Radio {
-	if len(cfg.Online) == 0 {
+	r := &Radio{cfg: cfg, sh: sh, env: env, settle: defaultSettle, tries: defaultTries}
+	if !r.Checks() && !r.Joinable() {
 		return nil
 	}
-	return &Radio{cfg: cfg, sh: sh, env: env, settle: defaultSettle, tries: defaultTries}
+	return r
 }
+
+// Checks reports whether the module can tell if there is internet, which is
+// what puts the network page in front of the work where there is none.
+func (r *Radio) Checks() bool { return len(r.cfg.Online) > 0 }
 
 // Joinable reports whether the module described enough to actually connect.
 func (r *Radio) Joinable() bool {
@@ -114,6 +120,11 @@ func (r *Radio) Join(device, ssid, passphrase string) error {
 	if _, err := r.sh.Hook(r.cfg.Connect, env); err != nil {
 		// TRANSLATORS: %s is the name of the wireless network.
 		return fmt.Errorf("%s: %w", i18n.T("%s could not be joined.", ssid), err)
+	}
+	// Nothing to ask whether it carries anything: joined is as far as this
+	// module can tell, and waiting for more is its connect hook's business.
+	if !r.Checks() {
+		return nil
 	}
 	for i := 0; i < r.tries; i++ {
 		if r.Online() {

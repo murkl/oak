@@ -62,3 +62,24 @@ func TestTheSignOffArrivesAfterTheWordmark(t *testing.T) {
 		t.Errorf("signShown at the end = %v, want 1", got)
 	}
 }
+
+// Where the welcome page comes next, the wordmark stays up to the last frame
+// and only the sign-off leaves: the page keeps the one and has no room for the
+// other.
+func TestAWordmarkThatStaysIsNeverDimmedAndItsSignOffLeaves(t *testing.T) {
+	m := newSplash("OAK", "1.2.3")
+	m.stays = true
+
+	m.skip()
+	if got := m.signShown(); got != 1 {
+		t.Errorf("signShown as the splash starts to end = %v, want 1", got)
+	}
+	for !m.advance() {
+		if got := m.light(); got != 1 {
+			t.Fatalf("light at %v = %v, want the wordmark at full light", m.elapsed, got)
+		}
+	}
+	if got := m.signShown(); got != 0 {
+		t.Errorf("signShown at the end = %v, want the sign-off gone", got)
+	}
+}

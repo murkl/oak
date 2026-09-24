@@ -55,6 +55,12 @@ func labelHintNetworkChoosing() string {
 	return say("↑↓ move · ⏎ join · r rescan · esc skip")
 }
 func labelHintNetworkOffline() string { return say("⏎ continue · r retry · esc back") }
+func labelHintNetworkRetry() string   { return say("r retry · esc back") }
+
+// The hub's row for it, where the module can do without the internet.
+func labelNetworkJoin() string {
+	return say("Join a wireless network, for whatever needs the internet.")
+}
 func labelNetworkOfflineHelp() string {
 	return say("Everything that gets installed is downloaded. Plug in a cable, or press r to search again.")
 }

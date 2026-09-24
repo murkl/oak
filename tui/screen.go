@@ -55,6 +55,13 @@ type (
 	// A run is still a run while it stops to ask something, and the work the
 	// answer belongs to has already started.
 	holder interface{ holds() bool }
+
+	// A screen that stands on the field rather than in the frame, under the
+	// splash's wordmark: the welcome page. It is handed the splash before that
+	// starts, draws it for as long as it lasts and keeps the wordmark after —
+	// and it is handed the whole terminal, keys and all, since there is no
+	// frame around it to carry them.
+	stager interface{ stage(*splashModel) }
 )
 
 // opening is embedded by the pages in front of the questions proper: the
@@ -73,6 +80,13 @@ func (opening) crumbHead() string { return labelOpening() }
 func working(s screen) bool {
 	w, ok := s.(worker)
 	return ok && w.working()
+}
+
+// framed reports whether s is drawn inside the frame, which is every screen but
+// the one that stands under the wordmark.
+func framed(s screen) bool {
+	_, ok := s.(stager)
+	return !ok
 }
 
 // takesText reports whether s is holding a text box a keystroke could be meant

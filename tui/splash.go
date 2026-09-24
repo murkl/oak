@@ -22,6 +22,10 @@ import (
 // The release and nothing after it — the commits and the hash `git describe`
 // adds are what this build is, and the sign-off is which Oak drew this. What
 // the binary answers `--version` with is the whole of it.
+//
+// Where the welcome page comes next, the wordmark does not leave: that page
+// stands under it and keeps it, so only the sign-off fades out, and the page
+// draws the splash itself for as long as it lasts — see landing.go.
 
 const (
 	// animEvery is one animation frame — the rate the wordmark sweeps in and
@@ -105,6 +109,10 @@ type splashModel struct {
 	oak     string
 	total   time.Duration
 	elapsed time.Duration
+
+	// stays is set when the page after the splash keeps its wordmark: the
+	// light then stays up, and the sign-off is the one thing that leaves.
+	stays bool
 }
 
 func newSplash(logo, oak string) *splashModel {
@@ -122,8 +130,10 @@ func newSplash(logo, oak string) *splashModel {
 // advance moves the splash on one frame and reports whether it is over.
 func (m *splashModel) advance() (done bool) {
 	m.elapsed += animEvery
-	return m.elapsed >= m.total
+	return m.over()
 }
+
+func (m *splashModel) over() bool { return m.elapsed >= m.total }
 
 // skip cuts the logo short: nobody should have to sit through a wordmark twice.
 // It jumps to the start of the fade rather than past it, so dismissing the
@@ -136,13 +146,23 @@ func (m *splashModel) skip() {
 
 // light is how much of the palette the splash is showing: all of it until the
 // last stretch, then down to none, so the logo dissolves into the background
-// that the interface then comes up out of.
+// that the interface then comes up out of. A wordmark that stays is never
+// dimmed at all.
 func (m *splashModel) light() float64 {
+	if m.stays {
+		return 1
+	}
+	return m.left()
+}
+
+// left is 1 until the last fadeFor of the splash, then runs down to 0 as it
+// ends — and stays there, since the last frame may overshoot the end.
+func (m *splashModel) left() float64 {
 	left := m.total - m.elapsed
 	if left >= fadeFor {
 		return 1
 	}
-	return float64(left) / float64(fadeFor)
+	return max(float64(left)/float64(fadeFor), 0)
 }
 
 // revealed is how far the wordmark has swept into view, left to right: 0 at
@@ -158,25 +178,29 @@ func (m *splashModel) revealed() float64 {
 // signShown is how far the sign-off has faded in: 0 until the wordmark has
 // long since settled, 1 a full fadeFor before the splash starts dimming out —
 // so that once it arrives it sits there and is actually read, rather than
-// fading in just as the handover to the interface begins.
+// fading in just as the handover to the interface begins. Under a wordmark
+// that stays, the dimming out is the sign-off's alone.
 func (m *splashModel) signShown() float64 {
 	start := m.total - 2*fadeFor - signFor
+	shown := 1.0
 	switch t := m.elapsed - start; {
 	case t <= 0:
-		return 0
-	case t >= signFor:
-		return 1
-	default:
-		return float64(t) / float64(signFor)
+		shown = 0
+	case t < signFor:
+		shown = float64(t) / float64(signFor)
 	}
+	if m.stays {
+		return min(shown, m.left())
+	}
+	return shown
 }
 
 func (m *splashModel) View(width, height int) string {
-	return placeOnField(width, height, m.compose())
+	return placeOnField(width, height, m.sign(strings.Join(m.mark(), "\n")))
 }
 
-// compose draws the wordmark, row by row, and puts the sign-off underneath.
-func (m *splashModel) compose() string {
+// mark draws the wordmark, row by row, as far as it has swept into view.
+func (m *splashModel) mark() []string {
 	revealed := m.revealed()
 	front := revealed * float64(lipgloss.Width(m.rows[0]))
 
@@ -188,7 +212,7 @@ func (m *splashModel) compose() string {
 		}
 		rows[dy] = sweepLine(line, front, revealed >= 1, resting, bold)
 	}
-	return m.sign(strings.Join(rows, "\n"))
+	return rows
 }
 
 // sweepLine renders one row up to front: a letter inside the trail comes into
@@ -272,16 +296,19 @@ func (m *splashModel) sign(block string) string {
 	// letters would otherwise wrap the line underneath it mid-word.
 	line := baseStyle.Width(max(lipgloss.Width(block), lipgloss.Width(text))).Align(lipgloss.Center)
 
-	resting := blend(colors.muted, colors.bezel, signRest)
-	shown := blend(resting, colors.bezel, 1-m.signShown())
-	signature := baseStyle.Foreground(fade(shown)).Render(text)
-
 	parts := make([]string, 0, gapS+2)
 	parts = append(parts, block)
 	for range gapS {
 		parts = append(parts, line.Render(""))
 	}
-	parts = append(parts, line.Render(signature))
+	parts = append(parts, line.Render(m.signature()))
 
 	return lipgloss.JoinVertical(lipgloss.Center, parts...)
+}
+
+// signature is the sign-off in the ink it has on this frame.
+func (m *splashModel) signature() string {
+	resting := blend(colors.muted, colors.bezel, signRest)
+	shown := blend(resting, colors.bezel, 1-m.signShown())
+	return baseStyle.Foreground(fade(shown)).Render(labelPoweredBy(m.oak))
 }

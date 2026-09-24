@@ -257,14 +257,44 @@ variables:
 	r.Apply(sp.Var("PLAIN"))
 }
 
-// The answer stands whether or not it could be put in force: an installer that
-// stops because a keymap would not load is worse than one carrying on.
+// An answer just given stands whether or not it could be put in force: an
+// installer that stops because a keymap would not load is worse than one
+// carrying on.
 func TestAnApplyThatFailsIsOnlyAWarning(t *testing.T) {
 	sp, st, r := setup(t, "variables:\n  - name: X\n    title: X\n    apply: exit 1\n", nil)
 	st.Set("X", "value")
-	r.Apply(sp.Var("X"))
+	if err := r.Apply(sp.Var("X")); err == nil {
+		t.Error("an apply that failed was reported as done")
+	}
 	if got := st.Get("X"); got != "value" {
 		t.Errorf("X = %q, want the answer to stand", got)
+	}
+}
+
+// One the run started with is asked again instead: nobody watched it being put
+// in force, and a password typed next on a keymap that never loaded is refused
+// without a word about why.
+func TestSettleAsksAgainForAnAnswerItCannotPutInForce(t *testing.T) {
+	_, st, r := setup(t, `
+variables:
+  - name: KEYMAP
+    title: Keymap
+    required: true
+    apply: exit 1
+  - name: FONT
+    title: Font
+    default: auto
+    apply: '[ "$FONT" = auto ]'
+`, nil)
+	st.Set("KEYMAP", "de-latin1")
+	st.Set("FONT", "ter-v32n")
+	r.Settle()
+
+	if got := st.Get("KEYMAP"); got != "" {
+		t.Errorf("KEYMAP = %q, want it unanswered again", got)
+	}
+	if got := st.Get("FONT"); got != "auto" {
+		t.Errorf("FONT = %q, want it back on its default", got)
 	}
 }
 

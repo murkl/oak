@@ -69,8 +69,9 @@ func (s *Store) Set(name, value string) { s.val[name] = value }
 // can work out for itself: its own folder is where lib.sh was sourced from.
 //
 // Secrets are in here like anything else — that is the whole reason they are
-// asked for. They reach one bash process and go no further: not to the answer
-// file, not to the log.
+// asked for. They reach the bash process that runs the stages, and the check
+// that tries one before it is taken, and go no further: not to the answer file,
+// not to the log.
 func (s *Store) Env() exec.Env {
 	env := append(exec.Env{}, os.Environ()...)
 	for _, v := range s.mod.Vars {

@@ -34,6 +34,14 @@ type Model struct {
 	// together.
 	spinning bool
 
+	// The header's status: whether the module's check has answered yet, and
+	// what it said last. reading and waiting are the one chain of reads — a
+	// read out, or the clock until the next — the way spinning guards the
+	// mark's, and round is which of them still counts: see recheckMsg.
+	known, passes    bool
+	reading, waiting bool
+	round            int
+
 	status    string
 	statusBad bool
 	quitting  bool
@@ -59,11 +67,15 @@ func newModel(a *app, logo string) *Model {
 		return m
 	}
 	m.splash = newSplash(logo, a.oak)
+	if s, ok := m.top().(stager); ok {
+		s.stage(m.splash)
+		m.splash.stays = true
+	}
 	return m
 }
 
 func (m *Model) Init() tea.Cmd {
-	cmd := tea.Batch(initOf(m.top()), m.turn())
+	cmd := tea.Batch(initOf(m.top()), m.turn(), m.poll())
 	if m.splash == nil {
 		return cmd
 	}
@@ -96,6 +108,10 @@ func spinTick() tea.Cmd {
 // animate runs the one clock the opening has: the light going round and the
 // logo dimming out, then the interface rising out of the background it left.
 // It stops asking for frames the moment nothing is moving any more.
+//
+// A page that stands under the wordmark is already all there once the splash
+// is over, so nothing rises behind it: the frame comes up out of the field when
+// that page is answered — see arrive.
 func (m *Model) animate() tea.Cmd {
 	if m.splash != nil {
 		if done := m.splash.advance(); !done {
@@ -103,6 +119,9 @@ func (m *Model) animate() tea.Cmd {
 			return animTick()
 		}
 		m.splash = nil
+		if !framed(m.front()) {
+			m.arrived = fadeFor
+		}
 	}
 	if m.arrived >= fadeFor {
 		setFade(1)
@@ -114,6 +133,64 @@ func (m *Model) animate() tea.Cmd {
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	was := m.front()
+	next, cmd := m.step(msg)
+	return next, tea.Batch(cmd, m.arrive(was), m.poll())
+}
+
+// statusMsg is what the header's status check answered; statusDueMsg is the
+// clock saying it is time to ask it again. Both carry the round they belong to.
+//
+// recheckMsg is a page saying it changed what the status is about — a network
+// just joined — so the next read is asked for now rather than after the
+// interval, and whatever the read already out there says is not waited for: it
+// was taken before the change.
+type (
+	statusMsg struct {
+		pass  bool
+		round int
+	}
+	statusDueMsg struct{ round int }
+	recheckMsg   struct{}
+)
+
+func recheck() tea.Cmd { return func() tea.Msg { return recheckMsg{} } }
+
+// poll keeps the header's status current from the moment a module is open,
+// one read at a time: the next is asked for once the last has answered and its
+// interval has gone by, so a check slower than its interval is never run twice
+// at once.
+func (m *Model) poll() tea.Cmd {
+	if m.reading || m.waiting || m.app.runner == nil {
+		return nil
+	}
+	read := m.app.runner.Status()
+	if read == nil {
+		return nil
+	}
+	m.reading = true
+	round := m.round
+	return func() tea.Msg { return statusMsg{pass: read(), round: round} }
+}
+
+// arrive brings the frame up out of the field the moment it appears over a
+// page that stood on the field without one, the way it comes up after the
+// splash. A fade already under way starts again from nothing rather than
+// being joined by a second clock, which would run it at twice the rate.
+func (m *Model) arrive(was screen) tea.Cmd {
+	if m.splash != nil || framed(was) || !framed(m.front()) {
+		return nil
+	}
+	fading := m.arrived < fadeFor
+	m.arrived = 0
+	setFade(0)
+	if fading {
+		return nil
+	}
+	return animTick()
+}
+
+func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		// A zero-size report happens and would collapse the layout for good.
@@ -128,6 +205,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinMsg:
 		m.spinning = false
 		return m, m.turn()
+
+	// Each is asked again on the way out of Update, where nothing is out any
+	// more — see poll.
+	case statusMsg:
+		m.reading = false
+		if msg.round != m.round {
+			return m, nil
+		}
+		m.known, m.passes, m.waiting = true, msg.pass, true
+		return m, after(m.app.module.Status.Interval(), func(time.Time) tea.Msg { return statusDueMsg{msg.round} })
+
+	case statusDueMsg:
+		if msg.round == m.round {
+			m.waiting = false
+		}
+		return m, nil
+
+	case recheckMsg:
+		m.round++
+		m.waiting = false
+		return m, nil
 
 	case tea.KeyMsg:
 		// The splash answers to one thing only, and swallows the key that says
@@ -261,8 +359,12 @@ func (m *Model) View() string {
 	if m.quitting {
 		return ""
 	}
-	if m.splash != nil {
+	front := m.front()
+	if m.splash != nil && framed(front) {
 		return m.splash.View(m.width, m.height)
+	}
+	if !framed(front) {
+		return front.View(m.width, m.height)
 	}
 	w, h := frameSize(m.width, m.height)
 
@@ -273,7 +375,6 @@ func (m *Model) View() string {
 	if m.leaving != nil {
 		crumbs = append(crumbs, m.leaving.Title())
 	}
-	front := m.front()
 
 	// A flash stands where the page's own status usually is, and how it is inked
 	// says which of the two it is: what went wrong reads as a failure, what
@@ -282,12 +383,16 @@ func (m *Model) View() string {
 	if m.status != "" {
 		status, alarm = m.status, m.statusBad
 	}
+	mark := m.indicator()
+	if mark == "" && status == "" {
+		mark, status = m.state()
+	}
 
 	return renderFrame(m.width, m.height, chrome{
 		brand:   m.app.heading(),
 		status:  status,
 		alarm:   alarm,
-		mark:    m.indicator(),
+		mark:    mark,
 		crumb:   breadcrumb(crumbs, w),
 		body:    front.View(w, h-headerRows(len(crumbs))),
 		hint:    front.Hint(),
@@ -356,6 +461,21 @@ func (m *Model) indicator() string {
 		return accentStyle.Render(spinFrame())
 	}
 	return ""
+}
+
+// state is the header's status as the module's check last left it: Oak's mark
+// for yes or no, and the words the module gave each. Nothing until the check
+// has answered once — a mark shown before then would claim a state nothing has
+// read.
+func (m *Model) state() (mark, words string) {
+	if !m.known {
+		return "", ""
+	}
+	st := m.app.module.Status
+	if m.passes {
+		return goodStyle.Render(glyphs.on), st.Words(true)
+	}
+	return mutedStyle.Render(glyphs.off), st.Words(false)
 }
 
 // headerRows is how much of the frame the chrome takes, so a screen is told the

@@ -26,6 +26,23 @@ func TestNewGivesNoRadioWhenTheTreeDescribesNone(t *testing.T) {
 	}
 }
 
+// A module that can join a network but has nothing to ask about the internet
+// still gets a radio: it is offered on demand rather than on the way in.
+func TestNewGivesARadioThatOnlyJoins(t *testing.T) {
+	r := New(Config{Device: hook("echo wlan0"), Networks: hook("echo Home"), Connect: hook("true")}, sh, nil)
+	if r == nil || r.Checks() || !r.Joinable() {
+		t.Errorf("New() = %+v, want a radio that joins and checks nothing", r)
+	}
+}
+
+// And joining is then done once connect says so, since nothing can say more.
+func TestJoinWithNothingToCheckIsDoneOnceConnected(t *testing.T) {
+	r := radio(Config{Device: hook("echo wlan0"), Networks: hook("echo Home"), Connect: hook("true")})
+	if err := r.Join("wlan0", "Home", "secret"); err != nil {
+		t.Errorf("Join() = %v, want joined", err)
+	}
+}
+
 func TestOnlineReportsWhatTheHookSays(t *testing.T) {
 	if !radio(Config{Online: hook("true")}).Online() {
 		t.Error("Online() = false, want true")
