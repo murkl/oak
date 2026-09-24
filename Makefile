@@ -127,10 +127,15 @@ secrets-check:
 # Reads every T("…") out of the sources and writes the template, then brings
 # each catalog up to it. msgmerge keeps every translation whose source text is
 # unchanged and marks the rest fuzzy rather than dropping it — a reworded
-# sentence is a translation to look at again, not one to write from scratch.
+# sentence is a translation to look at again, not one to write from scratch. A
+# text no source holds any more is dropped, so what was taken out leaves no
+# translation behind.
 locales:
 	go run ./tools/potgen > $(POT)
-	@for po in $(CATALOGS); do msgmerge --quiet --update --backup=none --no-wrap "$$po" $(POT); done
+	@for po in $(CATALOGS); do \
+		msgmerge --quiet --update --backup=none --no-wrap "$$po" $(POT); \
+		msgattrib --no-obsolete --no-wrap -o "$$po" "$$po"; \
+	done
 
 # A word added or reworded without `make locales` being run is a word no
 # translator will ever be shown. And a translation that drops a placeholder is a

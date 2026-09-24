@@ -1238,6 +1238,40 @@ func TestTheSecretIsAskedForTwiceAndOnlyThenTheRunBegins(t *testing.T) {
 	h.wants("Finished in", "First", "Second").refuses("Only with extras")
 }
 
+// A run hands its tasks the answers it runs with, written out whole: a task that
+// copies or shares the file passes on exactly those, not a line appended by hand
+// twice or a key an older release asked and this one does not.
+func TestARunStartsFromItsAnswersWrittenOutWhole(t *testing.T) {
+	copied := filepath.Join(t.TempDir(), "copied.conf")
+	h := newHarness(t, map[string]string{"tasks/@go/a-first/task.sh": "cp \"$MODULE_CONF\" " + copied + "\n"})
+	h.down().enter().typeIn("moritz").enter().enter()
+	f, err := os.OpenFile(h.a.store.Path(), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString("USER='moritz'\nGONE='asked by an older release'\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.a.store.Load(); err != nil {
+		t.Fatal(err)
+	}
+
+	h.enter().enter() // Install, then start
+	h.typeIn("hunter2").enter().typeIn("hunter2").enter()
+	h.ran()
+
+	raw, err := os.ReadFile(copied)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "GONE") || strings.Count(string(raw), "USER=") != 1 {
+		t.Fatalf("the run was handed the file as it was left, not its answers:\n%s", raw)
+	}
+}
+
 // A password the machine already has is asked once. The repeat is there to
 // catch a typo nothing else would - and here the disk catches it seconds later
 // and says which entry was wrong, which is more than a second box can.
@@ -2277,7 +2311,7 @@ func TestTheListOfFailuresIsLeftByTheRowThatSaysSo(t *testing.T) {
 // progressing starts a run whose second task draws a progress bar and then
 // waits at a gate the test opens, so the screen can be read while it runs.
 // declared is whether that task says its output is its progress.
-func progressing(t *testing.T, declared bool) (*harness, func()) {
+func progressing(t *testing.T, declared bool, bar string) (*harness, func()) {
 	t.Helper()
 	gate := filepath.Join(t.TempDir(), "gate")
 	if err := syscall.Mkfifo(gate, 0o600); err != nil {
@@ -2289,7 +2323,7 @@ func progressing(t *testing.T, declared bool) (*harness, func()) {
 	}
 	h := newHarness(t, map[string]string{
 		"tasks/@go/b-second/task.yaml": yaml,
-		"tasks/@go/b-second/task.sh":   "printf 'fetching\\n 40%%\\r 75%%'\nread -r _ <" + gate + "\n",
+		"tasks/@go/b-second/task.sh":   "printf 'fetching\\n 40%%\\r" + bar + " 75%%'\nread -r _ <" + gate + "\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().enter()
@@ -2299,7 +2333,7 @@ func progressing(t *testing.T, declared bool) (*harness, func()) {
 	deadline := time.Now().Add(20 * time.Second)
 	for {
 		r, ok := h.m.top().(*runScreen)
-		if ok && r.at == 1 && r.session != nil && r.session.Latest() == "75%" {
+		if ok && r.at == 1 && r.session != nil && strings.HasSuffix(r.session.Latest(), "75%") {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -2319,7 +2353,7 @@ func progressing(t *testing.T, declared bool) (*harness, func()) {
 // its name while it runs - the latest drawing of the bar, not the lines before
 // it - and nothing of it is left once it is done.
 func TestATaskThatDeclaresItsProgressShowsTheLineItDrewLast(t *testing.T) {
-	h, open := progressing(t, true)
+	h, open := progressing(t, true, "")
 	h.wants("Second", "75%").refuses("fetching", "40%")
 
 	open()
@@ -2327,9 +2361,19 @@ func TestATaskThatDeclaresItsProgressShowsTheLineItDrewLast(t *testing.T) {
 	h.wants("Finished in").refuses("75%")
 }
 
+// A bar drawn wider than the page is cut at its start: how far it has got is
+// what a progress line says at its end - curl's percentage, a copy's rate.
+func TestAProgressLineTooWideForThePageKeepsItsEnd(t *testing.T) {
+	h, open := progressing(t, true, strings.Repeat("#", 200))
+	h.wants("75%")
+
+	open()
+	h.ran()
+}
+
 // Every other task shows nothing of what it prints, whatever that is.
 func TestATaskThatDeclaresNothingShowsNothingOfWhatItPrints(t *testing.T) {
-	h, open := progressing(t, false)
+	h, open := progressing(t, false, "")
 	h.wants("Second").refuses("75%", "fetching")
 
 	open()

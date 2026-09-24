@@ -210,7 +210,11 @@ func (s *runScreen) Init() tea.Cmd {
 		return nil
 	}
 	s.started = time.Now()
-	return s.step()
+	// The answers this run is started with are written out whole first. A task
+	// that copies the file or shares it then hands on exactly those, not a line
+	// appended twice by hand or a key an older release asked and this one does
+	// not.
+	return tea.Batch(s.app.save(), s.step())
 }
 
 // elapsed is how long this run has been going, and how long it went for once it
@@ -700,7 +704,9 @@ func (s *runScreen) question(width, height int) string {
 //
 // The one line that is not a task is what a task that declared its output its
 // progress drew last, under its name while it runs - and it costs the window a
-// row rather than pushing the running task off the bottom.
+// row rather than pushing the running task off the bottom. Too wide, it is cut
+// at its start: a bar is sized by the tool that draws it, not by this page, and
+// how far it has got is what it says at its end.
 func (s *runScreen) list(width, height int) string {
 	drawn := s.progress()
 	rows := height
@@ -721,7 +727,7 @@ func (s *runScreen) list(width, height int) string {
 		}
 		b.WriteString(s.line(i, width))
 		if i == s.at && drawn != "" {
-			b.WriteString("\n" + field(glyphBlank) + mutedStyle.Render(truncate(drawn, width-markW)))
+			b.WriteString("\n" + field(glyphBlank) + mutedStyle.Render(truncateStart(drawn, width-markW)))
 		}
 	}
 	return b.String()

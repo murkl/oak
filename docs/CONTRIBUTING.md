@@ -139,7 +139,7 @@ If a change would put the word `pacman`, `btrfs`, `GNOME` or `LUKS` anywhere in 
 
 ## Words on screen
 
-Every sentence Oak shows is translatable and the English sentence is its own key, so writing one is writing the source text and the key at once. Reword it and the old translation is marked fuzzy rather than dropped.
+Every sentence Oak shows is translatable and the English sentence is its own key, so writing one is writing the source text and the key at once. Reword it and the old translation is marked fuzzy rather than dropped; delete it and the translation goes with it.
 
 ```
 make locales   # after adding, rewording or deleting anything on screen

@@ -284,7 +284,7 @@ Nine more keys change what a task **is** rather than what it does:
 
 The terminal is handed over **outright**: all three channels are the terminal itself, whatever Oak's own were pointed at — a service on a console has its stderr in the journal, and a shell draws its prompt on stderr. The script gets a foreground process group of its own on it, so an interactive shell does its job control there, and Oak takes the terminal back when the script exits. A shell inside another system is therefore one line: `arch-chroot /mnt || true`.
 
-**`progress: true`** is for the task nobody can guess the length of and whose output is a bar rather than chatter — an image of several gigabytes arriving over a home connection. Everything any other task prints goes to the log and nowhere else. Here the one line it drew last, on either channel, is shown under its name: a bar redrawn in place counts as the line it was redrawn to, colour is stripped, and the line is gone as soon as the task is. Together with `tty:` it is refused, because a task handed the terminal already shows everything it prints.
+**`progress: true`** is for the task nobody can guess the length of and whose output is a bar rather than chatter — an image of several gigabytes arriving over a home connection. Everything any other task prints goes to the log and nowhere else. Here the one line it drew last, on either channel, is shown under its name: a bar redrawn in place counts as the line it was redrawn to, colour is stripped, a line wider than the page loses its start rather than the percentage at its end, and the line is gone as soon as the task is. Together with `tty:` it is refused, because a task handed the terminal already shows everything it prints.
 
 `shows:` is for a value meant to be used on a different machine than the one displaying it. It is read back from the answer file after the task has run, which is also how the task puts it there:
 
@@ -476,7 +476,7 @@ Beside wherever the program was started, never inside a module — which may be 
 | File | Description |
 | --- | --- |
 | `oak.conf` | What Oak keeps across every module: `OAK_LANG`, the language, and `OAK_VALIDATE`, whether a run checks its own work |
-| `<module>.conf` | Every answer, as `KEY='value'`. Plain shell, editable by hand. A secret and a derived answer are not in it |
+| `<module>.conf` | Every answer, as `KEY='value'`. Plain shell, editable by hand. A secret and a derived answer are not in it. Written out whole when a run starts, so a task that copies it hands on exactly what the run ran with |
 | `<module>.log` | Oak's own progress plus every line every script printed |
 
 A second module writes its own pair beside the first, so two started from the same folder never collide.
