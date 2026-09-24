@@ -189,10 +189,18 @@ func startIn(t *testing.T, locales string, mods ...*spec.Module) *harness {
 // are about the product rather than about any of its modules.
 func startWith(t *testing.T, rt *spec.Runtime, open Open, locales string, mods ...*spec.Module) *harness {
 	t.Helper()
+	return startAs(t, rt, open, locales, Opening{}, mods...)
+}
+
+// startAs is the same for a run whose command line said something about the
+// run itself: the language it is read in, or that it is a kiosk.
+func startAs(t *testing.T, rt *spec.Runtime, open Open, locales string, line Opening, mods ...*spec.Module) *harness {
+	t.Helper()
 	i18n.Use(i18n.SourceLang)
 	a := &app{
 		runtime: rt, modules: mods, open: open, version: "test",
-		prefs: store.NewPreferences(filepath.Join(t.TempDir(), "runtime.conf")),
+		prefs:   store.NewPreferences(filepath.Join(t.TempDir(), "runtime.conf")),
+		settled: line.Settled, kiosk: line.Kiosk,
 	}
 	if locales != "" {
 		a.sources = []fs.FS{os.DirFS(locales)}
@@ -213,13 +221,6 @@ func startWith(t *testing.T, rt *spec.Runtime, open Open, locales string, mods .
 func newHarness(t *testing.T, files map[string]string) *harness {
 	t.Helper()
 	return start(t, loadModule(t, writeModule(t, t.TempDir(), files)))
-}
-
-// newProduct is the same around a product that says more about itself than its
-// name — an address, for the one page that shows one.
-func newProduct(t *testing.T, rt *spec.Runtime, files map[string]string) *harness {
-	t.Helper()
-	return startWith(t, rt, openModule(t), "", loadModule(t, writeModule(t, t.TempDir(), files)))
 }
 
 // newSimulated is the same for a run started with --debug: every script is
@@ -643,7 +644,7 @@ func TestTheLandingPageComesBeforeTheQuestionOfWhichModule(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := startIn(t, dir, mods...)
-	h.wants("Welcome", "Welcome to Test OS.", "English").refuses("What to do")
+	h.wants("Welcome", "Welcome to Test OS,", "English").refuses("What to do")
 
 	h.down().enter() // Deutsch
 	h.wants("Was tun", "Test Installer", "Test Recovery")
@@ -750,55 +751,31 @@ func twoLanguageTree() map[string]string {
 func TestTheLandingPageIsNeverTranslated(t *testing.T) {
 	tree := twoLanguageTree()
 	tree["locales/de.po"] += "\nmsgid \"Welcome\"\nmsgstr \"Willkommen\"\n" +
-		"\nmsgid \"Welcome to %s.\"\nmsgstr \"Willkommen bei %s.\"\n"
+		"\nmsgid \"Welcome to %s,\"\nmsgstr \"Willkommen bei %s,\"\n"
 	h := newHarness(t, tree)
 	h.down().enter() // Deutsch
 	h.restart()
-	h.wants("Welcome", "Welcome to Test OS.").refuses("Willkommen")
-}
-
-// The welcome page is read on a machine with nothing on it yet — no browser, no
-// second screen — so where the product says where the rest of it is, that is
-// where it goes: written out, for whoever is in front of it to follow on the
-// machine they brought with them.
-func TestTheLandingPageCarriesTheProductsAddress(t *testing.T) {
-	rt := testRuntime()
-	rt.URL = "https://example.org/test-os"
-	h := newProduct(t, rt, twoLanguageTree())
-	h.send(tea.WindowSizeMsg{Width: 95, Height: 25})
-
-	h.wants("Welcome to Test OS.", rt.URL, landingLink, "English")
-}
-
-// A product that named none is the page as it was: the greeting, and the
-// languages under it.
-func TestAProductWithNoAddressShowsNone(t *testing.T) {
-	h := newHarness(t, twoLanguageTree())
-	h.wants("Welcome to Test OS.", "English").refuses(landingLink, "https://")
-}
-
-// And it stands whole in a frame with nothing to spare: a narrow terminal is
-// exactly the one where the address has to be readable.
-func TestTheAddressStandsInANarrowFrame(t *testing.T) {
-	rt := testRuntime()
-	rt.URL = "https://example.org/test-os"
-	h := newProduct(t, rt, twoLanguageTree())
-	h.send(tea.WindowSizeMsg{Width: 60, Height: 20})
-
-	h.wants(rt.URL)
+	h.wants("Welcome", "Welcome to Test OS,").refuses("Willkommen")
 }
 
 // On a frame too short for all of it, the words give way and the rows do not:
 // a greeting with no languages under it is a page asking a question it offers
 // no way to answer.
 func TestTheLanguagesOutliveTheWordsOverThem(t *testing.T) {
-	rt := testRuntime()
-	rt.URL = "https://example.org/test-os"
-	h := newProduct(t, rt, twoLanguageTree())
-	h.send(tea.WindowSizeMsg{Width: 95, Height: 17})
+	h := newHarness(t, twoLanguageTree())
+	h.send(tea.WindowSizeMsg{Width: 95, Height: 15})
 
-	h.wants("Welcome to Test OS.", rt.URL, "English", "Deutsch")
+	h.wants("Welcome to Test OS,", "English", "Deutsch")
 	h.refuses(landingChoose)
+}
+
+// A language named on the command line is the answer the welcome page would
+// have asked for, so the page is not drawn at all and the run opens where it
+// would have gone next.
+func TestALanguageNamedOnTheCommandLineSkipsTheWelcomePage(t *testing.T) {
+	mod := loadModule(t, writeModule(t, t.TempDir(), twoLanguageTree()))
+	h := startAs(t, testRuntime(), openModule(t), "", Opening{Settled: true}, mod)
+	h.wants("Setup", "Full", "Bare").refuses("Welcome", landingChoose)
 }
 
 // The landing page leads, because every word of every page after it is in the
@@ -1619,6 +1596,50 @@ func TestLeavingToTheConsoleClosesOnlyTheProgram(t *testing.T) {
 	}
 }
 
+// A kiosk is a machine with nothing behind the program: whatever the module
+// says about a console, leaving it is starting over. The answers are forgotten
+// and the program closes, for whatever keeps it running to start it again.
+func TestAKioskStartsOverWhereAConsoleWouldBe(t *testing.T) {
+	files := leaveTree("true", "true")
+	files[treeFile] = testInstaller + "console: Type installer to start it again.\n"
+	mod := loadModule(t, writeModule(t, t.TempDir(), files))
+
+	h := startAs(t, testRuntime(), openModule(t), "", Opening{Kiosk: true}, mod)
+	h.down().enter().typeIn("moritz").enter().enter()
+	if !h.a.store.Exists() {
+		t.Fatal("the answers were never written, so forgetting them would prove nothing")
+	}
+	h.typeIn("q")
+	h.wants("Restart", "Shut down", "Reset").refuses("Exit")
+
+	h.down().down()
+	h.wants("Forget every answer")
+	h.enter()
+	if !h.m.quitting {
+		t.Fatal("starting over did not close the program")
+	}
+	if h.a.store.Exists() {
+		t.Error("starting over kept the answers")
+	}
+	if h.a.farewell != "" {
+		t.Errorf("farewell = %q, want nothing: there is no console to read it on", h.a.farewell)
+	}
+}
+
+// And it is a way out every module has there, so a module that says nothing
+// about leaving still asks rather than quitting to a prompt nobody should see.
+func TestAKioskAsksEvenWhereTheModuleSaysNothingAboutLeaving(t *testing.T) {
+	mod := loadModule(t, writeModule(t, t.TempDir(), nil))
+	h := startAs(t, testRuntime(), openModule(t), "", Opening{Kiosk: true}, mod)
+	h.down().enter().typeIn("moritz").enter().enter()
+
+	h.typeIn("q")
+	if h.m.quitting {
+		t.Fatal("q quit a kiosk instead of asking")
+	}
+	h.wants("Reset").refuses("Restart", "Exit")
+}
+
 func TestChoosingRestartRunsTheTreesOwnCommand(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "restarted")
 	h := newHarness(t, leaveTree("touch "+marker, "true"))
@@ -2262,11 +2283,11 @@ func TestTheValidationSettingIsOfferedOnlyWhereThereIsSomethingToTest(t *testing
 		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.down().enter().wants("Validate", "Scripts", "Yes")
+	h.down().enter().wants("Verify steps", "Yes")
 
 	plain := newHarness(t, nil)
 	plain.down().enter().typeIn("moritz").enter().enter()
-	plain.down().enter().refuses("Validate", "Scripts")
+	plain.down().enter().refuses("Verify steps")
 }
 
 // Turning it off from the settings page is what the switch is for, and the row
@@ -2276,10 +2297,10 @@ func TestTheValidationSettingTurnsTestsOff(t *testing.T) {
 		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.down().enter()                 // Settings
-	h.typeIn("/").typeIn("Scripts")  // the row stands last, so it is found rather than walked to
-	h.enter().wants("Scripts", "No") // the page, opened on Yes with No under it
-	h.down().enter().wants("Scripts", "No")
+	h.down().enter()                      // Settings
+	h.typeIn("/").typeIn("Verify")        // the row stands last, so it is found rather than walked to
+	h.enter().wants("Verify steps", "No") // the page, opened on Yes with No under it
+	h.down().enter().wants("Verify steps", "No")
 	if h.a.prefs.Validates() {
 		t.Error("the switch was answered No and validation is still on")
 	}

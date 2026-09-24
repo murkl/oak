@@ -45,6 +45,19 @@ func split(width int) (major, minor int) {
 	return width - minor, minor
 }
 
+// raised lifts a block to the golden section of the height it has: the minor
+// part of the room it leaves stands over it, the major part under it. A block
+// at the exact middle reads as sitting low, and one hung from the top as not
+// placed at all.
+func raised(rows []string, height int) []string {
+	free := height - len(rows)
+	if free <= 0 {
+		return rows
+	}
+	lead := int(float64(free)/(phi*phi) + 0.5)
+	return append(make([]string, lead), rows...)
+}
+
 // bodyWidth is how far running text may run: the width less a golden margin.
 //
 // A description is a sentence or two above a list, not a column of prose. The

@@ -94,7 +94,8 @@ func (s *languageScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 }
 
 // View is the list, or — on the landing page — the page that list is part of:
-// the words and the rows under them.
+// the words and the rows under them, raised to the golden section of the frame
+// rather than hung from its top, because that page is all the first frame says.
 //
 // The page divides in the golden ratio: the rows may claim up to the major part
 // of the height, and whatever they do not need is the words'. On the frame this
@@ -122,5 +123,5 @@ func (s *languageScreen) View(width, height int) string {
 		rows = append(rows, "")
 	}
 	rows = append(rows, strings.Split(s.picker.View(width, max(height-len(rows), 1)), "\n")...)
-	return block(rows)
+	return block(raised(rows, height))
 }

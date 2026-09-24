@@ -57,6 +57,15 @@ type Opening struct {
 	// Oak is the binary's own version, the one thing on screen that belongs to
 	// the program rather than to the product it is driving.
 	Oak string
+
+	// Settled is whether the language was named on the command line, which
+	// takes the one question of the welcome page away and the page with it.
+	Settled bool
+
+	// Kiosk is whether the program is all its machine is for: there is no
+	// console behind it to leave to, only the same program started again by
+	// whatever keeps it running.
+	Kiosk bool
 }
 
 // Open opens one module, once it has been chosen. Nothing is opened before
@@ -104,6 +113,10 @@ type app struct {
 	// Empty for every other way out — a machine on its way down is not reading.
 	farewell string
 
+	// settled and kiosk are the command line's, as Opening has them.
+	settled bool
+	kiosk   bool
+
 	// first records whether this machine had answered anything when the program
 	// started. It is read once, before the first save — after that the answer
 	// file exists whatever happens, and the question "is this a first run" would
@@ -125,6 +138,7 @@ func Run(o *Opening, open Open) error {
 		runtime: o.Runtime, modules: o.Modules, prefs: o.Prefs,
 		langs: o.Langs, sources: o.Sources,
 		open: open, version: o.Runtime.Version, oak: o.Oak,
+		settled: o.Settled, kiosk: o.Kiosk,
 	}
 	// The frame is dressed before there is a module to dress it with, and stays
 	// dressed that way afterwards: the wordmark and the colour are the runtime's,
@@ -174,10 +188,6 @@ func (a *app) enter(mod *spec.Module) error {
 // welcome page's greeting among them, read before a module is even on offer.
 func (a *app) brand() string { return a.runtime.Title }
 
-// link is where the rest of the product is, on the one page read before any of
-// it exists on this machine. Empty where the product named none.
-func (a *app) link() string { return a.runtime.URL }
-
 // heading is what the frame is titled, on every page: the product, and once
 // one of its modules has been opened, which one — joined onto it the way a
 // breadcrumb reads, so the header still says what this run is once the page
@@ -191,8 +201,9 @@ func (a *app) heading() string {
 
 // leaves reports whether this machine has to be asked about on the way out. A
 // module nobody has opened yet has said nothing about the machine, so leaving
-// the pages in front of one is leaving.
-func (a *app) leaves() bool { return a.module != nil && a.module.Leaves() }
+// the pages in front of one is leaving. A kiosk always asks, because starting
+// over is a way out every module has there.
+func (a *app) leaves() bool { return a.module != nil && (a.kiosk || a.module.Leaves()) }
 
 // speak puts the whole interface in a language and remembers the choice. It is
 // the runtime's answer rather than a module's — it is settled before one is
@@ -308,10 +319,10 @@ func (a *app) start() screen { return a.landing() }
 // landing is the page a run opens on: what this is, and the words the rest of
 // it is read in. It is drawn whether or not a module was named on the way in —
 // what it says is the runtime's, and it is read before anything else is — but
-// not where there is only one language to offer, because then the one thing it
-// asks is not a question.
+// not where there is only one language to offer, or the command line already
+// named one, because then the one thing it asks is not a question.
 func (a *app) landing() screen {
-	if len(a.langs) < 2 {
+	if len(a.langs) < 2 || a.settled {
 		return a.chooseModule()
 	}
 	// Pushed rather than replacing this page, so esc on the page after it comes

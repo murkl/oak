@@ -152,6 +152,33 @@ func TestALanguageNoLongerOnOfferFallsBackToTheMachineLocale(t *testing.T) {
 	}
 }
 
+// A language named on the command line is matched the way the machine's own
+// locale is, so a launcher can hand over whatever it has: a catalog's code, or
+// the locale a system was installed with.
+func TestALanguageNamedOnTheCommandLineIsMatchedLikeALocale(t *testing.T) {
+	langs := []i18n.Lang{{Code: "en"}, {Code: "de"}}
+	for _, name := range []string{"de", "DE", "de_DE", "de_AT.UTF-8"} {
+		if got, err := chosen(name, langs); err != nil || got != "de" {
+			t.Errorf("chosen(%q) = %q, %v, want de", name, got, err)
+		}
+	}
+	if got, err := chosen("", langs); err != nil || got != "" {
+		t.Errorf("chosen(\"\") = %q, %v, want nothing — no language was named", got, err)
+	}
+}
+
+// And one no catalog answers to is refused before anything is drawn, rather
+// than a run that quietly opens in some other language.
+func TestALanguageNobodyTranslatedIsRefusedByName(t *testing.T) {
+	_, err := chosen("fr", []i18n.Lang{{Code: "en"}, {Code: "de"}})
+	if err == nil {
+		t.Fatal("a language no catalog answers to was taken")
+	}
+	if !strings.Contains(err.Error(), "fr") || !strings.Contains(err.Error(), "en, de") {
+		t.Errorf("error = %q, want it to name the language and what is on offer", err)
+	}
+}
+
 func TestAnUntranslatableMachineLeavesTheSourceLanguage(t *testing.T) {
 	t.Setenv("LC_ALL", "C")
 	langs := []i18n.Lang{{Code: "en"}, {Code: "de"}}
@@ -261,9 +288,9 @@ func TestAModuleThatWillNotLoadSaysWhatIsWrongWithIt(t *testing.T) {
 	}
 }
 
-// The whole of what a command line says: six options, each spelled out, and
+// The whole of what a command line says: eight options, each spelled out, and
 // nothing else on the line at all.
-func TestACommandLineIsSixOptionsAndNothingElse(t *testing.T) {
+func TestACommandLineIsEightOptionsAndNothingElse(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -279,6 +306,9 @@ func TestACommandLineIsSixOptionsAndNothingElse(t *testing.T) {
 		{name: "a report on one module", args: []string{"--inspect", "--module=installer"}, want: command{module: "installer", inspect: true}},
 		{name: "one module's template", args: []string{"--strings", "--module=installer"}, want: command{module: "installer", strings: true}},
 		{name: "what the binary can draw", args: []string{"--glyphs"}, want: command{glyphs: true}},
+		{name: "a language named outright", args: []string{"--language=de"}, want: command{language: "de"}},
+		{name: "a language as a locale", args: []string{"--language=de_DE.UTF-8", "--module=installer"}, want: command{module: "installer", language: "de_DE.UTF-8"}},
+		{name: "a kiosk", args: []string{"--kiosk", "--module=recovery"}, want: command{module: "recovery", kiosk: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parse(tc.args)
@@ -304,6 +334,10 @@ func TestACommandLineThatCannotBeReadIsRefused(t *testing.T) {
 		{"a word that is not an option", []string{"installer"}, "is not something this program takes"},
 		{"an option nobody has", []string{"--report"}, "is not something this program takes"},
 		{"a value where none is taken", []string{"--debug=true"}, "is not something this program takes"},
+		{"a kiosk with a value", []string{"--kiosk=yes"}, "is not something this program takes"},
+		{"a language with no code", []string{"--language"}, "needs the code of a language"},
+		{"a language with an empty code", []string{"--language="}, "needs the code of a language"},
+		{"two languages", []string{"--language=de", "--language=en"}, "One language at a time"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := parse(tc.args)
