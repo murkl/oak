@@ -321,6 +321,9 @@ func TestACommandLineThatCannotBeReadIsRefused(t *testing.T) {
 // built against by that number, and anything else on the line is something the
 // build that reads it has to strip back off.
 func TestTheVersionIsTheReleaseAndNothingElse(t *testing.T) {
+	// start sets the interface's language from this machine's locale, and it
+	// stays set for every test after this one.
+	t.Setenv("LC_ALL", "C")
 	was := version
 	t.Cleanup(func() { version = was })
 	version = "1.2.3"
@@ -338,6 +341,9 @@ func TestTheVersionIsTheReleaseAndNothingElse(t *testing.T) {
 // --glyphs answers for the binary alone, with no product beside it, and names
 // the marks it draws on a console along with its own words.
 func TestTheGlyphsAreTheBinarysOwn(t *testing.T) {
+	// start sets the interface's language from this machine's locale, and it
+	// stays set for every test after this one.
+	t.Setenv("LC_ALL", "C")
 	t.Chdir(t.TempDir())
 
 	out := stdout(t, func() {
