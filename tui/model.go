@@ -169,6 +169,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(initOf(m.top()), m.turn())
 
+	case replaceScreenMsg:
+		m.stack[len(m.stack)-1] = msg.s
+		return m, tea.Batch(initOf(msg.s), m.turn())
+
 	case resetStackMsg:
 		m.stack = []screen{msg.s}
 		return m, tea.Batch(initOf(msg.s), m.turn())

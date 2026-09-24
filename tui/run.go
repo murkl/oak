@@ -21,7 +21,10 @@ import (
 // progress bars, a compiler's warnings and a bootloader's chatter are not
 // information here, they are noise with escape codes in it, and the frame is
 // the promise that none of it gets out. All of it goes to the log, which is
-// where anyone chasing a detail was always going to look.
+// where anyone chasing a detail was always going to look. The exception is
+// declared, never guessed: a task that says its output is its progress has the
+// last line it drew shown dimmed under its name - one line, sanitized, and only
+// while it runs.
 //
 // The one thing that interrupts the list is a task that asks first. That is how
 // a module offers something rather than does it — reboot now, unmount, drop into
@@ -694,22 +697,44 @@ func (s *runScreen) question(width, height int) string {
 // list is every task with its mark: done, running, skipped, still to come.
 // The whole run is on screen from the first frame, so what is left is never a
 // surprise — and the window follows the cursor down for a run too long to fit.
+//
+// The one line that is not a task is what a task that declared its output its
+// progress drew last, under its name while it runs - and it costs the window a
+// row rather than pushing the running task off the bottom.
 func (s *runScreen) list(width, height int) string {
-	if height < 1 {
+	drawn := s.progress()
+	rows := height
+	if drawn != "" {
+		rows--
+	}
+	if rows < 1 {
 		return ""
 	}
 	top := 0
-	if s.at >= height {
-		top = min(s.at-height+1, len(s.steps)-height)
+	if s.at >= rows {
+		top = min(s.at-rows+1, len(s.steps)-rows)
 	}
 	var b strings.Builder
-	for i := top; i < min(top+height, len(s.steps)); i++ {
+	for i := top; i < min(top+rows, len(s.steps)); i++ {
 		if i > top {
 			b.WriteByte('\n')
 		}
 		b.WriteString(s.line(i, width))
+		if i == s.at && drawn != "" {
+			b.WriteString("\n" + field(glyphBlank) + mutedStyle.Render(truncate(drawn, width-markW)))
+		}
 	}
 	return b.String()
+}
+
+// progress is the line the running task drew last, where it declared its
+// output its progress, and nothing everywhere else - its test included, which
+// reads rather than works.
+func (s *runScreen) progress() string {
+	if s.done || s.at >= len(s.steps) || s.stage != phaseRun || s.session == nil || !s.steps[s.at].Progress {
+		return ""
+	}
+	return s.session.Latest()
 }
 
 func (s *runScreen) line(i, width int) string {

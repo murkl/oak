@@ -7,6 +7,7 @@
 package runner
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/murkl/oak/internal/exec"
@@ -100,18 +101,71 @@ func (r *Runner) Options(v *spec.Variable) ([]Option, error) {
 			logging.Warn("options for %s: %s", v.Name, err)
 			return nil, err
 		}
-		out := make([]Option, 0, len(lines))
-		for _, line := range lines {
-			value, label, tabbed := strings.Cut(line, "\t")
-			value = strings.TrimSpace(value)
-			if !tabbed {
-				label = value
-			}
-			out = append(out, Option{Value: value, Label: strings.TrimSpace(label)})
-		}
-		return out, nil
+		return listed(lines), nil
 	}
 	return nil, nil
+}
+
+// listed reads what a command printed as the answers it offers.
+func listed(lines []string) []Option {
+	out := make([]Option, 0, len(lines))
+	for _, line := range lines {
+		value, label, tabbed := strings.Cut(line, "\t")
+		value = strings.TrimSpace(value)
+		if !tabbed {
+			label = value
+		}
+		out = append(out, Option{Value: value, Label: strings.TrimSpace(label)})
+	}
+	return out
+}
+
+// Unoffered reads every list an answer was chosen from once more and names the
+// answers it no longer offers. A list vouches for nothing it does not print
+// now: an answer file copied over from another machine, or one shared and
+// fetched, names a disk or a keymap as it stood there, and a value made up
+// outright passes no list at all. The rules a value is written against do not
+// catch it, because the list is the rule.
+//
+// Read right before the work starts, which is the last moment the answer can
+// still be put again: a device name is a path, and what is at the path is
+// whatever this machine has plugged in now. Only lists a command prints are
+// read - a written-out set is checked by the store every time - and only ones
+// that do not also take a typed answer, since that one is not supposed to be in
+// the list. A list that cannot be read vouches neither way and is let be.
+//
+// Handed back as something to run, like Import: the environment is taken now,
+// on the goroutine that owns the answers, and the shell runs off the frame.
+func (r *Runner) Unoffered() func() []string {
+	env := r.store.Env()
+	type held struct {
+		v     *spec.Variable
+		value string
+	}
+	var lists []held
+	for _, v := range r.mod.Vars {
+		if v.Command == "" || v.Free != "" || v.Secret() || v.Deferred() || v.Derived() || !v.Applies(r.store.Get) {
+			continue
+		}
+		if value := r.store.Get(v.Name); value != "" {
+			lists = append(lists, held{v, value})
+		}
+	}
+	return func() []string {
+		var out []string
+		for _, h := range lists {
+			lines, err := r.sh.Lines(h.v.Command, env)
+			if err != nil {
+				logging.Warn("options for %s: %s", h.v.Name, err)
+				continue
+			}
+			if !slices.ContainsFunc(listed(lines), func(o Option) bool { return o.Value == h.value }) {
+				logging.Info("%s: %s is not among the answers offered", h.v.Name, h.value)
+				out = append(out, h.v.Name)
+			}
+		}
+		return out
+	}
 }
 
 // Prefill is the value a question opens on when nothing has answered it yet — a

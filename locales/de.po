@@ -74,13 +74,17 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:653
+#: internal/spec/spec.go:660
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:655
+#: internal/spec/spec.go:662
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
+
+#: internal/spec/spec.go:672
+msgid "This answer is not among the ones offered here."
+msgstr "Diese Antwort gehört nicht zu den hier angebotenen."
 
 #: internal/store/conf.go:69
 #, c-format
@@ -99,11 +103,11 @@ msgstr "Sprache der Oberfläche"
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
 
-#: internal/store/store.go:209 tui/labels.go:231
+#: internal/store/store.go:229 tui/labels.go:231
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:211 tui/labels.go:232
+#: internal/store/store.go:231 tui/labels.go:232
 msgid "No"
 msgstr "Nein"
 

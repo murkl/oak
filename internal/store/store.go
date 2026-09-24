@@ -27,13 +27,17 @@ type Store struct {
 	val   map[string]string
 	path  string // where the answers are written
 	debug bool
+
+	// unoffered is every answer a list turned away when it was read again,
+	// and the value it turned away - see Unoffer.
+	unoffered map[string]string
 }
 
 // New builds a store from the folder's declarations, already carrying every
 // default. path is the answer file, read by Load and written by Save, and
 // debug is whether this run only pretends to work.
 func New(mod *spec.Module, path string, debug bool) *Store {
-	s := &Store{mod: mod, val: map[string]string{}, path: path, debug: debug}
+	s := &Store{mod: mod, val: map[string]string{}, path: path, debug: debug, unoffered: map[string]string{}}
 	for _, v := range mod.Vars {
 		s.val[v.Name] = v.Default.String()
 	}
@@ -162,6 +166,19 @@ func (s *Store) Visible() []*spec.Variable {
 	return out
 }
 
+// Unoffer records that the answer name holds is not among those its list
+// offers any more. The list is the only thing that can say so, and reading it
+// is running shell, so it is read where the answer is about to be acted on
+// rather than on every question about the answers - see Runner.Unoffered.
+//
+// From then on that value is turned away like one that breaks a rule, so the
+// question is put again and says why. Another value is judged on its own.
+func (s *Store) Unoffer(name string) { s.unoffered[name] = s.val[name] }
+
+// Reoffer takes back what Unoffer recorded, for a list read again that offers
+// the answer once more - a stick plugged back in.
+func (s *Store) Reoffer(name string) { delete(s.unoffered, name) }
+
 // Invalid returns why a value will not do, or "" if it will. The rules come
 // from the declaration, so a value typed at a prompt and one edited straight
 // into the answer file are held to exactly the same standard.
@@ -171,6 +188,9 @@ func (s *Store) Invalid(v *spec.Variable, value string) string {
 			return v.Why()
 		}
 		return ""
+	}
+	if turned, ok := s.unoffered[v.Name]; ok && value == turned {
+		return v.WhyUnoffered()
 	}
 	switch {
 	case v.Shape() == spec.TypeBool:

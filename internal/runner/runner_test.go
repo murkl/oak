@@ -386,3 +386,58 @@ func TestADerivedAnswerThatCannotBeReadIsEmpty(t *testing.T) {
 		t.Errorf("X = %q after an answer that would not run, want empty", got)
 	}
 }
+
+// Read again right before the work, a list names every answer it no longer
+// prints - and only those: an answer its own list still offers, one typed into
+// the box a list carries for exactly that, one whose list cannot be read and
+// one whose question does not apply are all let be.
+func TestUnofferedNamesTheAnswersTheirListsNoLongerPrint(t *testing.T) {
+	_, st, r := setup(t, `variables:
+  - name: DISK
+    title: Disk
+    command: printf '/dev/sda\t/dev/sda  1TB\n'
+  - name: GONE
+    title: Gone
+    command: printf 'one\ntwo\n'
+  - name: FONT
+    title: Font
+    free: Type a font name
+    command: echo ter-v16n
+  - name: BROKEN
+    title: Broken
+    command: exit 1
+  - name: OFF
+    title: Off
+    command: echo on
+    conditions: DISK == nothing
+`, nil)
+	st.Set("DISK", "/dev/sda")
+	st.Set("GONE", "three")
+	st.Set("FONT", "my-own-font")
+	st.Set("BROKEN", "anything")
+	st.Set("OFF", "whatever")
+
+	if got := r.Unoffered()(); strings.Join(got, ",") != "GONE" {
+		t.Errorf("unoffered = %v, want only GONE", got)
+	}
+}
+
+// The environment is taken when the check is made, on the side that owns the
+// answers, and the lists are read against it wherever the check then runs.
+func TestUnofferedReadsTheListsAgainstTheAnswersWhenItWasMade(t *testing.T) {
+	_, st, r := setup(t, `variables:
+  - name: LAYOUT
+    title: Layout
+    command: echo de
+  - name: VARIANT
+    title: Variant
+    command: 'if [ "$LAYOUT" = de ]; then echo nodeadkeys; else echo intl; fi'
+`, nil)
+	st.Set("LAYOUT", "de")
+	st.Set("VARIANT", "nodeadkeys")
+	check := r.Unoffered()
+	st.Set("LAYOUT", "us")
+	if got := check(); len(got) != 0 {
+		t.Errorf("unoffered = %v, want none: the lists were read against the answers of the moment", got)
+	}
+}

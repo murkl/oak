@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -2271,4 +2272,136 @@ func TestTheListOfFailuresIsLeftByTheRowThatSaysSo(t *testing.T) {
 	// The row says what it costs, and choosing it is what moves the run on.
 	h.down().wants("not shown again")
 	h.enter().wants("Carry on?")
+}
+
+// progressing starts a run whose second task draws a progress bar and then
+// waits at a gate the test opens, so the screen can be read while it runs.
+// declared is whether that task says its output is its progress.
+func progressing(t *testing.T, declared bool) (*harness, func()) {
+	t.Helper()
+	gate := filepath.Join(t.TempDir(), "gate")
+	if err := syscall.Mkfifo(gate, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	yaml := "title: Second\n"
+	if declared {
+		yaml += "progress: true\n"
+	}
+	h := newHarness(t, map[string]string{
+		"tasks/@go/b-second/task.yaml": yaml,
+		"tasks/@go/b-second/task.sh":   "printf 'fetching\\n 40%%\\r 75%%'\nread -r _ <" + gate + "\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().enter()
+	h.typeIn("x").enter().typeIn("x").enter()
+
+	// Running, and at the gate: the second task has started and drawn its bar.
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		r, ok := h.m.top().(*runScreen)
+		if ok && r.at == 1 && r.session != nil && r.session.Latest() == "75%" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the second task never drew its bar; the page on top is %T", h.m.top())
+		}
+		h.drain()
+	}
+	open := func() {
+		if err := os.WriteFile(gate, []byte("\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return h, open
+}
+
+// A task that says its output is its progress has the line it drew last under
+// its name while it runs - the latest drawing of the bar, not the lines before
+// it - and nothing of it is left once it is done.
+func TestATaskThatDeclaresItsProgressShowsTheLineItDrewLast(t *testing.T) {
+	h, open := progressing(t, true)
+	h.wants("Second", "75%").refuses("fetching", "40%")
+
+	open()
+	h.ran()
+	h.wants("Finished in").refuses("75%")
+}
+
+// Every other task shows nothing of what it prints, whatever that is.
+func TestATaskThatDeclaresNothingShowsNothingOfWhatItPrints(t *testing.T) {
+	h, open := progressing(t, false)
+	h.wants("Second").refuses("75%", "fetching")
+
+	open()
+	h.ran()
+}
+
+// An answer file carried over from another machine names a disk this one does
+// not have. Nothing about the value itself is wrong, so it is the list that
+// says so, read once more on the way into the run: the question comes back,
+// with the reason on it and on the list's own suggestion rather than on its
+// first row - and the run is only one enter away once it is answered.
+func TestAnAnswerTheListNoLongerOffersIsAskedAgainBeforeTheRun(t *testing.T) {
+	tree := strings.Replace(testInstaller, "    command: printf '/dev/sda",
+		"    prefill: echo /dev/sdb\n    command: printf '/dev/sda", 1)
+	h := newHarness(t, map[string]string{treeFile: tree})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.wants("Settings")
+
+	h.a.store.Set("DISK", "/dev/sdz")
+	h.enter()
+	h.wants("Disk", "This answer is not among the ones offered here.").refuses("Ready to start")
+	if f, ok := h.m.top().(*fieldScreen); !ok || f.picker.selected() != "/dev/sdb" {
+		t.Fatalf("the question does not open on its suggestion; the page on top is %T", h.m.top())
+	}
+
+	h.enter()
+	h.wants("Settings")
+	h.enter().wants("Ready to start", "Erasing /dev/sdb.")
+}
+
+// What turned an answer away was its list, so a list that offers it again - the
+// stick plugged back in - takes it again, without a restart in between.
+func TestAnAnswerTheListOffersAgainIsTakenAgain(t *testing.T) {
+	disks := filepath.Join(t.TempDir(), "disks")
+	offer := func(lines string) {
+		t.Helper()
+		if err := os.WriteFile(disks, []byte(lines), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	offer("/dev/sda\n/dev/sdb\n")
+	tree := strings.Replace(testInstaller, `    command: printf '/dev/sda\t/dev/sda  1TB\n/dev/sdb\t/dev/sdb  2TB\n'`,
+		"    command: cat "+disks, 1)
+	h := newHarness(t, map[string]string{treeFile: tree})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.wants("Settings")
+	h.a.store.Set("DISK", "/dev/sdz")
+	h.enter().wants("Disk", "This answer is not among the ones offered here.")
+
+	offer("/dev/sda\n/dev/sdb\n/dev/sdz\n")
+	h.esc().wants("Start", "Settings")
+	h.down().enter().wants("Every used value")
+	h.down().enter().wants("/dev/sdz").refuses("This answer is not among the ones offered here.")
+	h.enter().esc().wants("Settings")
+	h.key(tea.KeyUp).enter().wants("Ready to start", "Erasing /dev/sdz.")
+}
+
+// Enter on the last page while its lists are still being read is not lost: the
+// run starts the moment they are through.
+func TestEnterWhileTheListsAreReadStartsTheRunOnceTheyAreThrough(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter().typeIn("moritz").enter().enter()
+
+	s := newConfirm(h.a)
+	if _, cmd := s.Update(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil || !s.pressed {
+		t.Fatal("enter during the check went somewhere other than into waiting for it")
+	}
+	_, cmd := s.Update(unofferedMsg{})
+	if cmd == nil {
+		t.Fatal("the run did not start once the lists were through")
+	}
+	if _, ok := cmd().(pushScreenMsg); !ok {
+		t.Error("what followed the check was not the way into the run")
+	}
 }

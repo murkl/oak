@@ -141,10 +141,11 @@ func initOf(s screen) tea.Cmd {
 // command rather than manipulating the stack, so the stack has exactly one
 // owner.
 type (
-	pushScreenMsg struct{ s screen }
-	popScreenMsg  struct{ n int }
-	resetStackMsg struct{ s screen }
-	flashMsg      struct {
+	pushScreenMsg    struct{ s screen }
+	popScreenMsg     struct{ n int }
+	replaceScreenMsg struct{ s screen }
+	resetStackMsg    struct{ s screen }
+	flashMsg         struct {
 		text string
 		bad  bool
 	}
@@ -164,12 +165,13 @@ type (
 	dismissMsg struct{}
 )
 
-func push(s screen) tea.Cmd  { return func() tea.Msg { return pushScreenMsg{s} } }
-func pop() tea.Cmd           { return func() tea.Msg { return popScreenMsg{n: 1} } }
-func reset(s screen) tea.Cmd { return func() tea.Msg { return resetStackMsg{s} } }
-func leave() tea.Cmd         { return func() tea.Msg { return leaveMsg{} } }
-func dismiss() tea.Cmd       { return func() tea.Msg { return dismissMsg{} } }
-func quit() tea.Cmd          { return func() tea.Msg { return quitMsg{} } }
+func push(s screen) tea.Cmd    { return func() tea.Msg { return pushScreenMsg{s} } }
+func pop() tea.Cmd             { return func() tea.Msg { return popScreenMsg{n: 1} } }
+func replace(s screen) tea.Cmd { return func() tea.Msg { return replaceScreenMsg{s} } }
+func reset(s screen) tea.Cmd   { return func() tea.Msg { return resetStackMsg{s} } }
+func leave() tea.Cmd           { return func() tea.Msg { return leaveMsg{} } }
+func dismiss() tea.Cmd         { return func() tea.Msg { return dismissMsg{} } }
+func quit() tea.Cmd            { return func() tea.Msg { return quitMsg{} } }
 
 func flashBad(text string) tea.Cmd {
 	return func() tea.Msg { return flashMsg{text: text, bad: true} }

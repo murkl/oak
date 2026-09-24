@@ -332,6 +332,7 @@ func TestAHookStepRefusesWhatItCannotMean(t *testing.T) {
 		"report":     "report: Done\n",
 		"quits":      "quits: true\n",
 		"tty":        "tty: true\n",
+		"progress":   "progress: true\n",
 		"simulates":  "simulates: true\n",
 	} {
 		t.Run(key, func(t *testing.T) {
@@ -1026,5 +1027,24 @@ func TestAReportsFirstParagraphIsItsHeadline(t *testing.T) {
 	// A report of one paragraph is a headline and nothing else.
 	if !sp.Tasks[0].Reports() {
 		t.Error("a task with a report says it has none")
+	}
+}
+
+// A task may say its output is its progress, and the load keeps that - except
+// where the terminal is handed over, which shows everything already.
+func TestATaskMayDeclareItsOutputItsProgress(t *testing.T) {
+	sp, err := Load(module(t, unit("go", "fetch", "title: Fetch\nprogress: true\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range sp.Tasks {
+		if task.Progress != (task.ID() == "fetch") {
+			t.Errorf("%s: Progress = %v, want it only where it was declared", task.ID(), task.Progress)
+		}
+	}
+
+	_, err = Load(module(t, unit("go", "shell", "title: Shell\nprogress: true\ntty: true\n")))
+	if err == nil || !strings.Contains(err.Error(), "progress") {
+		t.Errorf("err = %v, want progress refused beside tty", err)
 	}
 }

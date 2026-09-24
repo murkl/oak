@@ -293,6 +293,7 @@ func Lines(out string) []string {
 type Session struct {
 	mu     sync.Mutex
 	stderr []string
+	latest string
 	done   chan struct{}
 	err    error
 	cmd    *exec.Cmd
@@ -351,10 +352,12 @@ func (r Runner) Start(step Step, env Env) (*Session, error) {
 	s := &Session{done: make(chan struct{}), cmd: cmd, run: r, step: step}
 
 	// The log gets the raw bytes of both channels; the failure report gets
-	// stderr, sanitized — see writeErr.
+	// stderr, sanitized — see writeErr. Both are followed for the line they
+	// last drew — see Latest — each on a writer of its own, because the two
+	// are copied on two goroutines.
 	errw := &sessionWriter{sink: s.writeErr}
-	cmd.Stdout = logging.External()
-	cmd.Stderr = io.MultiWriter(logging.External(), errw)
+	cmd.Stdout = io.MultiWriter(logging.External(), &progressWriter{sink: s.setLatest})
+	cmd.Stderr = io.MultiWriter(logging.External(), errw, &progressWriter{sink: s.setLatest})
 
 	if err := cmd.Start(); err != nil {
 		drain(cmd, report)
@@ -459,6 +462,23 @@ func (s *Session) writeErr(line string) {
 	}
 }
 
+// Latest is the line the script has drawn most recently, on either channel —
+// what a task that declared its output its progress shows under its name. A
+// carriage return ends a line as much as a newline does: a progress bar draws
+// itself over and over in place with one, and the line worth showing is the
+// one it drew last rather than the one it will end on.
+func (s *Session) Latest() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.latest
+}
+
+func (s *Session) setLatest(line string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.latest = line
+}
+
 func (s *Session) lastErr() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -494,6 +514,40 @@ func (w *sessionWriter) Write(p []byte) (int, error) {
 		}
 		w.sink(string(bytes.TrimRight(w.buf[:i], "\r")))
 		w.buf = w.buf[i+1:]
+	}
+	return len(p), nil
+}
+
+// progressWriter hands on the last line a channel has drawn, the one still
+// being drawn included, sanitized and never empty.
+//
+// It keeps only what came after the last line ending: a program that prints
+// megabytes without one is not drawing a line anybody could read, and is not
+// worth holding in memory for the one that follows.
+type progressWriter struct {
+	sink func(string)
+	buf  []byte
+}
+
+// progressKeep is how much of an unfinished line is held on to.
+const progressKeep = 4096
+
+func (w *progressWriter) Write(p []byte) (int, error) {
+	w.buf = append(w.buf, p...)
+	line := ""
+	for _, part := range bytes.FieldsFunc(w.buf, func(r rune) bool { return r == '\r' || r == '\n' }) {
+		if drawn := strings.TrimSpace(sanitize(string(part))); drawn != "" {
+			line = drawn
+		}
+	}
+	if line != "" {
+		w.sink(line)
+	}
+	if i := bytes.LastIndexAny(w.buf, "\r\n"); i >= 0 {
+		w.buf = w.buf[i+1:]
+	}
+	if len(w.buf) > progressKeep {
+		w.buf = w.buf[len(w.buf)-progressKeep:]
 	}
 	return len(p), nil
 }

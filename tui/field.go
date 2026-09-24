@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/murkl/oak/internal/runner"
@@ -143,7 +144,26 @@ func (s *fieldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	case fieldMsg:
 		s.loading = false
 		current := s.app.store.Get(s.v.Name)
-		if current == "" {
+		// The list just read is the rule, so one that offers the answer again
+		// takes back what an earlier reading turned away.
+		if slices.ContainsFunc(msg.values, func(o runner.Option) bool { return o.Value == current }) {
+			s.app.store.Reoffer(s.v.Name)
+		}
+		// An answer held that will not do - a rule it breaks, a list that no
+		// longer offers it - is why this question is being put again, so the
+		// page says so from the first frame. A list then opens where a fresh
+		// question would: on its suggestion rather than on a row that is not
+		// there, which would leave the cursor on the first one and an enter
+		// meant for the page before answering with it. A box keeps what it
+		// held, since that is the answer to correct.
+		turned := ""
+		if current != "" {
+			turned = s.app.store.Invalid(s.v, current)
+		}
+		if turned != "" {
+			s.problem = turned
+		}
+		if current == "" || (turned != "" && len(msg.values) > 0) {
 			current = msg.prefill
 		}
 		if len(msg.values) == 0 {
