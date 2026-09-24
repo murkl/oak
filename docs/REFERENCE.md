@@ -536,7 +536,7 @@ Two catalogs are merged: Oak's own, compiled into the binary, and the module's u
 
 The language is chosen on the welcome page every run opens on, and can be changed in the settings afterwards. It opens on whatever `oak.conf` last recorded, or on whatever `LC_ALL`, `LC_MESSAGES` or `LANG` comes closest to. It never reaches a script: what a script does is the same in every language.
 
-`oak --language=de` names it on the command line instead, and the welcome page is not drawn at all: its one question is answered. It is matched the way a locale is, so `de_DE.UTF-8` is German too, and a language no catalog answers to is refused before anything is drawn. It holds for this run and is not written to `oak.conf` — whatever starts the program with it names it again next time.
+`oak --language=de` names it on the command line instead, and the welcome page is not drawn at all: its one question is answered. It is matched the way a locale is, so `de_DE.UTF-8` is German too, and a language no catalog answers to is refused before anything is drawn. It is recorded in `oak.conf` the way a choice made on that page is, so whatever reads that file afterwards reads the language the run was read in.
 
 **Note:** _The welcome page itself is the one page no catalog is read for. It is drawn before a language has been settled, so it stays in plain English whatever the last run chose._
 

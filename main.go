@@ -285,12 +285,18 @@ func run(rt *spec.Runtime, mods []*spec.Module, cmd command) error {
 		return err
 	}
 
+	// Recorded like a choice made on that page, because it is one: whatever
+	// reads Oak's own file afterwards reads the language this run was read in.
+	// A folder that cannot keep it cannot keep a module's answers either, which
+	// is said now rather than at the first answer.
 	prefs := saved()
-	lang := named
-	if lang == "" {
-		lang = language(prefs.Lang(), langs)
+	if named != "" {
+		prefs.SetLang(named)
+		if err := prefs.Save(); err != nil {
+			return err
+		}
 	}
-	i18n.Activate(lang, sources...)
+	i18n.Activate(language(prefs.Lang(), langs), sources...)
 
 	opening := &tui.Opening{
 		Runtime: rt, Modules: mods, Prefs: prefs, Langs: langs, Sources: sources,
