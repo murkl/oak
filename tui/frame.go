@@ -217,6 +217,9 @@ func breadcrumb(segments []string, width int) string {
 	return out
 }
 
+// detailRows is how many lines a row's own sentence is given under its list.
+const detailRows = 2
+
 // withDetail draws a list with the selected row's own sentence underneath it,
 // held apart by a blank line. The sentence changes as the cursor moves, which
 // is what makes a list of names readable without any of them having to be a
@@ -226,10 +229,7 @@ func breadcrumb(segments []string, width int) string {
 // moving the cursor never shifts the rows above it — a list that jumps under
 // the hand is a list nobody trusts.
 func withDetail(p *picker, width, height int) string {
-	// Two lines for the sentence and a blank one above it, reserved whether or
-	// not this row has anything to say — moving the cursor must not shift the
-	// rows above it.
-	const detailRows = 2
+	// A blank line above the sentence, reserved like the sentence itself.
 	const gap = 1
 
 	body := p.View(width, height-detailRows-gap)

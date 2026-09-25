@@ -199,6 +199,16 @@ func (a *app) heading() string {
 	return a.brand() + " " + glyphs.crumb + " " + a.module.Name()
 }
 
+// action is what starting the work is called: the menu's first row and the
+// button on the page before the run. The module's own verb where it names one,
+// and the runtime's otherwise.
+func (a *app) action() string {
+	if act := a.module.Action(); act != "" {
+		return act
+	}
+	return labelStart()
+}
+
 // leaves reports whether this machine has to be asked about on the way out. A
 // module nobody has opened yet has said nothing about the machine, so leaving
 // the pages in front of one is leaving. A kiosk always asks, because starting
@@ -324,21 +334,23 @@ func (a *app) start() screen { return a.landing() }
 // one thing it asks is not a question.
 func (a *app) landing() screen {
 	if len(a.langs) < 2 || a.settled {
-		return a.chooseModule()
+		return a.chooseModule(true)
 	}
 	// Pushed rather than replacing this page, so esc on the page after it comes
 	// back here. Choosing a language is a decision like any other and should be
 	// as easy to take back.
-	return newLanding(a, func() tea.Cmd { return push(a.chooseModule()) })
+	return newLanding(a, func() tea.Cmd { return push(a.chooseModule(false)) })
 }
 
-// chooseModule is which of the runtime's modules this run is. A module named on
-// the command line is already open by now, and one module is no question at all.
-func (a *app) chooseModule() screen {
+// chooseModule is which of the runtime's modules this run is, under the
+// wordmark like the language: first says nothing was asked before it. A module
+// named on the command line is already open by now, and one module is no
+// question at all.
+func (a *app) chooseModule(first bool) screen {
 	if a.module != nil {
 		return a.upfront()
 	}
-	return newChoice(a, func() tea.Cmd { return push(a.upfront()) })
+	return newChoice(a, first, func() tea.Cmd { return push(a.upfront()) })
 }
 
 // upfront asks what the module marked `first`, one question to a page and none

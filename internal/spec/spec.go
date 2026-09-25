@@ -226,14 +226,20 @@ type UI struct {
 	// that opens it, the trail across the top of every page once it is open,
 	// and every sentence the interface writes about it.
 	//
-	// One name and no second word for pressing it. The frame carries this one
-	// on every page, so the rows inside a module are named after what they do
-	// — "Start", "Settings" — rather than after the module all over again.
+	// One name. The frame carries it on every page, so the rows inside a
+	// module are named after what they do — "Start", "Settings" — rather than
+	// after the module all over again.
 	Title string
 
 	// Description is what this module is, in one sentence, read under its title
 	// on the page that offers it.
 	Description string
+
+	// Action is what starting the work is called — "Install", "Repair" — on
+	// the first row of the menu and on the button of the page before the run.
+	// A verb rather than a second name: the title already stands over both.
+	// Empty leaves the runtime's own word.
+	Action string
 
 	// Console is the sentence read on the way out of the interface, where the
 	// machine keeps running. What the module is called out there is something
@@ -246,6 +252,10 @@ type UI struct {
 // Help is what this module is, in one sentence: the line under its row on the
 // page that asks which of them to open.
 func (s *Module) Help() string { return i18n.T(s.UI.Description) }
+
+// Action is what starting the work is called, translated. Empty where the
+// module leaves it to the runtime.
+func (s *Module) Action() string { return i18n.T(s.UI.Action) }
 
 // ConfirmText is the last sentence before the first task, translated and with
 // {{VAR}} filled in from the answers.
@@ -805,6 +815,7 @@ func (s *Module) Messages() []Message {
 	decl := FileModule
 	add(decl, "what this module is called, wherever the interface names it", s.UI.Title)
 	add(decl, "what it is, in one sentence, on the page that offers it", s.UI.Description)
+	add(decl, "the row that starts the work, and the button on the page before it", s.UI.Action)
 	add(decl, "how to get back in, read on the way out to the console", s.UI.Console)
 	add(decl, "the last thing read before the first task runs", s.Confirm)
 	for _, p := range s.Presets {

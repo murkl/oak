@@ -603,7 +603,7 @@ func both(t *testing.T) []*spec.Module {
 
 func TestChoosingAProgramSettlesTheQuestionsTheWarningAndTheRun(t *testing.T) {
 	h := start(t, both(t)...)
-	h.wants("What to do", "Test Installer", "Test Recovery", "Put a system on this machine.")
+	h.wants(forkQuestion, "Test Installer", "Test Recovery", "Put a system on this machine.")
 
 	h.down().enter() // the recovery
 	h.wants("Disk").enter()
@@ -627,12 +627,81 @@ func TestTheOtherProgramsQuestionsAreNotAsked(t *testing.T) {
 	h.refuses("Snapshot")
 }
 
-// The page in front of all of them is headed by none of them: naming it after
-// one would answer its own question, so it is read under the name the runtime
-// gave itself.
-func TestTheQuestionOfWhichModuleIsHeadedByTheRuntime(t *testing.T) {
+// What the fork asks, and a catalog answering it in German: the question is
+// read in the language the welcome page settled.
+const forkQuestion = "What would you like to do?"
+
+func forkCatalog(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	po := "msgid \"" + forkQuestion + "\"\nmsgstr \"Was tun\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "de.po"), []byte(po), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// The page in front of all of them stands under the wordmark with the welcome
+// page rather than in the frame: the frame is titled after the module, and
+// there is none yet. Choosing one is what opens it.
+func TestTheQuestionOfWhichModuleStandsUnderTheWordmark(t *testing.T) {
+	corner := lipgloss.NormalBorder().TopLeft
 	h := start(t, both(t)...)
-	h.wants(testRuntime().Title, "What to do")
+	h.m = newModel(h.a, testLogo)
+	h.run(h.m.Init())
+	h.drain()
+	h.wants("TEST OS", forkQuestion, "Test Installer", "Put a system on this machine.").refuses(corner)
+
+	h.enter() // the installer
+	h.wants(corner, testRuntime().Title+" "+glyphs.crumb+" Test Installer").refuses("TEST OS")
+}
+
+// Pushed after the welcome page rather than handed over by the splash, it
+// still stands under the same wordmark, and its keys say there is a page
+// behind it.
+func TestTheQuestionOfWhichModuleStandsUnderTheWordmarkAfterTheWelcomePage(t *testing.T) {
+	h := startIn(t, forkCatalog(t), both(t)...)
+	h.m = newModel(h.a, testLogo)
+	h.run(h.m.Init())
+	h.drain()
+	h.enter() // English
+	h.wants("TEST OS", forkQuestion, "Test Installer", labelHintChoose())
+}
+
+// Where nothing was asked before it, the fork is the first page, and the way
+// out of it is the way out of the program.
+func TestTheQuestionOfWhichModuleIsLeftWithQWhereItComesFirst(t *testing.T) {
+	h := start(t, both(t)...)
+	h.wants(forkQuestion, labelHintMenu()).refuses(labelHintChoose())
+}
+
+// The sentence under the rows is the one of the module under the cursor, and it
+// follows the cursor.
+func TestTheQuestionOfWhichModuleSaysWhatTheOneUnderTheCursorIs(t *testing.T) {
+	h := start(t, both(t)...)
+	h.wants("Put a system on this machine.").refuses("Open a system already on a disk.")
+	h.down()
+	h.wants("Open a system already on a disk.").refuses("Put a system on this machine.")
+}
+
+// And whatever the terminal, it stays inside it.
+func TestTheQuestionOfWhichModuleNeverRunsPastTheEdge(t *testing.T) {
+	h := start(t, both(t)...)
+	h.m = newModel(h.a, testLogo)
+	h.run(h.m.Init())
+	h.drain()
+	for _, size := range [][2]int{{80, 24}, {100, 30}, {200, 60}, {34, 13}, {20, 6}} {
+		h.send(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		lines := strings.Split(h.screen(), "\n")
+		if len(lines) > size[1] {
+			t.Errorf("at %dx%d the page is %d rows tall:\n%s", size[0], size[1], len(lines), h.screen())
+		}
+		for _, line := range lines {
+			if w := lipgloss.Width(line); w > size[0] {
+				t.Errorf("at %dx%d a line is %d wide:\n%s", size[0], size[1], w, line)
+			}
+		}
+	}
 }
 
 // And the landing page comes in front of that: the words the rest is read in
@@ -640,12 +709,9 @@ func TestTheQuestionOfWhichModuleIsHeadedByTheRuntime(t *testing.T) {
 // module to open is itself read in them.
 func TestTheLandingPageComesBeforeTheQuestionOfWhichModule(t *testing.T) {
 	mods := both(t)
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "de.po"), []byte("msgid \"What to do\"\nmsgstr \"Was tun\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	dir := forkCatalog(t)
 	h := startIn(t, dir, mods...)
-	h.wants(landingChoose, "English").refuses("What to do")
+	h.wants(landingChoose, "English").refuses(forkQuestion)
 
 	h.down().enter() // Deutsch
 	h.wants("Was tun", "Test Installer", "Test Recovery")
@@ -663,6 +729,20 @@ func TestTheRowsInsideAModuleAreNamedAfterWhatTheyDo(t *testing.T) {
 
 	h.down()
 	h.wants("Every used value.")
+}
+
+// A module may name what starting its work is called, and then the menu's
+// first row and the button on the page before the run both say that instead.
+func TestTheModuleNamesWhatStartingItsWorkIsCalled(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\naction: Install", 1),
+	})
+	h.down().enter() // a starting point
+	h.typeIn("moritz").enter().enter()
+	h.wants(glyphs.cursor+"Install", "Settings").refuses(labelStart())
+
+	h.enter()
+	h.wants("Ready to start", glyphs.cursor+"Install")
 }
 
 // The frame is titled after the product on every page, and once a module is
@@ -852,10 +932,7 @@ func TestTheWelcomePageNamesTheModuleOnlyWhereItWasSettledOnTheWayIn(t *testing.
 	dressed(t, twoLanguageTree()).wants("TEST OS", "Test Installer", landingChoose)
 
 	mods := both(t)
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "de.po"), []byte("msgid \"What to do\"\nmsgstr \"Was tun\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	dir := forkCatalog(t)
 	h := startIn(t, dir, mods...)
 	h.wants(landingChoose).refuses("Test Installer", "Test Recovery")
 	h.enter().enter() // English, then the installer
@@ -869,7 +946,7 @@ func TestTheFrameComesUpOutOfTheFieldOnceTheWelcomePageIsAnswered(t *testing.T) 
 	t.Cleanup(func() { setFade(1) })
 	h := newHarness(t, twoLanguageTree())
 
-	_, cmd := h.m.Update(pushScreenMsg{h.a.chooseModule()})
+	_, cmd := h.m.Update(pushScreenMsg{h.a.chooseModule(false)})
 	if fadeLevel != 0 {
 		t.Errorf("the frame appeared at %v rather than out of the field", fadeLevel)
 	}
@@ -2053,13 +2130,10 @@ func TestBackspaceInAPasswordOnlyDeletes(t *testing.T) {
 // onto the language, so esc lands back on it.
 func TestTheQuestionOfWhichModuleIsBackedOutOfLikeAnyOther(t *testing.T) {
 	mods := both(t)
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "de.po"), []byte("msgid \"What to do\"\nmsgstr \"Was tun\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	dir := forkCatalog(t)
 	h := startIn(t, dir, mods...)
 	h.enter() // English, and on to the question of which module
-	h.wants("What to do", "Test Installer")
+	h.wants(forkQuestion, "Test Installer")
 	h.esc()
 	h.wants(landingChoose, "English")
 }

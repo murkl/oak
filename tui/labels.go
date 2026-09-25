@@ -96,6 +96,10 @@ func labelPoweredBy(version string) string { return say("powered by oak %s", ver
 // — never the row of answers already given.
 func labelOpening() string { return say("Start") }
 
+// What starting the work is called where a module names no word of its own:
+// the menu's first row, and the button on the page before the run.
+func labelStart() string { return say("Start") }
+
 func labelLanguage() string { return say("Interface language") }
 
 // The sentence under it, and it says what the setting does not do: a machine
@@ -108,9 +112,9 @@ func labelLanguageHelp(name string) string {
 }
 
 // The fork after it, where a runtime offers more than one module. Only the
-// page's own name is the runtime's: what is on it, and what each of them is, is
+// question is the runtime's: what is on offer, and what each of them is, is
 // said in each module's own words.
-func labelChoice() string { return say("What to do") }
+func labelChoice() string { return say("What would you like to do?") }
 
 // labelCounter is where something sits in a run of things: which question of
 // how many, which task of how many. Bare numbers, because it is read in the

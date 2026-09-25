@@ -35,17 +35,18 @@ func (h *hub) Refresh() {
 	h.picker.focus(key)
 }
 
-// build names the top row after what pressing it does and not after the module
-// it belongs to: the frame overhead carries that name on every page, and a row
-// repeating it would be the same word twice on one screen. What the module has
-// to say for itself is the sentence under the row.
+// build names the top row after what pressing it does — in the module's own
+// word for it where it has one — and not after the module it belongs to: the
+// frame overhead carries that name on every page, and a row repeating it would
+// be the same word twice on one screen. What the module has to say for itself
+// is the sentence under the row.
 //
 // The network is offered where the module can join one and does not ask for
 // the internet on the way in: where it does, the opening has already put that
 // page in front of it.
 func (h *hub) build() {
 	items := []item{
-		{title: labelOpening(), detail: h.app.module.Help(), key: keyInstall},
+		{title: h.app.action(), detail: h.app.module.Help(), key: keyInstall},
 		{title: labelSettings(), detail: labelSettingsSummary(), key: keySettings},
 	}
 	if r := h.app.runner.Radio(); r != nil && r.Joinable() && !r.Checks() {

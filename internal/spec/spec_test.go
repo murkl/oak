@@ -498,6 +498,24 @@ func TestConsoleIsTranslatable(t *testing.T) {
 	}
 }
 
+// So is the word for starting the work, and a block scalar is read as the one
+// line a catalog looks it up by.
+func TestActionIsTranslatable(t *testing.T) {
+	sp, err := Load(module(t, map[string]string{
+		FileModule: head("action: |\n  Install\n"),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Test Installer", "Install", "Do it"}
+	if got := texts(sp); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("Messages() = %v\nwant %v", got, want)
+	}
+	if got := sp.Action(); got != "Install" {
+		t.Errorf("Action() = %q, want %q", got, "Install")
+	}
+}
+
 // Every one of these is an authoring mistake that must be caught while the module
 // is being opened. The alternative — loading anyway — is a task that
 // silently never runs on somebody's machine, which is the failure this whole

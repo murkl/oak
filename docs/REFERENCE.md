@@ -75,6 +75,7 @@ The folder name is the module's identity: what `oak --module=<name>` opens, and 
 ```yaml
 title: Tux Setup                         # the module's one name, wherever it is named
 description: Set a machine up for Tux.   # shown where the modules are offered
+action: Install                          # optional: what starting the work is called
 stages: [prepare, install]               # the phases the work happens in, in order
                                          # — each a folder under tasks/
 
@@ -95,6 +96,7 @@ requires: |                              # optional: what a machine must be for 
 | `title` | **Required.** What the module is called, everywhere: the row that opens it, the trail across the top of every page once it is open, and every sentence the interface writes about it |
 | `stages` | **Required.** The phases the work happens in, in order. Each is a folder under `tasks/`, marked — `tasks/@install/` — and the name written here carries no `@` of its own |
 | `description` | One sentence, read on the page that offers the modules |
+| `action` | What starting the work is called: the first row of the menu, and the button on the last page before the run. Left out, `Start` |
 | `confirm` | The last thing shown before the first task. `{{VAR}}` is filled in from the answers — see [Placeholders](#placeholders) |
 | `console` | Read on the terminal on the way out, where the machine keeps running |
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
@@ -103,7 +105,7 @@ requires: |                              # optional: what a machine must be for 
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
 
-**One name and no second word for pressing it.** The frame carries the title on every page, so the rows inside a module are named after what they do — `Start`, `Settings` — and the lines a run writes about itself say `Failed` rather than the module's name over again. A name read twice on one screen is a line that says nothing, and three words for one module would be three entries in every catalog that no language forms out of each other.
+**One name, and a verb for pressing it.** The frame carries the title on every page, so the rows inside a module are named after what they do — `Start`, `Settings` — and the lines a run writes about itself say `Failed` rather than the module's name over again. A name read twice on one screen is a line that says nothing. `action:` is what the first of those rows does in the module's own word — `Install`, `Repair` — where `Start` says too little. It is a verb and not a second name: a module whose title already says what it does — `Write an image` — would only repeat it, and names a shorter verb, `Write`, or none.
 
 ### Placeholders
 
@@ -122,7 +124,7 @@ What is left is what the interface does with them:
 
 | On offer | What happens |
 | --- | --- |
-| Several | The question after the language: which one to open |
+| Several | The question after the language, under the wordmark the same way: which one to open |
 | One | It is opened on the way in. No list of one row |
 | None | The program says so and stops, in the words each module wrote |
 
@@ -567,7 +569,7 @@ cp modules/setup/locales/setup.pot modules/setup/locales/fr.po
 
 Two catalogs are merged: Oak's own, compiled into the binary, and the module's under `locales/`. A catalog names its own language as the translation of `English`, and that is what the language picker lists — so a language is always shown in its own words.
 
-The language is chosen on the welcome page every run opens on, and can be changed in the settings afterwards. The page stands on its own rather than in the frame: the wordmark stays where the splash left it, a module named on the command line — or the only one there is — stands under it, and choosing a language is what opens the frame. It opens on whatever `oak.conf` last recorded, or on whatever `LC_ALL`, `LC_MESSAGES` or `LANG` comes closest to. It never reaches a script: what a script does is the same in every language.
+The language is chosen on the welcome page every run opens on, and can be changed in the settings afterwards. The page stands on its own rather than in the frame: the wordmark stays where the splash left it, a module named on the command line — or the only one there is — stands under it, and choosing a language is what opens the frame. Where there are several modules, the question of which to open comes next and stands under the wordmark the same way — read in the language just chosen, with each module's own sentence under the row the cursor is on — and choosing one is what opens the frame instead: the frame is titled after the module, and before one is chosen there is nothing for it to be about. It opens on whatever `oak.conf` last recorded, or on whatever `LC_ALL`, `LC_MESSAGES` or `LANG` comes closest to. It never reaches a script: what a script does is the same in every language.
 
 `oak --language=de` names it on the command line instead, and the welcome page is not drawn at all: its one question is answered. It is matched the way a locale is, so `de_DE.UTF-8` is German too, and a language no catalog answers to is refused before anything is drawn. It is recorded in `oak.conf` the way a choice made on that page is, so whatever reads that file afterwards reads the language the run was read in.
 
