@@ -40,8 +40,10 @@ type declaration struct {
 	Requires string `yaml:"requires"`
 
 	// What this module is and what it does: one sentence about the program, the
-	// last warning before a run starts, and the phases that run happens in.
+	// word for starting it, the last warning before a run starts, and the phases
+	// that run happens in.
 	Description string   `yaml:"description"`
+	Action      string   `yaml:"action"`
 	Confirm     string   `yaml:"confirm"`
 	Stages      []string `yaml:"stages"`
 
@@ -65,7 +67,7 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Description: head.Description, Console: head.Console}
+	s.UI = UI{Title: head.Title, Description: head.Description, Action: head.Action, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Confirm, s.Stages = head.Confirm, head.Stages
 	if err := head.Status.settle(dir, FileModule); err != nil {
@@ -662,7 +664,7 @@ func (s *Module) checkAsks(t *Task) error {
 //
 // A blank line survives, because that is the one break that was meant.
 func (s *Module) normalize(tasks []*Task, hooks map[string][]*Task) {
-	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Console, &s.Confirm}
+	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Action, &s.UI.Console, &s.Confirm}
 	for _, p := range s.Presets {
 		fields = append(fields, &p.Title, &p.Description)
 		for _, o := range p.Options {

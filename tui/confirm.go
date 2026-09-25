@@ -82,7 +82,7 @@ func (s *confirmScreen) View(width, height int) string {
 	if text := s.app.module.ConfirmText(s.app.store.Get); text != "" {
 		b.WriteString(paragraph(text, width) + "\n")
 	}
-	return b.String() + "\n" + accentBold.Render(glyphs.cursor+labelOpening())
+	return b.String() + "\n" + accentBold.Render(glyphs.cursor+s.app.action())
 }
 
 // startInstall is the way into an installation: the secrets that have to be

@@ -15,6 +15,11 @@
 title: Tux Setup
 description: Build a small Linux system tree, the way an installer would.
 
+# What starting the work is called: the menu's first row, and the button on the
+# last page before the run. A verb, since the title stands over both. Left out,
+# as the recovery beside this one does, it is Start.
+action: Install
+
 # The phases the work happens in, in the order they happen. Every task names one
 # of them, and naming it is the whole of what puts it in the run and where.
 stages: [prepare, install, finish]

@@ -12,7 +12,7 @@
       - page: Please choose your language
         shot: welcome
         press: enter
-      - page: What to do
+      - page: What would you like to do?
         shot: choice
 
 # One question, on a page of its own.
@@ -35,7 +35,7 @@
         press: enter
       - page: Desktop
         press: enter
-      - page: [Start, Settings]
+      - page: [Install, Settings]
         press: enter
       - page: Ready to start
         press: enter

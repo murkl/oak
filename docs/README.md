@@ -47,7 +47,7 @@ modules/recovery/         another module, another program
 A **module** is one whole program. A **product** is the modules a binary ships with, under one name and one colour. One folder under `modules/` is opened on the way in; a second is what turns that into a page.
 
 <p align="center">
-  <img src="screenshots/choice.png" width="640" alt="Two modules under modules/, offered as a page">
+  <img src="screenshots/choice.png" width="640" alt="Two modules under modules/, offered under the wordmark">
 </p>
 
 ```mermaid

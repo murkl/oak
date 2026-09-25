@@ -28,6 +28,11 @@ type Model struct {
 	splash  *splashModel
 	arrived time.Duration
 
+	// wordmark is the same logo, kept once the splash is over: every page of
+	// the way in stands under it, the one pushed after the splash has gone as
+	// much as the one the splash handed over to. Nil where there is no logo.
+	wordmark *splashModel
+
 	// spinning guards the clock against a second chain being started while one
 	// is already running; which frame the working mark is on comes from
 	// spinFrame, off the wall clock, so two marks on screen at once turn
@@ -67,11 +72,20 @@ func newModel(a *app, logo string) *Model {
 		return m
 	}
 	m.splash = newSplash(logo, a.oak)
-	if s, ok := m.top().(stager); ok {
-		s.stage(m.splash)
-		m.splash.stays = true
+	m.wordmark = m.splash
+	if framed(m.top()) {
+		return m
 	}
+	m.stage(m.top())
+	m.splash.stays = true
 	return m
+}
+
+// stage hands a page that stands under the wordmark the one it stands under.
+func (m *Model) stage(s screen) {
+	if st, ok := s.(stager); ok {
+		st.stage(m.wordmark)
+	}
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -248,6 +262,7 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case pushScreenMsg:
+		m.stage(msg.s)
 		m.stack = append(m.stack, msg.s)
 		// A page that runs something starts it in its own Init, so the clock for
 		// the mark has to be offered again here: it stopped when the last thing
