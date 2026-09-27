@@ -163,7 +163,10 @@ func (s *networkScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case netOnlineMsg:
-		if msg.round != s.round {
+		// Answered only by the page's first look and while it waits: a look
+		// that lands while a passphrase is typed would move the page on under
+		// the hands typing it.
+		if msg.round != s.round || (s.step != netChecking && !s.waits()) {
 			return s, nil
 		}
 		if msg.ok {

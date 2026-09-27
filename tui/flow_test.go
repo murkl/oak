@@ -1119,6 +1119,21 @@ func TestTheInternetPageJoinsAWirelessNetwork(t *testing.T) {
 	h.wants("Full", "Bare") // online now, straight into the module's own opening
 }
 
+// A connection that turns up while a passphrase is being typed does not take
+// the page away from under it: the look that found it is not answered there.
+func TestTheInternetPageStaysWhileAPassphraseIsTyped(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "online")
+	tree := wirelessHooks(marker)
+	tree[treeFile] = testInstaller + needsWireless
+	tree["hooks/@online/check/hook.yaml"] = onlineOnce(marker)
+	h := newHarness(t, tree)
+	h.enter().typeIn("sec")
+	h.wants("Passphrase")
+
+	h.send(netOnlineMsg{ok: true, round: h.m.top().(*networkScreen).round})
+	h.wants("Passphrase").refuses("Full", "Bare")
+}
+
 // Backing out of the list is not backing out of the wait: the page behind it
 // still says what fixes it, and r looks for networks again.
 func TestBackingOutOfTheNetworksStillWaits(t *testing.T) {
