@@ -41,7 +41,7 @@ status:
   fail: Offline          # ...and while it says no
 ```
 
-The mark in front of it is Oak's, filled for yes and hollow for no, so it is one a console font holds wherever the interface can be drawn at all. Nothing is shown until the script has answered once, and the line gives way to whatever is happening now: the mark that turns while something runs takes its place, and so does a page's own count. A network joined on the network page is read again at once rather than an interval later.
+The mark in front of it is Oak's, filled for yes and hollow for no, so it is one a console font holds wherever the interface can be drawn at all. Nothing is shown until the script has answered once, and the line gives way to whatever is happening now: the mark that turns while something runs takes its place, and so does a page's own count. A wireless network joined is read again at once rather than an interval later.
 
 Written in `oak.yaml`, it is every module's. A module that writes `status:` in its own declaration has that one and none of the product's. `pass` and `fail` are read through the module's catalog, and `oak --strings` puts them in its template.
 
@@ -85,6 +85,10 @@ confirm: |                               # the last thing shown before anything 
 console: Run ./oak --module=setup to start it again.  # optional: read on the way out
 language: TUX_LOCALE                     # optional: ties the interface language to one answer
 
+network:                                 # optional: see The network
+  wlan: true
+  internet: required
+
 requires: |                              # optional: what a machine must be for this
   [ -d /run/archiso ] && return 0
   echo "This only runs from the live image." >&2
@@ -102,6 +106,7 @@ requires: |                              # optional: what a machine must be for 
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
 | `requires` | What a machine has to be for this module to be offered on it — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `status` | This module's own line in the header, in place of the product's — see [The header's status](#the-headers-status) |
+| `network` | Whether it joins a wireless network, and whether its work needs the internet — see [The network](#the-network) |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
 
@@ -141,6 +146,29 @@ requires: |
 This is what lets one product hold modules that belong on different machines — an installer that only makes sense on a live image, and the thing that writes that image, which only makes sense anywhere else. Each says so itself, and nothing anywhere holds a list of which is which, so adding a module stays a folder.
 
 **`--debug` offers every one of them.** A simulated run is read on whatever machine somebody happens to be sitting at, and a list narrowed to what that machine is would hide exactly the pages they opened it for.
+
+### The network
+
+Two things a module says about the network, and the hooks are how either is done. Every key is optional.
+
+```yaml
+network:
+  wlan: true           # a wireless network, joined with the three @wlan- hooks
+  internet: required   # required or optional. Left out, optional
+```
+
+| Key | Description |
+| --- | --- |
+| `wlan` | Offers a wireless network, joined with `@wlan-device`, `@wlan-networks` and `@wlan-connect`. Off — or left out — those three are never run |
+| `internet` | `required`: the work does not begin without the internet, asked of `@online`. `optional`: the network is left to the settings |
+
+**`wlan: true`** puts **Wireless network** on the settings page, right under the language, wherever `@wlan-device` finds a card: a row that could only say there is none is a row nobody needed. It is looked for in the background as soon as the module is open and again whenever the page comes up, since a card is a thing that gets plugged in, and a device hook that fails shows the row all the same — the page behind it says what went wrong. The row reads the network joined in this run, and choosing it lists the networks in range, asks for the passphrase and comes back.
+
+**`internet: required`** stands a page in front of the work, after the questions marked `first`, for as long as `@online` says no. It lists the wireless networks in range where there is a card to join one with, and otherwise says to plug in a cable. It looks again by itself every few seconds and carries on the moment there is a connection. There is no carrying on without: the work behind it would only stop at its first download.
+
+`@online` is also what a join waits for, wherever a module has it: a card that has joined a network may still have no address, and a passphrase some cards take without a word may be wrong. Without it, a join counts once `@wlan-connect` returns.
+
+What is declared is held to. `wlan: true` without all three hooks, and `internet: required` without `@online`, are refused when the module loads. A hook that is there and switched off — the three under `wlan: false`, `@online` where neither key asks for it — is taken out rather than skipped, so nothing can run it, and [`--inspect`](#checking-a-product) names it on an `ignored` line.
 
 ## Questions
 
@@ -229,7 +257,7 @@ It is read when the module opens and again whenever an answer changes, so a valu
 
 **`apply:`** is for an answer that changes the machine the program is running on rather than the one being worked on — `apply: loadkeys "$TUX_KEYMAP"`. It runs the moment the answer is given, and again at startup for an answer this run already had. Where the answer was just given, a failure is logged as a warning and the answer still stands: whoever chose it is looking at what it did. At startup — and after a preset filled it in — the answer goes back to what it was before anybody answered, and is asked again: nobody watched it being put in force, and a password typed next on a keymap that never loaded is refused without a word about why.
 
-**`first: true`** puts a question before the network screen, the preflight and the presets, so a password can be typed on a keyboard layout that has already been settled. Use it sparingly: it is asked before the check that decides whether this machine can be worked on at all.
+**`first: true`** puts a question before the network page, the preflight and the presets, so a password can be typed on a keyboard layout that has already been settled. Use it sparingly: it is asked before the check that decides whether this machine can be worked on at all.
 
 **`filter:`** says what a question's list does with the narrowing box `/` opens. `collapsed` — every question that says nothing — leaves it behind the key, which costs the page nothing until somebody wants it. `open` puts it up from the first frame, for the list that has to be scrolled through to find a row. Nothing is counted on the machine: a list of keyboard variants is thirty rows here and three there, and a page that changed shape with that would be two pages. A question asked `first` carries its box open either way, and saying so again is refused.
 
@@ -421,13 +449,13 @@ A preset is named by its title and nothing else. Nothing points at one, so there
 
 Seven moments belong to Oak rather than to the module. Each is a folder under `hooks/`, named with the `@` the hook itself carries, holding one folder per step with a `hook.yaml` and — where the shell is too long for the yaml — a `hook.sh` in it.
 
-Oak decides when a hook runs. A module that fills none of them has no `hooks/` folder at all, and simply does not get those parts of the program.
+Oak decides when a hook runs. A module that fills none of them has no `hooks/` folder at all, and simply does not get those parts of the program. The network's four are the exception: they are how, and whether is [`network:`](#the-network).
 
 | Hook | Description |
 | --- | --- |
 | `@preflight` | Can this machine be worked on at all. A hard stop, run before everything except the `first` questions. What it writes to stderr is what the user reads |
-| `@online` | Is there internet. Where it says no, the network screen stands in front of the work on the way in — see below |
-| `@wlan-device` | Which wireless device to use |
+| `@online` | Is there internet — see [The network](#the-network) |
+| `@wlan-device` | Which wireless device to use, and nothing where the machine has none |
 | `@wlan-networks` | The networks in range, one SSID per line |
 | `@wlan-connect` | Join one, with `WLAN_DEVICE`, `WLAN_SSID` and `WLAN_PASSPHRASE` in the environment |
 | `@restart` | Shut this machine down and start it again |
@@ -438,8 +466,6 @@ hooks/@preflight/root/hook.yaml       title: Running as root
 hooks/@preflight/firmware/hook.yaml   title: UEFI, Secure Boot off
 hooks/@online/https/hook.yaml         title: Reach the network
 ```
-
-**The network screen** is where a module joins a wireless network, with the three `@wlan-` hooks. A module that also fills `@online` needs the internet: the screen stands in front of the work on the way in wherever `@online` says no, and a join counts once `@online` says yes. One that fills only the three can do without it: the screen is a row of the menu instead, **Wireless network**, taken whenever somebody wants it, and a join counts once `@wlan-connect` returns.
 
 Every step of a hook runs in order, one process each, and `@preflight` stops at the first that says no — so a check that is really four checks is written as four, each with a name of its own. `needs:` orders them the way it orders a stage. What they print comes back as one answer, which is how `@wlan-networks` hands over a list.
 
@@ -554,6 +580,7 @@ oak --glyphs                     # every character the interface can put on a co
 | `unread` | A question asked where no task that reads the answer can run. **This fails the check** — it is the one authoring mistake a module's shape does not rule out on its own |
 | `unset` | A name in capitals the module's shell reads that nothing here answers. A description, not a verdict — `$HOME` and `$PATH` belong on that line |
 | `needs` | A `needs:` naming a task in another stage. Also a description: the stages already put the two in that order |
+| `ignored` | A hook the module has and its [`network:`](#the-network) switches off, which is never run. A description as well |
 | `translation drops` / `adds` | A catalog naming other `{{VAR}}` than the string it translates. **This fails the check** — see [Placeholders](#placeholders) |
 
 `unset` is where a name that used to arrive and no longer does becomes visible. In shell an unset name is an empty string rather than an error, so nothing else would ever say so.

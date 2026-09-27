@@ -36,10 +36,10 @@ func labelHintStart() string    { return say("⏎ start · esc back") }
 // answer has already started — so esc there says what q says on the menu.
 func labelHintAnswer() string { return say("↑↓ move · ⏎ confirm · esc quit") }
 
-// The network screen: checking for internet, and — where the module describes
-// how — joining a wireless one.
+// The network page: the internet the work waits for in the opening, and the
+// wireless network the settings join.
+func labelInternet() string        { return say("Internet") }
 func labelNetwork() string         { return say("Wireless network") }
-func labelNetworkHelp() string     { return say("Join a wireless network to continue.") }
 func labelNetworkChecking() string { return say("Checking the internet connection …") }
 func labelNetworkScanning() string { return say("Looking for wireless networks …") }
 
@@ -48,24 +48,30 @@ func labelNetworkJoining(ssid string) string {
 	return say("Joining %s …", ssid)
 }
 func labelNetworkOffline() string    { return say("There is no internet connection.") }
+func labelNetworkNoDevice() string   { return say("No wireless device.") }
 func labelNetworkNoNetworks() string { return say("No wireless networks in range.") }
 func labelPassphrase() string        { return say("Passphrase") }
-func labelContinueAnyway() string    { return say("Continue anyway") }
 func labelHintNetworkChoosing() string {
-	return say("↑↓ move · ⏎ join · r rescan · esc skip")
+	return say("↑↓ move · ⏎ join · r rescan · esc back")
 }
-func labelHintNetworkOffline() string { return say("⏎ continue · r retry · esc back") }
-func labelHintNetworkRetry() string   { return say("r retry · esc back") }
+func labelHintNetworkRetry() string { return say("r retry · esc back") }
 
-// The hub's row for it, where the module can do without the internet.
+// Over the list: in the opening, what joining one is for; in the settings,
+// what it is for there.
+func labelNetworkHelp() string {
+	return say("Join a wireless network, or plug in a cable, to continue.")
+}
 func labelNetworkJoin() string {
 	return say("Join a wireless network, for whatever needs the internet.")
 }
-func labelNetworkOfflineHelp() string {
-	return say("Everything that gets installed is downloaded. Plug in a cable, or press r to search again.")
+
+// Under the opening's page while there is no connection. Nothing to press to
+// carry on: the page does that by itself once there is one.
+func labelNetworkWait() string {
+	return say("This needs the internet. Plug in a cable and it carries on by itself.")
 }
-func labelNetworkOfflineHelpUnjoinable() string {
-	return say("Everything that gets installed is downloaded. Plug in a cable, or join a wireless network before continuing.")
+func labelNetworkWaitWireless() string {
+	return say("This needs the internet. Plug in a cable and it carries on by itself, or press r to look for wireless networks again.")
 }
 
 // The narrowing box: the key that opens it, appended to a list's own hint, and

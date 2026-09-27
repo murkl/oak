@@ -76,11 +76,10 @@ Every page appears only when it has something to show. A module with no presets 
 ```mermaid
 flowchart TD
     L["Welcome<br/>the language"] --> W["Which module"] --> Q1["Questions marked first"]
-    Q1 --> N["Network"] --> P["Preflight check"] --> PR["Presets"]
+    Q1 --> N["Internet<br/>where it is required"] --> P["Preflight check"] --> PR["Presets"]
     PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
-    H --> SE["Settings"] --> H
-    H --> NW["Wireless network<br/>where it is optional"] --> H
+    H --> SE["Settings<br/>wireless network under the language"] --> H
     H --> CF["Last warning"] --> R["The run<br/>tasks, top to bottom"]
     R --> OK["Done"]
     R --> ER["Failure<br/>script · line · command"]

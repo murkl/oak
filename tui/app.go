@@ -117,6 +117,21 @@ type app struct {
 	settled bool
 	kiosk   bool
 
+	// wireless is whether this machine has a wireless card, as the module's
+	// @wlan-device last said — or could not say, which is shown rather than
+	// hidden, see settingsScreen.detect. It is what puts the network on the
+	// settings page at all, and it stands until the next look replaces it, so
+	// the row does not blink out while that look is under way.
+	wireless bool
+
+	// joined is the wireless network joined in this run, the value its row on
+	// the settings page reads. Empty where none was.
+	joined string
+
+	// looked is whether the module open now has been asked about the card yet
+	// — see Model.look.
+	looked bool
+
 	// first records whether this machine had answered anything when the program
 	// started. It is read once, before the first save — after that the answer
 	// file exists whatever happens, and the question "is this a first run" would
@@ -181,6 +196,7 @@ func (a *app) enter(mod *spec.Module) error {
 	a.module, a.store, a.runner = p.Module, p.Store, p.Runner
 	a.langs, a.sources = p.Langs, p.Sources
 	a.first = !p.Store.Exists()
+	a.looked = false
 	return nil
 }
 
@@ -313,7 +329,7 @@ func (a *app) save() tea.Cmd {
 
 // The opening is one chain, and each link only knows the one after it: pick a
 // language, pick a module, settle whatever that module wants settled before
-// anything is typed, join a network, let it look at the machine, pick a
+// anything is typed, get onto the internet, let it look at the machine, pick a
 // starting point, answer what is still open — and from then on it is simply
 // ready. A link with nothing to ask hands straight on, so a module with no
 // presets never shows a page offering none.
@@ -365,19 +381,19 @@ func (a *app) upfront() screen {
 	return newField(a, open[0], func() tea.Cmd { return push(a.upfront()) }).opening()
 }
 
-// network is where a module that can tell whether there is internet gets the
-// chance to join a network, because every stage past this point downloads
-// something. One that can only join one is offered that on the hub instead.
+// network is where a module that cannot do without the internet waits for it,
+// joining a wireless network where it can. One that can do without leaves the
+// network to its settings.
 func (a *app) network() screen {
-	if radio := a.runner.Radio(); radio != nil && radio.Checks() {
-		return newNetwork(a, radio)
+	if a.module.Network.Required() {
+		return newNetwork(a, a.runner.Radio())
 	}
 	return a.afterNetwork()
 }
 
-// afterNetwork is where the network screen hands over, whether it joined
-// something or was told to carry on without. Then comes the module's own check
-// that this machine can be worked on at all, where it declares one.
+// afterNetwork is where the network page hands over once there is internet,
+// or straight away for a module that can do without. Then comes the module's
+// own check that this machine can be worked on at all, where it declares one.
 func (a *app) afterNetwork() screen {
 	if len(a.module.Hook(spec.HookPreflight)) == 0 {
 		return a.afterCheck()
