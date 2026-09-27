@@ -2,6 +2,17 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.12.0](https://github.com/murkl/oak/compare/v0.11.0...v0.12.0) (2026-09-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* the network hooks no longer switch anything on by being there. A module that needs the internet on the way in declares `network: {internet: required}`, one that joins a wireless network `network: {wlan: true}`.
+
+### Features
+
+* the network declared by the module, waited for where it is required and joined from the settings ([#22](https://github.com/murkl/oak/issues/22)) ([05cee05](https://github.com/murkl/oak/commit/05cee05fbade6e96e6c80426634a82ee58f931e3))
+
 ## [0.11.0](https://github.com/murkl/oak/compare/v0.10.0...v0.11.0) (2026-09-25)
 
 
