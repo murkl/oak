@@ -382,6 +382,104 @@ func TestAModuleWithoutHooksHasNone(t *testing.T) {
 	}
 }
 
+// wireless is the three hooks a wireless network is joined with.
+func wireless() map[string]string {
+	return units(
+		hook(HookDevice, "station", "title: Device\n"),
+		hook(HookNetworks, "scan", "title: Networks\n"),
+		hook(HookConnect, "join", "title: Join\n"),
+	)
+}
+
+// A module that says nothing about the network neither joins one nor waits
+// for one: the internet is optional until somebody says it is not.
+func TestTheNetworkIsOptionalAndWirelessIsOffUnlessSaid(t *testing.T) {
+	sp, err := Load(module(t, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sp.Network.WLAN || sp.Network.Required() || sp.Network.Internet != InternetOptional {
+		t.Errorf("Network = %+v, want no wireless and the internet optional", sp.Network)
+	}
+}
+
+// Required is what stands the network page in front of the work, and it is
+// asked of @online.
+func TestAModuleSaysItNeedsTheInternet(t *testing.T) {
+	sp, err := Load(module(t, units(
+		map[string]string{FileModule: head("network:\n  internet: required\n")},
+		hook(HookOnline, "https", "title: Online\n"),
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sp.Network.Required() || len(sp.Hook(HookOnline)) != 1 {
+		t.Errorf("Network = %+v, online = %v, want the internet required and asked of the hook", sp.Network, sp.Hook(HookOnline))
+	}
+}
+
+// Switched off, the wireless hooks are taken out of the module rather than
+// skipped, so nothing can run them — and each is named, since a folder of shell
+// that never runs is otherwise found by nobody.
+func TestTheWirelessHooksAreIgnoredWhileWLANIsOff(t *testing.T) {
+	sp, err := Load(module(t, units(
+		map[string]string{FileModule: head("network:\n  wlan: false\n")},
+		wireless(),
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range wlanHooks {
+		if got := sp.Hook(name); len(got) != 0 {
+			t.Errorf("%s = %+v, want it taken out", name, got)
+		}
+	}
+	want := []string{
+		"hooks/@wlan-device: network: wlan is off",
+		"hooks/@wlan-networks: network: wlan is off",
+		"hooks/@wlan-connect: network: wlan is off",
+	}
+	if strings.Join(sp.Ignored, "|") != strings.Join(want, "|") {
+		t.Errorf("Ignored = %q, want %q", sp.Ignored, want)
+	}
+}
+
+// Switched on, they are kept, and so is @online beside them: it is what tells
+// a network joined from one that carries anything, even where the internet is
+// optional.
+func TestTheWirelessHooksAreRunWhileWLANIsOn(t *testing.T) {
+	sp, err := Load(module(t, units(
+		map[string]string{FileModule: head("network:\n  wlan: true\n")},
+		wireless(),
+		hook(HookOnline, "https", "title: Online\n"),
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range append(wlanHooks, HookOnline) {
+		if got := sp.Hook(name); len(got) != 1 {
+			t.Errorf("%s = %+v, want the one step in it", name, got)
+		}
+	}
+	if len(sp.Ignored) != 0 {
+		t.Errorf("Ignored = %q, want nothing", sp.Ignored)
+	}
+}
+
+// @online asked by neither question is never run, and said so.
+func TestOnlineIsIgnoredWhereNothingAsksIt(t *testing.T) {
+	sp, err := Load(module(t, hook(HookOnline, "https", "title: Online\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := sp.Hook(HookOnline); len(got) != 0 {
+		t.Errorf("online = %+v, want it taken out", got)
+	}
+	if len(sp.Ignored) != 1 || !strings.Contains(sp.Ignored[0], "hooks/@online: network: internet is optional and wlan is off") {
+		t.Errorf("Ignored = %q, want @online named", sp.Ignored)
+	}
+}
+
 // A task's own proof that the work took is a second script beside the first,
 // found the same way: written in the yaml, named by it, or simply lying there
 // under the name Oak knows it by.
@@ -768,6 +866,30 @@ func TestLoadRefuses(t *testing.T) {
 			name:  "a starting point with shell and nothing to run it on",
 			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: O\n        apply: echo hi\n")},
 			want:  "no asks for it to work from",
+		},
+		{
+			name: "a wireless network with a hook missing behind it",
+			files: units(
+				map[string]string{FileModule: head("network:\n  wlan: true\n")},
+				hook(HookDevice, "station", "title: Device\n"),
+				hook(HookNetworks, "scan", "title: Networks\n"),
+			),
+			want: "joined with hooks/@wlan-connect, and there is none",
+		},
+		{
+			name:  "the internet required and nothing to ask whether there is any",
+			files: map[string]string{FileModule: head("network:\n  internet: required\n")},
+			want:  "asked of hooks/@online, and there is none",
+		},
+		{
+			name:  "the internet neither required nor optional",
+			files: map[string]string{FileModule: head("network:\n  internet: always\n")},
+			want:  `required or optional, got "always"`,
+		},
+		{
+			name:  "a network key nobody reads",
+			files: map[string]string{FileModule: head("network:\n  ethernet: true\n")},
+			want:  "ethernet is not a key here",
 		},
 	}
 	for _, tc := range cases {

@@ -251,6 +251,22 @@ func TestANeedReachingIntoAnotherStageIsReported(t *testing.T) {
 	}
 }
 
+// A hook the module's network switches off is never run, and the report is
+// the one place that says so.
+func TestAHookTheNetworkSwitchesOffIsReported(t *testing.T) {
+	dir := around(t, writeModule(t, "title: T\nstages: [go]\n", map[string]string{
+		"hooks/" + spec.HookOnline + "/https/hook.yaml": "title: Online\nscript: \"true\"\n",
+	}))
+	rt, mods := product(t, dir)
+	var out strings.Builder
+	if err := Report(&out, rt, mods, locales.FS); err != nil {
+		t.Fatal(err)
+	}
+	if want := "ignored    hooks/@online: network: internet is optional and wlan is off"; !strings.Contains(out.String(), want) {
+		t.Errorf("the report does not say %q:\n%s", want, out.String())
+	}
+}
+
 // One template belongs to one module, so a product holding several says which
 // to name rather than picking one.
 func TestATemplateOfSeveralModulesAtOnceIsRefused(t *testing.T) {

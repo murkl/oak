@@ -134,6 +134,11 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 	for _, warning := range mod.Warnings {
 		fmt.Fprintf(w, "  %-10s %s\n", "needs", warning)
 	}
+	// And a hook the module has and its `network:` switches off, which is
+	// never run.
+	for _, hook := range mod.Ignored {
+		fmt.Fprintf(w, "  %-10s %s\n", "ignored", hook)
+	}
 
 	// The order they run in is worked out rather than written down anywhere.
 	for i, t := range mod.Tasks {

@@ -74,19 +74,19 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:693
+#: internal/spec/spec.go:738
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:695
+#: internal/spec/spec.go:740
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
-#: internal/spec/spec.go:705
+#: internal/spec/spec.go:750
 msgid "This answer is not among the ones offered here."
 msgstr "Diese Antwort gehört nicht zu den hier angebotenen."
 
-#: internal/spec/spec.go:715
+#: internal/spec/spec.go:760
 msgid "This password was not accepted."
 msgstr "Dieses Passwort wurde nicht angenommen."
 
@@ -99,7 +99,7 @@ msgstr "Angaben für %s. Kann von Hand bearbeitet werden."
 msgid "Answers kept for every module. Can be edited by hand."
 msgstr "Angaben, die für jedes Modul gelten. Kann von Hand bearbeitet werden."
 
-#: internal/store/prefs.go:78 tui/labels.go:103
+#: internal/store/prefs.go:78 tui/labels.go:109
 msgid "Interface language"
 msgstr "Sprache der Oberfläche"
 
@@ -107,30 +107,30 @@ msgstr "Sprache der Oberfläche"
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
 
-#: internal/store/store.go:230 tui/labels.go:255
+#: internal/store/store.go:230 tui/labels.go:261
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:232 tui/labels.go:256
+#: internal/store/store.go:232 tui/labels.go:262
 msgid "No"
 msgstr "Nein"
 
-#: internal/wlan/wlan.go:95 internal/wlan/wlan.go:98
-msgid "No wireless device."
-msgstr "Kein WLAN-Gerät."
+#: internal/wlan/wlan.go:97
+msgid "The wireless device could not be read."
+msgstr "Das WLAN-Gerät konnte nicht gelesen werden."
 
-#: internal/wlan/wlan.go:109
+#: internal/wlan/wlan.go:108
 msgid "The networks in range could not be read."
 msgstr "Die Netzwerke in Reichweite konnten nicht gelesen werden."
 
 #. %s is the name of the wireless network.
-#: internal/wlan/wlan.go:122
+#: internal/wlan/wlan.go:121
 #, c-format
 msgid "%s could not be joined."
 msgstr "Verbindung mit %s fehlgeschlagen."
 
 #. %s is the name of the wireless network.
-#: internal/wlan/wlan.go:136
+#: internal/wlan/wlan.go:135
 #, c-format
 msgid "%s was joined, but there is still no internet."
 msgstr "%s ist verbunden, aber es gibt weiterhin keine Internetverbindung."
@@ -234,12 +234,12 @@ msgid "↑↓ move · ⏎ confirm · esc quit"
 msgstr "↑↓ bewegen · ⏎ bestätigen · esc beenden"
 
 #: tui/labels.go:41
-msgid "Wireless network"
-msgstr "WLAN"
+msgid "Internet"
+msgstr "Internet"
 
 #: tui/labels.go:42
-msgid "Join a wireless network to continue."
-msgstr "Verbinde dich mit einem WLAN, um fortzufahren."
+msgid "Wireless network"
+msgstr "WLAN"
 
 #: tui/labels.go:43
 msgid "Checking the internet connection …"
@@ -260,226 +260,226 @@ msgid "There is no internet connection."
 msgstr "Keine Internetverbindung."
 
 #: tui/labels.go:51
+msgid "No wireless device."
+msgstr "Kein WLAN-Gerät."
+
+#: tui/labels.go:52
 msgid "No wireless networks in range."
 msgstr "Keine WLAN-Netzwerke in Reichweite."
 
-#: tui/labels.go:52
+#: tui/labels.go:53
 msgid "Passphrase"
 msgstr "Passwort"
 
-#: tui/labels.go:53
-msgid "Continue anyway"
-msgstr "Trotzdem fortfahren"
-
 #: tui/labels.go:55
-msgid "↑↓ move · ⏎ join · r rescan · esc skip"
-msgstr "↑↓ bewegen · ⏎ verbinden · r neu suchen · esc überspringen"
+msgid "↑↓ move · ⏎ join · r rescan · esc back"
+msgstr "↑↓ bewegen · ⏎ verbinden · r neu suchen · esc zurück"
 
 #: tui/labels.go:57
-msgid "⏎ continue · r retry · esc back"
-msgstr "⏎ weiter · r erneut versuchen · esc zurück"
-
-#: tui/labels.go:58
 msgid "r retry · esc back"
 msgstr "r erneut versuchen · esc zurück"
 
 #: tui/labels.go:62
+msgid "Join a wireless network, or plug in a cable, to continue."
+msgstr "Verbinde dich mit einem WLAN oder stecke ein Kabel ein, um fortzufahren."
+
+#: tui/labels.go:65
 msgid "Join a wireless network, for whatever needs the internet."
 msgstr "Verbinde dich mit einem WLAN, für alles, was das Internet braucht."
 
-#: tui/labels.go:65
-msgid "Everything that gets installed is downloaded. Plug in a cable, or press r to search again."
-msgstr "Alles, was installiert wird, wird heruntergeladen. Stecke ein Kabel ein oder drücke r, um erneut zu suchen."
+#: tui/labels.go:71
+msgid "This needs the internet. Plug in a cable and it carries on by itself."
+msgstr "Hierfür wird das Internet gebraucht. Stecke ein Kabel ein, dann geht es von selbst weiter."
 
-#: tui/labels.go:68
-msgid "Everything that gets installed is downloaded. Plug in a cable, or join a wireless network before continuing."
-msgstr "Alles, was installiert wird, wird heruntergeladen. Stecke ein Kabel ein oder verbinde dich mit einem WLAN, bevor du fortfährst."
+#: tui/labels.go:74
+msgid "This needs the internet. Plug in a cable and it carries on by itself, or press r to look for wireless networks again."
+msgstr "Hierfür wird das Internet gebraucht. Stecke ein Kabel ein, dann geht es von selbst weiter, oder drücke r, um erneut nach WLAN-Netzwerken zu suchen."
 
-#: tui/labels.go:73
+#: tui/labels.go:79
 msgid "/ filter"
 msgstr "/ filtern"
 
-#: tui/labels.go:75
+#: tui/labels.go:81
 msgid "type to filter · ↑↓ move · ⏎ select · esc close"
 msgstr "tippen filtert · ↑↓ bewegen · ⏎ auswählen · esc schließen"
 
-#: tui/labels.go:81
+#: tui/labels.go:87
 msgid "type to filter · ↑↓ move · ⏎ select · esc back"
 msgstr "tippen filtert · ↑↓ bewegen · ⏎ auswählen · esc zurück"
 
-#: tui/labels.go:84
+#: tui/labels.go:90
 msgid "Filter …"
 msgstr "Filtern …"
 
-#: tui/labels.go:85
+#: tui/labels.go:91
 msgid "No matches"
 msgstr "Keine Treffer"
 
 #. %s is Oak's own version, for example "v1.4.0".
-#: tui/labels.go:91
+#: tui/labels.go:97
 #, c-format
 msgid "powered by oak %s"
 msgstr "läuft mit oak %s"
 
-#: tui/labels.go:97 tui/labels.go:101
+#: tui/labels.go:103 tui/labels.go:107
 msgid "Start"
 msgstr "Start"
 
 #. %s is the name of the product being read, as oak.yaml declares it.
-#: tui/labels.go:111
+#: tui/labels.go:117
 #, c-format
 msgid "The language %s is read in. It changes the words on screen and nothing else."
 msgstr "Die Sprache, in der %s gelesen wird. Sie ändert nur die Anzeige, sonst nichts."
 
-#: tui/labels.go:117
+#: tui/labels.go:123
 msgid "What would you like to do?"
 msgstr "Was möchtest du tun?"
 
-#: tui/labels.go:123
+#: tui/labels.go:129
 #, c-format
 msgid "%d of %d"
 msgstr "%d von %d"
 
-#: tui/labels.go:125
+#: tui/labels.go:131
 msgid "Settings"
 msgstr "Einstellungen"
 
 #. the first %d is how many tests passed, the second how many ran.
-#: tui/labels.go:136
+#: tui/labels.go:142
 #, c-format
 msgid "%d of %d tests passed"
 msgstr "%d von %d Tests bestanden"
 
 #. the first %d is how many optional tasks failed, the second how many ran.
-#: tui/labels.go:144
+#: tui/labels.go:150
 #, c-format
 msgid "%d of %d optional tasks failed"
 msgstr "%d von %d optionalen Aufgaben fehlgeschlagen"
 
-#: tui/labels.go:147
+#: tui/labels.go:153
 msgid "Results"
 msgstr "Ergebnisse"
 
-#: tui/labels.go:148
+#: tui/labels.go:154
 msgid "↑↓ move · ⏎ select"
 msgstr "↑↓ bewegen · ⏎ auswählen"
 
-#: tui/labels.go:152
+#: tui/labels.go:158
 msgid "Continue"
 msgstr "Weiter"
 
-#: tui/labels.go:153
+#: tui/labels.go:159
 msgid "Leave this page. These results are not shown again."
 msgstr "Diese Seite verlassen. Die Ergebnisse werden nicht noch einmal gezeigt."
 
-#: tui/labels.go:166
+#: tui/labels.go:172
 msgid "Verify steps"
 msgstr "Schritte prüfen"
 
-#: tui/labels.go:168
+#: tui/labels.go:174
 msgid "Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
 msgstr "Liest nach jeder Aufgabe den Rechner: ob wirklich getan ist, was sie getan hat, und ob es so ist, wie es sein soll. Das macht aus einem Durchlauf, der Erfolg gemeldet hat, einen, auf den Verlass ist. Nichts wird verändert und nichts abgebrochen. Was nicht übereinstimmt, steht am Ende."
 
-#: tui/labels.go:174
+#: tui/labels.go:180
 msgid "Every used value. Open one to change it."
 msgstr "Alle verwendeten Werte. Zum Ändern einen öffnen."
 
-#: tui/labels.go:181
+#: tui/labels.go:187
 msgid "Every used value."
 msgstr "Alle verwendeten Werte."
 
-#: tui/labels.go:188
+#: tui/labels.go:194
 msgid "Reset all answers"
 msgstr "Alle Antworten zurücksetzen"
 
-#: tui/labels.go:190
+#: tui/labels.go:196
 msgid "Every answer is forgotten and the file they are kept in is deleted. The module starts again at its first question, and this cannot be undone."
 msgstr "Alle Antworten werden verworfen und die Datei, in der sie stehen, wird gelöscht. Das Modul beginnt wieder bei seiner ersten Frage, und das lässt sich nicht rückgängig machen."
 
-#: tui/labels.go:193
+#: tui/labels.go:199
 msgid "Repeat"
 msgstr "Wiederholen"
 
-#: tui/labels.go:194
+#: tui/labels.go:200
 msgid "The entries do not match."
 msgstr "Die Eingaben stimmen nicht überein."
 
-#: tui/labels.go:204
+#: tui/labels.go:210
 msgid "Ready to start"
 msgstr "Bereit zum Start"
 
-#: tui/labels.go:205
+#: tui/labels.go:211
 msgid "Failed"
 msgstr "Fehlgeschlagen"
 
-#: tui/labels.go:207
+#: tui/labels.go:213
 #, c-format
 msgid "Working · %s"
 msgstr "Läuft · %s"
 
-#: tui/labels.go:210
+#: tui/labels.go:216
 #, c-format
 msgid "Finished in %s"
 msgstr "Fertig in %s"
 
-#: tui/labels.go:213
+#: tui/labels.go:219
 #, c-format
 msgid "The full log is in %s."
 msgstr "Das vollständige Protokoll steht in %s."
 
-#: tui/labels.go:222
+#: tui/labels.go:228
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr "Abgebrochen bei %s; alles danach wurde nicht mehr ausgeführt."
 
-#: tui/labels.go:225
+#: tui/labels.go:231
 msgid "Cannot continue"
 msgstr "Fortfahren nicht möglich"
 
-#: tui/labels.go:229
+#: tui/labels.go:235
 msgid "Leave"
 msgstr "Beenden"
 
-#: tui/labels.go:234
+#: tui/labels.go:240
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr "Der Vorgang läuft hinter dieser Seite weiter. Jede Auswahl hier bricht ihn ab."
 
-#: tui/labels.go:237
+#: tui/labels.go:243
 msgid "Restart"
 msgstr "Neu starten"
 
-#: tui/labels.go:238
+#: tui/labels.go:244
 msgid "Close this machine down and start it again."
 msgstr "Den Rechner herunterfahren und neu starten."
 
-#: tui/labels.go:239
+#: tui/labels.go:245
 msgid "Shut down"
 msgstr "Herunterfahren"
 
-#: tui/labels.go:240
+#: tui/labels.go:246
 msgid "Exit"
 msgstr "Beenden"
 
-#: tui/labels.go:241
+#: tui/labels.go:247
 msgid "Switch this machine off."
 msgstr "Den Rechner ausschalten."
 
-#: tui/labels.go:245
+#: tui/labels.go:251
 msgid "Reset"
 msgstr "Zurücksetzen"
 
-#: tui/labels.go:247
+#: tui/labels.go:253
 msgid "Forget every answer and start again from the beginning."
 msgstr "Alle Antworten vergessen und von vorn beginnen."
 
-#: tui/labels.go:249
+#: tui/labels.go:255
 msgid "Restarting …"
 msgstr "Neustart läuft …"
 
-#: tui/labels.go:250
+#: tui/labels.go:256
 msgid "Shutting down …"
 msgstr "Wird heruntergefahren …"
 
-#: tui/labels.go:251
+#: tui/labels.go:257
 msgid "The machine did not respond."
 msgstr "Der Rechner hat nicht reagiert."

@@ -29,7 +29,8 @@ func binaryDir() string {
 
 // declaration is a module's yaml as it is written: flat, because every key in
 // it is about the module as a whole and a nesting level would only be there to
-// be typed.
+// be typed — but for the two that are one subject with parts of its own, the
+// header's status and the network.
 type declaration struct {
 	Title    string `yaml:"title"`
 	Console  string `yaml:"console"`
@@ -52,6 +53,9 @@ type declaration struct {
 
 	// The header's line for this module, in place of the product's.
 	Status *Status `yaml:"status"`
+
+	// Whether it joins a wireless network, and whether it needs the internet.
+	Network Network `yaml:"network"`
 }
 
 // Load reads one module folder and checks it over — every reference resolved,
@@ -69,7 +73,7 @@ func Load(dir string) (*Module, error) {
 	}
 	s.UI = UI{Title: head.Title, Description: head.Description, Action: head.Action, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
-	s.Confirm, s.Stages = head.Confirm, head.Stages
+	s.Confirm, s.Stages, s.Network = head.Confirm, head.Stages, head.Network
 	if err := head.Status.settle(dir, FileModule); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
@@ -401,7 +405,51 @@ func (s *Module) check(tasks []*Task, hooks map[string][]*Task) error {
 	if err := s.checkText("confirm", s.Confirm); err != nil {
 		return fmt.Errorf("%s: %w", FileModule, err)
 	}
-	return s.checkTasks(tasks, hooks)
+	if err := s.checkTasks(tasks, hooks); err != nil {
+		return err
+	}
+	if err := s.checkNetwork(); err != nil {
+		return fmt.Errorf("%s: %w", FileModule, err)
+	}
+	return nil
+}
+
+// checkNetwork holds the hooks to what `network:` says of them. A promise with
+// a hook missing behind it is refused: the page it puts up would have nothing
+// to run. A hook it switches off is taken out, after it has been checked like
+// every other, so nothing downstream can run it — and said, see Ignored.
+func (s *Module) checkNetwork() error {
+	n := &s.Network
+	switch n.Internet {
+	case "":
+		n.Internet = InternetOptional
+	case InternetRequired, InternetOptional:
+	default:
+		return fmt.Errorf("network: internet: %s or %s, got %q", InternetRequired, InternetOptional, n.Internet)
+	}
+	if n.Required() && len(s.hooks[HookOnline]) == 0 {
+		return fmt.Errorf("network: internet: %s is asked of %s/%s, and there is none", InternetRequired, DirHooks, HookOnline)
+	}
+	for _, name := range wlanHooks {
+		switch {
+		case n.WLAN && len(s.hooks[name]) == 0:
+			return fmt.Errorf("network: wlan: a wireless network is joined with %s/%s, and there is none", DirHooks, name)
+		case !n.WLAN && len(s.hooks[name]) > 0:
+			s.ignore(name, "network: wlan is off")
+		}
+	}
+	// @online answers two questions: whether the work may begin, and whether a
+	// network just joined carries anything. Asked by neither, it never runs.
+	if !n.Required() && !n.WLAN && len(s.hooks[HookOnline]) > 0 {
+		s.ignore(HookOnline, "network: internet is optional and wlan is off")
+	}
+	return nil
+}
+
+// ignore takes a hook out of the module and says why.
+func (s *Module) ignore(hook, why string) {
+	s.Ignored = append(s.Ignored, fmt.Sprintf("%s/%s: %s", DirHooks, hook, why))
+	delete(s.hooks, hook)
 }
 
 // checkText holds a sentence to the answers this module has. A {{VAR}} naming

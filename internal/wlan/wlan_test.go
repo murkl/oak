@@ -30,7 +30,7 @@ func TestNewGivesNoRadioWhenTheTreeDescribesNone(t *testing.T) {
 // still gets a radio: it is offered on demand rather than on the way in.
 func TestNewGivesARadioThatOnlyJoins(t *testing.T) {
 	r := New(Config{Device: hook("echo wlan0"), Networks: hook("echo Home"), Connect: hook("true")}, sh, nil)
-	if r == nil || r.Checks() || !r.Joinable() {
+	if r == nil || r.checks() || !r.Joinable() {
 		t.Errorf("New() = %+v, want a radio that joins and checks nothing", r)
 	}
 }
@@ -62,23 +62,30 @@ func TestJoinableNeedsDeviceNetworksAndConnect(t *testing.T) {
 	}
 }
 
-func TestInterfaceReturnsWhatTheDeviceCommandPrints(t *testing.T) {
-	r := radio(Config{Device: hook("echo wlan0")})
-	got, err := r.Interface()
+func TestDeviceIsWhatTheHookPrints(t *testing.T) {
+	got, err := radio(Config{Device: hook("echo wlan0")}).Device()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != "wlan0" {
-		t.Errorf("interface = %q, want wlan0", got)
+		t.Errorf("device = %q, want wlan0", got)
 	}
 }
 
-func TestInterfaceFailsWhenThereIsNoDevice(t *testing.T) {
-	if _, err := radio(Config{Device: hook("true")}).Interface(); err == nil {
-		t.Fatal("an empty device list was not an error")
+// A machine without a card is an answer: nothing, and no error, so the
+// wireless network is simply not offered on it.
+func TestDeviceIsNothingWhereThereIsNone(t *testing.T) {
+	got, err := radio(Config{Device: hook("true")}).Device()
+	if err != nil || got != "" {
+		t.Errorf("device = %q, %v, want nothing and no error", got, err)
 	}
-	if _, err := radio(Config{Device: hook("exit 1")}).Interface(); err == nil {
-		t.Fatal("a failing device command was not an error")
+}
+
+// A hook that fails has not looked, which is not the same as having found
+// nothing.
+func TestDeviceFailsWhenTheHookDoes(t *testing.T) {
+	if _, err := radio(Config{Device: hook("exit 1")}).Device(); err == nil {
+		t.Fatal("a failing device hook was not an error")
 	}
 }
 

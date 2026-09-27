@@ -89,7 +89,7 @@ func (m *Model) stage(s screen) {
 }
 
 func (m *Model) Init() tea.Cmd {
-	cmd := tea.Batch(initOf(m.top()), m.turn(), m.poll())
+	cmd := tea.Batch(initOf(m.top()), m.turn(), m.poll(), m.look())
 	if m.splash == nil {
 		return cmd
 	}
@@ -149,7 +149,20 @@ func (m *Model) animate() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	was := m.front()
 	next, cmd := m.step(msg)
-	return next, tea.Batch(cmd, m.arrive(was), m.poll())
+	return next, tea.Batch(cmd, m.arrive(was), m.poll(), m.look())
+}
+
+// look asks the module once, as soon as it is open, whether this machine has a
+// wireless card, so the settings page stands with its row from the first frame
+// rather than growing one over somebody's cursor. The page asks again itself
+// every time it comes up — see settingsScreen.Init.
+func (m *Model) look() tea.Cmd {
+	a := m.app
+	if a.module == nil || a.looked || !a.module.Network.WLAN {
+		return nil
+	}
+	a.looked = true
+	return lookForCard(a.runner.Radio())
 }
 
 // statusMsg is what the header's status check answered; statusDueMsg is the
@@ -239,6 +252,15 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case recheckMsg:
 		m.round++
 		m.waiting = false
+		return m, nil
+
+	// Taken here rather than by the page that asked, which may be gone by the
+	// time the answer lands: the answer is the machine's, not the page's.
+	case wirelessMsg:
+		m.app.wireless = msg.present
+		if s, ok := m.top().(*settingsScreen); ok {
+			s.build()
+		}
 		return m, nil
 
 	case tea.KeyMsg:

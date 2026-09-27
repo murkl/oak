@@ -75,9 +75,10 @@ func marked(name string) bool { return strings.HasPrefix(name, Mark) }
 // only of the folder, because it is what the hook is called — in a log, in a
 // report and in the row a failure draws.
 //
-// Nothing declares them. A folder under one of these names is the declaration,
-// and a module that leaves one out simply does not get that part of the
-// program.
+// A folder under one of these names is the declaration, and a module that
+// leaves one out simply does not get that part of the program. The network's
+// are the exception: they are the how, and `network:` in module.yaml is the
+// whether — see Network.
 const (
 	HookPreflight = Mark + "preflight"     // can this machine be worked on at all
 	HookOnline    = Mark + "online"        // is there internet
@@ -96,6 +97,39 @@ var Hooks = []string{
 	HookPreflight, HookOnline, HookDevice, HookNetworks, HookConnect,
 	HookRestart, HookShutdown,
 }
+
+// wlanHooks are the three a wireless network is joined with, and every one of
+// them is needed: a card nobody can scan with, or a list nobody can join, is a
+// page that goes nowhere.
+var wlanHooks = []string{HookDevice, HookNetworks, HookConnect}
+
+// Network is what a module says about the network: whether it joins a
+// wireless one, and whether its work can begin without the internet.
+//
+// Both are policy, and the hooks are the how: the three @wlan- hooks join a
+// network, @online says whether there is internet. Written down rather than
+// read off which hooks there are, so a module switches the wireless network
+// off without taking its shell apart — and so a hook missing behind a promise
+// made here is refused at startup rather than taking the promise with it.
+type Network struct {
+	// WLAN offers a wireless network in the settings, and in front of the work
+	// where the internet is required. Off, the @wlan- hooks are never run.
+	WLAN bool `yaml:"wlan"`
+
+	// Internet is required or optional. Required stands the network page in
+	// front of the work for as long as @online says no; optional leaves the
+	// network to the settings. Left out, optional.
+	Internet string `yaml:"internet"`
+}
+
+// The two things a module can say about the internet.
+const (
+	InternetRequired = "required"
+	InternetOptional = "optional"
+)
+
+// Required reports whether the work cannot begin without the internet.
+func (n Network) Required() bool { return n.Internet == InternetRequired }
 
 // Script is one piece of shell a task holds: the file it lives in, or what its
 // yaml wrote outright. Exactly one of the two, and neither where the task
@@ -171,6 +205,17 @@ type Module struct {
 	// reported — by `--inspect`, and in the log when the module is opened —
 	// rather than raised.
 	Warnings []string
+
+	// Ignored is every hook the module has and its `network:` switches off,
+	// each with the reason. Taken out of the module rather than kept and
+	// skipped, so nothing downstream can run one by accident, and said the way
+	// Warnings are: a folder of shell that never runs is otherwise found by
+	// nobody.
+	Ignored []string
+
+	// Network is whether this module joins a wireless network and whether it
+	// needs the internet before its work — see Network.
+	Network Network
 
 	// Shell is what every script of this module is given before its own, and
 	// Locales the folder its catalogs live in. Both are whatever FileShell and
@@ -584,7 +629,7 @@ type Variable struct {
 	Check string `yaml:"check"`
 
 	// First puts this question before everything else the program does — before
-	// the network screen, before the module's own check of the machine, before the
+	// the network page, before the module's own check of the machine, before the
 	// starting point is chosen. For the answer that everything after it is typed
 	// on: a wireless passphrase given on a keyboard nobody chose is not the
 	// passphrase, and there is nothing to be done about that afterwards.

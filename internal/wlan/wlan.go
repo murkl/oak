@@ -16,9 +16,9 @@ import (
 )
 
 // Config is the shell one module uses to find and join a network, one hook to
-// a field. A module may say only "tell me if I am offline", or only how to join
-// one — a machine that can do without the internet has nothing to ask about it
-// on the way in, and still somebody may want it there.
+// a field. Whether each is there is the module's `network:` — the internet
+// asked of @online, a wireless network joined with the other three — so a
+// field left empty is a part of this the module switched off.
 type Config struct {
 	Online   []exec.Step
 	Device   []exec.Step
@@ -62,17 +62,17 @@ const (
 // never gets offered the screen.
 func New(cfg Config, sh exec.Runner, env func() exec.Env) *Radio {
 	r := &Radio{cfg: cfg, sh: sh, env: env, settle: defaultSettle, tries: defaultTries}
-	if !r.Checks() && !r.Joinable() {
+	if !r.checks() && !r.Joinable() {
 		return nil
 	}
 	return r
 }
 
-// Checks reports whether the module can tell if there is internet, which is
-// what puts the network page in front of the work where there is none.
-func (r *Radio) Checks() bool { return len(r.cfg.Online) > 0 }
+// checks reports whether the module can tell if there is internet, which is
+// what a join waits for where it can.
+func (r *Radio) checks() bool { return len(r.cfg.Online) > 0 }
 
-// Joinable reports whether the module described enough to actually connect.
+// Joinable reports whether the module joins a wireless network at all.
 func (r *Radio) Joinable() bool {
 	return len(r.cfg.Device) > 0 && len(r.cfg.Networks) > 0 && len(r.cfg.Connect) > 0
 }
@@ -84,18 +84,17 @@ func (r *Radio) Online() bool {
 	return err == nil
 }
 
-// Interface finds the wireless device to use.
+// Device finds the wireless device to use, and nothing where this machine has
+// none — which is an answer, not a failure: the wireless network is then simply
+// not offered. A hook that fails has not looked, and says so.
 //
 // What comes back here is read on the network page rather than in the log, so
 // it is said in the interface's own language with whatever the hook had to add
 // after it — that part is the tool's own words and is nobody's to translate.
-func (r *Radio) Interface() (string, error) {
+func (r *Radio) Device() (string, error) {
 	out, err := r.sh.Hook(r.cfg.Device, r.env())
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", i18n.T("No wireless device."), err)
-	}
-	if out == "" {
-		return "", errors.New(i18n.T("No wireless device."))
+		return "", fmt.Errorf("%s: %w", i18n.T("The wireless device could not be read."), err)
 	}
 	return out, nil
 }
@@ -123,7 +122,7 @@ func (r *Radio) Join(device, ssid, passphrase string) error {
 	}
 	// Nothing to ask whether it carries anything: joined is as far as this
 	// module can tell, and waiting for more is its connect hook's business.
-	if !r.Checks() {
+	if !r.checks() {
 		return nil
 	}
 	for i := 0; i < r.tries; i++ {

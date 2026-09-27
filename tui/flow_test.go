@@ -319,10 +319,11 @@ func (h *harness) handle(msg tea.Msg) {
 		for _, c := range msg {
 			h.run(c)
 		}
-	case tickMsg, spinMsg, statusDueMsg:
+	case tickMsg, spinMsg, statusDueMsg, netDueMsg:
 		// A clock. It carries nothing and re-arms itself, so handling one
-		// would be a test that never ends. The opening's is the exception: it
-		// runs out, and what the palette is left at when it has is behaviour.
+		// would be a test that never ends — a test that wants one to go off
+		// sends it. The opening's is the exception: it runs out, and what the
+		// palette is left at when it has is behaviour.
 	default:
 		if blink(msg) {
 			return
@@ -493,10 +494,11 @@ func (h *harness) answered() *harness {
 func TestAFirstQuestionIsAskedBeforeTheNetwork(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
-			"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    values: [de, en]\n",
+			"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    values: [de, en]\n" +
+			needsInternet,
 		"hooks/@online/check/hook.yaml": "title: Online\nscript: exit 1\n",
 	})
-	h.wants("Language and formats", "de", "en").refuses("Wireless network", "internet connection")
+	h.wants("Language and formats", "de", "en").refuses("Internet", "internet connection")
 
 	// Answered, and only now is there a network to look for.
 	h.enter()
@@ -536,7 +538,8 @@ func TestAnsweringAFirstQuestionPutsItInForce(t *testing.T) {
 func TestAnAnsweredFirstQuestionIsNotAskedAgain(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
-			"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    default: de\n    values: [de, en]\n",
+			"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    default: de\n    values: [de, en]\n" +
+			needsInternet,
 		"hooks/@online/check/hook.yaml": "title: Online\nscript: exit 1\n",
 	})
 	h.wants("There is no internet connection.").refuses("Language and formats")
@@ -1019,95 +1022,215 @@ func TestTheInterfaceLanguageIsNotAnAnswer(t *testing.T) {
 
 // ─── The network ─────────────────────────────────────────────────────────────
 
-// A module with no internet problem to begin with never sees the network
-// screen at all: it is a fix offered when one is needed, not a page every
-// installation has to click through.
-func TestNetworkScreenIsSkippedWhenAlreadyOnline(t *testing.T) {
-	h := newHarness(t, map[string]string{
-		"hooks/@online/check/hook.yaml": "title: Online\nscript: exit 0\n",
-	})
-	h.wants("Full", "Bare").refuses("Wireless network")
-}
+// What a module says about the network, as the lines its declaration ends on.
+const (
+	needsInternet = "network:\n  internet: required\n"
+	joinsWireless = "network:\n  wlan: true\n"
+	needsWireless = "network:\n  wlan: true\n  internet: required\n"
+)
 
-// Offline and nothing declared to join with: the screen says so and lets the
-// installation carry on regardless — the module's own preflight is what refuses
-// properly if the connection still matters.
-func TestNetworkScreenOffersToContinueWithoutWhenNotJoinable(t *testing.T) {
-	h := newHarness(t, map[string]string{
-		"hooks/@online/check/hook.yaml": "title: Online\nscript: exit 1\n",
-	})
-	h.wants("There is no internet connection.", "wireless network before continuing.")
-	h.enter()
-	h.wants("Full", "Bare")
-}
-
-// Offline with a full network description: the screen lists what is in range,
-// joining one is what makes the check pass, and the installer moves on to its
-// own opening exactly as it would have if there had been a cable plugged in.
-func TestNetworkScreenJoinsAWirelessNetworkWhenOffline(t *testing.T) {
-	marker := filepath.Join(t.TempDir(), "online")
-	h := newHarness(t, map[string]string{
-		"hooks/@online/check/hook.yaml":        "title: Online\nscript: test -e " + marker + "\n",
-		"hooks/@wlan-device/station/hook.yaml": "title: Device\nscript: printf wlan0\n",
-		"hooks/@wlan-networks/scan/hook.yaml":  "title: Networks\nscript: printf 'HomeNet\\nCafeNet\\n'\n",
-		"hooks/@wlan-connect/join/hook.yaml":   "title: Join\nscript: touch " + marker + "\n",
-	})
-	h.wants("Wireless network", "HomeNet", "CafeNet")
-
-	h.enter() // join HomeNet
-	h.wants("HomeNet", "Passphrase")
-
-	h.typeIn("secret").enter()
-	h.wants("Full", "Bare") // online now, straight into the installer's own opening
-}
-
-// joinTree is a module that can join a wireless network and asks nothing about
-// the internet: joining writes marker, and the header's status reads it.
-func joinTree(marker string) map[string]string {
+// wirelessHooks is a card called wlan0 with two networks in range, joining
+// either of which writes marker.
+func wirelessHooks(marker string) map[string]string {
 	return map[string]string{
-		treeFile: testInstaller +
-			"status:\n  script: test -e " + marker + "\n  pass: Online\n  fail: Offline\n",
 		"hooks/@wlan-device/station/hook.yaml": "title: Device\nscript: printf wlan0\n",
 		"hooks/@wlan-networks/scan/hook.yaml":  "title: Networks\nscript: printf 'HomeNet\\nCafeNet\\n'\n",
 		"hooks/@wlan-connect/join/hook.yaml":   "title: Join\nscript: touch " + marker + "\n",
 	}
 }
 
-// A module that can do without the internet is not stopped on the way in to be
-// offered it: joining a network is a row on the hub, taken whenever somebody
-// wants it, and it leads back there.
-func TestAModuleThatCanDoWithoutTheInternetOffersANetworkOnTheHub(t *testing.T) {
-	h := newHarness(t, joinTree(filepath.Join(t.TempDir(), "online")))
-	h.wants("Full", "Bare").refuses("Wireless network")
-	h.down().enter().typeIn("moritz").enter().enter()
-	h.wants("Settings", "Wireless network")
+// onlineOnce is @online answering yes once marker exists.
+func onlineOnce(marker string) string {
+	return "title: Online\nscript: test -e " + marker + "\n"
+}
 
-	h.down().down().enter()
+// A module that needs the internet and has it never sees the page at all: it
+// is a wait for something missing, not a page every run clicks through.
+func TestTheInternetPageIsSkippedWhenAlreadyOnline(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile:                        testInstaller + needsInternet,
+		"hooks/@online/check/hook.yaml": "title: Online\nscript: exit 0\n",
+	})
+	h.wants("Full", "Bare").refuses("Internet")
+}
+
+// Offline, the page says so and what fixes it, and offers no way past: the
+// work behind it would only stop at its first download.
+func TestTheInternetIsWaitedForWithNoWayPast(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile:                        testInstaller + needsInternet,
+		"hooks/@online/check/hook.yaml": "title: Online\nscript: exit 1\n",
+	})
+	h.wants("Internet", "There is no internet connection.", "Plug in a cable").
+		refuses("Continue anyway", "or press r")
+
+	h.enter()
+	h.wants("There is no internet connection.").refuses("Full", "Bare")
+}
+
+// It looks again by itself, so a cable plugged in carries on without a key.
+func TestTheInternetPageCarriesOnByItselfOnceThereIsAConnection(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "online")
+	h := newHarness(t, map[string]string{
+		treeFile:                        testInstaller + needsInternet,
+		"hooks/@online/check/hook.yaml": onlineOnce(marker),
+	})
+	h.wants("There is no internet connection.")
+
+	if err := os.WriteFile(marker, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.send(netDueMsg{round: h.m.top().(*networkScreen).round})
+	h.wants("Full", "Bare")
+}
+
+// A clock set before the page moved on is not answered: only the look the page
+// is waiting for counts, so two never run side by side.
+func TestTheInternetPageAnswersOnlyItsOwnClock(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "online")
+	h := newHarness(t, map[string]string{
+		treeFile:                        testInstaller + needsInternet,
+		"hooks/@online/check/hook.yaml": onlineOnce(marker),
+	})
+	h.wants("There is no internet connection.")
+
+	if err := os.WriteFile(marker, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.send(netDueMsg{round: h.m.top().(*networkScreen).round - 1})
+	h.wants("There is no internet connection.")
+}
+
+// Offline with a card, the networks in range are the page: joining one is what
+// makes the check pass, and the opening carries on exactly as it would have with
+// a cable.
+func TestTheInternetPageJoinsAWirelessNetwork(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "online")
+	tree := wirelessHooks(marker)
+	tree[treeFile] = testInstaller + needsWireless
+	tree["hooks/@online/check/hook.yaml"] = onlineOnce(marker)
+	h := newHarness(t, tree)
+	h.wants("Internet", "HomeNet", "CafeNet", "or plug in a cable")
+
+	h.enter() // join HomeNet
+	h.wants("HomeNet", "Passphrase")
+
+	h.typeIn("secret").enter()
+	h.wants("Full", "Bare") // online now, straight into the module's own opening
+}
+
+// Backing out of the list is not backing out of the wait: the page behind it
+// still says what fixes it, and r looks for networks again.
+func TestBackingOutOfTheNetworksStillWaits(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "online")
+	tree := wirelessHooks(marker)
+	tree[treeFile] = testInstaller + needsWireless
+	tree["hooks/@online/check/hook.yaml"] = onlineOnce(marker)
+	h := newHarness(t, tree)
+	h.wants("HomeNet")
+
+	h.esc()
+	h.wants("There is no internet connection.", "or press r").refuses("HomeNet")
+
+	h.typeIn("r")
 	h.wants("HomeNet", "CafeNet")
+}
+
+// A machine without a card is not offered a wireless network: the page is
+// about the internet, and a cable is what is left.
+func TestNoCardOffersNoWirelessNetworkOnTheWayIn(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "online")
+	tree := wirelessHooks(marker)
+	tree[treeFile] = testInstaller + needsWireless
+	tree["hooks/@online/check/hook.yaml"] = onlineOnce(marker)
+	tree["hooks/@wlan-device/station/hook.yaml"] = "title: Device\nscript: \"true\"\n"
+	h := newHarness(t, tree)
+	h.wants("There is no internet connection.", "Plug in a cable").
+		refuses("No wireless device.", "HomeNet", "or press r")
+}
+
+// joinTree is a module that joins a wireless network and can do without the
+// internet: joining writes marker, and the header's status reads it.
+func joinTree(marker string) map[string]string {
+	tree := wirelessHooks(marker)
+	tree[treeFile] = testInstaller + joinsWireless +
+		"status:\n  script: test -e " + marker + "\n  pass: Online\n  fail: Offline\n"
+	return tree
+}
+
+// intoSettings answers the opening of the test module and opens its settings.
+func intoSettings(h *harness) *harness {
+	h.down().enter().typeIn("moritz").enter().enter() // Bare, the user, the disk
+	return h.down().enter()
+}
+
+// A module that can do without the internet is not stopped on the way in, and
+// the wireless network is not a row of the menu either: it is a setting, the
+// first of them, and joining one leads back there with the network beside it.
+func TestTheWirelessNetworkIsASetting(t *testing.T) {
+	h := newHarness(t, joinTree(filepath.Join(t.TempDir(), "online")))
+	h.wants("Full", "Bare").refuses("Wireless network", "Internet")
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.wants("Settings").refuses("Wireless network")
+
+	h.down().enter()
+	h.wants("Wireless network", "User name")
+
+	h.enter()
+	h.wants("HomeNet", "CafeNet", "for whatever needs the internet")
 	h.enter().typeIn("secret").enter()
-	h.wants("Settings", "Wireless network").refuses("Passphrase")
+	h.wants("Settings", "Wireless network", "HomeNet").refuses("Passphrase", "CafeNet")
+}
+
+// Where the internet is required, the network is a setting all the same: the
+// wait on the way in is for the first connection, not the only one.
+func TestTheWirelessNetworkIsASettingWhereTheInternetIsRequiredToo(t *testing.T) {
+	tree := wirelessHooks(filepath.Join(t.TempDir(), "joined"))
+	tree[treeFile] = testInstaller + needsWireless
+	tree["hooks/@online/check/hook.yaml"] = "title: Online\nscript: \"true\"\n"
+	h := intoSettings(newHarness(t, tree))
+	h.wants("Wireless network", "User name")
+}
+
+// A row that could only say there is no wireless device is a row nobody
+// needed.
+func TestNoCardIsNoWirelessSetting(t *testing.T) {
+	tree := joinTree(filepath.Join(t.TempDir(), "online"))
+	tree["hooks/@wlan-device/station/hook.yaml"] = "title: Device\nscript: \"true\"\n"
+	h := intoSettings(newHarness(t, tree))
+	h.wants("User name").refuses("Wireless network")
+}
+
+// Switched off, the hooks are there and the row is not.
+func TestWirelessSwitchedOffIsNoSetting(t *testing.T) {
+	tree := joinTree(filepath.Join(t.TempDir(), "online"))
+	tree[treeFile] = testInstaller
+	h := intoSettings(newHarness(t, tree))
+	h.wants("User name").refuses("Wireless network")
+}
+
+// A device hook that fails has not looked. The row is shown rather than denied,
+// and the page behind it says what went wrong, where somebody is looking.
+func TestADeviceHookThatFailsStillOffersTheSetting(t *testing.T) {
+	tree := joinTree(filepath.Join(t.TempDir(), "online"))
+	tree["hooks/@wlan-device/station/hook.yaml"] = "title: Device\nscript: exit 3\n"
+	h := intoSettings(newHarness(t, tree))
+	h.wants("Wireless network")
+
+	h.enter()
+	h.wants("The wireless device could not be read.")
+	h.esc()
+	h.wants("Settings", "User name")
 }
 
 // The header says so the moment it is joined, not an interval later: the read
 // that was already out was taken before the network was there.
 func TestJoiningANetworkReadsTheStatusAgainAtOnce(t *testing.T) {
-	h := newHarness(t, joinTree(filepath.Join(t.TempDir(), "online")))
-	h.down().enter().typeIn("moritz").enter().enter()
+	h := intoSettings(newHarness(t, joinTree(filepath.Join(t.TempDir(), "online"))))
 	h.wants("Offline")
 
-	h.down().down().enter().enter().typeIn("secret").enter()
+	h.enter().enter().typeIn("secret").enter()
 	h.wants("Online").refuses("Offline")
-}
-
-// Where the module asks for the internet on the way in, the opening has already
-// put the network page in front of the work, and the hub offers no second one.
-func TestAModuleThatAsksForTheInternetOffersNoNetworkOnTheHub(t *testing.T) {
-	marker := filepath.Join(t.TempDir(), "online")
-	tree := joinTree(marker)
-	tree["hooks/@online/check/hook.yaml"] = "title: Online\nscript: true\n"
-	h := newHarness(t, tree)
-	h.down().enter().typeIn("moritz").enter().enter()
-	h.wants("Settings").refuses("Wireless network")
 }
 
 // ─── The opening ─────────────────────────────────────────────────────────────
