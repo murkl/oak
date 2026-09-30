@@ -105,21 +105,19 @@ func (a *app) page(o *spec.Option, next, depth int) tea.Cmd {
 	return push(&optionScreen{app: a, o: o, depth: depth + 1})
 }
 
-// optionScreen is an option's script running, and what it said where it did
-// not work.
+// optionScreen is an option's script running.
 //
 // It goes the moment the script has worked, taking the option's pages with it,
 // back to wherever the option was opened from — which looks again at whatever
-// the option was about. Where it did not, the report stays up, and the way back
-// is to the last page: the next thing to try is another go at the answers.
+// the option was about. Where it did not, it gives way to the page every failure
+// opens on, and the way back from that is to the last page: the next thing to
+// try is another go at the answers.
 type optionScreen struct {
 	app   *app
 	o     *spec.Option
 	depth int // the option's pages on the stack, this one included
 
 	session *exec.Session
-	busy    bool
-	err     error
 }
 
 // optionRanMsg is the script coming back.
@@ -127,17 +125,11 @@ type optionRanMsg struct{ err error }
 
 func (s *optionScreen) Title() string { return "" }
 
-func (s *optionScreen) working() bool { return s.busy }
+func (s *optionScreen) working() bool { return true }
 
-func (s *optionScreen) Hint() string {
-	if s.busy {
-		return labelHintRunning()
-	}
-	return labelHintBack()
-}
+func (s *optionScreen) Hint() string { return labelHintRunning() }
 
 func (s *optionScreen) Init() tea.Cmd {
-	s.busy, s.err = true, nil
 	session, err := s.app.runner.Open(s.o)
 	if err != nil || session == nil {
 		return func() tea.Msg { return optionRanMsg{err} }
@@ -150,25 +142,20 @@ func (s *optionScreen) Init() tea.Cmd {
 }
 
 func (s *optionScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
-	switch msg := msg.(type) {
-	case optionRanMsg:
-		s.busy, s.session = false, nil
-		// Whatever the pages were given is gone the moment it is used, whether
-		// it worked or not.
-		s.app.store.Forget()
-		if msg.err != nil {
-			logging.Error("%s", msg.err)
-			s.err = msg.err
-			return s, nil
-		}
-		// What the header keeps an eye on may be what this changed.
-		return s, tea.Batch(recheck(), back(s.depth))
-	case tea.KeyMsg:
-		if !s.busy && (answers(msg) || backs(msg)) {
-			return s, pop()
-		}
+	ran, ok := msg.(optionRanMsg)
+	if !ok {
+		return s, nil
 	}
-	return s, nil
+	s.session = nil
+	// Whatever the pages were given is gone the moment it is used, whether it
+	// worked or not.
+	s.app.store.Forget()
+	if ran.err != nil {
+		logging.Error("%s", ran.err)
+		return s, replace(newFailure(s.o.Label(), ran.err, pop))
+	}
+	// What the header keeps an eye on may be what this changed.
+	return s, tea.Batch(recheck(), back(s.depth))
 }
 
 // stop kills the script, where somebody chose to leave while it ran.
@@ -180,11 +167,7 @@ func (s *optionScreen) stop() {
 }
 
 func (s *optionScreen) View(width, height int) string {
-	if s.busy {
-		return accentStyle.Render(spinFrame()) + field(" ") + boldStyle.Render(s.o.Label())
-	}
-	head := failStyle.Render(glyphs.fail) + field(" ") + boldStyle.Render(labelRunFailed())
-	return head + "\n\n" + renderFailure(s.err, width)
+	return accentStyle.Render(spinFrame()) + field(" ") + boldStyle.Render(truncate(s.o.Label(), max(width-2, 1)))
 }
 
 // gateScreen is the options the work waits for, one after another, in their
@@ -316,23 +299,37 @@ func (s *gateScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	return s, nil
 }
 
+// View is what the start said, under the mark that says it said no, and the
+// option's own line under that where enter opens it. What does not fit goes
+// from the end: the option's line first, then the end of the sentence, which
+// is marked as cut.
 func (s *gateScreen) View(width, height int) string {
 	if !s.checked {
-		return accentStyle.Render(spinFrame()) + field(" ") + boldStyle.Render(s.option().Label())
+		return accentStyle.Render(spinFrame()) + field(" ") + boldStyle.Render(truncate(s.option().Label(), max(width-2, 1)))
 	}
-	lines := wrap(s.why, max(width-2, 1))
+	lines := wrap(s.why, max(bodyWidth(width)-2, 1))
 	if len(lines) == 0 {
 		lines = []string{""}
+	}
+	var help []string
+	if s.opens() {
+		help = wrap(s.option().Help(), bodyWidth(width))
+	}
+	if len(lines)+1+len(help) > height {
+		help = nil
+	}
+	if len(lines) > height {
+		lines = lines[:max(height, 1)]
+		last := len(lines) - 1
+		lines[last] = truncate(lines[last], max(width-4, 1)) + " " + glyphs.dash
 	}
 	var b strings.Builder
 	b.WriteString(failStyle.Render(glyphs.fail) + field(" ") + boldStyle.Render(lines[0]))
 	for _, line := range lines[1:] {
 		b.WriteString("\n" + field("  ") + boldStyle.Render(line))
 	}
-	if s.opens() {
-		if help := s.option().Help(); help != "" {
-			b.WriteString("\n\n" + paragraph(help, width))
-		}
+	if len(help) > 0 {
+		b.WriteString("\n\n" + textStyle.Render(strings.Join(help, "\n")))
 	}
 	return b.String()
 }

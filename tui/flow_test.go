@@ -1142,7 +1142,7 @@ func TestAFailingOptionSaysWhyAndGoesBackAPage(t *testing.T) {
 	tree["options/wlan/option.sh"] = "echo HomeNet did not accept that passphrase. >&2\nexit 1\n"
 	h := newHarness(t, tree)
 	h.enter().enter().typeIn("wrong").enter()
-	h.wants("Failed", "HomeNet did not accept that passphrase.", "Option")
+	h.wants("Wireless network", "HomeNet did not accept that passphrase.", "Option", "option.sh")
 
 	h.enter()
 	h.wants("Passphrase")
@@ -1882,6 +1882,30 @@ func TestNoPageEverRunsPastTheEdge(t *testing.T) {
 				if w := lipgloss.Width(line); w > size[0] {
 					t.Fatalf("at %dx%d a line is %d wide:\n%s", size[0], size[1], w, line)
 				}
+			}
+		}
+	}
+}
+
+// The page the work waits on says whatever the module wrote, and a module is
+// free to write a lot: at every size it stays inside the terminal.
+func TestTheWaitNeverRunsPastTheEdge(t *testing.T) {
+	long := strings.Repeat("This machine is not ready yet, and here is a long account of why. ", 6)
+	h := newHarness(t, map[string]string{
+		"options/wlan/option.yaml": "title: Wireless network\ndescription: Join a wireless network.\nmenu: main\n" +
+			"start: |\n  echo " + long + " >&2\n  exit 1\n",
+		"options/wlan/option.sh": "true\n",
+	})
+	h.wants("long account of why")
+	for _, size := range [][2]int{{80, 24}, {100, 30}, {34, 13}, {20, 6}} {
+		h.send(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		lines := strings.Split(h.screen(), "\n")
+		if len(lines) > size[1] {
+			t.Errorf("at %dx%d the page is %d rows tall:\n%s", size[0], size[1], len(lines), h.screen())
+		}
+		for _, line := range lines {
+			if w := lipgloss.Width(line); w > size[0] {
+				t.Errorf("at %dx%d a line is %d wide:\n%s", size[0], size[1], w, line)
 			}
 		}
 	}
