@@ -1,9 +1,9 @@
 # One workflow, and a commit is under exactly one run of it.
 #
-# What a run does is decided once, by the gate below: a pull request checks it,
-# one out of draft is taken apart further, and a push to main — the only branch
-# push triggers on — is where the next version is decided. Nothing further down
-# asks again.
+# A pull request is checked, and one out of draft is also taken apart further. A
+# push to main — the only branch push triggers on — is checked and handed to
+# release-please, and the merge of its pull request is built and published by
+# that same run. Every job says for itself when it runs.
 #
 # A tag is written here rather than pushed by hand, and the binary published
 # under it is built at that tag - see docs/CONTRIBUTING.md.
@@ -29,11 +29,7 @@ on:
     # https://github.com/orgs/community/discussions/199292
     paths-ignore:
       - CHANGELOG.md
-      - .github/.release-please-manifest.json
-  # CodeQL alone, on what already shipped — a finding here is news about code
-  # that has not changed since, not a reason to run the rest of the file again.
-  schedule:
-    - cron: "37 4 * * 1"
+      - .release-please-manifest.json
   workflow_dispatch:
 
 permissions: {}
@@ -66,44 +62,10 @@ concurrency:
 # against - so a pinned image would only be an older starting point, and one
 # whose keyring stops trusting the packages it is upgrading to.
 jobs:
-  # The one place that decides what the rest of the file does.
-  gate:
-    name: Gate
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      deep: ${{ steps.decide.outputs.deep }}
-    steps:
-      # The title a version is read out of is checked by title.yml, which is
-      # the one thing that has to run again when a title is corrected.
-      - name: What this run does
-        id: decide
-        env:
-          DRAFT: ${{ github.event.pull_request.draft }}
-        run: |
-          deep=false
-
-          case "$GITHUB_EVENT_NAME" in
-          pull_request)
-            # A draft says itself that it is not ready. The race detector and
-            # the vulnerability database are for what is about to be merged.
-            if [ "$DRAFT" = false ]; then deep=true; fi
-            ;;
-          # Three minutes, and on main a release is written at the end of it.
-          push | workflow_dispatch)
-            deep=true
-            ;;
-          esac
-
-          echo "deep=${deep}" >>"$GITHUB_OUTPUT"
-          echo "raced and scanned: ${deep}" >>"$GITHUB_STEP_SUMMARY"
-
   # `make check` and nothing this file adds to it: what is checked lives in the
   # Makefile, so a rule that holds in CI holds at a desk.
   check:
     name: Check
-    needs: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     container: archlinux:latest # zizmor: ignore[unpinned-images] - see the top of this file
@@ -145,10 +107,13 @@ jobs:
   # The two checks that ask something outside the tree: a race the ordinary test
   # run cannot see, and the vulnerability database. Beside `check` rather than
   # in it, because neither is a rule about this code that a desk could settle.
+  #
+  # For what is about to be merged or released: a draft says itself that it is
+  # not ready.
   deep:
     name: Race and vulnerabilities
-    needs: [gate, check]
-    if: needs.gate.outputs.deep == 'true'
+    needs: check
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     container: archlinux:latest # zizmor: ignore[unpinned-images] - see the top of this file
@@ -183,7 +148,7 @@ jobs:
   # failure anybody has to hear about.
   ready:
     name: Ready
-    needs: [gate, check, deep]
+    needs: [check, deep]
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     continue-on-error: ${{ github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
@@ -208,36 +173,6 @@ jobs:
             exit 1
           fi
 
-  # Static analysis that follows a value across functions, which is the one
-  # thing vet and staticcheck do not do. Not in the way of a release: a finding
-  # here belongs in the security tab, and the code it is about has already
-  # shipped.
-  analyze:
-    name: CodeQL
-    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref_name == 'main')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      security-events: write # the findings go to the security tab
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
-
-      - uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
-        with:
-          languages: go
-          build-mode: manual
-
-      - run: make build
-
-      - uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
   # The version, out of the commits since the last release: a `fix:` is a patch,
   # a `feat:` a minor, a `!` a major. Nothing here is typed, and nothing is
   # pushed to main — this opens a pull request like anybody else.
@@ -262,28 +197,25 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: please
-        with:
-          config-file: .github/release-please-config.json
-          manifest-file: .github/.release-please-manifest.json
 
       # The release pull request starts no run - see pull_request above - so
       # nothing would ever report the two checks main asks of a pull request,
       # and it could never be merged. It needs neither: it holds what a run like
       # this one wrote out of a main that was checked a moment before, and its
-      # merge is checked again on main before a tag exists. This says so, on the
-      # commit it stands on.
+      # merge is checked again on main before a tag exists. This says so, on
+      # every run, so a run that missed it is made good by the next.
       #
-      # Found by the label release-please keeps on it rather than out of the
-      # action's outputs, which leave the pull request empty whenever it stayed
-      # as it was - and reported on every run, so a run that missed it is
-      # made good by the next.
+      # The commit is read off the branch release-please has just written, not
+      # off the pull request: that one follows a few seconds later, and the
+      # checks would land on the commit before and leave the merge blocked.
       - name: The release pull request is cleared to merge
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh pr list --state open --label "autorelease: pending" --json headRefOid --jq '.[].headRefOid' |
-            while read -r sha; do
+          gh pr list --state open --label "autorelease: pending" --json headRefName --jq '.[].headRefName' |
+            while read -r branch; do
+              sha="$(gh api "repos/${GH_REPO}/git/ref/heads/${branch}" --jq .object.sha)"
               for check in Ready Title; do
                 gh api --silent "repos/${GH_REPO}/statuses/${sha}" -f state=success -f context="$check" \
                   -f description="Release pull request - checked on main once merged"

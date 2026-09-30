@@ -1,137 +1,99 @@
 # Contributing
 
-Oak is one binary and nothing else ships. What is checked lives in the `Makefile`, CI runs the same commands, and a release is a tag on a commit those commands already passed.
+Oak is one binary and nothing else ships. `main` is the only branch that lasts: every change branches off it and comes back as one commit, and a release is one more pull request.
 
-## Branches
-
-There is one long-lived branch, `main`. Work happens on a branch off it and comes back through a pull request.
+## Workflow
 
 ```mermaid
 flowchart LR
-    M["main"] -->|branch off| F["feature/*"]
-    F -->|pull request| C["CI checks it"]
-    C -->|squash merge| M2["main"]
+    M["main"] -->|branch off| B["feat/…"]
+    B -->|draft pull request| C["Check"]
+    C -->|ready for review| D["Check · Race · Vulnerabilities"]
+    D -->|squash merge| M2["main"]
     M2 --> P["Release pull request<br/>version · changelog"]
-    P -->|squash merge| R["Release<br/>tag · binary · page"]
+    P -->|merge| R["Release<br/>tag · binary · page"]
 
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
 ```
 
-- Branch off `main`, name it `feature/<what>`
-- Open a pull request right away, as a draft while there is nothing to read yet: a branch is checked through its pull request and not on its own. Leaving draft is what adds the race detector and the vulnerability scan
-- **Merge with squash**, and only once `Ready` and `Title` have passed - `main` refuses anything else. One pull request is one commit, so `main` stays a straight line - and its title is the line the next version and the changelog are read out of
-- **Or switch on auto-merge** on the pull request, and it squashes itself into `main` the moment both have passed
+1. **Branch off `main`.** Name it after what it does: `feat/wireless-settings`, `fix/fuzzy-catalog`. Nothing reads the name
+2. **Open a draft pull request right away.** A branch is checked through its pull request, never on its own
+3. **Mark it ready for review** once it should be merged. That adds the race detector and the vulnerability scan
+4. **Squash merge**, or switch on auto-merge. `main` takes the pull request once `Ready` and `Title` have passed, as one commit under its title, and deletes the branch
 
-**Note:** _A commit is under one run and never two: CI runs on pull requests and on `main`, and nowhere else, so there is nothing to ask about which of them a push belongs to._
-
-## The Repository
-
-What GitHub holds this repository to is kept in **[.github/settings/](../.github/settings)** rather than clicked, and applied with one command by an admin logged in with `gh`:
-
-```
-make github
-```
-
-| File | Says |
-| --- | --- |
-| `repository.json` | Squash merges only, under the pull request's title and body; auto-merge on; a merged branch is deleted |
-| `ruleset.json` | `main` takes nothing but a pull request, squashed, once `Ready` and `Title` have passed; no force push, no deletion |
-| `actions.json` | A workflow's token reads unless it says otherwise, and may open the release pull request |
-
-Run it again after changing one of them - every call sets the whole state, so a second run changes nothing. No workflow does it: a workflow's token may not change the rules it is itself held to. The files and the script are the same in every project released this way.
-
-**Note:** _`Ready` refuses a draft on purpose. Its run skips the race detector and the vulnerability scan, and leaving draft starts the full run on the same commit, whose `Ready` is written only at its end - until then GitHub reads the one it has, and a draft that passed would open the merge for that long. The run of a draft stays green: the refusal is the check, not a failure. The release pull request starts no run, and the release run reports both checks on it itself - see **[Releasing](#releasing)**._
+- The commits inside the branch are yours to shape. Only the title reaches `main`
+- A draft never passes `Ready`, so nothing is merged before the full run
 
 ## The Title
 
-The title of a pull request is read by a machine, so it is written for one - [Conventional Commits](https://www.conventionalcommits.org): a type, a colon, and what changed.
+The title is the one line `main` keeps. The next version and the changelog are read out of it, so it follows **[Conventional Commits](https://www.conventionalcommits.org)**: a type, a colon, what changed.
 
-| A title that reads | Does |
-| --- | --- |
-| `fix: a secret the machine already has is asked once` | 0.5.0 → 0.5.1, on the page under **Bug Fixes** |
-| `feat: a product may say where the rest of it is` | 0.5.0 → 0.6.0, under **Features** |
-| `feat!: a module declares its hooks by folder` | 0.5.0 → 0.6.0, and says on the page what to do about it |
-| `docs:` `refactor:` `test:` `build:` `ci:` `chore:` | Nothing. Work nobody building a product would notice |
+| Title | Version | On the Release Page |
+| --- | --- | --- |
+| `fix: a secret the machine already has is asked once` | 0.5.0 → 0.5.1 | Bug Fixes |
+| `feat: a product may say where the rest of it is` | 0.5.0 → 0.6.0 | Features |
+| `feat!: a module declares its hooks by folder` | 0.5.0 → 0.6.0 | ⚠ BREAKING CHANGES |
+| `docs:` `refactor:` `test:` `build:` `ci:` `chore:` | none | nothing |
 
-- `!` marks a change a product has to be edited for; the reason goes in the body as `BREAKING CHANGE: …`
-- A check of its own refuses a title that opens on no type, because a title nothing can read releases nothing. It is the one check that reads the title again when it is corrected - everything else waits for a commit
-- Below 1.0.0 a break moves the minor rather than the major - 1.0.0 is a decision, not a count
+- Write it for somebody building a product. `Title` refuses one that opens on no type, and reads it again whenever it is edited
+- Below 1.0.0 a break moves the minor rather than the major: 1.0.0 is a decision, not a count
+- Merging shows the title and an empty description. Leave both as they are, with two exceptions typed into the description:
+  - `BREAKING CHANGE: …` says on the release page what a product has to change
+  - `Release-As: 1.0.0` sets a version that is chosen rather than counted
+
+**Note:** _A title that turns out wrong after the merge is corrected in the description of the merged pull request. The next release run reads this instead of the commit:_
+
+```
+BEGIN_COMMIT_OVERRIDE
+fix: the corrected line
+END_COMMIT_OVERRIDE
+```
 
 ## Releasing
 
-Two merges, both of them ordinary, and nothing typed:
+Nothing is typed and nothing is tagged by hand.
 
-1. **Squash merge the work into `main`.** The run checks it and opens - or updates - a pull request called `chore(main): release 0.6.0`, which writes that version's section of the changelog
-2. **Merge that pull request.** The run on `main` writes the tag `v0.6.0` and the release page out of the changelog as a draft, builds `oak-linux-amd64` at that tag, hangs it there under signed provenance and only then publishes the page. A run that fails on the way leaves a draft to re-run, never a release without its binary
+1. **Every merge that releases something** opens or updates the pull request `chore(main): release 0.6.0`. It writes that version's section of **[CHANGELOG.md](../CHANGELOG.md)**
+2. **Merging it is the release.** The run on `main` tags `v0.6.0`, builds `oak-linux-amd64` at that tag, hangs it on the release page and publishes it
 
-Several merges collect in the one release pull request until it is merged, and a merge that releases nothing - `docs:`, `chore:` - opens none at all.
+- Merges collect in the release pull request until it is merged. When to release is a decision, not a schedule
+- The binary answers `--version` with its tag, without the `v`. The last step before the download link refuses one that answers anything else, and `make build && make version-check TAG=v0.5.0` asks the same of a tag already out
+- The changelog is never edited by hand
 
-A version that is chosen rather than counted - 0.9.3 straight to 1.0.0 - is a footer on the commit that decides it:
+**Note:** _The page stays a draft until the binary hangs on it, so every link to the latest release points at the one before until then. A run that fails on the way leaves a draft: re-run its failed jobs._
 
-```
-git commit --allow-empty -m "chore: release 1.0.0" -m "Release-As: 1.0.0"
-```
+**Note:** _The release pull request starts no run. The release run that wrote it reports `Ready` and `Title` on it, and its merge is checked on `main` before the tag exists. See **[ci.yml](../.github/workflows/ci.yml)**._
 
-What the binary answers is the version its tag carries, without the `v`. It is built after that tag exists, and the last step before a download link refuses a binary that answers to anything else. Ask that of a tag that is already out:
-
-```
-make build
-make version-check TAG=v0.5.0
-```
-
-**Note:** _What each number promises a product is written down once, in the **[README](README.md#1-get-oak)**. What counts as a break below 1.0.0 is `.github/release-please-config.json`._
-
-**Note:** _No run starts on the release pull request: it touches only `CHANGELOG.md` and the release manifest, and both workflows leave a pull request of nothing else out with `paths-ignore`. GitHub itself starts runs for what its own token opened since June 2026, and holds each for an approval - one nobody gives fails the moment the pull request is merged. It needs none - it holds what the release run wrote out of a `main` checked a moment before, and its merge is checked on `main` before the tag exists. So the release run itself reports `Ready` and `Title` on the commit it wrote, which is what lets `main` require both of every other pull request._
-
-## The Changelog
-
-**[CHANGELOG.md](../CHANGELOG.md)** is written by the release run out of the titles that landed since the release before, and is never edited by hand. Which section a line lands in is the type it opens on, and the types nothing is released for land in none of them.
+**Note:** _What each number promises a product is written down once, in the **[README](README.md#1-get-oak)**._
 
 ## What CI runs
 
-```mermaid
-flowchart TD
-    G["Gate<br/><small>what this run does</small>"] --> C["Check<br/><small>make check</small>"]
-    G --> D["Race and vulnerabilities<br/><small>make test-race · make vuln</small>"]
-    C --> R["Release<br/><small>version · changelog · tag</small>"]
-    D --> R
-    R --> P["Publish<br/><small>builds at the tag, signs it, hangs it up</small>"]
-    W["weekly · main"] --> Q["CodeQL<br/><small>the security tab</small>"]
-
-    style D stroke-dasharray: 4 4
-    style P fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
-```
-
-| Job | Where | Description |
+| Job | When | Does |
 | --- | --- | --- |
-| `Title` | a pull request opened, pushed to or renamed | The line the next version is read out of. Its own workflow, so a rename re-reads it and rebuilds nothing |
-| `Gate` | a pull request, `main`, on demand | What the rest of the run does, decided once |
+| `Title` | a pull request opened, pushed to or edited | Reads the title |
 | `Check` | a pull request, `main`, on demand | `make check`, and the binary answering for itself |
 | `Race and vulnerabilities` | a pull request out of draft, `main`, on demand | The two checks that ask something outside the tree |
-| `Ready` | a pull request | Every job above it needed has passed. Together with `Title`, what `main` requires before a merge |
-| `CodeQL` | `main`, and weekly | Static analysis that follows a value across functions |
-| `Release` | a push to `main` | The version, the changelog and the tag - or the pull request that will carry them |
-| `Publish` | a release | Builds `oak-linux-amd64` at that tag, hangs it on the page and makes the page public |
+| `Ready` | a pull request | Every job it needed has passed, and it is no draft |
+| `Release` | a push to `main` | The release pull request, or once that is merged, the tag and the draft page |
+| `Publish` | a release | Builds `oak-linux-amd64` at that tag, hangs it on the page and publishes it |
 
-The binary a release publishes is built once the tag exists, because the version it answers to is that tag. Same sources the checks ran on, one commit back and one version further on.
+**Note:** _The binary is built once the tag exists, because the version it answers to is that tag. Same sources the checks ran on, one commit and one version further on._
 
-## Doing the work
+## Doing the Work
 
 ```
-make check                   # everything that has to pass before a commit
-make run                     # Oak against the example product
-make run MODULE=setup        # opens one module directly
-make run ARGS=--debug        # ...without touching anything
-make inspect                 # loads the example the way a run does
-make locales                 # the template, and every catalog brought up to it
-make fmt                     # format the Go and the shell
-make build                   # bin/oak-linux-amd64, the file a release publishes
-make test-race               # the tests under the race detector
-make vuln                    # known vulnerabilities in what this imports
+make check                     # the whole gate, as CI runs it
+make run                       # Oak against the example product
+make run MODULE=setup          # opens one module directly
+make run ARGS=--debug          # ...without touching anything
+make inspect                   # loads the example the way a run does
+make locales                   # the template, and every catalog brought up to it
+make fmt                       # format the Go and the shell
+make build                     # bin/oak-linux-amd64, the file a release publishes
+make test-race                 # the tests under the race detector
+make vuln                      # known vulnerabilities in what this imports
 make version-check TAG=v0.5.0  # would that tag be allowed to release this?
 ```
-
-Install the required packages:
 
 ```
 sudo pacman -S --needed go gcc make shellcheck shfmt staticcheck yamllint actionlint zizmor gettext govulncheck gitleaks
@@ -139,27 +101,27 @@ sudo pacman -S --needed go gcc make shellcheck shfmt staticcheck yamllint action
 
 **Note:** _CI installs the same packages and runs the same commands in an Arch container. There is no second definition of green._
 
-## The boundary
+## The Boundary
 
 Oak draws, asks, keeps and runs. It knows nothing about what is being installed.
 
-If a change would put the word `pacman`, `btrfs`, `GNOME` or `LUKS` anywhere in this repository, the change belongs in a product rather than here. Find the general capability a module is missing and add that instead.
+If a change would put the word `pacman`, `btrfs`, `GNOME` or `LUKS` anywhere in this repository, it belongs in a product. Find the general capability a module is missing and add that instead.
 
 **Note:** _Oak must not know a module by name either. `installer` and `recovery` are folder names in somebody's product, not words in this code._
 
-## Words on screen
+## Words on Screen
 
-Every sentence Oak shows is translatable and the English sentence is its own key, so writing one is writing the source text and the key at once. Reword it and the old translation is marked fuzzy rather than dropped; delete it and the translation goes with it.
+Every sentence Oak shows is translatable, and the English sentence is its own key. Reword one and the old translation is marked fuzzy rather than dropped; delete it and the translation goes with it.
 
 ```
-make locales   # after adding, rewording or deleting anything on screen
+make locales   # in the same change as anything added, reworded or deleted on screen
 ```
 
 **Note:** _`make check` refuses a stale template and a translation that has lost a placeholder._
 
 ## Pictures in the Docs
 
-Every image under `docs/` is generated, so none of them can quietly outlive the interface it shows. The screenshots are taken from the example driven on a real terminal. The banner collages two of them under the wordmark, which is read out of `example/oak.yaml` rather than redrawn.
+Every image under `docs/` is generated, so none outlives the interface it shows.
 
 ```
 make screenshots   # after any visible change to a page
@@ -167,13 +129,23 @@ make banner        # after the screenshots, the wordmark or the accent changed
 make docs          # both, in that order
 ```
 
-They need `chromium`, `imagemagick`, `python-pyte` and `python-yaml`, none of which a build or `make check` needs.
+- They need `chromium`, `imagemagick`, `python-pyte` and `python-yaml`, none of which a build or `make check` needs
+- Every run is started with `--debug` against the example, so nothing is built while it is photographed. Which pages are taken is **[screenshots.yaml](screenshots.yaml)**
+- Every page comes out the same on every run except `run.png`, which catches the run while it is going
 
-Every run is started with `--debug`, so the example builds nothing while it is photographed. Which pages are taken is `docs/screenshots.yaml`; `screenshots.py` beside it is the same file in every project that renders a set this way.
+## The Repository
 
-**Note:** _Every page comes out byte for byte the same on every run except `run.png`, which catches the run while it is still going. Which task that frame lands on is a race against four tasks that take no time, so that one picture differs run to run._
+What GitHub holds this repository to is kept in **[.github/settings/](../.github/settings)** rather than clicked. An admin logged in with `gh` applies it:
 
-## Commits
+```
+make github
+```
 
-- Imperative mood (`Add`, `Fix`, `Refactor`), one logical change per commit
-- Commits are squashed on merge, so the pull request title is what ends up in the history
+| File | Says |
+| --- | --- |
+| `repository.json` | Squash merges only, under the pull request's title alone; auto-merge on; a merged branch is deleted |
+| `ruleset.json` | `main` takes nothing but a pull request, squashed, once `Ready` and `Title` have passed; no force push, no deletion |
+| `actions.json` | A workflow's token reads unless it says otherwise, and may open the release pull request |
+| `code-scanning.json` | CodeQL as GitHub sets it up by default: every language it finds, on pull requests, on `main` and weekly |
+
+Run it again after changing one of them. Every call sets the whole state, so a second run changes nothing. The files and the script are the same in every project released this way.
