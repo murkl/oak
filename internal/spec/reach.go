@@ -63,7 +63,7 @@ func (s *Module) Unread() ([]Unread, error) {
 	}
 	var out []Unread
 	for _, v := range s.Vars {
-		if sh.free[v.Name] {
+		if sh.free[v.Name] || s.shown(v.Name) {
 			continue
 		}
 		tasks := s.readers(sh, v.Name)
@@ -132,6 +132,12 @@ func (s *Module) everywhere() ([]string, error) {
 		out = append(out, paths...)
 	}
 	return out, nil
+}
+
+// shown reports whether an action draws this answer on its report. Actions run
+// whatever the answers say, so that is a read on every run there is.
+func (s *Module) shown(name string) bool {
+	return slices.ContainsFunc(s.Actions, func(a *Action) bool { return a.Shows == name })
 }
 
 // reads is what a task consumes by declaring it rather than by naming it in

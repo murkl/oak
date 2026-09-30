@@ -155,6 +155,17 @@ func TestAValueATaskAsksForOrShowsIsReadByThatTask(t *testing.T) {
 	}
 }
 
+// And the same for an action: being named in action.yaml is how its report reads
+// what it draws, and an action runs whatever the answers say.
+func TestAValueAnActionShowsIsReadByThatAction(t *testing.T) {
+	declared := guarded + "  - name: LINK\n    title: Link\nfailure: [share]\n"
+	files := consistent(map[string]string{FileModule: declared})
+	maps.Copy(files, action("share", "title: Share\nshows: LINK\nreport: Shared\n"))
+	if got := unread(t, files); len(got) != 0 {
+		t.Errorf("Unread() = %v, want nothing", got)
+	}
+}
+
 // ─── The other direction: a read nothing answers ──────────────────────────────
 
 // unset runs that check over a module and hands back what it found.
