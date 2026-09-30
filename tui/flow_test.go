@@ -606,7 +606,7 @@ func both(t *testing.T) []*spec.Module {
 
 func TestChoosingAProgramSettlesTheQuestionsTheWarningAndTheRun(t *testing.T) {
 	h := start(t, both(t)...)
-	h.wants(forkQuestion, "Test Installer", "Test Recovery", "Put a system on this machine.")
+	h.wants(forkQuestion, "Test Installer", "Test Recovery")
 
 	h.down().enter() // the recovery
 	h.wants("Disk").enter()
@@ -653,7 +653,7 @@ func TestTheQuestionOfWhichModuleStandsUnderTheWordmark(t *testing.T) {
 	h.m = newModel(h.a, testLogo)
 	h.run(h.m.Init())
 	h.drain()
-	h.wants("TEST OS", forkQuestion, "Test Installer", "Put a system on this machine.").refuses(corner)
+	h.wants("TEST OS", forkQuestion, "Test Installer").refuses(corner)
 
 	h.enter() // the installer
 	h.wants(corner, testRuntime().Title+" "+glyphs.crumb+" Test Installer").refuses("TEST OS")
@@ -678,13 +678,13 @@ func TestTheQuestionOfWhichModuleIsLeftWithQWhereItComesFirst(t *testing.T) {
 	h.wants(forkQuestion, labelHintMenu()).refuses(labelHintChoose())
 }
 
-// The sentence under the rows is the one of the module under the cursor, and it
-// follows the cursor.
-func TestTheQuestionOfWhichModuleSaysWhatTheOneUnderTheCursorIs(t *testing.T) {
+// The rows are the modules' names and nothing under them, wherever the cursor
+// is: what a module says about itself is read on its menu once it is open.
+func TestTheQuestionOfWhichModuleOffersTheNamesAlone(t *testing.T) {
 	h := start(t, both(t)...)
-	h.wants("Put a system on this machine.").refuses("Open a system already on a disk.")
+	h.refuses("Put a system on this machine.")
 	h.down()
-	h.wants("Open a system already on a disk.").refuses("Put a system on this machine.")
+	h.wants("Test Recovery").refuses("Open a system already on a disk.")
 }
 
 // And whatever the terminal, it stays inside it.

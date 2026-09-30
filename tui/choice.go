@@ -20,10 +20,11 @@ import (
 // been chosen there is nothing yet for it to be about. It is read in the
 // language just chosen, since that is settled by now.
 //
-// What is on offer is each module's own name and its own sentence about
-// itself, so the runtime never learns what any of them is for. A runtime
-// offering one module, or one named on the command line, never draws this
-// page.
+// What is on offer is each module's own name, so the runtime never learns
+// what any of them is for, and nothing under it: the welcome page offers its
+// languages the same way, and the two read as one way in. What a module says
+// about itself is read on its menu once it is open. A runtime offering one
+// module, or one named on the command line, never draws this page.
 type choiceScreen struct {
 	stand
 	app    *app
@@ -39,7 +40,7 @@ func newChoice(a *app, first bool, done func() tea.Cmd) *choiceScreen {
 	s := &choiceScreen{app: a, first: first, done: done}
 	items := make([]item, 0, len(a.modules))
 	for _, mod := range a.modules {
-		items = append(items, item{title: mod.Name(), detail: mod.Help(), key: mod.ID()})
+		items = append(items, item{title: mod.Name(), key: mod.ID()})
 	}
 	s.picker = newPicker(items)
 	return s
