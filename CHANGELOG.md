@@ -2,6 +2,18 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.13.0](https://github.com/murkl/oak/compare/v0.12.0...v0.13.0) (2026-09-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* a module's hooks/, options/, network:, console:, its confirm: and action: are refused. Everything a module does outside its work is an action under actions/, named in module.yaml where it runs: offered: in place of the shell requires: was, requires: for what the work waits for (a hook @preflight or @online), menu:, leave: (@restart, @shutdown) and failure:. A wireless network is an action with pages, named as the fallback of the one that checks the internet. action: is start:. console: and the module's confirm: go: the runtime says the last page and the way out itself.
+
+### Features
+
+* actions, named where they run, in place of options ([#28](https://github.com/murkl/oak/issues/28)) ([4f44cb3](https://github.com/murkl/oak/commit/4f44cb3265e36e6296b9753cdb9775ab74b1b827))
+* the modules offered by their names alone ([#25](https://github.com/murkl/oak/issues/25)) ([49de415](https://github.com/murkl/oak/commit/49de415516fa2f828c8a8c9615b5efd93f491300))
+
 ## [0.12.0](https://github.com/murkl/oak/compare/v0.11.0...v0.12.0) (2026-09-27)
 
 
