@@ -26,7 +26,7 @@ const stderrKeep = 8
 type Failure struct {
 	Module  string // the module the step belongs to
 	Unit    string // the step's name, filled in by the caller
-	Option  bool   // whether the step is an option's rather than a task's
+	Action  bool   // whether the step is an action's rather than a task's
 	Script  string // the file the ERR trap fired in
 	Line    int
 	Code    int
@@ -50,7 +50,7 @@ type Field struct {
 // table rather than parse a sentence back apart. The labels are translated here
 // because this is the one place that knows what each value is.
 //
-// An option is named as one. It is a module's own code like a task's, and the
+// An action is named as one. It is a module's own code like a task's, and the
 // row that says which of the two broke is where somebody starts looking.
 func (f *Failure) Fields() []Field {
 	var out []Field
@@ -64,8 +64,8 @@ func (f *Failure) Fields() []Field {
 	// what ran, and what it returned. Each is one column of a narrow table, so
 	// short wins over exact.
 	add(i18n.T("Module"), f.Module)
-	if f.Option {
-		add(i18n.T("Option"), f.Unit)
+	if f.Action {
+		add(i18n.T("Action"), f.Unit)
 	} else {
 		add(i18n.T("Task"), f.Unit)
 	}
@@ -161,7 +161,7 @@ func (r Runner) Fail(step Step, err error) error {
 		return nil
 	}
 	f := &Failure{
-		Module: r.Module, Unit: step.Name, Option: step.Option,
+		Module: r.Module, Unit: step.Name, Action: step.Action,
 		Script: short(step.Script.File), Code: exitCode(err),
 	}
 	// What stopped it before it could answer is the whole of what there is to
@@ -181,6 +181,6 @@ func (r Runner) failure(step Step, err error, report, said string) error {
 		// own. There is no line to name, but there is still the file it is in.
 		f = &Failure{Code: exitCode(err), Script: short(step.Script.File)}
 	}
-	f.Module, f.Unit, f.Option, f.Stderr = r.Module, step.Name, step.Option, said
+	f.Module, f.Unit, f.Action, f.Stderr = r.Module, step.Name, step.Action, said
 	return f
 }

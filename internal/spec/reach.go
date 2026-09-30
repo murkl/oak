@@ -53,7 +53,7 @@ func (u Unread) String() string {
 // something, so a value several tasks read is only reported when none of them
 // can.
 //
-// Read outside a task — in the module's own shell, one of its options, or the
+// Read outside a task — in the module's own shell, one of its actions, or the
 // declaration's own shell — and there is nothing to compare against: those run
 // whatever the answers say, so the question is answered by definition.
 func (s *Module) Unread() ([]Unread, error) {
@@ -120,12 +120,12 @@ func (s *Module) readers(sh *refs, name string) []*Task {
 
 // everywhere is every file of this module that runs whatever the answers say:
 // the declaration and the shell in it, the product's and the module's own
-// shell, and every option. Nothing here is guarded by anything, so a value one
+// shell, and every action. Nothing here is guarded by anything, so a value one
 // of them reads is read on every run there is.
 func (s *Module) everywhere() ([]string, error) {
 	out := append([]string{filepath.Join(s.Dir, FileModule)}, s.Shells()...)
-	for _, o := range s.Options {
-		paths, err := filesUnder(o.Dir())
+	for _, a := range s.Actions {
+		paths, err := filesUnder(a.Dir())
 		if err != nil {
 			return nil, err
 		}

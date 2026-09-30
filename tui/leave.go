@@ -12,32 +12,31 @@ import (
 // leaveScreen is the way out, on a machine where leaving is not quitting a
 // program.
 //
-// A module with options on this page is saying that this machine booted to run
-// it: quitting into whatever is behind it is not an exit unless there is
+// A module that names actions for this page is saying that this machine booted
+// to run it: quitting into whatever is behind it is not an exit unless there is
 // something there. So every way out of the interface arrives here instead, and
 // what is offered is what the module says this machine can be left in —
-// switched off, started again — and, where it names a console to go back to,
-// running with the interface closed. In a kiosk there is no console to go back
-// to, whatever the module names, and that last row starts the program over
-// instead.
+// switched off, started again — and, under those, running with the interface
+// closed. In a kiosk there is no console to go back to, and that last row
+// starts the program over instead.
 //
 // It is drawn over whatever was happening rather than in place of it, and
 // nothing is stopped by its appearing: a run carries on behind it and the
 // header keeps counting. Choosing a row is what stops it — that is what halt
 // is, and it is called before any row does anything else.
 //
-// The options are the module's, which is also what makes them harmless while
-// one is being tried out: under --debug an option is not run unless it
+// The actions are the module's, which is also what makes them harmless while
+// one is being tried out: under --debug an action is not run unless it
 // simulates itself, and the program simply closes.
 type leaveScreen struct {
 	app    *app
 	halt   func()
 	picker *picker
 
-	// doing is the option being carried out, nil while nothing is. A restart
+	// doing is the action being carried out, nil while nothing is. A restart
 	// takes a moment to arrive and the frame has to say something in it, or the
 	// last thing anybody sees is a page that ignored their keystroke.
-	doing *spec.Option
+	doing *spec.Action
 	err   error
 }
 
@@ -51,22 +50,17 @@ const (
 func newLeave(a *app, halt func(), running bool) *leaveScreen {
 	s := &leaveScreen{app: a, halt: halt}
 	var items []item
-	for _, o := range a.rows(spec.MenuLeave) {
-		items = append(items, optionRow(o))
+	for _, act := range a.rows(a.module.Places.Leave) {
+		items = append(items, actionRow(act))
 	}
-	// Last, and only where the module names a way back: the rows above end this
-	// machine's session, and this one only ends the program. It reads as the
-	// smallest of them and belongs under them. A kiosk has nothing to go back
-	// to, so the same place holds the one thing it can do instead.
-	switch {
-	case a.kiosk:
+	// Last: the rows above end this machine's session, and this one only ends
+	// the program. It reads as the smallest of them and belongs under them. A
+	// kiosk has nothing to go back to, so the same place holds the one thing it
+	// can do instead.
+	if a.kiosk {
 		items = append(items, item{title: labelStartOver(), detail: labelStartOverHelp(), key: keyStartOver})
-	case a.module.UI.Console != "":
-		items = append(items, item{
-			title:  labelConsole(),
-			detail: a.module.ConsoleHelp(),
-			key:    keyConsole,
-		})
+	} else {
+		items = append(items, item{title: labelConsole(), detail: labelConsoleHelp(), key: keyConsole})
 	}
 	s.picker = newPicker(items)
 	// Said out loud only while there is something to say it about: whoever
@@ -144,10 +138,8 @@ func (s *leaveScreen) carryOut(key string) tea.Cmd {
 	// running behind this page is put down first — every row ends it.
 	s.halt()
 	// The console is not a command and nothing is waiting for it: the program
-	// closes, and the sentence the module wrote is printed where the frame was —
-	// the first thing on the terminal somebody is left looking at.
+	// closes, and whatever started it is back.
 	if key == keyConsole {
-		s.app.farewell = s.app.module.ConsoleHelp()
 		return quit()
 	}
 	// Starting over is every answer forgotten and the program closed, for
@@ -162,12 +154,12 @@ func (s *leaveScreen) carryOut(key string) tea.Cmd {
 		}
 		return quit()
 	}
-	o := s.app.option(key)
-	if o == nil {
+	act := s.app.action(key)
+	if act == nil {
 		return nil
 	}
-	s.doing, s.err = o, nil
-	session, err := s.app.runner.Open(o)
+	s.doing, s.err = act, nil
+	session, err := s.app.runner.Open(act)
 	if err != nil || session == nil {
 		return func() tea.Msg { return leftMsg{err} }
 	}

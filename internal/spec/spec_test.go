@@ -53,12 +53,12 @@ func unit(stage, id, yaml string) map[string]string {
 	}
 }
 
-// option is one option folder, as the two files it is made of.
-func option(id, yaml string) map[string]string {
-	at := DirOptions + "/" + id
+// action is one action folder, as the two files it is made of.
+func action(id, yaml string) map[string]string {
+	at := DirActions + "/" + id
 	return map[string]string{
-		at + "/" + FileOption:       yaml,
-		at + "/" + FileOptionScript: "echo " + id + "\n",
+		at + "/" + FileAction:       yaml,
+		at + "/" + FileActionScript: "echo " + id + "\n",
 	}
 }
 
@@ -77,7 +77,6 @@ func TestLoadReadsAWholeTree(t *testing.T) {
 	dir := module(t, map[string]string{
 		FileModule: `
 title: Test Installer
-confirm: Erasing {{DISK}}.
 stages: [go, done]
 variables:
   - name: DISK
@@ -99,9 +98,6 @@ presets:
 	}
 	if sp.UI.Title != "Test Installer" {
 		t.Errorf("title = %q", sp.UI.Title)
-	}
-	if got := sp.ConfirmText(func(string) string { return "/dev/sda" }); got != "Erasing /dev/sda." {
-		t.Errorf("confirm = %q", got)
 	}
 	if len(sp.Presets) != 1 || sp.Presets[0].Options[0].Values["DISK"] != "/dev/sda" {
 		t.Errorf("presets = %+v", sp.Presets)
@@ -199,7 +195,7 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 		{
 			name:  "a hooks folder from an older Oak",
 			files: map[string]string{"hooks/@preflight/root/hook.yaml": "title: Root\nscript: \"true\"\n"},
-			want:  "the runtime runs no hooks — each is an option now",
+			want:  "the runtime runs no hooks — each is an action now",
 		},
 		{
 			name:  "a need pointing at nothing",
@@ -254,16 +250,18 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 	}
 }
 
-// What a machine has to be for this module to be offered on it stands in the
-// declaration, like everything else the module says about itself: shell where
-// it is short, or a file it names where it is not.
-func TestAModuleFindsItsRequirementInItsDeclaration(t *testing.T) {
-	sp, err := Load(module(t, map[string]string{FileModule: head("requires: arch_live\n")}))
+// What a machine has to be for this module to be offered on it is an action,
+// named where the module says where it runs its actions.
+func TestAModuleNamesWhatItIsOfferedOn(t *testing.T) {
+	sp, err := Load(module(t, units(
+		map[string]string{FileModule: head("offered: [live]\n")},
+		action("live", "title: A live image\n"),
+	)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sp.Requires.Shell != "arch_live" {
-		t.Errorf("Requires = %+v, want the shell the yaml wrote", sp.Requires)
+	if got := sp.Named(sp.Places.Offered); len(got) != 1 || got[0].ID() != "live" {
+		t.Errorf("offered = %v, want the action the module named", got)
 	}
 
 	// A module that demands nothing is on offer everywhere.
@@ -271,79 +269,67 @@ func TestAModuleFindsItsRequirementInItsDeclaration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sp.Requires.Empty() {
-		t.Errorf("Requires = %+v, want nothing", sp.Requires)
+	if len(sp.Places.Offered) != 0 {
+		t.Errorf("offered = %v, want nothing", sp.Places.Offered)
 	}
 }
 
-// Nothing lists the options: a folder under options/ is one, and they are taken
-// in the order their folders sort.
-func TestOptionsAreFoundByTheirFolder(t *testing.T) {
+// Nothing lists the actions: a folder under actions/ is one. Where each runs is
+// the place that names it, in the order it names them.
+func TestActionsAreNamedWhereTheyRun(t *testing.T) {
 	sp, err := Load(module(t, units(
-		option("wlan", "title: Wireless network\nmenu: main\nstart: \"true\"\n"),
-		option("restart", "title: Restart\nmenu: leave\n"),
-		option("root", "title: Running as root\nstart: \"true\"\n"),
+		map[string]string{FileModule: head("requires: [root, internet]\nmenu: [wlan]\nleave: [restart]\n")},
+		action("root", "title: Running as root\n"),
+		action("internet", "title: Internet\nfallback: wlan\n"),
+		action("wlan", "title: Wireless network\nrequires: [card]\n"),
+		action("card", "title: A wireless card\n"),
+		action("restart", "title: Restart\n"),
 	)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var ids []string
-	for _, o := range sp.Options {
-		ids = append(ids, o.ID())
+	for _, a := range sp.Named(sp.Places.Requires) {
+		ids = append(ids, a.ID())
 	}
-	if strings.Join(ids, " ") != "restart root wlan" {
-		t.Errorf("options = %v, want them in the order their folders sort", ids)
+	if strings.Join(ids, " ") != "root internet" {
+		t.Errorf("requires = %v, want them in the order the module named them", ids)
 	}
-	if got := sp.Menu(MenuMain); len(got) != 1 || got[0].ID() != "wlan" {
-		t.Errorf("Menu(main) = %v, want the wireless network", got)
+	if a := sp.Action("internet"); a.Fallback != "wlan" {
+		t.Errorf("internet falls back on %q, want wlan", a.Fallback)
 	}
-	if got := sp.Starts(); len(got) != 2 || got[0].ID() != "root" || got[1].ID() != "wlan" {
-		t.Errorf("Starts() = %v, want root then wlan", got)
+	if a := sp.Action("wlan"); len(a.Requires) != 1 || a.Requires[0] != "card" {
+		t.Errorf("wlan requires %v, want the card", a.Requires)
 	}
-	if !strings.HasSuffix(sp.Options[0].Work.File, filepath.Join("restart", FileOptionScript)) {
-		t.Errorf("restart runs %+v, want the %s beside its yaml", sp.Options[0].Work, FileOptionScript)
+	if !strings.HasSuffix(sp.Action("restart").Work.File, filepath.Join("restart", FileActionScript)) {
+		t.Errorf("restart runs %+v, want the %s beside its yaml", sp.Action("restart").Work, FileActionScript)
 	}
 	if !sp.Leaves() {
-		t.Error("Leaves() = false, want true: an option stands on the way out")
+		t.Error("Leaves() = false, want true: an action stands on the way out")
 	}
 }
 
-func TestAModuleWithoutOptionsHasNone(t *testing.T) {
+func TestAModuleWithoutActionsHasNone(t *testing.T) {
 	sp, err := Load(module(t, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sp.Options) != 0 {
-		t.Errorf("options = %v, want none", sp.Options)
+	if len(sp.Actions) != 0 {
+		t.Errorf("actions = %v, want none", sp.Actions)
 	}
 	if sp.Leaves() {
 		t.Error("Leaves() = true, want false: nothing says how to leave")
 	}
 }
 
-// An option only waiting for something has nothing to run, and that is not a
-// mistake: the page it stands in front of the work with is the whole of it.
-func TestAnOptionMayOnlyWait(t *testing.T) {
-	sp, err := Load(module(t, map[string]string{
-		"options/root/option.yaml": "title: Running as root\nstart: \"[ \\\"$(id -u)\\\" -eq 0 ]\"\n",
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if o := sp.Options[0]; !o.Work.Empty() || o.Start.Empty() {
-		t.Errorf("root = %+v, want a start and nothing to run", o)
-	}
-}
-
-// An option's pages are questions like the module's own, held to the same rules
+// An action's pages are questions like the module's own, held to the same rules
 // and sharing its names — but they are not the module's questions: never asked
 // on the way in and never on the settings page.
-func TestAnOptionsPagesAreDeclaredBesideTheModulesOwn(t *testing.T) {
+func TestAnActionsPagesAreDeclaredBesideTheModulesOwn(t *testing.T) {
 	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: Disk\n")},
-		option("wlan", `
+		map[string]string{FileModule: head("menu: [wlan]\nvariables:\n  - name: DISK\n    title: Disk\n")},
+		action("wlan", `
 title: Wireless network
-menu: main
 variables:
   - name: WLAN_SSID
     title: Network
@@ -353,7 +339,7 @@ variables:
     type: secret
     existing: true
 `),
-		map[string]string{"options/wlan/networks.sh": "echo Home\n"},
+		map[string]string{"actions/wlan/networks.sh": "echo Home\n"},
 	)))
 	if err != nil {
 		t.Fatal(err)
@@ -366,36 +352,51 @@ variables:
 	}
 	ssid := sp.Var("WLAN_SSID")
 	if ssid == nil || !strings.Contains(ssid.Command, filepath.Join("wlan", "networks.sh")) {
-		t.Errorf("WLAN_SSID = %+v, want its list read from beside the option's yaml", ssid)
+		t.Errorf("WLAN_SSID = %+v, want its list read from beside the action's yaml", ssid)
 	}
 }
 
-// What an option says has to be something that can take effect. Each of these
-// loads into a folder that is never opened, or a key never read.
-func TestAnOptionRefusesWhatCannotTakeEffect(t *testing.T) {
+// What an action says has to be something that can take effect where it is
+// run, and every name has to be an action. Each of these loads into something
+// that never runs, or asks where nobody is asked.
+func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
+	menu := func(yaml string) map[string]string {
+		return units(map[string]string{FileModule: head("menu: [o]\n")}, action("o", yaml))
+	}
+	required := func(yaml string) map[string]string {
+		return units(map[string]string{FileModule: head("requires: [o]\n")}, action("o", yaml))
+	}
 	cases := []struct {
 		name  string
 		files map[string]string
 		want  string
 	}{
-		{"no title", option("o", "menu: main\n"), "title is required"},
-		{"a menu that is no page", option("o", "title: O\nmenu: side\n"), `menu: main or leave, got "side"`},
-		{"nothing that opens it", option("o", "title: O\n"), "nothing opens it"},
-		{"a row with nothing to run", map[string]string{"options/o/option.yaml": "title: O\nmenu: main\n"}, "a row has to do something"},
-		{"pages with nothing to hand them to", map[string]string{"options/o/option.yaml": "title: O\nstart: \"true\"\nvariables:\n  - name: X\n    title: X\n"}, "nothing is handed the answers"},
-		{"a simulation of nothing", map[string]string{"options/o/option.yaml": "title: O\nstart: \"true\"\nsimulates: true\n"}, "there is no script to run"},
-		{"a way out that asks", option("o", "title: O\nmenu: leave\nvariables:\n  - name: X\n    title: X\n"), "a way out asks nothing"},
-		{"a way out the work waits for", option("o", "title: O\nmenu: leave\nstart: \"true\"\n"), "a way out is nothing the work waits for"},
-		{"a page asked first", option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n    first: true\n"), "a page is asked when its option opens"},
-		{"a page in a group", option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n    group: G\n"), "a page is never on the settings page"},
-		{"a page worked out", option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n    answer: echo x\n"), "an answer worked out is not"},
+		{"no title", menu("description: O\n"), "title is required"},
+		{"nothing that runs", map[string]string{FileModule: head("menu: [o]\n"), "actions/o/action.yaml": "title: O\n"}, "no " + FileActionScript},
+		{"a name that is no action", map[string]string{FileModule: head("requires: [ghost]\n")}, "requires: no such action: ghost"},
+		{"a fallback that is no action", menu("title: O\nfallback: ghost\n"), "fallback: no such action: ghost"},
+		{"an action nothing names", action("o", "title: O\n"), "nothing names it, so it never runs"},
+		{"a required action that asks", required("title: O\nvariables:\n  - name: X\n    title: X\n"), "run unasked where requires names it"},
+		{"a required action that waits for a yes", required("title: O\nconfirm: Sure?\n"), "nothing waits for a yes"},
+		{"a way out that asks", units(map[string]string{FileModule: head("leave: [o]\n")}, action("o", "title: O\nvariables:\n  - name: X\n    title: X\n")), "a way out asks nothing"},
+		{"a fallback on itself", menu("title: O\nfallback: o\n"), "cannot put itself right"},
+		{"actions that wait on each other", units(
+			map[string]string{FileModule: head("menu: [a]\n")},
+			action("a", "title: A\nrequires: [b]\n"),
+			action("b", "title: B\nfallback: a\n"),
+		), "actions that wait on each other: a → b → a"},
+		{"a page asked first", menu("title: O\nvariables:\n  - name: X\n    title: X\n    first: true\n"), "a page is asked when its action is opened"},
+		{"a page in a group", menu("title: O\nvariables:\n  - name: X\n    title: X\n    group: G\n"), "a page is never on the settings page"},
+		{"a page worked out", menu("title: O\nvariables:\n  - name: X\n    title: X\n    answer: echo x\n"), "an answer worked out is not"},
 		{"a page named like a question", units(
-			map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n")},
-			option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n"),
+			map[string]string{FileModule: head("menu: [o]\nvariables:\n  - name: X\n    title: X\n")},
+			action("o", "title: O\nvariables:\n  - name: X\n    title: X\n"),
 		), "X is declared twice"},
-		{"a page guarded by nothing", option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n    conditions: NOPE == y\n"), "no such variable: NOPE"},
-		{"a start naming a file that is not there", option("o", "title: O\nstart: ./gone.sh\n"), "start: no such script"},
-		{"a script and an option.sh", option("o", "title: O\nmenu: main\nscript: echo hi\n"), "one of the two is what runs"},
+		{"a page guarded by nothing", menu("title: O\nvariables:\n  - name: X\n    title: X\n    conditions: NOPE == y\n"), "no such variable: NOPE"},
+		{"a default with nothing to answer", menu("title: O\ndefault: no\n"), "there is no confirm for it to answer"},
+		{"a code with no report to stand on", menu("title: O\nshows: X\nvariables:\n  - name: X\n    title: X\n"), "there is no report for it to appear on"},
+		{"a script and an action.sh", menu("title: O\nscript: echo hi\n"), "one of the two is what runs"},
+		{"an options folder from an older Oak", map[string]string{"options/wlan/option.yaml": "title: W\n"}, "an option is an action now"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -511,26 +512,12 @@ func TestTheModuleShellAndLocalesAreFoundBesideTheDeclaration(t *testing.T) {
 	}
 }
 
-// The sentence read on the way out is the module's, so it is translated like
-// everything else it says.
-func TestConsoleIsTranslatable(t *testing.T) {
+// The word for starting the work is the module's, so it is translated like
+// everything else it says, and a block scalar is read as the one line a catalog
+// looks it up by.
+func TestTheWordForStartingIsTranslatable(t *testing.T) {
 	sp, err := Load(module(t, map[string]string{
-		FileModule: head("console: Type installer to start again.\n"),
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"Test Installer", "Type installer to start again.", "Do it"}
-	if got := texts(sp); strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Errorf("Messages() = %v\nwant %v", got, want)
-	}
-}
-
-// So is the word for starting the work, and a block scalar is read as the one
-// line a catalog looks it up by.
-func TestActionIsTranslatable(t *testing.T) {
-	sp, err := Load(module(t, map[string]string{
-		FileModule: head("action: |\n  Install\n"),
+		FileModule: head("start: |\n  Install\n"),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -539,8 +526,8 @@ func TestActionIsTranslatable(t *testing.T) {
 	if got := texts(sp); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("Messages() = %v\nwant %v", got, want)
 	}
-	if got := sp.Action(); got != "Install" {
-		t.Errorf("Action() = %q, want %q", got, "Install")
+	if got := sp.Start(); got != "Install" {
+		t.Errorf("Start() = %q, want %q", got, "Install")
 	}
 }
 
@@ -655,9 +642,14 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "any other answer is held to its pattern",
 		},
 		{
-			name:  "a confirm text naming a variable nothing declares",
-			files: map[string]string{FileModule: "title: T\nstages: [go]\nconfirm: Erasing {{DSIK}}.\nvariables:\n  - name: DISK\n    title: D\n"},
-			want:  "{{DSIK}} is not a variable of this module",
+			name:  "the keys the runtime now says for itself",
+			files: map[string]string{FileModule: head("console: Type installer.\nconfirm: Careful.\n")},
+			want:  "console is not a key here — the row that leaves to the console is the runtime's own",
+		},
+		{
+			name:  "the word for starting said the way an older Oak read it",
+			files: map[string]string{FileModule: head("action: Install\n")},
+			want:  "the word for starting the work is start",
 		},
 		{
 			name: "a task's offer naming a variable nothing declares",
@@ -800,7 +792,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "the network said the way an older Oak read it",
 			files: map[string]string{FileModule: head("network:\n  wlan: true\n")},
-			want:  "network is not a key here — a wireless network is an option under options/",
+			want:  "network is not a key here — a wireless network is an action under actions/",
 		},
 	}
 	for _, tc := range cases {
@@ -935,7 +927,6 @@ func TestScalarReadsWhateverShapeItWasWrittenIn(t *testing.T) {
 func TestStringsIsEveryWordTheTreeSays(t *testing.T) {
 	dir := module(t, map[string]string{
 		FileModule: head(`
-confirm: Careful.
 presets:
   - title: Setup
     description: What kind.
@@ -955,7 +946,7 @@ variables:
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"Test Installer", "Careful.", "Setup", "What kind.", "Full", "Everything.", "Disk", "Where it goes.", "Storage", "Pick one.", "Do it", "Really?"}
+	want := []string{"Test Installer", "Setup", "What kind.", "Full", "Everything.", "Disk", "Where it goes.", "Storage", "Pick one.", "Do it", "Really?"}
 	got := texts(sp)
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("Messages() = %v\nwant %v", got, want)

@@ -114,6 +114,7 @@ func TestInspectingAModuleNamesEverythingItHolds(t *testing.T) {
 	dir := around(t, writeModule(t, `
 title: Installer
 stages: [go]
+requires: [root]
 variables:
   - name: HOST
     title: Host name
@@ -123,7 +124,8 @@ variables:
     type: secret
     required: true
 `, map[string]string{
-		"options/root/option.yaml": "title: Root\nstart: \"true\"\n",
+		"actions/root/action.yaml": "title: Root\n",
+		"actions/root/action.sh":   "true\n",
 		// The one task reads both answers, so the report is about what the
 		// module holds rather than about a guard that disagrees — see
 		// spec.Unread.
@@ -139,7 +141,8 @@ variables:
 		"title      Installer",
 		"variables  2 (2 required, 1 secret, 0 derived)",
 		"tasks      1",
-		"options    root(start)",
+		"requires   root",
+		"actions    root",
 		"1. go         first",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -195,13 +198,13 @@ func TestInspectingRefusesATranslationThatNamesOtherPlaceholders(t *testing.T) {
 	mod := writeModule(t, `
 title: Installer
 stages: [go]
-confirm: Erasing {{DISK}}.
 variables:
   - name: DISK
     title: Disk
     required: true
 `, map[string]string{
-		"tasks/@go/first/task.sh": "echo \"$DISK\"\n",
+		"tasks/@go/first/task.yaml": "title: First\nconfirm: Erasing {{DISK}}.\n",
+		"tasks/@go/first/task.sh":   "echo \"$DISK\"\n",
 		spec.DirLocales + "/de.po": "msgid \"\"\nmsgstr \"Language: de\\n\"\n\n" +
 			"msgid \"Erasing {{DISK}}.\"\nmsgstr \"Wird gelöscht.\"\n",
 	})
@@ -219,21 +222,21 @@ variables:
 	}
 }
 
-// Every option is listed with where it is opened, so one that stands nowhere
-// somebody meant it to is visible on the line.
-func TestEveryOptionIsListedWithWhereItIsOpened(t *testing.T) {
-	mod, err := spec.Load(writeModule(t, "title: T\nstages: [go]\n", map[string]string{
-		"options/wlan/option.yaml":   "title: Wireless\nmenu: main\nstart: \"true\"\n",
-		"options/wlan/option.sh":     "true\n",
-		"options/reboot/option.yaml": "title: Reboot\nmenu: leave\nscript: \"true\"\n",
-		"options/root/option.yaml":   "title: Root\nstart: \"true\"\n",
+// Every action is listed with what it names itself, so one that requires or
+// falls back on something nobody meant it to is visible on the line.
+func TestEveryActionIsListedWithWhatItNames(t *testing.T) {
+	mod, err := spec.Load(writeModule(t, "title: T\nstages: [go]\nrequires: [internet]\nleave: [reboot]\n", map[string]string{
+		"actions/card/action.yaml":     "title: Card\nscript: \"true\"\n",
+		"actions/internet/action.yaml": "title: Internet\nfallback: wlan\nscript: \"true\"\n",
+		"actions/reboot/action.yaml":   "title: Reboot\nscript: \"true\"\n",
+		"actions/wlan/action.yaml":     "title: Wireless\nrequires: [card]\nscript: \"true\"\n",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "reboot(leave) root(start) wlan(main, start)"
-	if got := strings.Join(options(mod), " "); got != want {
-		t.Errorf("options() = %q, want %q", got, want)
+	want := "card internet(fallback wlan) reboot wlan(requires card)"
+	if got := strings.Join(actions(mod), " "); got != want {
+		t.Errorf("actions() = %q, want %q", got, want)
 	}
 }
 

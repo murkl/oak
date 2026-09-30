@@ -14,7 +14,6 @@
 package tui
 
 import (
-	"fmt"
 	"io/fs"
 
 	"github.com/murkl/oak/internal/i18n"
@@ -108,21 +107,16 @@ type app struct {
 	langs   []i18n.Lang
 	sources []fs.FS
 
-	// farewell is what to say on the terminal once the frame is gone: how to
-	// start this installer again, for somebody who chose to leave it running.
-	// Empty for every other way out — a machine on its way down is not reading.
-	farewell string
-
 	// settled and kiosk are the command line's, as Opening has them.
 	settled bool
 	kiosk   bool
 
-	// offered is which of the module's options this machine has, as their
-	// requires last said — see has. An answer stands until the next look
+	// offered is which of the module's actions this machine has, as what they
+	// require last said — see has. An answer stands until the next look
 	// replaces it, so a row does not blink out while that look is under way.
-	offered map[*spec.Option]bool
+	offered map[*spec.Action]bool
 
-	// looked is whether the module open now has been asked about its options
+	// looked is whether the module open now has been asked about its actions
 	// yet — see Model.look.
 	looked bool
 
@@ -161,16 +155,8 @@ func Run(o *Opening, open Open) error {
 			return err
 		}
 	}
-	if _, err := tea.NewProgram(newModel(a, o.Runtime.Logo), tea.WithAltScreen()).Run(); err != nil {
-		return err
-	}
-	// After the program, not inside it: the alternate screen is gone by now, so
-	// this lands on the terminal the user is left sitting at rather than on a
-	// frame that is about to be wiped.
-	if a.farewell != "" {
-		fmt.Println(a.farewell)
-	}
-	return nil
+	_, err := tea.NewProgram(newModel(a, o.Runtime.Logo), tea.WithAltScreen()).Run()
+	return err
 }
 
 // enter opens a module and makes it the one this run is about: from here on the
@@ -190,7 +176,7 @@ func (a *app) enter(mod *spec.Module) error {
 	a.module, a.store, a.runner = p.Module, p.Store, p.Runner
 	a.langs, a.sources = p.Langs, p.Sources
 	a.first = !p.Store.Exists()
-	a.offered, a.looked = map[*spec.Option]bool{}, false
+	a.offered, a.looked = map[*spec.Action]bool{}, false
 	return nil
 }
 
@@ -209,12 +195,12 @@ func (a *app) heading() string {
 	return a.brand() + " " + glyphs.crumb + " " + a.module.Name()
 }
 
-// action is what starting the work is called: the menu's first row and the
-// button on the page before the run. The module's own verb where it names one,
+// verb is what starting the work is called: the menu's first row and the
+// button on the page before the run. The module's own word where it names one,
 // and the runtime's otherwise.
-func (a *app) action() string {
-	if act := a.module.Action(); act != "" {
-		return act
+func (a *app) verb() string {
+	if word := a.module.Start(); word != "" {
+		return word
 	}
 	return labelStart()
 }
@@ -323,7 +309,7 @@ func (a *app) save() tea.Cmd {
 
 // The opening is one chain, and each link only knows the one after it: pick a
 // language, pick a module, settle whatever that module wants settled before
-// anything is typed, wait for whatever its options say the work waits for,
+// anything is typed, wait for whatever its actions say the work requires,
 // pick a starting point, answer what is still open — and from then on it is
 // simply ready. A link with nothing to ask hands straight on, so a module with
 // no presets never shows a page offering none.
@@ -376,15 +362,13 @@ func (a *app) upfront() screen {
 }
 
 // waits is the page standing in front of the work for as long as one of the
-// module's options says it is not ready for it — the machine is not the one it
-// needs, there is no internet — or nothing, where no option says anything of
-// the kind.
+// actions it requires says no — the machine is not the one it needs, there is
+// no internet — or nothing, where it requires none.
 func (a *app) waits() screen {
-	starts := a.module.Starts()
-	if len(starts) == 0 {
+	if len(a.module.Places.Requires) == 0 {
 		return a.afterCheck()
 	}
-	return newGate(a, starts, a.afterCheck)
+	return newGate(a, a.module.Named(a.module.Places.Requires), a.afterCheck)
 }
 
 // afterCheck is the module's starting points, one page each and in the order

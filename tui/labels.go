@@ -35,9 +35,9 @@ func labelHintStart() string    { return say("⏎ start · esc back") }
 // answer has already started — so esc there says what q says on the menu.
 func labelHintAnswer() string { return say("↑↓ move · ⏎ confirm · esc quit") }
 
-// The page an option stands on in front of the work, while its start says no.
-// It looks again by itself, so r is only a way to be quicker than the clock,
-// and enter is there where the option has something to open.
+// The page an action the work requires stands on, while it says no. It asks
+// again by itself, so r is only a way to be quicker than the clock, and enter
+// is there where it falls back on an action this machine has.
 func labelHintRetry() string { return say("r retry · esc back") }
 func labelHintOpen() string  { return say("⏎ open · r retry · esc back") }
 
@@ -175,7 +175,13 @@ func labelPasswordMismatch() string { return say("The entries do not match.") }
 // somebody watching a list of tasks actually wants to know and cannot work out
 // for themselves, and how long it took is the same answer once it is over.
 func labelReadyToStart() string { return say("Ready to start") }
-func labelRunFailed() string    { return say("Failed") }
+
+// Under it, on the last page before the work: the one thing that is true of
+// every module at this point.
+func labelNothingChanged() string {
+	return say("Nothing has been changed so far. Starting is the step that changes it.")
+}
+func labelRunFailed() string { return say("Failed") }
 func labelRunningFor(elapsed string) string {
 	return say("Working · %s", elapsed)
 }
@@ -207,7 +213,8 @@ func labelLeaveRunning() string {
 	return say("This run continues behind this page. Any choice here stops it.")
 }
 
-func labelConsole() string { return say("Exit") }
+func labelConsole() string     { return say("Exit") }
+func labelConsoleHelp() string { return say("Close this program. The machine keeps running.") }
 
 // The row a kiosk has where a console would be: every answer forgotten and the
 // program started again, the way it came up the first time.

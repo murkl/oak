@@ -152,7 +152,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return next, tea.Batch(cmd, m.arrive(was), m.poll(), m.look())
 }
 
-// look asks the module once, as soon as it is open, which of its options this
+// look asks the module once, as soon as it is open, which of its actions this
 // machine has, so the menu stands with their rows from its first frame rather
 // than growing them over somebody's cursor. The menu asks again itself every
 // time it comes up — see hub.Init.
@@ -169,7 +169,7 @@ func (m *Model) look() tea.Cmd {
 // clock saying it is time to ask it again. Both carry the round they belong to.
 //
 // recheckMsg is a page saying it may have changed what the status is about —
-// an option that just ran — so the next read is asked for now rather than after
+// an action that just ran — so the next read is asked for now rather than after
 // the interval, and whatever the read already out there says is not waited for:
 // it was taken before the change.
 type (
@@ -257,7 +257,7 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Taken here rather than by the page that asked, which may be gone by the
 	// time the answer lands: the answer is the machine's, not the page's.
 	case offeredMsg:
-		m.app.offered[msg.o] = msg.yes
+		m.app.offered[msg.a] = msg.yes
 		if h, ok := m.top().(*hub); ok {
 			h.Refresh()
 		}

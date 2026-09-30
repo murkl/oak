@@ -24,8 +24,8 @@ msgid "Module"
 msgstr "Modul"
 
 #: internal/exec/failure.go:68
-msgid "Option"
-msgstr "Option"
+msgid "Action"
+msgstr "Aktion"
 
 #: internal/exec/failure.go:70
 msgid "Task"
@@ -70,19 +70,19 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:654
+#: internal/spec/spec.go:615
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:656
+#: internal/spec/spec.go:617
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
-#: internal/spec/spec.go:666
+#: internal/spec/spec.go:627
 msgid "This answer is not among the ones offered here."
 msgstr "Diese Antwort gehört nicht zu den hier angebotenen."
 
-#: internal/spec/spec.go:676
+#: internal/spec/spec.go:637
 msgid "This password was not accepted."
 msgstr "Dieses Passwort wurde nicht angenommen."
 
@@ -103,60 +103,60 @@ msgstr "Sprache der Oberfläche"
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
 
-#: internal/store/store.go:231 tui/labels.go:221
+#: internal/store/store.go:231 tui/labels.go:228
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:233 tui/labels.go:222
+#: internal/store/store.go:233 tui/labels.go:229
 msgid "No"
 msgstr "Nein"
 
-#: main.go:187
+#: main.go:195
 #, c-format
 msgid "%s cannot be opened on this machine."
 msgstr "%s lässt sich auf dieser Maschine nicht öffnen."
 
-#: main.go:234
+#: main.go:242
 #, c-format
 msgid "One language at a time: %s or %s."
 msgstr "Nur eine Sprache auf einmal: %s oder %s."
 
-#: main.go:238
+#: main.go:246
 #, c-format
 msgid "%s needs the code of a language: %s=<code>."
 msgstr "%s braucht den Code einer Sprache: %s=<code>."
 
-#: main.go:241
+#: main.go:249
 #, c-format
 msgid "One module at a time: %s or %s."
 msgstr "Nur ein Modul auf einmal: %s oder %s."
 
-#: main.go:245
+#: main.go:253
 #, c-format
 msgid "%s needs the name of a module: %s=<id>."
 msgstr "%s braucht den Namen eines Moduls: %s=<id>."
 
-#: main.go:248
+#: main.go:256
 #, c-format
 msgid "%q is not something this program takes."
 msgstr "%q kennt dieses Programm nicht."
 
-#: main.go:249
+#: main.go:257
 #, c-format
 msgid "It takes %s."
 msgstr "Es kennt %s."
 
-#: main.go:269
+#: main.go:277
 #, c-format
 msgid "No module called %s."
 msgstr "Kein Modul namens %s."
 
-#: main.go:270 main.go:322
+#: main.go:278 main.go:330
 #, c-format
 msgid "This one offers %s."
 msgstr "Angeboten werden %s."
 
-#: main.go:321
+#: main.go:329
 #, c-format
 msgid "No language called %s."
 msgstr "Keine Sprache namens %s."
@@ -326,50 +326,58 @@ msgstr "Die Eingaben stimmen nicht überein."
 msgid "Ready to start"
 msgstr "Bereit zum Start"
 
-#: tui/labels.go:178
+#: tui/labels.go:182
+msgid "Nothing has been changed so far. Starting is the step that changes it."
+msgstr "Bis jetzt ist nichts verändert. Erst der Start verändert etwas."
+
+#: tui/labels.go:184
 msgid "Failed"
 msgstr "Fehlgeschlagen"
 
-#: tui/labels.go:180
+#: tui/labels.go:186
 #, c-format
 msgid "Working · %s"
 msgstr "Läuft · %s"
 
-#: tui/labels.go:183
+#: tui/labels.go:189
 #, c-format
 msgid "Finished in %s"
 msgstr "Fertig in %s"
 
-#: tui/labels.go:186
+#: tui/labels.go:192
 #, c-format
 msgid "The full log is in %s."
 msgstr "Das vollständige Protokoll steht in %s."
 
-#: tui/labels.go:195
+#: tui/labels.go:201
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr "Abgebrochen bei %s; alles danach wurde nicht mehr ausgeführt."
 
-#: tui/labels.go:198
+#: tui/labels.go:204
 msgid "Cannot continue"
 msgstr "Fortfahren nicht möglich"
 
-#: tui/labels.go:202
+#: tui/labels.go:208
 msgid "Leave"
 msgstr "Beenden"
 
-#: tui/labels.go:207
+#: tui/labels.go:213
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr "Der Vorgang läuft hinter dieser Seite weiter. Jede Auswahl hier bricht ihn ab."
 
-#: tui/labels.go:210
+#: tui/labels.go:216
 msgid "Exit"
 msgstr "Beenden"
 
-#: tui/labels.go:214
+#: tui/labels.go:217
+msgid "Close this program. The machine keeps running."
+msgstr "Das Programm schließen. Der Rechner läuft weiter."
+
+#: tui/labels.go:221
 msgid "Reset"
 msgstr "Zurücksetzen"
 
-#: tui/labels.go:216
+#: tui/labels.go:223
 msgid "Forget every answer and start again from the beginning."
 msgstr "Alle Antworten vergessen und von vorn beginnen."

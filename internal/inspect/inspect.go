@@ -102,18 +102,26 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 	}
 	fmt.Fprintf(w, "%s\n", filepath.Join(mod.Dir, spec.FileModule))
 	fmt.Fprintf(w, "  title      %s\n", mod.UI.Title)
-	// Only where it says something. A module on offer everywhere is the ordinary
-	// case, and a line saying so on every one of them would drown the one that
-	// does not.
-	if !mod.Requires.Empty() {
-		fmt.Fprintf(w, "  requires   %s\n", oneLine(mod.Requires))
+	// Where it names its actions, each only where it names any: a module on offer
+	// everywhere is the ordinary case, and a line saying so on every one of them
+	// would drown the one that does not.
+	p := mod.Places
+	for _, at := range []struct {
+		key   string
+		names []string
+	}{
+		{"offered", p.Offered}, {"requires", p.Requires}, {"menu", p.Menu}, {"leave", p.Leave}, {"failure", p.Failure},
+	} {
+		if len(at.names) > 0 {
+			fmt.Fprintf(w, "  %-10s %s\n", at.key, strings.Join(at.names, " "))
+		}
 	}
 	fmt.Fprintf(w, "  variables  %d (%d required, %d secret, %d derived)\n", len(mod.Vars), required, secret, derived)
 	fmt.Fprintf(w, "  presets    %d\n", len(mod.Presets))
 	fmt.Fprintf(w, "  stages     %s\n", strings.Join(mod.Stages, " "))
 	fmt.Fprintf(w, "  tasks      %d (%d checked)\n", len(mod.Tasks), checks(mod))
-	if len(mod.Options) > 0 {
-		fmt.Fprintf(w, "  options    %s\n", strings.Join(options(mod), " "))
+	if len(mod.Actions) > 0 {
+		fmt.Fprintf(w, "  actions    %s\n", strings.Join(actions(mod), " "))
 	}
 	fmt.Fprintf(w, "  languages  %s\n", strings.Join(names, " "))
 
@@ -209,35 +217,23 @@ func oneSentence(s string) string {
 	return s
 }
 
-// oneLine is a piece of a module's shell as a report can print it: the file it
-// lives in, or its first line with the rest marked as being there. A report is
-// a table, and a module that wrote ten lines of check into its yaml must not
-// push every other row off the page.
-func oneLine(s spec.Script) string {
-	if s.File != "" {
-		return filepath.Base(s.File)
-	}
-	first, rest, cut := strings.Cut(strings.TrimSpace(s.Shell), "\n")
-	if cut && strings.TrimSpace(rest) != "" {
-		return first + " …"
-	}
-	return first
-}
-
-// options is every option this module has and where it is opened — the menu
-// it stands in, and start where the work waits for it — so one that is never
-// opened where somebody meant it to be is visible on this line.
-func options(mod *spec.Module) []string {
+// actions is every action this module has, with what it names itself: the
+// actions it requires and the one it falls back on.
+func actions(mod *spec.Module) []string {
 	var out []string
-	for _, o := range mod.Options {
-		var where []string
-		if o.Menu != "" {
-			where = append(where, o.Menu)
+	for _, a := range mod.Actions {
+		var says []string
+		if len(a.Requires) > 0 {
+			says = append(says, "requires "+strings.Join(a.Requires, " "))
 		}
-		if !o.Start.Empty() {
-			where = append(where, "start")
+		if a.Fallback != "" {
+			says = append(says, "fallback "+a.Fallback)
 		}
-		out = append(out, fmt.Sprintf("%s(%s)", o.ID(), strings.Join(where, ", ")))
+		if len(says) == 0 {
+			out = append(out, a.ID())
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s(%s)", a.ID(), strings.Join(says, ", ")))
 	}
 	return out
 }

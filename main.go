@@ -159,12 +159,7 @@ func offered(mods []*spec.Module, debug bool) ([]*spec.Module, error) {
 	var open []*spec.Module
 	var refused []string
 	for _, mod := range mods {
-		if mod.Requires.Empty() {
-			open = append(open, mod)
-			continue
-		}
-		sh := exec.Runner{Shells: mod.Shells(), Module: mod.ID()}
-		if err := sh.Guard(mod.Requires.Text(), os.Environ()); err != nil {
+		if err := machine(mod); err != nil {
 			refused = append(refused, said(mod, err))
 			continue
 		}
@@ -174,6 +169,19 @@ func offered(mods []*spec.Module, debug bool) ([]*spec.Module, error) {
 		return nil, errors.New(strings.Join(refused, "\n"))
 	}
 	return open, nil
+}
+
+// machine asks the actions a module names under `offered:`, each by itself and
+// in order, and answers with what the first to say no wrote on stderr. There
+// are no answers yet, so each is handed the environment it was started in.
+func machine(mod *spec.Module) error {
+	sh := exec.Runner{Shells: mod.Shells(), Module: mod.ID()}
+	for _, a := range mod.Named(mod.Places.Offered) {
+		if err := sh.Guard(a.Work.Text(), os.Environ()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // said is one refusal as it is read: what the module had to say about this

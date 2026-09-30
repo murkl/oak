@@ -433,6 +433,18 @@ func TestDebugOnTheCommandLineReachesEveryScript(t *testing.T) {
 	}
 }
 
+// offeredBy is a module whose one action, machine, says whether it is on offer
+// here, by doing what script does.
+func offeredBy(t *testing.T, title, script string, files map[string]string) string {
+	t.Helper()
+	all := map[string]string{
+		"actions/machine/action.yaml": "title: This machine\n",
+		"actions/machine/action.sh":   script,
+	}
+	maps.Copy(all, files)
+	return writeModule(t, "title: "+title+"\nstages: [go]\noffered: [machine]\n", all)
+}
+
 // offeringRuntime is a product whose modules disagree about which machine they
 // belong on: one always, one never, and one that says nothing at all.
 func offeringRuntime(t *testing.T) (*spec.Runtime, []*spec.Module) {
@@ -441,9 +453,8 @@ func offeringRuntime(t *testing.T) (*spec.Runtime, []*spec.Module) {
 	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte(runtimeDecl), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	put(t, dir, "here", writeModule(t, "title: here\nstages: [go]\nrequires: \"true\"\n", nil))
-	put(t, dir, "elsewhere", writeModule(t, "title: elsewhere\nstages: [go]\n"+
-		"requires: |\n  echo \"not this machine\" >&2\n  exit 1\n", nil))
+	put(t, dir, "here", offeredBy(t, "here", "true\n", nil))
+	put(t, dir, "elsewhere", offeredBy(t, "elsewhere", "echo \"not this machine\" >&2\nexit 1\n", nil))
 	put(t, dir, "anywhere", writeModule(t, "title: anywhere\nstages: [go]\n", nil))
 	return product(t, dir)
 }
@@ -508,10 +519,8 @@ func TestAMachineNoModuleBelongsOnIsToldByEveryOneOfThem(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte(runtimeDecl), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	put(t, dir, "one", writeModule(t, "title: one\nstages: [go]\n"+
-		"requires: |\n  echo \"needs a live image\" >&2\n  exit 1\n", nil))
-	put(t, dir, "two", writeModule(t, "title: two\nstages: [go]\n"+
-		"requires: |\n  echo \"needs a plugged-in device\" >&2\n  exit 1\n", nil))
+	put(t, dir, "one", offeredBy(t, "one", "echo \"needs a live image\" >&2\nexit 1\n", nil))
+	put(t, dir, "two", offeredBy(t, "two", "echo \"needs a plugged-in device\" >&2\nexit 1\n", nil))
 	_, mods := product(t, dir)
 
 	_, err := offered(mods, false)
@@ -525,11 +534,11 @@ func TestAMachineNoModuleBelongsOnIsToldByEveryOneOfThem(t *testing.T) {
 	}
 }
 
-// The shell it is decided by is the module's own, so a check reads as a
-// sentence rather than as a line of test flags — and the one place that names
-// the rule is the module it belongs to.
-func TestTheRequirementIsGivenTheModulesOwnShell(t *testing.T) {
-	dir := around(t, writeModule(t, "title: shelled\nstages: [go]\nrequires: belongs_here\n",
+// The action it is decided by is handed the module's own shell, so a check reads
+// as a sentence rather than as a line of test flags — and the one place that
+// names the rule is the module it belongs to.
+func TestWhatAModuleIsOfferedOnIsGivenTheModulesOwnShell(t *testing.T) {
+	dir := around(t, offeredBy(t, "shelled", "belongs_here\n",
 		map[string]string{spec.FileShell: "belongs_here() { return 0; }\n"}))
 	_, mods := product(t, dir)
 
@@ -542,13 +551,11 @@ func TestTheRequirementIsGivenTheModulesOwnShell(t *testing.T) {
 	}
 }
 
-// The check is shell a module wrote, and it is written next to its tasks and
-// its options — where `return 0` is how a guard says yes. Shell that means one
-// thing there and another here would be a trap laid for whoever writes the next
-// module.
-func TestARequirementMaySayYesTheWayEveryOtherGuardDoes(t *testing.T) {
-	dir := around(t, writeModule(t, "title: returning\nstages: [go]\n"+
-		"requires: |\n  [ -n \"$HOME\" ] && return 0\n  echo no home >&2\n  exit 1\n", nil))
+// The check is an action a module wrote, and it is written next to its tasks —
+// where `return 0` is how a guard says yes. Shell that means one thing there
+// and another here would be a trap laid for whoever writes the next module.
+func TestAnActionMaySayYesTheWayEveryOtherGuardDoes(t *testing.T) {
+	dir := around(t, offeredBy(t, "returning", "[ -n \"$HOME\" ] && return 0\necho no home >&2\nexit 1\n", nil))
 	_, mods := product(t, dir)
 
 	if _, err := offered(mods, false); err != nil {
