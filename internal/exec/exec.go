@@ -1,7 +1,7 @@
 // Package exec is the only place this program starts a process.
 //
 // Everything the runtime actually does is shell: a stage's script, a variable's
-// option list, the preflight check. The runtime feeds them variables and reads
+// list of answers, an option and what it waits for. The runtime feeds them variables and reads
 // back an exit code or stdout — it never knows what any of them do.
 package exec
 
@@ -134,8 +134,7 @@ const lastLine = `trap '[ "${BASH_SOURCE[0]}" = "$1" ] && { oak_line=$LINENO; oa
 // Both answer with the script's own exit status, and both run under the trap.
 // So a script fails on any command that fails, and again on whatever it hands
 // back at the end — `exit 1`, `return 1`, or a last line that simply did not
-// work. One rule, and the same one for a task, for its test and for every step
-// of a hook.
+// work. One rule, and the same one for a task, for its test and for an option.
 //
 // A script can say no without any command having failed: `return 1` and a guard
 // that does not fire both look like that, and the trap sees neither. The file
@@ -225,9 +224,10 @@ func (r Runner) Reason(s string, env Env) error {
 }
 
 // Guard runs a piece of a module's shell whose exit status is an answer rather
-// than a result: may this module be opened on this machine at all. What it says
-// on stderr where it says no is what somebody reads, the way a preflight step's
-// is — so a check that refuses says why, in the module's own words.
+// than a result: may this module be opened on this machine at all, does it have
+// this option, may the work begin. What it says on stderr where it says no is
+// what somebody reads — so a check that refuses says why, in the module's own
+// words.
 func (r Runner) Guard(s string, env Env) error {
 	_, said, err := r.ask(guard, s, env)
 	switch {

@@ -56,7 +56,7 @@ func (s *resetScreen) View(width, height int) string { return s.picker.View(widt
 
 // startOver forgets the answers and opens the module where a machine that has
 // answered nothing opens it: at the questions it wants settled before anything
-// else, and from there through the network, the check and the starting points —
+// else, and from there through what the work waits for and the starting points —
 // which are offered again, because being offered once is what a starting point
 // is for and this machine has just become one that has never started.
 //
