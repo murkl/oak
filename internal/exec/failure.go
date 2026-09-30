@@ -26,7 +26,7 @@ const stderrKeep = 8
 type Failure struct {
 	Module  string // the module the step belongs to
 	Unit    string // the step's name, filled in by the caller
-	Hook    string // the hook it is a step of, empty for an ordinary task
+	Option  bool   // whether the step is an option's rather than a task's
 	Script  string // the file the ERR trap fired in
 	Line    int
 	Code    int
@@ -50,10 +50,8 @@ type Field struct {
 // table rather than parse a sentence back apart. The labels are translated here
 // because this is the one place that knows what each value is.
 //
-// A hook is named as one. It is a module's own code run at a moment the runtime
-// chose, so a mistake in it is as much an authoring bug as one in a task — and
-// the row that says which hook is the difference between a puzzle and a file to
-// open.
+// An option is named as one. It is a module's own code like a task's, and the
+// row that says which of the two broke is where somebody starts looking.
 func (f *Failure) Fields() []Field {
 	var out []Field
 	add := func(label, value string) {
@@ -66,9 +64,8 @@ func (f *Failure) Fields() []Field {
 	// what ran, and what it returned. Each is one column of a narrow table, so
 	// short wins over exact.
 	add(i18n.T("Module"), f.Module)
-	if f.Hook != "" {
-		add(i18n.T("Hook"), f.Hook)
-		add(i18n.T("Step"), f.Unit)
+	if f.Option {
+		add(i18n.T("Option"), f.Unit)
 	} else {
 		add(i18n.T("Task"), f.Unit)
 	}
@@ -164,7 +161,7 @@ func (r Runner) Fail(step Step, err error) error {
 		return nil
 	}
 	f := &Failure{
-		Module: r.Module, Unit: step.Name, Hook: step.Hook,
+		Module: r.Module, Unit: step.Name, Option: step.Option,
 		Script: short(step.Script.File), Code: exitCode(err),
 	}
 	// What stopped it before it could answer is the whole of what there is to
@@ -184,21 +181,6 @@ func (r Runner) failure(step Step, err error, report, said string) error {
 		// own. There is no line to name, but there is still the file it is in.
 		f = &Failure{Code: exitCode(err), Script: short(step.Script.File)}
 	}
-	f.Module, f.Unit, f.Hook, f.Stderr = r.Module, step.Name, step.Hook, said
+	f.Module, f.Unit, f.Option, f.Stderr = r.Module, step.Name, step.Option, said
 	return f
-}
-
-// lastWords is the tail of what a script said on stderr, which is where a
-// failing tool says why. Everything above it is the tool working.
-func lastWords(s string) string {
-	var kept []string
-	for line := range strings.SplitSeq(s, "\n") {
-		if line = strings.TrimSpace(sanitize(line)); line != "" {
-			kept = append(kept, line)
-		}
-	}
-	if len(kept) > stderrKeep {
-		kept = kept[len(kept)-stderrKeep:]
-	}
-	return strings.Join(kept, "\n")
 }

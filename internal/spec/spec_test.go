@@ -53,13 +53,12 @@ func unit(stage, id, yaml string) map[string]string {
 	}
 }
 
-// hook is one step of a hook, as the two files it is made of. Hooks live in a
-// folder of their own, and every file in one says so: hook.yaml and hook.sh.
-func hook(name, id, yaml string) map[string]string {
-	at := DirHooks + "/" + name + "/" + id
+// option is one option folder, as the two files it is made of.
+func option(id, yaml string) map[string]string {
+	at := DirOptions + "/" + id
 	return map[string]string{
-		at + "/" + FileHook:       yaml,
-		at + "/" + FileHookScript: "echo " + id + "\n",
+		at + "/" + FileOption:       yaml,
+		at + "/" + FileOptionScript: "echo " + id + "\n",
 	}
 }
 
@@ -198,14 +197,9 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 			want:  "a task lies in the folder of its stage",
 		},
 		{
-			name:  "a hook folder that is not one of the runtime's",
-			files: hook(Mark+"nowhere", "do", "title: Do\n"),
-			want:  "no such hook",
-		},
-		{
-			name:  "a hook left under tasks/",
-			files: map[string]string{"tasks/@preflight/root/hook.yaml": "title: Root\nscript: \"true\"\n"},
-			want:  "one of the runtime's own moments, which lives under " + DirHooks,
+			name:  "a hooks folder from an older Oak",
+			files: map[string]string{"hooks/@preflight/root/hook.yaml": "title: Root\nscript: \"true\"\n"},
+			want:  "the runtime runs no hooks — each is an option now",
 		},
 		{
 			name:  "a need pointing at nothing",
@@ -239,7 +233,7 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 				"tasks/@go/half/task.yaml": "title: Half\nscript: echo hi\n",
 				"tasks/@go/half/task.sh":   "echo hi\n",
 			},
-			want: "a task runs one thing",
+			want: "one of the two is what runs",
 		},
 		{
 			name:  "a script naming a file that is not there",
@@ -255,91 +249,6 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.want) {
 				t.Errorf("error = %q, want it to mention %q", err, tc.want)
-			}
-		})
-	}
-}
-
-// Nothing declares the hooks: a folder under one of their names is the
-// declaration, and any other name carrying the mark is a typo rather than
-// something to ignore.
-func TestHooksAreFoundByTheirFolder(t *testing.T) {
-	sp, err := Load(module(t, units(
-		hook(HookPreflight, "root", "title: Running as root\n"),
-		hook(HookRestart, "reboot", "title: Reboot\n"),
-	)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := sp.Hook(HookPreflight); len(got) != 1 || got[0].ID() != "root" {
-		t.Errorf("preflight = %+v, want the one step in it", got)
-	}
-	if got := sp.Hook(HookRestart); len(got) != 1 || got[0].Work().File == "" {
-		t.Errorf("restart = %+v, want the step and the file it runs", got)
-	}
-	if got := sp.Hook(HookShutdown); len(got) != 0 {
-		t.Errorf("shutdown = %+v, want none", got)
-	}
-	// A hook runs at its own moment, so nothing in it is part of the work: the
-	// run is the one task the module has of its own.
-	if len(sp.Tasks) != 1 || sp.Tasks[0].ID() != "do" {
-		t.Errorf("tasks = %+v, want only the module's own work", sp.Tasks)
-	}
-	if !sp.Leaves() {
-		t.Error("Leaves() = false, want true: there is a restart hook")
-	}
-}
-
-// A step of a hook knows which hook it is in, so a failure in one can say so.
-func TestAHookStepNamesItsHook(t *testing.T) {
-	sp, err := Load(module(t, hook(HookPreflight, "root", "title: Root\n")))
-	if err != nil {
-		t.Fatal(err)
-	}
-	step := sp.Hook(HookPreflight)[0]
-	if step.Hook() != HookPreflight {
-		t.Errorf("Hook() = %q, want %q", step.Hook(), HookPreflight)
-	}
-	if sp.Tasks[0].Hook() != "" {
-		t.Errorf("a task's Hook() = %q, want none", sp.Tasks[0].Hook())
-	}
-}
-
-// Every step of a hook runs in order, so a module may split a check into the
-// several things it actually checks.
-func TestAHookRunsEveryStepInIt(t *testing.T) {
-	sp, err := Load(module(t, units(
-		hook(HookPreflight, "root", "title: Root\n"),
-		hook(HookPreflight, "network", "title: Network\nneeds: [root]\n"),
-	)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	steps := sp.Hook(HookPreflight)
-	if len(steps) != 2 || steps[0].ID() != "root" || steps[1].ID() != "network" {
-		t.Fatalf("preflight = %+v, want root then network", steps)
-	}
-}
-
-// Most of what a task may say has nothing to answer to in a hook: it is never
-// listed, offered, reported on or checked afterwards. Saying it anyway is a
-// line that can never take effect.
-func TestAHookStepRefusesWhatItCannotMean(t *testing.T) {
-	for key, line := range map[string]string{
-		"test":       "test: \"true\"\n",
-		"conditions": "conditions: DISK != none\n",
-		"confirm":    "confirm: Really?\n",
-		"report":     "report: Done\n",
-		"quits":      "quits: true\n",
-		"tty":        "tty: true\n",
-		"progress":   "progress: true\n",
-		"simulates":  "simulates: true\n",
-		"optional":   "optional: true\n",
-	} {
-		t.Run(key, func(t *testing.T) {
-			_, err := Load(module(t, hook(HookPreflight, "check", "title: Check\n"+line)))
-			if err == nil || !strings.Contains(err.Error(), key) {
-				t.Errorf("err = %v, want it to name %s", err, key)
 			}
 		})
 	}
@@ -367,116 +276,137 @@ func TestAModuleFindsItsRequirementInItsDeclaration(t *testing.T) {
 	}
 }
 
-func TestAModuleWithoutHooksHasNone(t *testing.T) {
+// Nothing lists the options: a folder under options/ is one, and they are taken
+// in the order their folders sort.
+func TestOptionsAreFoundByTheirFolder(t *testing.T) {
+	sp, err := Load(module(t, units(
+		option("wlan", "title: Wireless network\nmenu: main\nstart: \"true\"\n"),
+		option("restart", "title: Restart\nmenu: leave\n"),
+		option("root", "title: Running as root\nstart: \"true\"\n"),
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, o := range sp.Options {
+		ids = append(ids, o.ID())
+	}
+	if strings.Join(ids, " ") != "restart root wlan" {
+		t.Errorf("options = %v, want them in the order their folders sort", ids)
+	}
+	if got := sp.Menu(MenuMain); len(got) != 1 || got[0].ID() != "wlan" {
+		t.Errorf("Menu(main) = %v, want the wireless network", got)
+	}
+	if got := sp.Starts(); len(got) != 2 || got[0].ID() != "root" || got[1].ID() != "wlan" {
+		t.Errorf("Starts() = %v, want root then wlan", got)
+	}
+	if !strings.HasSuffix(sp.Options[0].Work.File, filepath.Join("restart", FileOptionScript)) {
+		t.Errorf("restart runs %+v, want the %s beside its yaml", sp.Options[0].Work, FileOptionScript)
+	}
+	if !sp.Leaves() {
+		t.Error("Leaves() = false, want true: an option stands on the way out")
+	}
+}
+
+func TestAModuleWithoutOptionsHasNone(t *testing.T) {
 	sp, err := Load(module(t, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range Hooks {
-		if got := sp.Hook(name); len(got) != 0 {
-			t.Errorf("%s = %+v, want none", name, got)
-		}
+	if len(sp.Options) != 0 {
+		t.Errorf("options = %v, want none", sp.Options)
 	}
 	if sp.Leaves() {
 		t.Error("Leaves() = true, want false: nothing says how to leave")
 	}
 }
 
-// wireless is the three hooks a wireless network is joined with.
-func wireless() map[string]string {
-	return units(
-		hook(HookDevice, "station", "title: Device\n"),
-		hook(HookNetworks, "scan", "title: Networks\n"),
-		hook(HookConnect, "join", "title: Join\n"),
-	)
-}
-
-// A module that says nothing about the network neither joins one nor waits
-// for one: the internet is optional until somebody says it is not.
-func TestTheNetworkIsOptionalAndWirelessIsOffUnlessSaid(t *testing.T) {
-	sp, err := Load(module(t, nil))
+// An option only waiting for something has nothing to run, and that is not a
+// mistake: the page it stands in front of the work with is the whole of it.
+func TestAnOptionMayOnlyWait(t *testing.T) {
+	sp, err := Load(module(t, map[string]string{
+		"options/root/option.yaml": "title: Running as root\nstart: \"[ \\\"$(id -u)\\\" -eq 0 ]\"\n",
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sp.Network.WLAN || sp.Network.Required() || sp.Network.Internet != InternetOptional {
-		t.Errorf("Network = %+v, want no wireless and the internet optional", sp.Network)
+	if o := sp.Options[0]; !o.Work.Empty() || o.Start.Empty() {
+		t.Errorf("root = %+v, want a start and nothing to run", o)
 	}
 }
 
-// Required is what stands the network page in front of the work, and it is
-// asked of @online.
-func TestAModuleSaysItNeedsTheInternet(t *testing.T) {
+// An option's pages are questions like the module's own, held to the same rules
+// and sharing its names — but they are not the module's questions: never asked
+// on the way in and never on the settings page.
+func TestAnOptionsPagesAreDeclaredBesideTheModulesOwn(t *testing.T) {
 	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("network:\n  internet: required\n")},
-		hook(HookOnline, "https", "title: Online\n"),
+		map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: Disk\n")},
+		option("wlan", `
+title: Wireless network
+menu: main
+variables:
+  - name: WLAN_SSID
+    title: Network
+    command: ./networks.sh
+  - name: WLAN_PASSPHRASE
+    title: Passphrase
+    type: secret
+    existing: true
+`),
+		map[string]string{"options/wlan/networks.sh": "echo Home\n"},
 	)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sp.Network.Required() || len(sp.Hook(HookOnline)) != 1 {
-		t.Errorf("Network = %+v, online = %v, want the internet required and asked of the hook", sp.Network, sp.Hook(HookOnline))
+	if len(sp.Vars) != 1 || sp.Vars[0].Name != "DISK" {
+		t.Errorf("Vars = %v, want only the module's own question", sp.Vars)
+	}
+	if got := len(sp.Declared()); got != 3 {
+		t.Errorf("Declared() = %d variables, want the question and both pages", got)
+	}
+	ssid := sp.Var("WLAN_SSID")
+	if ssid == nil || !strings.Contains(ssid.Command, filepath.Join("wlan", "networks.sh")) {
+		t.Errorf("WLAN_SSID = %+v, want its list read from beside the option's yaml", ssid)
 	}
 }
 
-// Switched off, the wireless hooks are taken out of the module rather than
-// skipped, so nothing can run them — and each is named, since a folder of shell
-// that never runs is otherwise found by nobody.
-func TestTheWirelessHooksAreIgnoredWhileWLANIsOff(t *testing.T) {
-	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("network:\n  wlan: false\n")},
-		wireless(),
-	)))
-	if err != nil {
-		t.Fatal(err)
+// What an option says has to be something that can take effect. Each of these
+// loads into a folder that is never opened, or a key never read.
+func TestAnOptionRefusesWhatCannotTakeEffect(t *testing.T) {
+	cases := []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{"no title", option("o", "menu: main\n"), "title is required"},
+		{"a menu that is no page", option("o", "title: O\nmenu: side\n"), `menu: main or leave, got "side"`},
+		{"nothing that opens it", option("o", "title: O\n"), "nothing opens it"},
+		{"a row with nothing to run", map[string]string{"options/o/option.yaml": "title: O\nmenu: main\n"}, "a row has to do something"},
+		{"pages with nothing to hand them to", map[string]string{"options/o/option.yaml": "title: O\nstart: \"true\"\nvariables:\n  - name: X\n    title: X\n"}, "nothing is handed the answers"},
+		{"a simulation of nothing", map[string]string{"options/o/option.yaml": "title: O\nstart: \"true\"\nsimulates: true\n"}, "there is no script to run"},
+		{"a way out that asks", option("o", "title: O\nmenu: leave\nvariables:\n  - name: X\n    title: X\n"), "a way out asks nothing"},
+		{"a way out the work waits for", option("o", "title: O\nmenu: leave\nstart: \"true\"\n"), "a way out is nothing the work waits for"},
+		{"a page asked first", option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n    first: true\n"), "a page is asked when its option opens"},
+		{"a page in a group", option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n    group: G\n"), "a page is never on the settings page"},
+		{"a page worked out", option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n    answer: echo x\n"), "an answer worked out is not"},
+		{"a page named like a question", units(
+			map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n")},
+			option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n"),
+		), "X is declared twice"},
+		{"a page guarded by nothing", option("o", "title: O\nmenu: main\nvariables:\n  - name: X\n    title: X\n    conditions: NOPE == y\n"), "no such variable: NOPE"},
+		{"a start naming a file that is not there", option("o", "title: O\nstart: ./gone.sh\n"), "start: no such script"},
+		{"a script and an option.sh", option("o", "title: O\nmenu: main\nscript: echo hi\n"), "one of the two is what runs"},
 	}
-	for _, name := range wlanHooks {
-		if got := sp.Hook(name); len(got) != 0 {
-			t.Errorf("%s = %+v, want it taken out", name, got)
-		}
-	}
-	want := []string{
-		"hooks/@wlan-device: network: wlan is off",
-		"hooks/@wlan-networks: network: wlan is off",
-		"hooks/@wlan-connect: network: wlan is off",
-	}
-	if strings.Join(sp.Ignored, "|") != strings.Join(want, "|") {
-		t.Errorf("Ignored = %q, want %q", sp.Ignored, want)
-	}
-}
-
-// Switched on, they are kept, and so is @online beside them: it is what tells
-// a network joined from one that carries anything, even where the internet is
-// optional.
-func TestTheWirelessHooksAreRunWhileWLANIsOn(t *testing.T) {
-	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("network:\n  wlan: true\n")},
-		wireless(),
-		hook(HookOnline, "https", "title: Online\n"),
-	)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range append(wlanHooks, HookOnline) {
-		if got := sp.Hook(name); len(got) != 1 {
-			t.Errorf("%s = %+v, want the one step in it", name, got)
-		}
-	}
-	if len(sp.Ignored) != 0 {
-		t.Errorf("Ignored = %q, want nothing", sp.Ignored)
-	}
-}
-
-// @online asked by neither question is never run, and said so.
-func TestOnlineIsIgnoredWhereNothingAsksIt(t *testing.T) {
-	sp, err := Load(module(t, hook(HookOnline, "https", "title: Online\n")))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := sp.Hook(HookOnline); len(got) != 0 {
-		t.Errorf("online = %+v, want it taken out", got)
-	}
-	if len(sp.Ignored) != 1 || !strings.Contains(sp.Ignored[0], "hooks/@online: network: internet is optional and wlan is off") {
-		t.Errorf("Ignored = %q, want @online named", sp.Ignored)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load(module(t, tc.files))
+			if err == nil {
+				t.Fatalf("loaded a module with %s", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error = %q, want it to mention %q", err, tc.want)
+			}
+		})
 	}
 }
 
@@ -523,7 +453,7 @@ func TestATaskCannotSayTwiceHowItIsChecked(t *testing.T) {
 		"tasks/@go/half/task.sh":   "echo hi\n",
 		"tasks/@go/half/test.sh":   "test -e /\n",
 	}))
-	if err == nil || !strings.Contains(err.Error(), "a task runs one thing") {
+	if err == nil || !strings.Contains(err.Error(), "one of the two is what runs") {
 		t.Errorf("err = %v, want it to refuse two checks", err)
 	}
 }
@@ -868,28 +798,9 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "no asks for it to work from",
 		},
 		{
-			name: "a wireless network with a hook missing behind it",
-			files: units(
-				map[string]string{FileModule: head("network:\n  wlan: true\n")},
-				hook(HookDevice, "station", "title: Device\n"),
-				hook(HookNetworks, "scan", "title: Networks\n"),
-			),
-			want: "joined with hooks/@wlan-connect, and there is none",
-		},
-		{
-			name:  "the internet required and nothing to ask whether there is any",
-			files: map[string]string{FileModule: head("network:\n  internet: required\n")},
-			want:  "asked of hooks/@online, and there is none",
-		},
-		{
-			name:  "the internet neither required nor optional",
-			files: map[string]string{FileModule: head("network:\n  internet: always\n")},
-			want:  `required or optional, got "always"`,
-		},
-		{
-			name:  "a network key nobody reads",
-			files: map[string]string{FileModule: head("network:\n  ethernet: true\n")},
-			want:  "ethernet is not a key here",
+			name:  "the network said the way an older Oak read it",
+			files: map[string]string{FileModule: head("network:\n  wlan: true\n")},
+			want:  "network is not a key here — a wireless network is an option under options/",
 		},
 	}
 	for _, tc := range cases {

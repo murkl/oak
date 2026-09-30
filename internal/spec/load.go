@@ -29,8 +29,8 @@ func binaryDir() string {
 
 // declaration is a module's yaml as it is written: flat, because every key in
 // it is about the module as a whole and a nesting level would only be there to
-// be typed — but for the two that are one subject with parts of its own, the
-// header's status and the network.
+// be typed — but for the one subject with parts of its own, the header's
+// status.
 type declaration struct {
 	Title    string `yaml:"title"`
 	Console  string `yaml:"console"`
@@ -53,9 +53,6 @@ type declaration struct {
 
 	// The header's line for this module, in place of the product's.
 	Status *Status `yaml:"status"`
-
-	// Whether it joins a wireless network, and whether it needs the internet.
-	Network Network `yaml:"network"`
 }
 
 // Load reads one module folder and checks it over — every reference resolved,
@@ -73,39 +70,42 @@ func Load(dir string) (*Module, error) {
 	}
 	s.UI = UI{Title: head.Title, Description: head.Description, Action: head.Action, Console: head.Console}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
-	s.Confirm, s.Stages, s.Network = head.Confirm, head.Stages, head.Network
+	s.Confirm, s.Stages = head.Confirm, head.Stages
 	if err := head.Status.settle(dir, FileModule); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
 	s.Status = head.Status
-	requires, err := scriptFile(dir, head.Requires)
+	requires, err := written(dir, "requires", head.Requires)
 	if err != nil {
-		return nil, fmt.Errorf("%s: requires: %w", FileModule, err)
+		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
-	if requires != "" {
-		s.Requires = Script{File: requires}
-	} else if strings.TrimSpace(head.Requires) != "" {
-		s.Requires = Script{Shell: head.Requires}
-	}
+	s.Requires = requires
 	if err := checkStages(s.Stages); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
 	s.Shell = beside(dir, FileShell)
 	s.Locales = beside(dir, DirLocales)
+	if beside(dir, dirHooks) != "" {
+		return nil, fmt.Errorf("%s/: the runtime runs no hooks — each is an option now, a folder under %s/", dirHooks, DirOptions)
+	}
 
 	tasks, err := loadTasks(dir, s.Stages)
 	if err != nil {
 		return nil, err
 	}
-	hooks, err := loadHooks(dir)
-	if err != nil {
+	if s.Options, err = loadOptions(dir); err != nil {
 		return nil, err
 	}
-	if err := s.check(tasks, hooks); err != nil {
+	if err := s.check(tasks); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
+
+// dirHooks is where a module used to put the shell the runtime ran of its own
+// accord. It is refused rather than passed over, so a module written for an
+// older Oak is told what to do instead of losing its checks without a word.
+const dirHooks = "hooks"
 
 // checkStages settles the phases the work happens in: at least one, each named
 // once, and none of them carrying the mark that says the runtime runs it.
@@ -140,9 +140,8 @@ func beside(dir, name string) string {
 // loadTasks reads tasks/, which is two levels: a folder per stage, marked, and
 // in each of those a folder per task.
 //
-// A task's stage is therefore where it lies rather than a line it writes, the
-// same way a step of a hook takes its moment from the folder above it. The two
-// read alike on disk, and neither can say one thing and sit in another.
+// A task's stage is therefore where it lies rather than a line it writes, so it
+// can never say one thing and sit in another.
 //
 // The task folder's name is its identity — what another task's `needs` in the
 // same stage points at — and no more than that: what runs when is the stage it
@@ -170,13 +169,6 @@ func loadTasks(dir string, stages []string) ([]*Task, error) {
 		if !marked(name) {
 			return nil, fmt.Errorf("%s/%s: a task lies in the folder of its stage — %s/%s/%s/",
 				DirTasks, name, DirTasks, Stage("<stage>"), name)
-		}
-		// Both levels wear the mark, so a hook dropped in here looks exactly
-		// like a stage. It is named for what it is rather than for the stage it
-		// is not: the folder is right, the half of the tree is wrong.
-		if slices.Contains(Hooks, name) {
-			return nil, fmt.Errorf("%s/%s: %s is one of the runtime's own moments, which lives under %s/",
-				DirTasks, name, name, DirHooks)
 		}
 		stage := strings.TrimPrefix(name, Mark)
 		if !slices.Contains(stages, stage) {
@@ -208,7 +200,7 @@ func loadStage(base, stage string) ([]*Task, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		t, err := loadTask(filepath.Join(base, entry.Name()), FileTask, FileTaskScript)
+		t, err := loadTask(filepath.Join(base, entry.Name()))
 		if err != nil {
 			return nil, fmt.Errorf("%s/%s/%s: %w", DirTasks, Stage(stage), entry.Name(), err)
 		}
@@ -221,73 +213,15 @@ func loadStage(base, stage string) ([]*Task, error) {
 	return out, nil
 }
 
-// loadHooks reads hooks/, where every folder is one of the runtime's own
-// moments and every folder in one of those is a step of it.
-//
-// A module that fills none of them has no hooks/ at all, which is not an error:
-// it simply does not get those parts of the program.
-func loadHooks(dir string) (map[string][]*Task, error) {
-	base := filepath.Join(dir, DirHooks)
-	entries, err := os.ReadDir(base)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	out := map[string][]*Task{}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		steps, err := loadHook(filepath.Join(base, name), name)
-		if err != nil {
-			return nil, err
-		}
-		out[name] = steps
-	}
-	return out, nil
-}
-
-// loadHook reads the steps of one hook, in name order, which is what order
-// falls back on for two steps nothing separates.
-func loadHook(base, name string) ([]*Task, error) {
-	if !slices.Contains(Hooks, name) {
-		return nil, fmt.Errorf("%s/%s: no such hook — the runtime has %s",
-			DirHooks, name, strings.Join(Hooks, ", "))
-	}
-	entries, err := os.ReadDir(base)
-	if err != nil {
-		return nil, err
-	}
-	var out []*Task
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		t, err := loadTask(filepath.Join(base, entry.Name()), FileHook, FileHookScript)
-		if err != nil {
-			return nil, fmt.Errorf("%s/%s/%s: %w", DirHooks, name, entry.Name(), err)
-		}
-		t.hook = name
-		out = append(out, t)
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("%s/%s: no steps", DirHooks, name)
-	}
-	return out, nil
-}
-
 // loadTask reads one folder: the yaml it is declared in, and what it turns out
 // to run. A folder without that file is an authoring mistake rather than an
 // opt-out — it is an error, not a step quietly dropped from the run.
-func loadTask(where, decl, script string) (*Task, error) {
+func loadTask(where string) (*Task, error) {
 	t := &Task{id: filepath.Base(where), dir: where}
-	if err := read(filepath.Join(where, decl), t); err != nil {
+	if err := read(filepath.Join(where, FileTask), t); err != nil {
 		return nil, err
 	}
-	if err := t.resolve(decl, script); err != nil {
+	if err := t.resolve(); err != nil {
 		return nil, err
 	}
 	return t, nil
@@ -297,13 +231,13 @@ func loadTask(where, decl, script string) (*Task, error) {
 // its yaml wrote, or the file of that name beside it. Both is two answers to
 // the same question, and neither for the work itself is a task that does
 // nothing.
-func (t *Task) resolve(decl, script string) error {
-	work, err := pick(t.dir, "script", t.Script, script)
+func (t *Task) resolve() error {
+	work, err := pick(t.dir, "script", t.Script, FileTaskScript)
 	if err != nil {
 		return err
 	}
 	if work.Empty() {
-		return fmt.Errorf("no %s here, and no script in %s", script, decl)
+		return fmt.Errorf("no %s here, and no script in %s", FileTaskScript, FileTask)
 	}
 	check, err := pick(t.dir, "test", t.Test, FileTest)
 	if err != nil {
@@ -319,7 +253,7 @@ func pick(dir, key, expr, name string) (Script, error) {
 	file := beside(dir, name)
 	switch {
 	case expr != "" && file != "":
-		return Script{}, fmt.Errorf("%s: there is a %s here as well, and a task runs one thing", key, name)
+		return Script{}, fmt.Errorf("%s: there is a %s here as well, and one of the two is what runs", key, name)
 	case expr == "":
 		return Script{File: file}, nil
 	}
@@ -362,6 +296,7 @@ var retired = map[string]string{
 	"name":    "a title is what a person reads; a name only ever names a variable",
 	"execute": "a task says what it does under script, and how it is tested afterwards under test",
 	"stage":   "a task lies in the folder of its stage, and that is the whole of where it runs",
+	"network": "a wireless network is an option under options/, and the internet the work waits for is an option's start",
 }
 
 // unknownField is how the decoder says a key is not one of them. It names the
@@ -391,8 +326,8 @@ func refused(path string, err error) error {
 	return fmt.Errorf("%s: %s", filepath.Base(path), strings.Join(said, "\n"))
 }
 
-func (s *Module) check(tasks []*Task, hooks map[string][]*Task) error {
-	s.normalize(tasks, hooks)
+func (s *Module) check(tasks []*Task) error {
+	s.normalize(tasks)
 	if s.UI.Title == "" {
 		return fmt.Errorf("%s: title is required", FileModule)
 	}
@@ -405,51 +340,10 @@ func (s *Module) check(tasks []*Task, hooks map[string][]*Task) error {
 	if err := s.checkText("confirm", s.Confirm); err != nil {
 		return fmt.Errorf("%s: %w", FileModule, err)
 	}
-	if err := s.checkTasks(tasks, hooks); err != nil {
+	if err := s.checkOptions(); err != nil {
 		return err
 	}
-	if err := s.checkNetwork(); err != nil {
-		return fmt.Errorf("%s: %w", FileModule, err)
-	}
-	return nil
-}
-
-// checkNetwork holds the hooks to what `network:` says of them. A promise with
-// a hook missing behind it is refused: the page it puts up would have nothing
-// to run. A hook it switches off is taken out, after it has been checked like
-// every other, so nothing downstream can run it — and said, see Ignored.
-func (s *Module) checkNetwork() error {
-	n := &s.Network
-	switch n.Internet {
-	case "":
-		n.Internet = InternetOptional
-	case InternetRequired, InternetOptional:
-	default:
-		return fmt.Errorf("network: internet: %s or %s, got %q", InternetRequired, InternetOptional, n.Internet)
-	}
-	if n.Required() && len(s.hooks[HookOnline]) == 0 {
-		return fmt.Errorf("network: internet: %s is asked of %s/%s, and there is none", InternetRequired, DirHooks, HookOnline)
-	}
-	for _, name := range wlanHooks {
-		switch {
-		case n.WLAN && len(s.hooks[name]) == 0:
-			return fmt.Errorf("network: wlan: a wireless network is joined with %s/%s, and there is none", DirHooks, name)
-		case !n.WLAN && len(s.hooks[name]) > 0:
-			s.ignore(name, "network: wlan is off")
-		}
-	}
-	// @online answers two questions: whether the work may begin, and whether a
-	// network just joined carries anything. Asked by neither, it never runs.
-	if !n.Required() && !n.WLAN && len(s.hooks[HookOnline]) > 0 {
-		s.ignore(HookOnline, "network: internet is optional and wlan is off")
-	}
-	return nil
-}
-
-// ignore takes a hook out of the module and says why.
-func (s *Module) ignore(hook, why string) {
-	s.Ignored = append(s.Ignored, fmt.Sprintf("%s/%s: %s", DirHooks, hook, why))
-	delete(s.hooks, hook)
+	return s.checkTasks(tasks)
 }
 
 // checkText holds a sentence to the answers this module has. A {{VAR}} naming
@@ -471,11 +365,7 @@ func (s *Module) checkText(key, text string) error {
 
 // checkTasks settles what runs and in what order: every task checked over, the
 // needs resolved, and what is left sorted once and for all.
-//
-// The hooks are kept apart from the work. They run at their own moment rather
-// than as part of it, so a step in one is neither ordered against the rest nor
-// listed anywhere a run is.
-func (s *Module) checkTasks(tasks []*Task, hooks map[string][]*Task) error {
+func (s *Module) checkTasks(tasks []*Task) error {
 	byStage := map[string][]*Task{}
 	for _, t := range tasks {
 		if err := s.checkTask(t); err != nil {
@@ -483,27 +373,12 @@ func (s *Module) checkTasks(tasks []*Task, hooks map[string][]*Task) error {
 		}
 		byStage[t.stage] = append(byStage[t.stage], t)
 	}
-	for name, steps := range hooks {
-		for _, t := range steps {
-			if err := t.checkHook(); err != nil {
-				return fmt.Errorf("%s/%s/%s: %w", DirHooks, name, t.id, err)
-			}
-		}
-	}
-	warnings, err := checkNeeds(byStage, hooks)
+	warnings, err := checkNeeds(byStage)
 	if err != nil {
 		return err
 	}
 	s.Warnings = warnings
 
-	s.hooks = map[string][]*Task{}
-	for name, steps := range hooks {
-		ordered, err := order(steps)
-		if err != nil {
-			return fmt.Errorf("%s/%s: %w", DirHooks, name, err)
-		}
-		s.hooks[name] = ordered
-	}
 	for _, stage := range s.Stages {
 		ordered, err := order(byStage[stage])
 		if err != nil {
@@ -547,58 +422,16 @@ func (s *Module) checkTask(t *Task) error {
 	return nil
 }
 
-// checkHook refuses everything a step of a hook cannot mean. What is left is
-// its title, what it needs and what it does.
-//
-// A hook is run at a fixed moment rather than listed, offered or reported on,
-// and it is not part of the work, so there is nothing for a stage, a guard or
-// a check afterwards to answer to. Saying any of it would be writing down a
-// line that can never take effect.
-func (t *Task) checkHook() error {
-	if t.Title == "" {
-		return fmt.Errorf("title is required")
-	}
-	said := []struct {
-		key  string
-		used bool
-	}{
-		{"test", t.Checks()},
-		{"conditions", len(t.Conditions) > 0},
-		{"asks", t.Asks != ""},
-		{"confirm", t.Confirms()},
-		{"default", t.Default != ""},
-		{"report", t.Reports()},
-		{"shows", t.Shows != ""},
-		{"quits", t.Quits},
-		{"tty", t.TTY},
-		{"progress", t.Progress},
-		{"simulates", t.Simulates},
-		{"optional", t.Optional},
-	}
-	for _, k := range said {
-		if k.used {
-			return fmt.Errorf("%s: %s is run by the runtime rather than as part of the work, so there is nothing for it to answer to", k.key, t.hook)
-		}
-	}
-	return nil
-}
-
 // checkNeeds resolves what every task waits for, and says what it found.
 //
-// `needs` orders tasks across one stage, and the steps of one hook among
-// themselves; the stages order the rest. So a name belonging to another stage
+// `needs` orders tasks across one stage; the stages order the rest. So a name
+// belonging to another stage
 // says nothing the stages have not already said, and is dropped with a word
 // about it rather than refused — a module that behaves is not a module that
 // refuses to start. A name belonging to nothing is a different thing entirely:
 // it is a task waiting for something that does not exist, and there is no
 // reading of it that runs.
-func checkNeeds(byStage, hooks map[string][]*Task) ([]string, error) {
-	// A hook carries the mark and a stage may not, so the two sets of names can
-	// never collide.
-	groups := map[string][]*Task{}
-	maps.Copy(groups, byStage)
-	maps.Copy(groups, hooks)
-
+func checkNeeds(groups map[string][]*Task) ([]string, error) {
 	elsewhere := map[string]string{}
 	for group, tasks := range groups {
 		for _, t := range tasks {
@@ -631,12 +464,7 @@ func checkNeeds(byStage, hooks map[string][]*Task) ([]string, error) {
 }
 
 // where is the folder a task was read from, as a module's author knows it.
-func (t *Task) where() string {
-	if t.hook != "" {
-		return fmt.Sprintf("%s/%s/%s", DirHooks, t.hook, t.id)
-	}
-	return fmt.Sprintf("%s/%s", DirTasks, t.id)
-}
+func (t *Task) where() string { return fmt.Sprintf("%s/%s", DirTasks, t.id) }
 
 // checkConfirm settles a task's `default:`, which says which of the two answers
 // its offer opens on. There are exactly two, and a task that names one without
@@ -711,7 +539,7 @@ func (s *Module) checkAsks(t *Task) error {
 // to reproduce.
 //
 // A blank line survives, because that is the one break that was meant.
-func (s *Module) normalize(tasks []*Task, hooks map[string][]*Task) {
+func (s *Module) normalize(tasks []*Task) {
 	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Action, &s.UI.Console, &s.Confirm}
 	for _, p := range s.Presets {
 		fields = append(fields, &p.Title, &p.Description)
@@ -719,16 +547,14 @@ func (s *Module) normalize(tasks []*Task, hooks map[string][]*Task) {
 			fields = append(fields, &o.Title, &o.Description)
 		}
 	}
-	for _, v := range s.Vars {
+	for _, o := range s.Options {
+		fields = append(fields, &o.Title, &o.Description)
+	}
+	for _, v := range s.Declared() {
 		fields = append(fields, &v.Title, &v.Description, &v.Group, &v.Free, &v.Error)
 	}
 	for _, t := range tasks {
 		fields = append(fields, &t.Title, &t.Confirm, &t.Report)
-	}
-	for _, steps := range hooks {
-		for _, t := range steps {
-			fields = append(fields, &t.Title)
-		}
 	}
 	for _, f := range fields {
 		*f = reflow(*f)
@@ -755,76 +581,9 @@ var (
 
 func (s *Module) checkVars() error {
 	for _, v := range s.Vars {
-		switch {
-		case !varName.MatchString(v.Name):
-			return fmt.Errorf("%q is not a usable variable name", v.Name)
-		case runtimeVar(v.Name):
-			return fmt.Errorf("%s belongs to the runtime and cannot be declared", v.Name)
-		case s.byName[v.Name] != nil:
-			return fmt.Errorf("%s is declared twice", v.Name)
-		case v.Title == "":
-			return fmt.Errorf("%s: title is required", v.Name)
+		if err := s.checkVar(v, s.Dir); err != nil {
+			return err
 		}
-		switch v.Shape() {
-		case TypeText:
-		case TypeBool, TypeSecret:
-			if len(v.Values) > 0 || v.Command != "" {
-				return fmt.Errorf("%s: a %s variable has no values of its own", v.Name, v.Shape())
-			}
-		default:
-			return fmt.Errorf("%s: unknown type %q", v.Name, v.Type)
-		}
-		if v.Secret() && v.Default != "" {
-			return fmt.Errorf("%s: a secret is never stored, so it cannot have a default", v.Name)
-		}
-		if v.Secret() && v.First {
-			return fmt.Errorf("%s: a secret is asked for immediately before the run that needs it, so it cannot also be asked first", v.Name)
-		}
-		if v.Existing && !v.Secret() {
-			return fmt.Errorf("%s: existing says a password is entered rather than chosen, and only a secret is either", v.Name)
-		}
-		if v.Check != "" && !v.Secret() {
-			return fmt.Errorf("%s: check looks at a secret as it is typed, and any other answer is held to its pattern", v.Name)
-		}
-		if len(v.Values) > 0 && v.Command != "" {
-			return fmt.Errorf("%s: values and command are two answers to the same question", v.Name)
-		}
-		switch v.Filter {
-		case "", FilterOpen, FilterCollapsed:
-		default:
-			return fmt.Errorf("%s: unknown filter %q, which is %s or %s", v.Name, v.Filter, FilterOpen, FilterCollapsed)
-		}
-		if v.Filter != "" && v.First {
-			return fmt.Errorf("%s: a question asked first carries its box open by itself, so filter says nothing here", v.Name)
-		}
-		if v.Filter != "" && len(v.Values) == 0 && v.Command == "" {
-			return fmt.Errorf("%s: filter narrows a list of answers, and this question is a box to type in", v.Name)
-		}
-		if v.Derived() {
-			switch {
-			case v.Secret():
-				return fmt.Errorf("%s: a secret is typed by a person, never worked out", v.Name)
-			case v.Prefill != "":
-				return fmt.Errorf("%s: answer settles the value, prefill only suggests one - a question is asked or it is not", v.Name)
-			case v.First:
-				return fmt.Errorf("%s: a derived answer is never asked, so it cannot be asked first", v.Name)
-			}
-		}
-		if v.Pattern != "" {
-			re, err := regexp.Compile(v.Pattern)
-			if err != nil {
-				return fmt.Errorf("%s: pattern: %w", v.Name, err)
-			}
-			v.re = re
-		}
-		for _, expr := range []*string{&v.Command, &v.Prefill, &v.Apply, &v.Answer, &v.Check} {
-			resolved, err := shell(s.Dir, *expr)
-			if err != nil {
-				return fmt.Errorf("%s: %w", v.Name, err)
-			}
-			*expr = resolved
-		}
-		s.byName[v.Name] = v
 	}
 	if s.Language != "" && s.byName[s.Language] == nil {
 		return fmt.Errorf("language: no such variable: %s", s.Language)
@@ -838,6 +597,83 @@ func (s *Module) checkVars() error {
 		}
 		v.cond = cond
 	}
+	return nil
+}
+
+// checkVar holds one question to the rules every question keeps, settles the
+// shell it names relative to dir — the folder of the yaml it was written in —
+// and makes its name the module's.
+func (s *Module) checkVar(v *Variable, dir string) error {
+	switch {
+	case !varName.MatchString(v.Name):
+		return fmt.Errorf("%q is not a usable variable name", v.Name)
+	case runtimeVar(v.Name):
+		return fmt.Errorf("%s belongs to the runtime and cannot be declared", v.Name)
+	case s.byName[v.Name] != nil:
+		return fmt.Errorf("%s is declared twice", v.Name)
+	case v.Title == "":
+		return fmt.Errorf("%s: title is required", v.Name)
+	}
+	switch v.Shape() {
+	case TypeText:
+	case TypeBool, TypeSecret:
+		if len(v.Values) > 0 || v.Command != "" {
+			return fmt.Errorf("%s: a %s variable has no values of its own", v.Name, v.Shape())
+		}
+	default:
+		return fmt.Errorf("%s: unknown type %q", v.Name, v.Type)
+	}
+	if v.Secret() && v.Default != "" {
+		return fmt.Errorf("%s: a secret is never stored, so it cannot have a default", v.Name)
+	}
+	if v.Secret() && v.First {
+		return fmt.Errorf("%s: a secret is asked for immediately before the run that needs it, so it cannot also be asked first", v.Name)
+	}
+	if v.Existing && !v.Secret() {
+		return fmt.Errorf("%s: existing says a password is entered rather than chosen, and only a secret is either", v.Name)
+	}
+	if v.Check != "" && !v.Secret() {
+		return fmt.Errorf("%s: check looks at a secret as it is typed, and any other answer is held to its pattern", v.Name)
+	}
+	if len(v.Values) > 0 && v.Command != "" {
+		return fmt.Errorf("%s: values and command are two answers to the same question", v.Name)
+	}
+	switch v.Filter {
+	case "", FilterOpen, FilterCollapsed:
+	default:
+		return fmt.Errorf("%s: unknown filter %q, which is %s or %s", v.Name, v.Filter, FilterOpen, FilterCollapsed)
+	}
+	if v.Filter != "" && v.First {
+		return fmt.Errorf("%s: a question asked first carries its box open by itself, so filter says nothing here", v.Name)
+	}
+	if v.Filter != "" && len(v.Values) == 0 && v.Command == "" {
+		return fmt.Errorf("%s: filter narrows a list of answers, and this question is a box to type in", v.Name)
+	}
+	if v.Derived() {
+		switch {
+		case v.Secret():
+			return fmt.Errorf("%s: a secret is typed by a person, never worked out", v.Name)
+		case v.Prefill != "":
+			return fmt.Errorf("%s: answer settles the value, prefill only suggests one - a question is asked or it is not", v.Name)
+		case v.First:
+			return fmt.Errorf("%s: a derived answer is never asked, so it cannot be asked first", v.Name)
+		}
+	}
+	if v.Pattern != "" {
+		re, err := regexp.Compile(v.Pattern)
+		if err != nil {
+			return fmt.Errorf("%s: pattern: %w", v.Name, err)
+		}
+		v.re = re
+	}
+	for _, expr := range []*string{&v.Command, &v.Prefill, &v.Apply, &v.Answer, &v.Check} {
+		resolved, err := shell(dir, *expr)
+		if err != nil {
+			return fmt.Errorf("%s: %w", v.Name, err)
+		}
+		*expr = resolved
+	}
+	s.byName[v.Name] = v
 	return nil
 }
 

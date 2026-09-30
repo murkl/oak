@@ -8,7 +8,8 @@ Nothing here touches the machine. **Tux Setup** asks what an installer asks — 
 oak.yaml                                    the product: name, colour, version, wordmark
 oak.sh                                      what the two modules agree about
 modules/setup/module.yaml                   what it asks, and the order its work happens in
-modules/setup/hooks/@preflight/writable/    a hook: can this folder be written to at all
+modules/setup/options/writable/             what the work waits for: can this folder be written to
+modules/setup/options/note/                 a row on the menu, with a page and a script
 modules/setup/tasks/@prepare/target/        make the folder, and a test.sh beside it
 modules/setup/tasks/@install/base/          hostname and os-release, tested inline
 modules/setup/tasks/@install/desktop/       only when a desktop was chosen, and inline
@@ -17,7 +18,7 @@ modules/recovery/module.yaml                the second module
 modules/recovery/tasks/@check/verify/       is the tree still there
 ```
 
-A folder under `tasks/` is one phase of the run, marked `@` and named in `module.yaml`; a folder inside it is one task. `hooks/` is the other half: one folder per moment the runtime runs shell of its own accord, with the steps in it declared in `hook.yaml`.
+A folder under `tasks/` is one phase of the run, marked `@` and named in `module.yaml`; a folder inside it is one task. `options/` is the other half: one folder per thing the module offers to be opened rather than run, declared in `option.yaml` and doing its work in `option.sh`.
 
 ## Running it
 
@@ -26,7 +27,7 @@ From the repository root:
 ```
 make run                     # asks which module to open
 make run MODULE=setup        # opens Tux Setup outright
-make run ARGS=--debug        # shows the run and starts nothing but the check that only reads
+make run ARGS=--debug        # shows the run and starts nothing but what only reads
 make inspect                 # loads it the way a run does, and reports what it found
 ```
 

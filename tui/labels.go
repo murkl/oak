@@ -25,7 +25,6 @@ func labelHintChoose() string   { return say("↑↓ move · ⏎ confirm · esc 
 func labelHintInput() string    { return say("⏎ confirm · esc back") }
 func labelHintRunning() string  { return say("working …") }
 func labelHintContinue() string { return say("⏎ continue") }
-func labelChecking() string     { return say("Checking this machine …") }
 func labelHintBack() string     { return say("⏎ back") }
 func labelHintClose() string    { return say("⏎ close") }
 func labelHintQuit() string     { return say("⏎ quit") }
@@ -36,43 +35,11 @@ func labelHintStart() string    { return say("⏎ start · esc back") }
 // answer has already started — so esc there says what q says on the menu.
 func labelHintAnswer() string { return say("↑↓ move · ⏎ confirm · esc quit") }
 
-// The network page: the internet the work waits for in the opening, and the
-// wireless network the settings join.
-func labelInternet() string        { return say("Internet") }
-func labelNetwork() string         { return say("Wireless network") }
-func labelNetworkChecking() string { return say("Checking the internet connection …") }
-func labelNetworkScanning() string { return say("Looking for wireless networks …") }
-
-// TRANSLATORS: %s is the name of the wireless network being joined.
-func labelNetworkJoining(ssid string) string {
-	return say("Joining %s …", ssid)
-}
-func labelNetworkOffline() string    { return say("There is no internet connection.") }
-func labelNetworkNoDevice() string   { return say("No wireless device.") }
-func labelNetworkNoNetworks() string { return say("No wireless networks in range.") }
-func labelPassphrase() string        { return say("Passphrase") }
-func labelHintNetworkChoosing() string {
-	return say("↑↓ move · ⏎ join · r rescan · esc back")
-}
-func labelHintNetworkRetry() string { return say("r retry · esc back") }
-
-// Over the list: in the opening, what joining one is for; in the settings,
-// what it is for there.
-func labelNetworkHelp() string {
-	return say("Join a wireless network, or plug in a cable, to continue.")
-}
-func labelNetworkJoin() string {
-	return say("Join a wireless network, for whatever needs the internet.")
-}
-
-// Under the opening's page while there is no connection. Nothing to press to
-// carry on: the page does that by itself once there is one.
-func labelNetworkWait() string {
-	return say("This needs the internet. Plug in a cable and it carries on by itself.")
-}
-func labelNetworkWaitWireless() string {
-	return say("This needs the internet. Plug in a cable and it carries on by itself, or press r to look for wireless networks again.")
-}
+// The page an option stands on in front of the work, while its start says no.
+// It looks again by itself, so r is only a way to be quicker than the clock,
+// and enter is there where the option has something to open.
+func labelHintRetry() string { return say("r retry · esc back") }
+func labelHintOpen() string  { return say("⏎ open · r retry · esc back") }
 
 // The narrowing box: the key that opens it, appended to a list's own hint, and
 // what the keys mean while it is open.
@@ -240,11 +207,7 @@ func labelLeaveRunning() string {
 	return say("This run continues behind this page. Any choice here stops it.")
 }
 
-func labelRestart() string      { return say("Restart") }
-func labelRestartHelp() string  { return say("Close this machine down and start it again.") }
-func labelShutdown() string     { return say("Shut down") }
-func labelConsole() string      { return say("Exit") }
-func labelShutdownHelp() string { return say("Switch this machine off.") }
+func labelConsole() string { return say("Exit") }
 
 // The row a kiosk has where a console would be: every answer forgotten and the
 // program started again, the way it came up the first time.
@@ -252,9 +215,6 @@ func labelStartOver() string { return say("Reset") }
 func labelStartOverHelp() string {
 	return say("Forget every answer and start again from the beginning.")
 }
-func labelRestarting() string   { return say("Restarting …") }
-func labelShuttingDown() string { return say("Shutting down …") }
-func labelLeaveFailed() string  { return say("The machine did not respond.") }
 
 // The two answers to a task that asks before it runs. The same two words a bool
 // is read out in, because they are the same question.

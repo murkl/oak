@@ -380,7 +380,7 @@ func open(mod *spec.Module, debug bool) (*tui.Program, error) {
 		return nil, err
 	}
 	logging.Info("%s", mod.UI.Title)
-	for _, warning := range append(mod.Warnings, mod.Ignored...) {
+	for _, warning := range mod.Warnings {
 		logging.Warn("%s", warning)
 	}
 

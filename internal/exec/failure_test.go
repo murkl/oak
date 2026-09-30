@@ -43,19 +43,18 @@ func TestAFailureIsReportedAsLabelledFields(t *testing.T) {
 	}
 }
 
-// A hook is a module's own code run at a moment the runtime chose, so a mistake
-// in one is an authoring bug like any other — and the report says which hook,
-// because that is the folder to go and open.
-func TestAFailureInAHookNamesTheHook(t *testing.T) {
+// An option is a module's own code like a task, so a mistake in one is an
+// authoring bug like any other — and the report says it was an option, because
+// that is the half of the module to go and look in.
+func TestAFailureInAnOptionNamesTheOption(t *testing.T) {
 	f := &Failure{
-		Module: "Tux Setup", Hook: "@wlan-device", Unit: "Find the wireless device",
-		Script: "/module/hooks/@wlan-device/station/hook.sh", Line: 3, Code: 127,
+		Module: "Tux Setup", Option: true, Unit: "Wireless network",
+		Script: "/module/options/wlan/option.sh", Line: 3, Code: 127,
 	}
 	want := []Field{
 		{Label: "Module", Value: "Tux Setup"},
-		{Label: "Hook", Value: "@wlan-device"},
-		{Label: "Step", Value: "Find the wireless device"},
-		{Label: "Script", Value: "/module/hooks/@wlan-device/station/hook.sh:3", Path: true},
+		{Label: "Option", Value: "Wireless network"},
+		{Label: "Script", Value: "/module/options/wlan/option.sh:3", Path: true},
 		{Label: "Exit code", Value: "127"},
 	}
 	got := f.Fields()
@@ -98,30 +97,20 @@ func TestFailCarriesTheExitCodeOfAScriptThatOwnedTheTerminal(t *testing.T) {
 	}
 }
 
-// A hook runs step by step rather than as one piece of shell, so that a mistake
-// in one of them names the step, the file and the line — and so that what the
-// steps printed still comes back as one answer.
-func TestAHookRunsItsStepsInOrderAndReportsWhichOneBroke(t *testing.T) {
-	out, err := sh.Hook([]Step{
-		{Name: "First", Hook: "@online", Script: sourced(t, "echo one\n")},
-		{Name: "Second", Hook: "@online", Script: sourced(t, "echo two\n")},
-	}, Env(os.Environ()))
+// An option's script runs under the same trap as a task's, so a mistake in it
+// names the file and the line — and the report says whose it was.
+func TestAFailingOptionNamesItselfAndTheLine(t *testing.T) {
+	session, err := sh.Start(Step{Name: "Broken", Option: true, Script: sourced(t, "echo fine\nls /definitely/not/here\n")}, Env(os.Environ()))
 	if err != nil {
-		t.Fatalf("err = %v", err)
+		t.Fatalf("start: %v", err)
 	}
-	if out != "one\ntwo" {
-		t.Errorf("out = %q, want both lines", out)
-	}
-
-	_, err = sh.Hook([]Step{
-		{Name: "Broken", Hook: "@online", Script: sourced(t, "echo fine\nls /definitely/not/here\n")},
-	}, Env(os.Environ()))
+	<-session.Done()
 	var f *Failure
-	if !errors.As(err, &f) {
-		t.Fatalf("got %T, want a *Failure", err)
+	if !errors.As(session.Err(), &f) {
+		t.Fatalf("got %T, want a *Failure", session.Err())
 	}
-	if f.Hook != "@online" || f.Unit != "Broken" || f.Line != 2 {
-		t.Errorf("got %q in %q at line %d, want the step and its line", f.Unit, f.Hook, f.Line)
+	if !f.Option || f.Unit != "Broken" || f.Line != 2 {
+		t.Errorf("got %q (option %v) at line %d, want the option and its line", f.Unit, f.Option, f.Line)
 	}
 	// What the tool said, not how it said it: the wording is the machine's
 	// locale and the path is the only part of it this test owns.

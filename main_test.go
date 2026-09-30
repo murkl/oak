@@ -543,7 +543,7 @@ func TestTheRequirementIsGivenTheModulesOwnShell(t *testing.T) {
 }
 
 // The check is shell a module wrote, and it is written next to its tasks and
-// its hooks — where `return 0` is how a guard says yes. Shell that means one
+// its options — where `return 0` is how a guard says yes. Shell that means one
 // thing there and another here would be a trap laid for whoever writes the next
 // module.
 func TestARequirementMaySayYesTheWayEveryOtherGuardDoes(t *testing.T) {

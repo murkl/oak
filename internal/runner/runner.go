@@ -14,36 +14,17 @@ import (
 	"github.com/murkl/oak/internal/logging"
 	"github.com/murkl/oak/internal/spec"
 	"github.com/murkl/oak/internal/store"
-	"github.com/murkl/oak/internal/wlan"
 )
 
 type Runner struct {
 	mod   *spec.Module
 	store *store.Store
 	sh    exec.Runner
-	radio *wlan.Radio
 }
 
 func New(mod *spec.Module, st *store.Store) *Runner {
 	sh := exec.Runner{Shells: mod.Shells(), Module: mod.Name()}
-	cfg := wlan.Config{
-		Online:   steps(mod, spec.HookOnline),
-		Device:   steps(mod, spec.HookDevice),
-		Networks: steps(mod, spec.HookNetworks),
-		Connect:  steps(mod, spec.HookConnect),
-	}
-	return &Runner{mod: mod, store: st, sh: sh, radio: wlan.New(cfg, sh, st.Env)}
-}
-
-// steps is one hook as the shell layer takes it: everything the module put in
-// it, in order, each carrying the names a failure is reported under.
-func steps(mod *spec.Module, hook string) []exec.Step {
-	tasks := mod.Hook(hook)
-	out := make([]exec.Step, 0, len(tasks))
-	for _, t := range tasks {
-		out = append(out, step(t, t.Work()))
-	}
-	return out
+	return &Runner{mod: mod, store: st, sh: sh}
 }
 
 // step is one piece of a module's work as the shell layer takes it. What it
@@ -52,14 +33,9 @@ func steps(mod *spec.Module, hook string) []exec.Step {
 func step(t *spec.Task, script spec.Script) exec.Step {
 	return exec.Step{
 		Name:   t.Label(),
-		Hook:   t.Hook(),
 		Script: exec.Script{File: script.File, Shell: script.Shell},
 	}
 }
-
-// Radio is how this module finds and joins a wireless network, or nil when it
-// declares none.
-func (r *Runner) Radio() *wlan.Radio { return r.radio }
 
 // Option is one answer a question offers: the value that gets stored, and the
 // text it is chosen by.
@@ -376,58 +352,55 @@ func (r *Runner) Fail(t *spec.Task, err error) error {
 	return r.sh.Fail(step(t, t.Work()), err)
 }
 
-// Leave carries out one of the two ways this module says a machine is put down,
-// and blocks until it has. What comes back is whether the stage worked — which
-// on a machine that is genuinely restarting is a question nothing lives long
-// enough to ask, and on one that is not is the only thing worth knowing.
+// Offered is whether this machine has an option at all, as its requires says.
+// Everything is offered under --debug, the way every module is: a simulated run
+// is read on whatever machine somebody is sitting at, and a list narrowed to it
+// would hide the pages they opened it for.
 //
-// A module with nothing in that stage has nothing to carry out and says so, so
-// the interface never offers a row that would do nothing.
-func (r *Runner) Leave(restart bool) error {
-	hook := spec.HookShutdown
-	if restart {
-		hook = spec.HookRestart
+// Handed back as something to run, like Import: the environment is taken now,
+// on the goroutine that owns the answers, and the shell — which may wait for a
+// card to show up — runs off the frame.
+func (r *Runner) Offered(o *spec.Option) func() bool {
+	if o.Requires.Empty() || r.store.Debug() {
+		return func() bool { return true }
 	}
-	put := steps(r.mod, hook)
-	if len(put) == 0 {
-		return nil
+	env := r.store.Env()
+	return func() bool {
+		err := r.sh.Guard(o.Requires.Text(), env)
+		if err != nil {
+			logging.Info("option %s: not offered: %s", o.ID(), err)
+		}
+		return err == nil
 	}
-	// A simulated run is on somebody's own machine, which is not the one to
-	// switch off.
-	if r.store.Debug() {
-		logging.Info("leaving: %s: simulated", hook)
-		return nil
-	}
-	logging.Info("leaving: %s", hook)
-	_, err := r.sh.Hook(put, r.store.Env())
-	return err
 }
 
-// Preflight runs the module's own checks that this machine can be installed
-// onto at all, in order, and blocks until they have answered. A module with
-// nothing in that stage passes, and one with several checks in it stops at the
-// first that says no.
+// Waiting is what an option the work waits for still says no about: what its
+// start wrote on stderr, or nil once it says yes. Nothing is waited for under
+// --debug, for the same reason everything is offered there.
 //
-// It runs before anything is asked bar the few questions a module marks `first`,
-// which is the whole point: being told the firmware is wrong is worth very
-// little after twenty questions.
-//
-// A simulated run passes without asking: it is read on whatever machine
-// somebody is sitting at, which is not the one the checks are about.
-func (r *Runner) Preflight() error {
+// Handed back as something to run, like Offered.
+func (r *Runner) Waiting(o *spec.Option) func() error {
 	if r.store.Debug() {
-		return nil
+		return func() error { return nil }
 	}
-	for _, t := range r.mod.Hook(spec.HookPreflight) {
-		logging.Info("%s", t.Title)
-		session, err := r.sh.Start(step(t, t.Work()), r.store.Env())
-		if err != nil {
-			return err
-		}
-		<-session.Done()
-		if err := session.Err(); err != nil {
-			return err
-		}
+	env := r.store.Env()
+	return func() error { return r.sh.Guard(o.Start.Text(), env) }
+}
+
+// Open starts what an option does, with its pages' answers in the environment,
+// the way Start starts a task: in the background, reporting how it broke where
+// it did. It is not part of a run, and nothing follows it that a list would
+// show.
+//
+// Under --debug it is only started where it declared it simulates itself, the
+// way a task is: the runtime cannot know what a script would change. A nil
+// session is that — nothing started, and nothing to wait for.
+func (r *Runner) Open(o *spec.Option) (*exec.Session, error) {
+	if r.store.Debug() && !o.Simulates {
+		logging.Info("option %s: simulated", o.ID())
+		return nil, nil
 	}
-	return nil
+	logging.Info("option %s", o.ID())
+	st := exec.Step{Name: o.Label(), Option: true, Script: exec.Script{File: o.Work.File, Shell: o.Work.Shell}}
+	return r.sh.Start(st, r.store.Env())
 }

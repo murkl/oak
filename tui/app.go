@@ -117,19 +117,13 @@ type app struct {
 	settled bool
 	kiosk   bool
 
-	// wireless is whether this machine has a wireless card, as the module's
-	// @wlan-device last said — or could not say, which is shown rather than
-	// hidden, see settingsScreen.detect. It is what puts the network on the
-	// settings page at all, and it stands until the next look replaces it, so
-	// the row does not blink out while that look is under way.
-	wireless bool
+	// offered is which of the module's options this machine has, as their
+	// requires last said — see has. An answer stands until the next look
+	// replaces it, so a row does not blink out while that look is under way.
+	offered map[*spec.Option]bool
 
-	// joined is the wireless network joined in this run, the value its row on
-	// the settings page reads. Empty where none was.
-	joined string
-
-	// looked is whether the module open now has been asked about the card yet
-	// — see Model.look.
+	// looked is whether the module open now has been asked about its options
+	// yet — see Model.look.
 	looked bool
 
 	// first records whether this machine had answered anything when the program
@@ -196,7 +190,7 @@ func (a *app) enter(mod *spec.Module) error {
 	a.module, a.store, a.runner = p.Module, p.Store, p.Runner
 	a.langs, a.sources = p.Langs, p.Sources
 	a.first = !p.Store.Exists()
-	a.looked = false
+	a.offered, a.looked = map[*spec.Option]bool{}, false
 	return nil
 }
 
@@ -329,10 +323,10 @@ func (a *app) save() tea.Cmd {
 
 // The opening is one chain, and each link only knows the one after it: pick a
 // language, pick a module, settle whatever that module wants settled before
-// anything is typed, get onto the internet, let it look at the machine, pick a
-// starting point, answer what is still open — and from then on it is simply
-// ready. A link with nothing to ask hands straight on, so a module with no
-// presets never shows a page offering none.
+// anything is typed, wait for whatever its options say the work waits for,
+// pick a starting point, answer what is still open — and from then on it is
+// simply ready. A link with nothing to ask hands straight on, so a module with
+// no presets never shows a page offering none.
 //
 // The language leads because every word of every page after it is in it, the
 // question of which module included — and because it is the runtime's own
@@ -376,29 +370,21 @@ func (a *app) chooseModule(first bool) screen {
 func (a *app) upfront() screen {
 	open := a.store.Upfront()
 	if len(open) == 0 {
-		return a.network()
+		return a.waits()
 	}
 	return newField(a, open[0], func() tea.Cmd { return push(a.upfront()) }).opening()
 }
 
-// network is where a module that cannot do without the internet waits for it,
-// joining a wireless network where it can. One that can do without leaves the
-// network to its settings.
-func (a *app) network() screen {
-	if a.module.Network.Required() {
-		return newNetwork(a, a.runner.Radio())
-	}
-	return a.afterNetwork()
-}
-
-// afterNetwork is where the network page hands over once there is internet,
-// or straight away for a module that can do without. Then comes the module's
-// own check that this machine can be worked on at all, where it declares one.
-func (a *app) afterNetwork() screen {
-	if len(a.module.Hook(spec.HookPreflight)) == 0 {
+// waits is the page standing in front of the work for as long as one of the
+// module's options says it is not ready for it — the machine is not the one it
+// needs, there is no internet — or nothing, where no option says anything of
+// the kind.
+func (a *app) waits() screen {
+	starts := a.module.Starts()
+	if len(starts) == 0 {
 		return a.afterCheck()
 	}
-	return newCheck(a)
+	return newGate(a, starts, a.afterCheck)
 }
 
 // afterCheck is the module's starting points, one page each and in the order

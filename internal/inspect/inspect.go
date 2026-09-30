@@ -112,8 +112,8 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 	fmt.Fprintf(w, "  presets    %d\n", len(mod.Presets))
 	fmt.Fprintf(w, "  stages     %s\n", strings.Join(mod.Stages, " "))
 	fmt.Fprintf(w, "  tasks      %d (%d checked)\n", len(mod.Tasks), checks(mod))
-	if filled := hooks(mod); len(filled) > 0 {
-		fmt.Fprintf(w, "  hooks      %s\n", strings.Join(filled, " "))
+	if len(mod.Options) > 0 {
+		fmt.Fprintf(w, "  options    %s\n", strings.Join(options(mod), " "))
 	}
 	fmt.Fprintf(w, "  languages  %s\n", strings.Join(names, " "))
 
@@ -133,11 +133,6 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 	// description rather than a verdict, so it is reported and the run goes on.
 	for _, warning := range mod.Warnings {
 		fmt.Fprintf(w, "  %-10s %s\n", "needs", warning)
-	}
-	// And a hook the module has and its `network:` switches off, which is
-	// never run.
-	for _, hook := range mod.Ignored {
-		fmt.Fprintf(w, "  %-10s %s\n", "ignored", hook)
 	}
 
 	// The order they run in is worked out rather than written down anywhere.
@@ -229,15 +224,20 @@ func oneLine(s spec.Script) string {
 	return first
 }
 
-// hooks is which of the runtime's hooks this module fills, so one that is not
-// being run because of a typo in a folder name is visible as one missing from
-// this line.
-func hooks(mod *spec.Module) []string {
+// options is every option this module has and where it is opened — the menu
+// it stands in, and start where the work waits for it — so one that is never
+// opened where somebody meant it to be is visible on this line.
+func options(mod *spec.Module) []string {
 	var out []string
-	for _, name := range spec.Hooks {
-		if n := len(mod.Hook(name)); n > 0 {
-			out = append(out, fmt.Sprintf("%s(%d)", name, n))
+	for _, o := range mod.Options {
+		var where []string
+		if o.Menu != "" {
+			where = append(where, o.Menu)
 		}
+		if !o.Start.Empty() {
+			where = append(where, "start")
+		}
+		out = append(out, fmt.Sprintf("%s(%s)", o.ID(), strings.Join(where, ", ")))
 	}
 	return out
 }

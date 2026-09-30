@@ -26,34 +26,34 @@ import (
 // One folder holds one module, so every part of it has the name it has here.
 // Nothing is configured and nothing points at anything: module.yaml is the
 // module, module.sh is the shell it puts in front of everything it runs, the
-// work is a folder each under tasks/, and what the runtime runs of its own
-// accord is a folder each under hooks/.
+// work is a folder each under tasks/, and what somebody can open besides it is
+// a folder each under options/.
 //
 // The two halves are kept apart because they are answerable to different
 // things: a task is the module's own work, listed and ordered and guarded,
-// while a hook is the module's answer to a question the runtime asks. Every
-// file inside says which of the two it is, so nothing is read as the other.
+// while an option is opened — from a row, or on the way in — and runs when it
+// is. Every file inside says which of the two it is, so nothing is read as the
+// other.
 const (
 	FileModule = "module.yaml" // the declaration: what the module is, asks, and does
 	FileShell  = "module.sh"   // shell put in front of every script this module runs
 	DirTasks   = "tasks"       // the work, one folder per task
-	DirHooks   = "hooks"       // what the runtime runs itself, one folder per hook
+	DirOptions = "options"     // what is opened rather than run, one folder per option
 	DirLocales = "locales"     // one catalog per language the module speaks
 
 	FileTask       = "task.yaml" // what a task is
 	FileTaskScript = "task.sh"   // what it does, where its yaml does not say so itself
 	FileTest       = "test.sh"   // how the machine is checked once it has, likewise
 
-	FileHook       = "hook.yaml" // what a step of a hook is
-	FileHookScript = "hook.sh"   // what that step does, likewise
+	FileOption       = "option.yaml" // what an option is
+	FileOptionScript = "option.sh"   // what it does, where its yaml does not say so itself
 
 	ScriptExt = ".sh"
 )
 
-// Mark is what a folder wears when it stands for a moment of the run rather
-// than for a piece of work: a stage under tasks/, a hook under hooks/. Both are
-// folders somebody else named — the stage list in module.yaml, the runtime
-// itself — and both hold the folders that are the work.
+// Mark is what a stage folder under tasks/ wears: it stands for a moment of the
+// run rather than for a piece of work, and it holds the folders that are the
+// work.
 //
 // So the two levels can be told apart on sight, in a path and in an error: a
 // folder with the mark is a when, a folder without is a what. It also keeps the
@@ -66,70 +66,6 @@ func Stage(name string) string { return Mark + name }
 
 // marked reports whether a folder name carries it.
 func marked(name string) bool { return strings.HasPrefix(name, Mark) }
-
-// The hooks: the moments the runtime runs shell of its own accord, each at its
-// own point in the program and for its own reason.
-//
-// Each is a folder under hooks/, holding one folder per step:
-// hooks/@<hook>/<step>/hook.yaml. The mark is part of the name here rather than
-// only of the folder, because it is what the hook is called — in a log, in a
-// report and in the row a failure draws.
-//
-// A folder under one of these names is the declaration, and a module that
-// leaves one out simply does not get that part of the program. The network's
-// are the exception: they are the how, and `network:` in module.yaml is the
-// whether — see Network.
-const (
-	HookPreflight = Mark + "preflight"     // can this machine be worked on at all
-	HookOnline    = Mark + "online"        // is there internet
-	HookDevice    = Mark + "wlan-device"   // the wireless device to use
-	HookNetworks  = Mark + "wlan-networks" // the networks in range, one per line
-	HookConnect   = Mark + "wlan-connect"  // join one
-	HookRestart   = Mark + "restart"       // put this machine down and start it again
-	HookShutdown  = Mark + "shutdown"      // switch it off
-)
-
-// Hooks is every one of them. A folder under hooks/ that is not on this list is
-// refused when the module loads, the way a misspelled yaml key is: work that
-// never runs because its folder has a typo in its name is the worst kind of
-// authoring bug, since everything loads and nothing happens.
-var Hooks = []string{
-	HookPreflight, HookOnline, HookDevice, HookNetworks, HookConnect,
-	HookRestart, HookShutdown,
-}
-
-// wlanHooks are the three a wireless network is joined with, and every one of
-// them is needed: a card nobody can scan with, or a list nobody can join, is a
-// page that goes nowhere.
-var wlanHooks = []string{HookDevice, HookNetworks, HookConnect}
-
-// Network is what a module says about the network: whether it joins a
-// wireless one, and whether its work can begin without the internet.
-//
-// Both are policy, and the hooks are the how: the three @wlan- hooks join a
-// network, @online says whether there is internet. Written down rather than
-// read off which hooks there are, so a module switches the wireless network
-// off without taking its shell apart — and so a hook missing behind a promise
-// made here is refused at startup rather than taking the promise with it.
-type Network struct {
-	// WLAN offers a wireless network in the settings, and in front of the work
-	// where the internet is required. Off, the @wlan- hooks are never run.
-	WLAN bool `yaml:"wlan"`
-
-	// Internet is required or optional. Required stands the network page in
-	// front of the work for as long as @online says no; optional leaves the
-	// network to the settings. Left out, optional.
-	Internet string `yaml:"internet"`
-}
-
-// The two things a module can say about the internet.
-const (
-	InternetRequired = "required"
-	InternetOptional = "optional"
-)
-
-// Required reports whether the work cannot begin without the internet.
-func (n Network) Required() bool { return n.Internet == InternetRequired }
 
 // Script is one piece of shell a task holds: the file it lives in, or what its
 // yaml wrote outright. Exactly one of the two, and neither where the task
@@ -195,27 +131,17 @@ type Module struct {
 	// they declared they need. Sorted once when the module is loaded, so there is
 	// one order and everything downstream reads it rather than works it out
 	// again.
-	//
-	// The runtime's own stages are not in it. They are run at their own moment
-	// rather than as part of the work — see System.
 	Tasks []*Task
+
+	// Options, in the order their folders sort: the order their rows stand in,
+	// and the order the ones the work waits for are asked in — see Option.
+	Options []*Option
 
 	// Warnings is what loaded but says something that can never take effect. A
 	// module that behaves is not a module that refuses to start, so these are
 	// reported — by `--inspect`, and in the log when the module is opened —
 	// rather than raised.
 	Warnings []string
-
-	// Ignored is every hook the module has and its `network:` switches off,
-	// each with the reason. Taken out of the module rather than kept and
-	// skipped, so nothing downstream can run one by accident, and said the way
-	// Warnings are: a folder of shell that never runs is otherwise found by
-	// nobody.
-	Ignored []string
-
-	// Network is whether this module joins a wireless network and whether it
-	// needs the internet before its work — see Network.
-	Network Network
 
 	// Shell is what every script of this module is given before its own, and
 	// Locales the folder its catalogs live in. Both are whatever FileShell and
@@ -258,7 +184,6 @@ type Module struct {
 	// on the way in.
 	Language string
 
-	hooks  map[string][]*Task
 	byName map[string]*Variable
 }
 
@@ -320,10 +245,6 @@ func (s *Module) Shells() []string {
 	return out
 }
 
-// Hook is what this module put in one of the runtime's hooks, in the order it
-// runs, or nothing where it fills that hook at all.
-func (s *Module) Hook(name string) []*Task { return s.hooks[name] }
-
 // Checks reports whether anything in this module says how to tell that it
 // worked. A module with nothing to check is never offered the setting that
 // turns checking off, and never stops on the page that reports on it.
@@ -343,7 +264,7 @@ func source(path string) string { return "source " + quote(path) }
 // how is saying the machine booted to run it, so every way out of the interface
 // asks what to do with the machine instead of quitting.
 func (s *Module) Leaves() bool {
-	return len(s.hooks[HookRestart]) > 0 || len(s.hooks[HookShutdown]) > 0 || s.UI.Console != ""
+	return len(s.Menu(MenuLeave)) > 0 || s.UI.Console != ""
 }
 
 // ConsoleHelp is the sentence under the row that leaves the machine running:
@@ -499,7 +420,6 @@ type Task struct {
 
 	id    string
 	stage string
-	hook  string
 	dir   string
 	work  Script
 	check Script
@@ -513,12 +433,8 @@ func (t *Task) Label() string { return i18n.T(t.Title) }
 func (t *Task) ID() string { return t.id }
 
 // Stage is the phase of the run this task belongs to: the folder it was found
-// in, without the mark. Empty for a step of a hook, which has no stage — when
-// it runs is the runtime's business, not the module's.
+// in, without the mark.
 func (t *Task) Stage() string { return t.stage }
-
-// Hook is the one this step belongs to, or empty for an ordinary task.
-func (t *Task) Hook() string { return t.hook }
 
 // Dir is its own folder, absolute: everything it ships with is in there.
 func (t *Task) Dir() string { return t.dir }
@@ -888,11 +804,16 @@ func (s *Module) Messages() []Message {
 		add(file, "asked before the step runs", t.Confirm)
 		add(file, "read once the step is done, and held on until somebody has", t.Report)
 	}
-	// A step of a hook is never listed, and only the check has a name that
-	// reaches the screen: the one that said no.
-	for _, t := range s.Hook(HookPreflight) {
-		file := path.Join(DirHooks, HookPreflight, t.ID(), FileHook)
-		add(file, "the check, read where it is the one that failed", t.Title)
+	for _, o := range s.Options {
+		file := path.Join(DirOptions, o.ID(), FileOption)
+		add(file, "an option: its row, and the heading over its pages", o.Title)
+		add(file, "an option: what it does, under its row", o.Description)
+		for _, v := range o.Vars {
+			add(file, v.Name+": a page of the option", v.Title)
+			add(file, v.Name+": what it means", v.Description)
+			add(file, v.Name+": the row that opens a box for an answer of one's own", v.Free)
+			add(file, v.Name+": what a wrong answer is told", v.Error)
+		}
 	}
 	return out
 }
