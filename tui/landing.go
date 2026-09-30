@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -102,24 +101,18 @@ func (s *stand) head(width int) []string {
 	return append(rows, make([]string, gapM)...)
 }
 
-// lines is the question, the rows, the sentence belonging to the one under
-// the cursor and the keys that choose one, in no more than room rows. On a
-// terminal too short for the lot the keys go first, then the sentence, and
+// lines is the question, the rows and the keys that choose one, in no more
+// than room rows. On a terminal too short for the lot the keys go first, and
 // then the list scrolls in what is left.
 func (q question) lines(width, room int) []string {
 	rows := append(inked(q.text, width, textStyle), make([]string, gapS)...)
-	detail := q.detail(width)
 	keys := append(make([]string, gapM), mutedStyle.Render(truncate(q.keys, width)))
 
 	count := len(q.list.items)
-	if len(rows)+count+len(detail)+len(keys) > room {
+	if len(rows)+count+len(keys) > room {
 		keys = nil
 	}
-	if len(rows)+count+len(detail) > room {
-		detail = nil
-	}
-	rows = append(rows, q.column(max(min(count, room-len(rows)-len(detail)-len(keys)), 1))...)
-	rows = append(rows, detail...)
+	rows = append(rows, q.column(max(min(count, room-len(rows)-len(keys)), 1))...)
 	return append(rows, keys...)
 }
 
@@ -141,24 +134,6 @@ func (q question) column(height int) []string {
 		rows[i] = strings.TrimRight(r, " ")
 	}
 	return padLines(rows)
-}
-
-// detail is the sentence belonging to the row under the cursor, on the rows
-// a list keeps for one whether or not this row has anything to say: moving the
-// cursor must not move the keys under it. Wrapped to the frame's reading width
-// rather than the terminal's, so a wide terminal does not stretch it into a
-// line nobody reads to the end. Nothing at all where no row has a sentence,
-// which is the list of languages.
-func (q question) detail(width int) []string {
-	if !slices.ContainsFunc(q.list.items, func(it item) bool { return it.detail != "" }) {
-		return nil
-	}
-	lines := append(wrap(q.list.detail(), bodyWidth(min(width, frameW))), make([]string, detailRows)...)
-	rows := make([]string, gapS, gapS+detailRows)
-	for _, line := range lines[:detailRows] {
-		rows = append(rows, softStyle.Render(line))
-	}
-	return rows
 }
 
 // landingScreen is the welcome page: the words the rest of the run is read in.

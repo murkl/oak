@@ -276,8 +276,8 @@ type UI struct {
 	// after the module all over again.
 	Title string
 
-	// Description is what this module is, in one sentence, read under its title
-	// on the page that offers it.
+	// Description is what this module is, in one sentence, read on its menu
+	// under the row that starts the work.
 	Description string
 
 	// Action is what starting the work is called — "Install", "Repair" — on
@@ -294,8 +294,8 @@ type UI struct {
 	Console string
 }
 
-// Help is what this module is, in one sentence: the line under its row on the
-// page that asks which of them to open.
+// Help is what this module is, in one sentence: the line under the row that
+// starts its work.
 func (s *Module) Help() string { return i18n.T(s.UI.Description) }
 
 // Action is what starting the work is called, translated. Empty where the
@@ -859,7 +859,7 @@ func (s *Module) Messages() []Message {
 
 	decl := FileModule
 	add(decl, "what this module is called, wherever the interface names it", s.UI.Title)
-	add(decl, "what it is, in one sentence, on the page that offers it", s.UI.Description)
+	add(decl, "what it is, in one sentence, under the row that starts the work", s.UI.Description)
 	add(decl, "the row that starts the work, and the button on the page before it", s.UI.Action)
 	add(decl, "how to get back in, read on the way out to the console", s.UI.Console)
 	add(decl, "the last thing read before the first task runs", s.Confirm)
