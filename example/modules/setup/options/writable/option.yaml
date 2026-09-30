@@ -1,0 +1,9 @@
+# An option is something the module offers to be opened rather than run as
+# part of its work. This one has nothing to open: it only says what the work
+# waits for. Its start runs before the questions, and again every few seconds
+# for as long as it says no — what it writes to stderr is what somebody reads.
+title: Check the working folder
+start: |
+  [ -w . ] && return 0
+  echo "This folder cannot be written to. Start Tux Setup somewhere you own." >&2
+  exit 1

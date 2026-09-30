@@ -63,7 +63,8 @@ func (s *Store) Exists() bool {
 // Secrets are not written. Not masked, not empty-but-present: absent, so there
 // is no line to wonder about. Neither is a derived answer: it is read off the
 // machine on every run, and a line here could only be a second answer able to
-// disagree with it.
+// disagree with it. Nor is a page of an option, which answers that option for
+// this session and nothing the work reads.
 func (s *Store) Save() error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", i18n.T("Answers for %s. Can be edited by hand.", s.mod.Name()))
@@ -95,7 +96,7 @@ func (s *Store) Save() error {
 // it, and that is still true of the machine afterwards: forgetting the answers
 // is not unwriting the disk they were carried out on.
 func (s *Store) Reset() error {
-	for _, v := range s.mod.Vars {
+	for _, v := range s.mod.Declared() {
 		s.val[v.Name] = v.Default.String()
 	}
 	if err := os.Remove(s.path); err != nil && !os.IsNotExist(err) {

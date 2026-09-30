@@ -40,7 +40,7 @@ modules/setup/            one module — everything below belongs to it
   module.yaml             what it asks and what order it works in
   module.sh               optional: shell everything this module runs gets
   tasks/@prepare/format/  one task, in the folder of the phase it runs in
-  hooks/@preflight/uefi/  optional: a hook — can this machine be worked on at all
+  options/wlan/           optional: one option — something opened rather than run
 modules/recovery/         another module, another program
 ```
 
@@ -76,10 +76,11 @@ Every page appears only when it has something to show. A module with no presets 
 ```mermaid
 flowchart TD
     L["Welcome<br/>the language"] --> W["Which module"] --> Q1["Questions marked first"]
-    Q1 --> N["Internet<br/>where it is required"] --> P["Preflight check"] --> PR["Presets"]
+    Q1 --> N["What the work waits for<br/>an option's start"] --> PR["Presets"]
     PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
-    H --> SE["Settings<br/>wireless network under the language"] --> H
+    H --> SE["Settings"] --> H
+    H --> OP["An option<br/>its pages, its script"] --> H
     H --> CF["Last warning"] --> R["The run<br/>tasks, top to bottom"]
     R --> OK["Done"]
     R --> ER["Failure<br/>script · line · command"]
@@ -240,7 +241,7 @@ Nothing on the command line answers a module's question. Those are answered in t
 
 ## Everything else
 
-**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, tests, conditions, hooks, the script contract and translations.
+**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, tests, conditions, options, the script contract and translations.
 
 **[➜ Changelog](../CHANGELOG.md)** — what each release changed.
 

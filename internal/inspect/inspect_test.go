@@ -123,7 +123,7 @@ variables:
     type: secret
     required: true
 `, map[string]string{
-		"hooks/" + spec.HookPreflight + "/root/hook.yaml": "title: Root\nscript: \"true\"\n",
+		"options/root/option.yaml": "title: Root\nstart: \"true\"\n",
 		// The one task reads both answers, so the report is about what the
 		// module holds rather than about a guard that disagrees — see
 		// spec.Unread.
@@ -139,7 +139,7 @@ variables:
 		"title      Installer",
 		"variables  2 (2 required, 1 secret, 0 derived)",
 		"tasks      1",
-		"hooks      " + spec.HookPreflight + "(1)",
+		"options    root(start)",
 		"1. go         first",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -219,17 +219,21 @@ variables:
 	}
 }
 
-func TestOnlyTheHooksAModuleActuallyFillsAreListed(t *testing.T) {
+// Every option is listed with where it is opened, so one that stands nowhere
+// somebody meant it to is visible on the line.
+func TestEveryOptionIsListedWithWhereItIsOpened(t *testing.T) {
 	mod, err := spec.Load(writeModule(t, "title: T\nstages: [go]\n", map[string]string{
-		"hooks/" + spec.HookPreflight + "/root/hook.yaml": "title: Root\nscript: \"true\"\n",
-		"hooks/" + spec.HookRestart + "/reboot/hook.yaml": "title: Reboot\nscript: \"true\"\n",
+		"options/wlan/option.yaml":   "title: Wireless\nmenu: main\nstart: \"true\"\n",
+		"options/wlan/option.sh":     "true\n",
+		"options/reboot/option.yaml": "title: Reboot\nmenu: leave\nscript: \"true\"\n",
+		"options/root/option.yaml":   "title: Root\nstart: \"true\"\n",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := spec.HookPreflight + "(1) " + spec.HookRestart + "(1)"
-	if got := strings.Join(hooks(mod), " "); got != want {
-		t.Errorf("hooks() = %q, want %q in Hooks order", got, want)
+	want := "reboot(leave) root(start) wlan(main, start)"
+	if got := strings.Join(options(mod), " "); got != want {
+		t.Errorf("options() = %q, want %q", got, want)
 	}
 }
 
@@ -247,22 +251,6 @@ func TestANeedReachingIntoAnotherStageIsReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := "needs      tasks/after: needs first, which is in go"; !strings.Contains(out.String(), want) {
-		t.Errorf("the report does not say %q:\n%s", want, out.String())
-	}
-}
-
-// A hook the module's network switches off is never run, and the report is
-// the one place that says so.
-func TestAHookTheNetworkSwitchesOffIsReported(t *testing.T) {
-	dir := around(t, writeModule(t, "title: T\nstages: [go]\n", map[string]string{
-		"hooks/" + spec.HookOnline + "/https/hook.yaml": "title: Online\nscript: \"true\"\n",
-	}))
-	rt, mods := product(t, dir)
-	var out strings.Builder
-	if err := Report(&out, rt, mods, locales.FS); err != nil {
-		t.Fatal(err)
-	}
-	if want := "ignored    hooks/@online: network: internet is optional and wlan is off"; !strings.Contains(out.String(), want) {
 		t.Errorf("the report does not say %q:\n%s", want, out.String())
 	}
 }

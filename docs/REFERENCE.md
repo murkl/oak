@@ -41,7 +41,7 @@ status:
   fail: Offline          # ...and while it says no
 ```
 
-The mark in front of it is Oak's, filled for yes and hollow for no, so it is one a console font holds wherever the interface can be drawn at all. Nothing is shown until the script has answered once, and the line gives way to whatever is happening now: the mark that turns while something runs takes its place, and so does a page's own count. A wireless network joined is read again at once rather than an interval later.
+The mark in front of it is Oak's, filled for yes and hollow for no, so it is one a console font holds wherever the interface can be drawn at all. Nothing is shown until the script has answered once, and the line gives way to whatever is happening now: the mark that turns while something runs takes its place, and so does a page's own count. Once an option has run, it is read again at once rather than an interval later, since what the option did may be what the line is about.
 
 Written in `oak.yaml`, it is every module's. A module that writes `status:` in its own declaration has that one and none of the product's. `pass` and `fail` are read through the module's catalog, and `oak --strings` puts them in its template.
 
@@ -62,11 +62,11 @@ One folder. Only the declaration has to be there — a module turns a part of th
 | `tasks/@<stage>/<task>/task.yaml` | What a task is |
 | `tasks/@<stage>/<task>/task.sh` | What it does, where its yaml does not say so itself |
 | `tasks/@<stage>/<task>/test.sh` | How to tell that it took, likewise. Optional — see [Testing the work](#testing-the-work) |
-| `hooks/@<hook>/<step>/hook.yaml` | A moment Oak runs itself — see [Hooks](#hooks) |
-| `hooks/@<hook>/<step>/hook.sh` | What that step does, where its yaml does not say so itself |
+| `options/<option>/option.yaml` | What is opened rather than run as part of the work — see [Options](#options) |
+| `options/<option>/option.sh` | What it does, where its yaml does not say so itself |
 | `locales/<code>.po` | One catalog per language |
 
-The work and the hooks are two folders, not one, because they answer to different things: a task is the module's own work — listed, ordered, guarded — while a hook is the module's answer to a question Oak asks at a moment of its own choosing. Every file inside says which of the two it is, so neither is ever read as the other.
+The work and the options are two folders, not one, because they answer to different things: a task is the module's own work — listed, ordered, guarded — while an option is opened, from a row or on the way in, and runs when it is. Every file inside says which of the two it is, so neither is ever read as the other.
 
 The folder name is the module's identity: what `oak --module=<name>` opens, and what its files are called — `setup` writes `setup.conf` and `setup.log`. Everything inside it has the name Oak knows it by, so nothing points at anything.
 
@@ -85,10 +85,6 @@ confirm: |                               # the last thing shown before anything 
 console: Run ./oak --module=setup to start it again.  # optional: read on the way out
 language: TUX_LOCALE                     # optional: ties the interface language to one answer
 
-network:                                 # optional: see The network
-  wlan: true
-  internet: required
-
 requires: |                              # optional: what a machine must be for this
   [ -d /run/archiso ] && return 0
   echo "This only runs from the live image." >&2
@@ -106,7 +102,6 @@ requires: |                              # optional: what a machine must be for 
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
 | `requires` | What a machine has to be for this module to be offered on it — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `status` | This module's own line in the header, in place of the product's — see [The header's status](#the-headers-status) |
-| `network` | Whether it joins a wireless network, and whether its work needs the internet — see [The network](#the-network) |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
 
@@ -133,7 +128,7 @@ What is left is what the interface does with them:
 | One | It is opened on the way in. No list of one row |
 | None | The program says so and stops, in the words each module wrote |
 
-It answers with its exit status, and what it writes to **stderr** is the sentence somebody reads when they named that module outright with `--module=`. So a check that says no says why, in the module's own words, the way a `@preflight` step does.
+It answers with its exit status, and what it writes to **stderr** is the sentence somebody reads when they named that module outright with `--module=`. So a check that says no says why, in the module's own words, the way an option's `start:` does.
 
 ```yaml
 # modules/imager/module.yaml
@@ -146,29 +141,6 @@ requires: |
 This is what lets one product hold modules that belong on different machines — an installer that only makes sense on a live image, and the thing that writes that image, which only makes sense anywhere else. Each says so itself, and nothing anywhere holds a list of which is which, so adding a module stays a folder.
 
 **`--debug` offers every one of them.** A simulated run is read on whatever machine somebody happens to be sitting at, and a list narrowed to what that machine is would hide exactly the pages they opened it for.
-
-### The network
-
-Two things a module says about the network, and the hooks are how either is done. Every key is optional.
-
-```yaml
-network:
-  wlan: true           # a wireless network, joined with the three @wlan- hooks
-  internet: required   # required or optional. Left out, optional
-```
-
-| Key | Description |
-| --- | --- |
-| `wlan` | Offers a wireless network, joined with `@wlan-device`, `@wlan-networks` and `@wlan-connect`. Off — or left out — those three are never run |
-| `internet` | `required`: the work does not begin without the internet, asked of `@online`. `optional`: the network is left to the settings |
-
-**`wlan: true`** puts **Wireless network** on the settings page, right under the language, wherever `@wlan-device` finds a card: a row that could only say there is none is a row nobody needed. It is looked for in the background as soon as the module is open and again whenever the page comes up, since a card is a thing that gets plugged in, and a device hook that fails shows the row all the same — the page behind it says what went wrong. The row reads the network joined in this run, and choosing it lists the networks in range, asks for the passphrase and comes back.
-
-**`internet: required`** stands a page in front of the work, after the questions marked `first`, for as long as `@online` says no. It lists the wireless networks in range where there is a card to join one with, and otherwise says to plug in a cable. It looks again by itself every few seconds and carries on the moment there is a connection. There is no carrying on without: the work behind it would only stop at its first download.
-
-`@online` is also what a join waits for, wherever a module has it: a card that has joined a network may still have no address, and a passphrase some cards take without a word may be wrong. Without it, a join counts once `@wlan-connect` returns.
-
-What is declared is held to. `wlan: true` without all three hooks, and `internet: required` without `@online`, are refused when the module loads. A hook that is there and switched off — the three under `wlan: false`, `@online` where neither key asks for it — is taken out rather than skipped, so nothing can run it, and [`--inspect`](#checking-a-product) names it on an `ignored` line.
 
 ## Questions
 
@@ -257,7 +229,7 @@ It is read when the module opens and again whenever an answer changes, so a valu
 
 **`apply:`** is for an answer that changes the machine the program is running on rather than the one being worked on — `apply: loadkeys "$TUX_KEYMAP"`. It runs the moment the answer is given, and again at startup for an answer this run already had. Where the answer was just given, a failure is logged as a warning and the answer still stands: whoever chose it is looking at what it did. At startup — and after a preset filled it in — the answer goes back to what it was before anybody answered, and is asked again: nobody watched it being put in force, and a password typed next on a keymap that never loaded is refused without a word about why.
 
-**`first: true`** puts a question before the network page, the preflight and the presets, so a password can be typed on a keyboard layout that has already been settled. Use it sparingly: it is asked before the check that decides whether this machine can be worked on at all.
+**`first: true`** puts a question before everything the work waits for and before the presets, so a password can be typed on a keyboard layout that has already been settled. Use it sparingly: it is asked before the checks that decide whether this machine can be worked on at all.
 
 **`filter:`** says what a question's list does with the narrowing box `/` opens. `collapsed` — every question that says nothing — leaves it behind the key, which costs the page nothing until somebody wants it. `open` puts it up from the first frame, for the list that has to be scrolled through to find a row. Nothing is counted on the machine: a list of keyboard variants is thirty rows here and three there, and a page that changed shape with that would be two pages. A question asked `first` carries its box open either way, and saying so again is refused.
 
@@ -288,7 +260,7 @@ There is no `or`. A row that applies under two unrelated conditions is written a
 
 ## Tasks
 
-One folder under the stage it runs in: `tasks/@<stage>/<task>/`. The stage folders are the phases `module.yaml` listed, marked with `@` the way the hooks are — the mark says the folder is a **when**, and the folder inside it a **what**.
+One folder under the stage it runs in: `tasks/@<stage>/<task>/`. The stage folders are the phases `module.yaml` listed, marked with `@` — the mark says the folder is a **when**, and the folder inside it a **what**.
 
 ```
 tasks/
@@ -421,7 +393,7 @@ Two tasks that neither a stage nor a `needs` separates are independent. Their or
 
 `needs:` names a task **in the same stage**. A name no task anywhere answers to is refused at startup, and so is a cycle, which is reported as the ring it goes round: `a → b → c → a`. A name belonging to another stage says nothing the stages have not already said, so it is dropped with a warning rather than refused — `--inspect` reports it and the log records it.
 
-A folder under `tasks/` whose name is not a declared stage is refused, and so is a task lying straight under `tasks/` with no stage folder over it: work that never runs because a stage is misspelled is the one mistake nothing else would ever show. A folder named after one of the hooks is refused too, and told which half of the tree it belongs in.
+A folder under `tasks/` whose name is not a declared stage is refused, and so is a task lying straight under `tasks/` with no stage folder over it: work that never runs because a stage is misspelled is the one mistake nothing else would ever show.
 
 ## Presets
 
@@ -445,41 +417,61 @@ presets:
 
 A preset is named by its title and nothing else. Nothing points at one, so there is no id to keep unique.
 
-## Hooks
+## Options
 
-Seven moments belong to Oak rather than to the module. Each is a folder under `hooks/`, named with the `@` the hook itself carries, holding one folder per step with a `hook.yaml` and — where the shell is too long for the yaml — a `hook.sh` in it.
+What a module offers to be opened rather than run as part of its work. Each is a folder under `options/`, holding an `option.yaml` and — where it does something — an `option.sh`. Oak knows nothing about what any of them is for: joining a wireless network, switching the machine off and checking that it booted the right way are all options a module wrote.
 
-Oak decides when a hook runs. A module that fills none of them has no `hooks/` folder at all, and simply does not get those parts of the program. The network's four are the exception: they are how, and whether is [`network:`](#the-network).
+```yaml
+# options/wlan/option.yaml
+title: Wireless network                 # its row, and the heading over its pages
+description: Join a wireless network.   # under its row
+menu: main                              # optional: where its row stands
+requires: has_wireless_card             # optional: shell — whether this machine has it
+start: internet_ready                   # optional: shell the work waits for
 
-| Hook | Description |
+variables:                              # optional: its pages, asked in order
+  - name: WLAN_SSID
+    title: Network
+    command: list_networks
+  - name: WLAN_PASSPHRASE
+    title: Passphrase
+    type: secret
+    existing: true
+```
+
+| Key | Description |
 | --- | --- |
-| `@preflight` | Can this machine be worked on at all. A hard stop, run before everything except the `first` questions. What it writes to stderr is what the user reads |
-| `@online` | Is there internet — see [The network](#the-network) |
-| `@wlan-device` | Which wireless device to use, and nothing where the machine has none |
-| `@wlan-networks` | The networks in range, one SSID per line |
-| `@wlan-connect` | Join one, with `WLAN_DEVICE`, `WLAN_SSID` and `WLAN_PASSPHRASE` in the environment |
-| `@restart` | Shut this machine down and start it again |
-| `@shutdown` | Switch it off |
+| `title` | **Required.** Its row, the heading over its pages, and what the page says while it runs |
+| `description` | The sentence under its row |
+| `menu` | `main`: a row on the menu, between the row that starts the work and Settings. `leave`: a row on the page every way out of the interface arrives at |
+| `requires` | Shell, or the file it lives in. Exit 0 says this machine has the option; anything else leaves its row off. Left out, every machine has it |
+| `start` | Shell, or the file it lives in, that the work waits for — see below |
+| `variables` | Its pages: questions with the fields a module's own have, bar `first`, `group` and `answer` |
+| `script` | What it does, where there is no `option.sh` beside it — shell or `./file`, as a task's |
+| `simulates` | Run under `--debug` as well — see [Simulating](#simulating) |
 
+**Opened**, an option asks its pages one to a screen, each the way every question is asked, and then runs its script with their answers in the environment under their own names. Esc goes back a page. Once the script has worked, the pages go and the page it was opened from is back — and the header's status is read again. Where it did not work, the page says so, with the file, the line and what the script said, and the way back is to the last page: the next thing to try is another go at the answers. The answers are the session's alone: never on the settings page and never in the answer file, and a secret among them is forgotten as soon as the script has run.
+
+**`requires:`** is read when the module opens and again every time the menu comes up, since what it asks about is a thing that gets plugged in. Until it has answered, the row is not shown: a row that would be taken away again is worse than one that lands a moment late.
+
+**`start:`** is what the work waits for. After the questions marked `first` and before the presets, the options that have one are asked in turn, and the first that says no stands a page in front of everything. What it wrote on stderr is that page, in the module's own words. It looks again by itself every few seconds and carries on the moment it says yes, so a cable plugged in needs no key, and `r` looks at once. Where this machine has the option and it has a script, enter opens it, and the page looks again once it has worked. An option with a `start:` and nothing else is a check of the machine, and the page is the whole of it.
+
+```yaml
+# options/root/option.yaml — nothing to open, only something to wait for
+title: Running as root
+start: |
+  [ "$(id -u)" -eq 0 ] && return 0
+  echo "This has to run as root. Log in as root and start it again." >&2
+  exit 1
 ```
-hooks/@preflight/root/hook.yaml       title: Running as root
-hooks/@preflight/firmware/hook.yaml   title: UEFI, Secure Boot off
-hooks/@online/https/hook.yaml         title: Reach the network
-```
 
-Every step of a hook runs in order, one process each, and `@preflight` stops at the first that says no — so a check that is really four checks is written as four, each with a name of its own. `needs:` orders them the way it orders a stage. What they print comes back as one answer, which is how `@wlan-networks` hands over a list.
+Options are taken in the order their folders sort: the order their rows stand in, and the order the ones with a `start:` are asked in.
 
-Running them one at a time is what makes a mistake in one findable. A hook is a module's own shell, and a typo in it is an authoring bug like any other: the failure names the module, the hook, the step, the file, the line and the command, exactly as a failed task does.
+What cannot take effect is refused when the module loads: an option with neither a `menu:` nor a `start:`, since nothing would ever open it; a row or pages with no script to run; a page asked `first`, in a `group` or worked out with `answer:`; and a `menu: leave` option with pages or a `start:`, since a way out asks nothing and nothing waits for it. A page shares the module's names, so it may not be called what one of its questions is.
 
-A step is written like any other unit — a `title:`, what it `needs:`, and its `hook.sh` or `script:` — but it is run at a fixed moment rather than listed, offered, reported on or tested afterwards, so `test:`, `conditions:`, `asks:`, `confirm:`, `default:`, `report:`, `shows:`, `quits:`, `tty:` and `progress:` are refused: a line that can never take effect is a line somebody will read as though it could.
+**`menu: leave`** turns leaving the interface into a choice rather than a plain exit: a module with such an option is saying the machine booted specifically to run it. Its rows come first, then the one back to the console where the module names one in `console:`. A module with neither exits like any ordinary program.
 
-The title of a `@preflight` step is read: it is what the failure page names when that check is the one that said no. Everywhere else it is what the file calls itself, and nothing more.
-
-Under `--debug`, `@preflight`, `@restart` and `@shutdown` are not run: the first passes, the other two leave without touching the machine.
-
-`@restart` and `@shutdown` turn leaving the interface into a choice rather than a plain exit: a module that fills them is saying the machine booted specifically to run it. A module with neither exits like any ordinary program.
-
-**`oak --kiosk`** is for a machine that is nothing but this program, which is the machine's business rather than the module's: the same recovery can be one choice of several on a live image and the only thing a small partition boots into. There is no console behind a kiosk, whatever the module's `console:` says, so the row that would return to one is **Reset** instead: every answer is forgotten and the program closes, for whatever keeps it running to start it again — a systemd unit with `Restart=always`. A new process is the one start that owes nothing to the run before it. Every module offers that row in a kiosk, so leaving always asks, even where the module fills neither hook.
+**`oak --kiosk`** is for a machine that is nothing but this program, which is the machine's business rather than the module's: the same recovery can be one choice of several on a live image and the only thing a small partition boots into. There is no console behind a kiosk, whatever the module's `console:` says, so the row that would return to one is **Reset** instead: every answer is forgotten and the program closes, for whatever keeps it running to start it again — a systemd unit with `Restart=always`. A new process is the one start that owes nothing to the run before it. Every module offers that row in a kiosk, so leaving always asks, even where the module has no option on the way out.
 
 ## What a script receives
 
@@ -498,7 +490,7 @@ MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 Scripts run in a shell that already carries an `ERR` trap and, where there are any, `oak.sh` and `module.sh`. They need no preamble: no shebang, no `set -e`, no error handling. **Any non-zero status is a failure** — a command that failed anywhere in the script, or whatever the script itself hands back at the end. If one fails, the unit fails, the run stops there, and the page it stops on is the one a finished run stops on under the other mark. Behind it is the module, the unit, the file, the line, the command, the exit code and what the tool said — the same page every failure in the program opens on.
 
-**`oak.sh` and then `module.sh` are sourced in front of everything** — every task, every test, every step of every hook, and every piece of shell the yaml writes for a `command:`, a `prefill:`, an `apply:`, a `script:` or a `test:`. So a function defined in either is called by name from the yaml:
+**`oak.sh` and then `module.sh` are sourced in front of everything** — every task, every test, every option, and every piece of shell the yaml writes for a `command:`, a `prefill:`, an `apply:`, a `requires:`, a `start:`, a `script:` or a `test:`. So a function defined in either is called by name from the yaml:
 
 ```yaml
 apply: load_console_keyboard
@@ -506,9 +498,9 @@ command: list_locales
 ```
 
 ```yaml
-# hooks/@online/https/hook.yaml
-title: Reach the network
-script: is_online
+# options/wlan/option.yaml
+title: Wireless network
+start: internet_ready
 ```
 
 It is **loaded, not run**. A lookup in it that tries one thing and falls back to another is ordinary shell and is nobody's failure, so it is sourced outside the trap: what it recovers from is never reported as the failure of the unit that was about to run. The one thing that is its own failure is a shell that will not load at all, and that fails the unit with whatever it said on the way out.
@@ -523,13 +515,13 @@ A `test:` keeps all three and adds a fourth: **change nothing at all**. It reads
 
 ### Simulating
 
-`--debug` shows a run without doing it. **No task and no test is started**: each is shown running for a moment and marked done, its `report:` still stops the run, and the pages look as they would. `@preflight`, `@restart` and `@shutdown` are not run either. So a script needs no guard against it.
+`--debug` shows a run without doing it. **No task, no test and no option is started**: a task is shown running for a moment and marked done, its `report:` still stops the run, an option comes back as though it had worked, and the pages look as they would. Every option is offered and nothing is waited for: a simulated run is read on whatever machine somebody happens to be sitting at, which is not the one `requires:` and `start:` are about. So a script needs no guard against it.
 
-What still runs is what reads rather than acts — the shell a question is offered, suggested, applied and worked out with, and `@online` and the wireless hooks. It is handed `DEBUG=true` and decides for itself; an `apply:` that loads a keyboard, for one, has no business doing so on somebody's own machine.
+What still runs is what reads rather than acts — the shell a question is offered, suggested, applied and worked out with, an option's pages among them. It is handed `DEBUG=true` and decides for itself; an `apply:` that loads a keyboard, for one, has no business doing so on somebody's own machine.
 
-A task that has something worth showing and can produce it without touching anything declares `simulates: true`. It is then started like any other, its test with it, and reads `DEBUG` to decide what a simulated run does — a task that only reads, or one that fills in the value its report shows with an example.
+A task or an option that has something worth showing and can produce it without touching anything declares `simulates: true`. It is then started like any other, a task's test with it, and reads `DEBUG` to decide what a simulated run does — one that only reads, or one that fills in the value its report shows with an example.
 
-`command:`, `prefill:`, `apply:`, `script:` and `test:` each accept either shell or a file. A single line starting with `./` or `../` names a file, relative to the folder of the yaml it was written in; anything else is the shell itself.
+`command:`, `prefill:`, `apply:`, `requires:`, `start:`, `script:` and `test:` each accept either shell or a file. A single line starting with `./` or `../` names a file, relative to the folder of the yaml it was written in; anything else is the shell itself.
 
 ## Files it writes
 
@@ -538,7 +530,7 @@ Beside wherever the program was started, never inside a module — which may be 
 | File | Description |
 | --- | --- |
 | `oak.conf` | What Oak keeps across every module: `OAK_LANG`, the language, and `OAK_VALIDATE`, whether a run checks its own work |
-| `<module>.conf` | Every answer, as `KEY='value'`. Plain shell, editable by hand. A secret and a derived answer are not in it. Written out whole when a run starts, so a task that copies it hands on exactly what the run ran with |
+| `<module>.conf` | Every answer, as `KEY='value'`. Plain shell, editable by hand. A secret, a derived answer and an option's page are not in it. Written out whole when a run starts, so a task that copies it hands on exactly what the run ran with |
 | `<module>.log` | Oak's own progress plus every line every script printed |
 
 A second module writes its own pair beside the first, so two started from the same folder never collide.
@@ -580,7 +572,6 @@ oak --glyphs                     # every character the interface can put on a co
 | `unread` | A question asked where no task that reads the answer can run. **This fails the check** — it is the one authoring mistake a module's shape does not rule out on its own |
 | `unset` | A name in capitals the module's shell reads that nothing here answers. A description, not a verdict — `$HOME` and `$PATH` belong on that line |
 | `needs` | A `needs:` naming a task in another stage. Also a description: the stages already put the two in that order |
-| `ignored` | A hook the module has and its [`network:`](#the-network) switches off, which is never run. A description as well |
 | `translation drops` / `adds` | A catalog naming other `{{VAR}}` than the string it translates. **This fails the check** — see [Placeholders](#placeholders) |
 
 `unset` is where a name that used to arrive and no longer does becomes visible. In shell an unset name is an empty string rather than an error, so nothing else would ever say so.

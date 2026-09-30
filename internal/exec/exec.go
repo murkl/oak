@@ -1,7 +1,7 @@
 // Package exec is the only place this program starts a process.
 //
 // Everything the runtime actually does is shell: a stage's script, a variable's
-// option list, the preflight check. The runtime feeds them variables and reads
+// list of answers, an option and what it waits for. The runtime feeds them variables and reads
 // back an exit code or stdout — it never knows what any of them do.
 package exec
 
@@ -53,14 +53,11 @@ type Script struct {
 }
 
 // Step is one piece of a module's work as this layer takes it: the shell
-// itself, what a failure calls it, and the hook it belongs to where it is one.
-//
-// A hook is run step by step rather than as one piece of shell for exactly that
-// reason — a mistake in one of them has to name the step it is in, the file and
-// the line, the same way a task's does.
+// itself, what a failure calls it, and whether it is an option's rather than a
+// task's — the one thing a failure report says differently about the two.
 type Step struct {
 	Name   string
-	Hook   string
+	Option bool
 	Script Script
 }
 
@@ -137,8 +134,7 @@ const lastLine = `trap '[ "${BASH_SOURCE[0]}" = "$1" ] && { oak_line=$LINENO; oa
 // Both answer with the script's own exit status, and both run under the trap.
 // So a script fails on any command that fails, and again on whatever it hands
 // back at the end — `exit 1`, `return 1`, or a last line that simply did not
-// work. One rule, and the same one for a task, for its test and for every step
-// of a hook.
+// work. One rule, and the same one for a task, for its test and for an option.
 //
 // A script can say no without any command having failed: `return 1` and a guard
 // that does not fire both look like that, and the trap sees neither. The file
@@ -228,9 +224,10 @@ func (r Runner) Reason(s string, env Env) error {
 }
 
 // Guard runs a piece of a module's shell whose exit status is an answer rather
-// than a result: may this module be opened on this machine at all. What it says
-// on stderr where it says no is what somebody reads, the way a preflight step's
-// is — so a check that refuses says why, in the module's own words.
+// than a result: may this module be opened on this machine at all, does it have
+// this option, may the work begin. What it says on stderr where it says no is
+// what somebody reads — so a check that refuses says why, in the module's own
+// words.
 func (r Runner) Guard(s string, env Env) error {
 	_, said, err := r.ask(guard, s, env)
 	switch {
@@ -274,8 +271,7 @@ func (r Runner) Lines(s string, env Env) ([]string, error) {
 	return Lines(out), nil
 }
 
-// Lines is that rule on its own, for output that came back from somewhere else
-// — a hook answering with the networks in range.
+// Lines is that rule on its own, for output that came back from somewhere else.
 func Lines(out string) []string {
 	var lines []string
 	for l := range strings.SplitSeq(out, "\n") {
@@ -301,49 +297,8 @@ type Session struct {
 	step   Step
 }
 
-// Hook runs the steps of one hook in order and hands back everything they
-// printed, as one block.
-//
-// Unlike the one-liners above it runs under the ERR trap: a hook is a module's
-// own code, and a mistake in it is an authoring bug that has to name the file
-// and the line rather than an exit status nobody can place. Its output is the
-// answer the runtime asked for — a device name, the networks in range — so it
-// is captured rather than logged.
-func (r Runner) Hook(steps []Step, env Env) (string, error) {
-	var out []string
-	for _, step := range steps {
-		printed, said, report, err := r.trapped(step, env)
-		if printed != "" {
-			out = append(out, printed)
-		}
-		if err != nil {
-			return "", r.failure(step, err, report, said)
-		}
-	}
-	return strings.Join(out, "\n"), nil
-}
-
-// trapped runs one script under the ERR trap and keeps its three channels
-// apart: what it printed, what it said on the way out, and where the trap says
-// it broke.
-func (r Runner) trapped(step Step, env Env) (printed, said, report string, err error) {
-	cmd, rd, err := r.command(step, env)
-	if err != nil {
-		return "", "", "", err
-	}
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Start(); err != nil {
-		drain(cmd, rd)
-		return "", "", "", err
-	}
-	raw := drain(cmd, rd)
-	err = cmd.Wait()
-	return strings.TrimRight(stdout.String(), "\n"), lastWords(stderr.String()), raw, err
-}
-
-// Start runs one script in the background. unit names it in any failure, and
-// hook the one it is a step of where it is one.
+// Start runs one script in the background, named in any failure the way step
+// names it.
 func (r Runner) Start(step Step, env Env) (*Session, error) {
 	cmd, report, err := r.command(step, env)
 	if err != nil {

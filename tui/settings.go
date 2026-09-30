@@ -2,10 +2,8 @@ package tui
 
 import (
 	"github.com/murkl/oak/internal/i18n"
-	"github.com/murkl/oak/internal/logging"
 	"github.com/murkl/oak/internal/spec"
 	"github.com/murkl/oak/internal/store"
-	"github.com/murkl/oak/internal/wlan"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -44,19 +42,16 @@ type settingsScreen struct {
 //
 // Neither carries a heading. The rows say what they are, and the blank line is
 // what sets them apart from the module's own: over them, the words this
-// session is read in and the network it is on; under them, the two rows about
-// the run itself, which stand together.
+// session is read in; under them, the two rows about the run itself, which
+// stand together.
 const (
 	groupSession = "\x00session"
 	groupRun     = "\x00run"
 )
 
-// The rows that are the runtime's rather than a module's value: the wireless
-// network, and the one that undoes the rest of them.
-const (
-	keyWireless = "\x00wireless-row"
-	keyReset    = "\x00reset-row"
-)
+// The row that is the runtime's rather than a module's value: the one that
+// undoes the rest of them.
+const keyReset = "\x00reset-row"
 
 // settingRow is one setting beside the heading it sits under. Both the module's
 // own key and the words it reads as: the key is what marks the end of a group,
@@ -99,17 +94,6 @@ func (s *settingsScreen) collect() []settingRow {
 			title: labelLanguage(),
 			value: s.languageName(),
 			key:   store.LangVar,
-		}, group: groupSession})
-	}
-	// The wireless network under it, where the module joins one and this
-	// machine has a card to join it with: a row that could only answer "no
-	// wireless device" is a row nobody needed. It reads the network joined in
-	// this run, and nothing before one is.
-	if s.app.module.Network.WLAN && s.app.wireless {
-		rows = append(rows, settingRow{item: item{
-			title: labelNetwork(),
-			value: s.app.joined,
-			key:   keyWireless,
 		}, group: groupSession})
 	}
 	for _, v := range s.app.store.Visible() {
@@ -207,36 +191,6 @@ func (s *settingsScreen) languageName() string {
 	return code
 }
 
-// wirelessMsg is what the module's @wlan-device said about this machine. The
-// model takes it, whichever page is in front when it lands — see Model.look.
-type wirelessMsg struct{ present bool }
-
-// lookForCard asks whether there is a wireless card to offer, beside the
-// drawing rather than in it. A hook that fails has not looked, and a machine
-// that may have one is shown the row rather than denied it: the page behind it
-// runs the same hook and says what went wrong, where somebody is looking,
-// instead of in a log nobody reads.
-func lookForCard(radio *wlan.Radio) tea.Cmd {
-	return func() tea.Msg {
-		dev, err := radio.Device()
-		if err != nil {
-			logging.Warn("%s", err)
-			return wirelessMsg{present: true}
-		}
-		return wirelessMsg{present: dev != ""}
-	}
-}
-
-// Init looks for the card again every time the page comes up, because a card is
-// a thing that gets plugged in. The page stands at once with what the last look
-// found, and the row lands or goes when this one answers.
-func (s *settingsScreen) Init() tea.Cmd {
-	if !s.app.module.Network.WLAN {
-		return nil
-	}
-	return lookForCard(s.app.runner.Radio())
-}
-
 // takesText: the narrowing box, while it is open. A letter is a character
 // being typed into it rather than a key of this page's.
 func (s *settingsScreen) takesText() bool { return s.filter.active() }
@@ -286,8 +240,6 @@ func (s *settingsScreen) open(name string) tea.Cmd {
 		return nil
 	case name == store.LangVar:
 		return push(newLanguage(s.app, pop))
-	case name == keyWireless:
-		return push(newJoin(s.app, s.app.runner.Radio()))
 	case name == store.ValidateVar:
 		return push(newSwitch(s.app, labelVerifySteps(), labelVerifyStepsHelp(), s.app.prefs.Validates(), s.app.validate))
 	case name == keyReset:

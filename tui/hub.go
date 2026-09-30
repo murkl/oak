@@ -1,15 +1,17 @@
 package tui
 
 import (
+	"github.com/murkl/oak/internal/spec"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// hub is where a machine that has answered everything waits: two things to do,
-// and no way to get lost between them. Install, or go through the answers
-// again — the wireless network among them, see settingsScreen.
+// hub is where a machine that has answered everything waits: the work, the
+// options the module puts on it, and the answers — and no way to get lost
+// between them.
 //
-// It has no description of its own and needs none — two rows, each with a
-// sentence under it, say the whole of what this page is.
+// It has no description of its own and needs none — each row has a sentence
+// under it, and together they say the whole of what this page is.
 type hub struct {
 	app    *app
 	picker *picker
@@ -27,6 +29,11 @@ func newHub(a *app) *hub {
 	return h
 }
 
+// Init asks again which options this machine has, every time the page comes
+// up: a card is a thing that gets plugged in. The page stands at once with
+// what the last look found, and a row lands or goes when this one answers.
+func (h *hub) Init() tea.Cmd { return h.app.lookFor() }
+
 func (h *hub) Refresh() {
 	key := h.picker.selected()
 	h.build()
@@ -37,12 +44,15 @@ func (h *hub) Refresh() {
 // word for it where it has one — and not after the module it belongs to: the
 // frame overhead carries that name on every page, and a row repeating it would
 // be the same word twice on one screen. What the module has to say for itself
-// is the sentence under the row.
+// is the sentence under the row. Its options stand between that and the
+// answers, each in its own words.
 func (h *hub) build() {
-	h.picker = newPicker([]item{
-		{title: h.app.action(), detail: h.app.module.Help(), key: keyInstall},
-		{title: labelSettings(), detail: labelSettingsSummary(), key: keySettings},
-	})
+	items := []item{{title: h.app.action(), detail: h.app.module.Help(), key: keyInstall}}
+	for _, o := range h.app.rows(spec.MenuMain) {
+		items = append(items, optionRow(o))
+	}
+	items = append(items, item{title: labelSettings(), detail: labelSettingsSummary(), key: keySettings})
+	h.picker = newPicker(items)
 }
 
 func (h *hub) Title() string { return "" }
@@ -60,11 +70,15 @@ func (h *hub) Update(msg tea.Msg) (screen, tea.Cmd) {
 	}
 	switch {
 	case confirms(key):
-		switch h.picker.selected() {
+		switch sel := h.picker.selected(); sel {
 		case keyInstall:
 			return h, push(newConfirm(h.app))
 		case keySettings:
 			return h, push(newSettings(h.app))
+		default:
+			if o := h.app.option(sel); o != nil {
+				return h, h.app.openOption(o)
+			}
 		}
 	case backs(key):
 		// Nothing is behind the hub: the run of questions that led here is

@@ -29,9 +29,9 @@ type fieldScreen struct {
 	at, of int
 
 	// head is the heading this question stands under, for the few asked in
-	// front of the run: they come one after another rather than one inside the
-	// other, and a page whose breadcrumb is only its own title reads as if the
-	// whole program were this one question.
+	// front of the run and for the pages of an option: they come one after
+	// another rather than one inside the other, and a page whose breadcrumb is
+	// only its own title reads as if the whole program were this one question.
 	head string
 
 	// imports is shell to run once the answer is given, and the page is not got
@@ -77,8 +77,12 @@ func (s *fieldScreen) counted(at, of int) *fieldScreen {
 
 // opening marks this question as one of the few asked before the run proper,
 // which is where it is put in the breadcrumb rather than how it is asked.
-func (s *fieldScreen) opening() *fieldScreen {
-	s.head = labelOpening()
+func (s *fieldScreen) opening() *fieldScreen { return s.under(labelOpening()) }
+
+// under stands this question under a heading: the opening, or the option whose
+// page it is.
+func (s *fieldScreen) under(head string) *fieldScreen {
+	s.head = head
 	return s
 }
 

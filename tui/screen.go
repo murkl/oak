@@ -65,7 +65,7 @@ type (
 )
 
 // opening is embedded by the pages in front of the questions proper: the
-// language, the fork, what a module asks first, the network, the check, the
+// language, the fork, what a module asks first, what the work waits for, the
 // starting points. They follow one another rather than lead into one another,
 // so each stands under one heading instead of inside the page before it — a
 // line growing by a segment for every page already answered says where somebody

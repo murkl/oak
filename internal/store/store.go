@@ -38,7 +38,7 @@ type Store struct {
 // debug is whether this run only pretends to work.
 func New(mod *spec.Module, path string, debug bool) *Store {
 	s := &Store{mod: mod, val: map[string]string{}, path: path, debug: debug, unoffered: map[string]string{}}
-	for _, v := range mod.Vars {
+	for _, v := range mod.Declared() {
 		s.val[v.Name] = v.Default.String()
 	}
 	return s
@@ -56,7 +56,8 @@ func (s *Store) Get(name string) string { return s.val[name] }
 func (s *Store) Set(name, value string) { s.val[name] = value }
 
 // Env is what a script sees: the process environment, then every declared
-// variable, and then the two names Oak keeps for itself. Later entries win, so
+// variable — the module's own and its options' pages — and then the two names
+// Oak keeps for itself. Later entries win, so
 // a variable always carries the value the store holds and never a stale
 // inherited one.
 //
@@ -74,7 +75,7 @@ func (s *Store) Set(name, value string) { s.val[name] = value }
 // not to the log.
 func (s *Store) Env() exec.Env {
 	env := append(exec.Env{}, os.Environ()...)
-	for _, v := range s.mod.Vars {
+	for _, v := range s.mod.Declared() {
 		env = append(env, v.Name+"="+s.val[v.Name])
 	}
 	env = append(env, spec.ConfVar+"="+s.path)
@@ -121,11 +122,11 @@ func (s *Store) Missing() []*spec.Variable {
 }
 
 // Upfront lists the questions this module wants settled before anything else
-// happens at all: before a network is joined, before the machine is checked,
-// before a starting point is chosen.
+// happens at all: before anything the work waits for is looked at, before a
+// starting point is chosen.
 //
 // The same rule as Missing, narrowed — so a question already answered is not
-// asked again on the way in, and a second start goes straight to the network.
+// asked again on the way in, and a second start goes straight past them.
 func (s *Store) Upfront() []*spec.Variable {
 	var out []*spec.Variable
 	for _, v := range s.Missing() {
@@ -234,10 +235,10 @@ func Label(value string) string {
 	return value
 }
 
-// Forget drops every secret, so nothing is left in memory once the run that
-// needed it is over.
+// Forget drops every secret, so nothing is left in memory once the run or the
+// option that needed it is over.
 func (s *Store) Forget() {
-	for _, v := range s.mod.Vars {
+	for _, v := range s.mod.Declared() {
 		if v.Secret() {
 			s.val[v.Name] = ""
 		}

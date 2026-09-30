@@ -152,26 +152,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return next, tea.Batch(cmd, m.arrive(was), m.poll(), m.look())
 }
 
-// look asks the module once, as soon as it is open, whether this machine has a
-// wireless card, so the settings page stands with its row from the first frame
-// rather than growing one over somebody's cursor. The page asks again itself
-// every time it comes up — see settingsScreen.Init.
+// look asks the module once, as soon as it is open, which of its options this
+// machine has, so the menu stands with their rows from its first frame rather
+// than growing them over somebody's cursor. The menu asks again itself every
+// time it comes up — see hub.Init.
 func (m *Model) look() tea.Cmd {
 	a := m.app
-	if a.module == nil || a.looked || !a.module.Network.WLAN {
+	if a.module == nil || a.looked {
 		return nil
 	}
 	a.looked = true
-	return lookForCard(a.runner.Radio())
+	return a.lookFor()
 }
 
 // statusMsg is what the header's status check answered; statusDueMsg is the
 // clock saying it is time to ask it again. Both carry the round they belong to.
 //
-// recheckMsg is a page saying it changed what the status is about — a network
-// just joined — so the next read is asked for now rather than after the
-// interval, and whatever the read already out there says is not waited for: it
-// was taken before the change.
+// recheckMsg is a page saying it may have changed what the status is about —
+// an option that just ran — so the next read is asked for now rather than after
+// the interval, and whatever the read already out there says is not waited for:
+// it was taken before the change.
 type (
 	statusMsg struct {
 		pass  bool
@@ -256,10 +256,10 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Taken here rather than by the page that asked, which may be gone by the
 	// time the answer lands: the answer is the machine's, not the page's.
-	case wirelessMsg:
-		m.app.wireless = msg.present
-		if s, ok := m.top().(*settingsScreen); ok {
-			s.build()
+	case offeredMsg:
+		m.app.offered[msg.o] = msg.yes
+		if h, ok := m.top().(*hub); ok {
+			h.Refresh()
 		}
 		return m, nil
 

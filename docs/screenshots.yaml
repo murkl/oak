@@ -2,7 +2,7 @@
 #
 # One block is one take: a start of the program from a pristine copy of the
 # example, with --debug. One step is one page: wait for `page:`, photograph it
-# as `shot:`, press on.
+# as `shot:`, put the cursor on the row called `choose:`, press on.
 #
 # A take names its `module:` wherever the picture is not about choosing one -
 # counting keystrokes down a sorted list breaks the day a module is added.

@@ -1,11 +1,13 @@
 package runner
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/murkl/oak/internal/exec"
 	"github.com/murkl/oak/internal/i18n"
 	"github.com/murkl/oak/internal/spec"
 	"github.com/murkl/oak/internal/store"
@@ -135,23 +137,19 @@ func TestTasksAreOnlyTheOnesThatWillRun(t *testing.T) {
 	}
 }
 
-func TestPreflightPassesWhenTheTreeHasNoHook(t *testing.T) {
-	_, _, r := setup(t, "variables: []\n", nil)
-	if err := r.Preflight(); err != nil {
-		t.Errorf("err = %v", err)
-	}
-}
-
-// hooked is a module whose one hook step says no, loaded for a run started
-// with or without --debug.
-func hooked(t *testing.T, hook string, debug bool) *Runner {
+// optioned is a module with one option, o, declared by yaml and doing what
+// script does, loaded for a run started with or without --debug.
+func optioned(t *testing.T, yaml, script string, debug bool) (*spec.Option, *store.Store, *Runner) {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		spec.FileModule:                     "title: T\nstages: [go]\nvariables: []\n",
-		"tasks/@go/run/task.yaml":           "title: Go\n",
-		"tasks/@go/run/task.sh":             "true\n",
-		"hooks/" + hook + "/step/hook.yaml": "title: Step\nscript: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n",
+		spec.FileModule:           "title: T\nstages: [go]\n",
+		"tasks/@go/run/task.yaml": "title: Go\n",
+		"tasks/@go/run/task.sh":   "true\n",
+		"options/o/option.yaml":   yaml,
+	}
+	if script != "" {
+		files["options/o/option.sh"] = script
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, name)
@@ -166,27 +164,101 @@ func hooked(t *testing.T, hook string, debug bool) *Runner {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(sp, store.New(sp, filepath.Join(t.TempDir(), "c"), debug))
+	st := store.New(sp, filepath.Join(t.TempDir(), "c"), debug)
+	return sp.Options[0], st, New(sp, st)
 }
 
-func TestPreflightCarriesWhatTheCheckSaid(t *testing.T) {
-	err := hooked(t, spec.HookPreflight, false).Preflight()
-	if err == nil {
-		t.Fatal("a failing check passed")
+// opened runs an option to the end and answers with how it went.
+func opened(t *testing.T, r *Runner, o *spec.Option) error {
+	t.Helper()
+	session, err := r.Open(o)
+	if err != nil || session == nil {
+		return err
 	}
-	if !strings.Contains(err.Error(), "Set the boot mode to UEFI.") {
-		t.Errorf("err = %q, want what the check said", err)
+	<-session.Done()
+	return session.Err()
+}
+
+// What the work waits for says, while it waits, why — in the module's own
+// words, which are what the page standing in front of the work reads.
+func TestAnOptionTheWorkWaitsForSaysWhy(t *testing.T) {
+	o, _, r := optioned(t, "title: Firmware\nstart: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n", "", false)
+	err := r.Waiting(o)()
+	if err == nil || !strings.Contains(err.Error(), "Set the boot mode to UEFI.") {
+		t.Errorf("err = %v, want what the start said", err)
+	}
+
+	o, _, r = optioned(t, "title: Firmware\nstart: return 0\n", "", false)
+	if err := r.Waiting(o)(); err != nil {
+		t.Errorf("err = %v, want nothing to wait for", err)
+	}
+}
+
+// An option exists on a machine where its requires says yes, and on every
+// machine where it says nothing.
+func TestAnOptionIsOfferedWhereItsRequiresSaysSo(t *testing.T) {
+	o, _, r := optioned(t, "title: Wireless\nmenu: main\nrequires: exit 1\n", "true\n", false)
+	if r.Offered(o)() {
+		t.Error("offered, although requires said no")
+	}
+	o, _, r = optioned(t, "title: Wireless\nmenu: main\n", "true\n", false)
+	if !r.Offered(o)() {
+		t.Error("not offered, although nothing was required")
+	}
+}
+
+// What the pages were answered with is what the script is handed, under the
+// names the pages declared.
+func TestAnOptionIsHandedItsPages(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "said")
+	o, st, r := optioned(t, "title: Greet\nmenu: main\nvariables:\n  - name: GREETING\n    title: Greeting\n",
+		"printf '%s' \"$GREETING\" > '"+out+"'\n", false)
+	st.Set("GREETING", "hello")
+	if err := opened(t, r, o); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(out); string(got) != "hello" {
+		t.Errorf("the script was handed %q, want the page's answer", got)
+	}
+}
+
+// A script that breaks is reported the way a task that breaks is, and says it
+// was an option.
+func TestAFailingOptionIsReportedAsOne(t *testing.T) {
+	o, _, r := optioned(t, "title: Greet\nmenu: main\n", "echo no network >&2\nexit 1\n", false)
+	err := opened(t, r, o)
+	var f *exec.Failure
+	if !errors.As(err, &f) {
+		t.Fatalf("err = %v, want a failure report", err)
+	}
+	if !f.Option || f.Unit != "Greet" || !strings.Contains(f.Stderr, "no network") {
+		t.Errorf("failure = %+v, want the option, its title and what it said", f)
 	}
 }
 
 // A simulated run is read on somebody's own machine, which is neither the one
-// the checks are about nor one to switch off.
-func TestASimulatedRunNeitherChecksNorLeavesTheMachine(t *testing.T) {
-	if err := hooked(t, spec.HookPreflight, true).Preflight(); err != nil {
-		t.Errorf("preflight = %v, want it passed without asking", err)
+// the checks are about nor one to switch off: nothing is waited for, everything
+// is offered, and nothing runs that did not say it simulates itself.
+func TestASimulatedRunNeitherWaitsForNorRunsAnOption(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "ran")
+	script := "touch '" + marker + "'\n"
+	o, _, r := optioned(t, "title: Restart\nmenu: main\nrequires: exit 1\nstart: exit 1\n", script, true)
+	if !r.Offered(o)() || r.Waiting(o)() != nil {
+		t.Error("a simulated run was held to this machine")
 	}
-	if err := hooked(t, spec.HookRestart, true).Leave(true); err != nil {
-		t.Errorf("restart = %v, want nothing run", err)
+	if err := opened(t, r, o); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Error("the option ran in a simulated run")
+	}
+
+	o, _, r = optioned(t, "title: Restart\nmenu: main\nsimulates: true\n", script, true)
+	if err := opened(t, r, o); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Error("an option that simulates itself did not run")
 	}
 }
 
