@@ -139,7 +139,7 @@ func TestAGuardOnTheLastLineIsTheScriptsAnswer(t *testing.T) {
 
 // Every script is judged by its status: a command that failed, or whatever it
 // handed back at the end. One rule, and the same one for a task, for its test
-// and for an option.
+// and for an action.
 func TestAScriptIsJudgedByItsStatus(t *testing.T) {
 	answers := func(sc Script) error {
 		t.Helper()

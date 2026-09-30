@@ -537,7 +537,7 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 				// The page a run stopped on: everything about the failure is
 				// behind it, and the way on from there is back to the answers.
 				if s.err != nil {
-					return s, push(newFailure(s.stoppedAt(), s.err, s.back))
+					return s, push(newFailure(s.stoppedAt(), s.err, s.back).offering(s.app))
 				}
 				s.told = nil
 				// The one page in a run that stops for something to be read is

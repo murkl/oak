@@ -26,27 +26,27 @@ import (
 // One folder holds one module, so every part of it has the name it has here.
 // Nothing is configured and nothing points at anything: module.yaml is the
 // module, module.sh is the shell it puts in front of everything it runs, the
-// work is a folder each under tasks/, and what somebody can open besides it is
-// a folder each under options/.
+// work is a folder each under tasks/, and what it does outside that work is a
+// folder each under actions/.
 //
 // The two halves are kept apart because they are answerable to different
 // things: a task is the module's own work, listed and ordered and guarded,
-// while an option is opened — from a row, or on the way in — and runs when it
-// is. Every file inside says which of the two it is, so nothing is read as the
-// other.
+// while an action runs wherever the module names it — before the work, from a
+// row, to put right what another said no to. Every file inside says which of
+// the two it is, so nothing is read as the other.
 const (
 	FileModule = "module.yaml" // the declaration: what the module is, asks, and does
 	FileShell  = "module.sh"   // shell put in front of every script this module runs
 	DirTasks   = "tasks"       // the work, one folder per task
-	DirOptions = "options"     // what is opened rather than run, one folder per option
+	DirActions = "actions"     // what it does outside the work, one folder per action
 	DirLocales = "locales"     // one catalog per language the module speaks
 
 	FileTask       = "task.yaml" // what a task is
 	FileTaskScript = "task.sh"   // what it does, where its yaml does not say so itself
 	FileTest       = "test.sh"   // how the machine is checked once it has, likewise
 
-	FileOption       = "option.yaml" // what an option is
-	FileOptionScript = "option.sh"   // what it does, where its yaml does not say so itself
+	FileAction       = "action.yaml" // what an action is
+	FileActionScript = "action.sh"   // what it does, where its yaml does not say so itself
 
 	ScriptExt = ".sh"
 )
@@ -117,11 +117,6 @@ type Module struct {
 	Presets []*Preset
 	Vars    []*Variable
 
-	// Confirm is the last thing read before the first task runs, with {{VAR}}
-	// filled in from the answers — the sentence that says which disk is about to
-	// be erased.
-	Confirm string
-
 	// Stages are the phases the work happens in, in the order they happen. Each
 	// is a folder under tasks/, and the steps in it are what puts them in the
 	// run and where.
@@ -133,9 +128,10 @@ type Module struct {
 	// again.
 	Tasks []*Task
 
-	// Options, in the order their folders sort: the order their rows stand in,
-	// and the order the ones the work waits for are asked in — see Option.
-	Options []*Option
+	// Actions, in the order their folders sort, and where the module names
+	// them — see Action.
+	Actions []*Action
+	Places  Places
 
 	// Warnings is what loaded but says something that can never take effect. A
 	// module that behaves is not a module that refuses to start, so these are
@@ -153,22 +149,6 @@ type Module struct {
 	// of it is given in front of its own. Empty where the product has none, and
 	// for a module loaded on its own rather than as part of one.
 	Shared string
-
-	// Requires is what this module demands of a machine before it is offered on
-	// one at all, and it is the only thing the runtime runs before a module has
-	// been opened. A module that demands nothing is on offer everywhere.
-	//
-	// Read-only and silent: it answers with its exit status, and what it writes
-	// to stderr is the sentence somebody is shown when it was the module they
-	// named outright. It is the machine the module is being asked about, not the
-	// answers — there are none yet — which is why it is shell rather than the
-	// `conditions:` a task is guarded with.
-	//
-	// It is the division between modules of one product that belong on different
-	// machines: an installer that only makes sense on a live image, and the thing
-	// that writes that image, which only makes sense anywhere else. Each says so
-	// itself, and nothing anywhere holds a list of which is which.
-	Requires Script
 
 	// Status is what the header keeps an eye on while this module is open: its
 	// own, or the product's where it declares none. Nil where neither does.
@@ -205,33 +185,20 @@ type UI struct {
 	// under the row that starts the work.
 	Description string
 
-	// Action is what starting the work is called — "Install", "Repair" — on
-	// the first row of the menu and on the button of the page before the run.
-	// A verb rather than a second name: the title already stands over both.
-	// Empty leaves the runtime's own word.
-	Action string
-
-	// Console is the sentence read on the way out of the interface, where the
-	// machine keeps running. What the module is called out there is something
-	// only the module can know, and somebody who has just left it is looking at a
-	// bare prompt. Empty leaves that row off, which is right for an image where
-	// there is nothing behind the interface.
-	Console string
+	// Start is what starting the work is called — "Install", "Repair" — on the
+	// first row of the menu and on the button of the page before the run. A verb
+	// rather than a second name: the title already stands over both. Empty
+	// leaves the runtime's own word.
+	Start string
 }
 
 // Help is what this module is, in one sentence: the line under the row that
 // starts its work.
 func (s *Module) Help() string { return i18n.T(s.UI.Description) }
 
-// Action is what starting the work is called, translated. Empty where the
+// Start is what starting the work is called, translated. Empty where the
 // module leaves it to the runtime.
-func (s *Module) Action() string { return i18n.T(s.UI.Action) }
-
-// ConfirmText is the last sentence before the first task, translated and with
-// {{VAR}} filled in from the answers.
-func (s *Module) ConfirmText(get func(string) string) string {
-	return strings.TrimSpace(Expand(i18n.T(s.Confirm), get))
-}
+func (s *Module) Start() string { return i18n.T(s.UI.Start) }
 
 // Shells is everything loaded in front of a script of this module, in the
 // order it is loaded: the product's shell, then the module's own.
@@ -263,13 +230,7 @@ func source(path string) string { return "source " + quote(path) }
 // Leaves reports whether this machine can be left at all: a module that says
 // how is saying the machine booted to run it, so every way out of the interface
 // asks what to do with the machine instead of quitting.
-func (s *Module) Leaves() bool {
-	return len(s.Menu(MenuLeave)) > 0 || s.UI.Console != ""
-}
-
-// ConsoleHelp is the sentence under the row that leaves the machine running:
-// what to type to be back here.
-func (s *Module) ConsoleHelp() string { return i18n.T(s.UI.Console) }
+func (s *Module) Leaves() bool { return len(s.Places.Leave) > 0 }
 
 // Preset is one page of starting points: a question a machine with no answer
 // file is asked before the real ones, answered by choosing one of the options
@@ -776,9 +737,7 @@ func (s *Module) Messages() []Message {
 	decl := FileModule
 	add(decl, "what this module is called, wherever the interface names it", s.UI.Title)
 	add(decl, "what it is, in one sentence, under the row that starts the work", s.UI.Description)
-	add(decl, "the row that starts the work, and the button on the page before it", s.UI.Action)
-	add(decl, "how to get back in, read on the way out to the console", s.UI.Console)
-	add(decl, "the last thing read before the first task runs", s.Confirm)
+	add(decl, "the row that starts the work, and the button on the page before it", s.UI.Start)
 	for _, p := range s.Presets {
 		add(decl, "a starting point: the question", p.Title)
 		add(decl, "starting point "+p.Title+": what it means", p.Description)
@@ -804,12 +763,14 @@ func (s *Module) Messages() []Message {
 		add(file, "asked before the step runs", t.Confirm)
 		add(file, "read once the step is done, and held on until somebody has", t.Report)
 	}
-	for _, o := range s.Options {
-		file := path.Join(DirOptions, o.ID(), FileOption)
-		add(file, "an option: its row, and the heading over its pages", o.Title)
-		add(file, "an option: what it does, under its row", o.Description)
-		for _, v := range o.Vars {
-			add(file, v.Name+": a page of the option", v.Title)
+	for _, a := range s.Actions {
+		file := path.Join(DirActions, a.ID(), FileAction)
+		add(file, "an action: its row, and the heading over its pages", a.Title)
+		add(file, "an action: what it does, under its row", a.Description)
+		add(file, "asked before the action runs", a.Confirm)
+		add(file, "read once the action is done, and held on until somebody has", a.Report)
+		for _, v := range a.Vars {
+			add(file, v.Name+": a page of the action", v.Title)
 			add(file, v.Name+": what it means", v.Description)
 			add(file, v.Name+": the row that opens a box for an answer of one's own", v.Free)
 			add(file, v.Name+": what a wrong answer is told", v.Error)

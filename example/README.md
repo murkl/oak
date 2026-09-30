@@ -8,8 +8,8 @@ Nothing here touches the machine. **Tux Setup** asks what an installer asks — 
 oak.yaml                                    the product: name, colour, version, wordmark
 oak.sh                                      what the two modules agree about
 modules/setup/module.yaml                   what it asks, and the order its work happens in
-modules/setup/options/writable/             what the work waits for: can this folder be written to
-modules/setup/options/note/                 a row on the menu, with a page and a script
+modules/setup/actions/writable/             what the work requires: can this folder be written to
+modules/setup/actions/note/                 a row on the menu, with a page and a script
 modules/setup/tasks/@prepare/target/        make the folder, and a test.sh beside it
 modules/setup/tasks/@install/base/          hostname and os-release, tested inline
 modules/setup/tasks/@install/desktop/       only when a desktop was chosen, and inline
@@ -18,7 +18,7 @@ modules/recovery/module.yaml                the second module
 modules/recovery/tasks/@check/verify/       is the tree still there
 ```
 
-A folder under `tasks/` is one phase of the run, marked `@` and named in `module.yaml`; a folder inside it is one task. `options/` is the other half: one folder per thing the module offers to be opened rather than run, declared in `option.yaml` and doing its work in `option.sh`.
+A folder under `tasks/` is one phase of the run, marked `@` and named in `module.yaml`; a folder inside it is one task. `actions/` is the other half: one folder per script the module runs outside its work, declared in `action.yaml`, doing its work in `action.sh`, and named in `module.yaml` where it runs.
 
 ## Running it
 

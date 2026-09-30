@@ -137,19 +137,20 @@ func TestTasksAreOnlyTheOnesThatWillRun(t *testing.T) {
 	}
 }
 
-// optioned is a module with one option, o, declared by yaml and doing what
-// script does, loaded for a run started with or without --debug.
-func optioned(t *testing.T, yaml, script string, debug bool) (*spec.Option, *store.Store, *Runner) {
+// acting is a module that names its actions the way head says, each action
+// declared by its yaml and doing what its script does, loaded for a run started
+// with or without --debug.
+func acting(t *testing.T, head string, actions map[string][2]string, debug bool) (*spec.Module, *store.Store, *Runner) {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		spec.FileModule:           "title: T\nstages: [go]\n",
+		spec.FileModule:           "title: T\nstages: [go]\n" + head,
 		"tasks/@go/run/task.yaml": "title: Go\n",
 		"tasks/@go/run/task.sh":   "true\n",
-		"options/o/option.yaml":   yaml,
 	}
-	if script != "" {
-		files["options/o/option.sh"] = script
+	for name, a := range actions {
+		files["actions/"+name+"/action.yaml"] = a[0]
+		files["actions/"+name+"/action.sh"] = a[1]
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, name)
@@ -165,13 +166,13 @@ func optioned(t *testing.T, yaml, script string, debug bool) (*spec.Option, *sto
 		t.Fatal(err)
 	}
 	st := store.New(sp, filepath.Join(t.TempDir(), "c"), debug)
-	return sp.Options[0], st, New(sp, st)
+	return sp, st, New(sp, st)
 }
 
-// opened runs an option to the end and answers with how it went.
-func opened(t *testing.T, r *Runner, o *spec.Option) error {
+// opened runs an action to the end and answers with how it went.
+func opened(t *testing.T, r *Runner, a *spec.Action) error {
 	t.Helper()
-	session, err := r.Open(o)
+	session, err := r.Open(a)
 	if err != nil || session == nil {
 		return err
 	}
@@ -179,42 +180,53 @@ func opened(t *testing.T, r *Runner, o *spec.Option) error {
 	return session.Err()
 }
 
-// What the work waits for says, while it waits, why — in the module's own
+// An action the work requires says, while it says no, why — in the module's own
 // words, which are what the page standing in front of the work reads.
-func TestAnOptionTheWorkWaitsForSaysWhy(t *testing.T) {
-	o, _, r := optioned(t, "title: Firmware\nstart: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n", "", false)
-	err := r.Waiting(o)()
+func TestARequiredActionSaysWhy(t *testing.T) {
+	sp, _, r := acting(t, "requires: [uefi]\n", map[string][2]string{
+		"uefi": {"title: UEFI\n", "echo Set the boot mode to UEFI. >&2\nexit 1\n"},
+	}, false)
+	err := r.Says(sp.Action("uefi"))()
 	if err == nil || !strings.Contains(err.Error(), "Set the boot mode to UEFI.") {
-		t.Errorf("err = %v, want what the start said", err)
+		t.Errorf("err = %v, want what the action said", err)
 	}
 
-	o, _, r = optioned(t, "title: Firmware\nstart: return 0\n", "", false)
-	if err := r.Waiting(o)(); err != nil {
-		t.Errorf("err = %v, want nothing to wait for", err)
+	sp, _, r = acting(t, "requires: [uefi]\n", map[string][2]string{
+		"uefi": {"title: UEFI\n", "return 0\n"},
+	}, false)
+	if err := r.Says(sp.Action("uefi"))(); err != nil {
+		t.Errorf("err = %v, want nothing to say", err)
 	}
 }
 
-// An option exists on a machine where its requires says yes, and on every
-// machine where it says nothing.
-func TestAnOptionIsOfferedWhereItsRequiresSaysSo(t *testing.T) {
-	o, _, r := optioned(t, "title: Wireless\nmenu: main\nrequires: exit 1\n", "true\n", false)
-	if r.Offered(o)() {
-		t.Error("offered, although requires said no")
+// An action exists on a machine where what it requires says yes, and on every
+// machine where it requires nothing.
+func TestAnActionIsOfferedWhereWhatItRequiresSaysYes(t *testing.T) {
+	offered := func(card string) bool {
+		t.Helper()
+		sp, _, r := acting(t, "menu: [wlan]\n", map[string][2]string{
+			"wlan": {"title: Wireless\nrequires: [card]\n", "true\n"},
+			"card": {"title: Card\n", card},
+		}, false)
+		return r.Offered(sp.Action("wlan"))()
 	}
-	o, _, r = optioned(t, "title: Wireless\nmenu: main\n", "true\n", false)
-	if !r.Offered(o)() {
-		t.Error("not offered, although nothing was required")
+	if offered("exit 1\n") {
+		t.Error("offered, although what it requires said no")
+	}
+	if !offered("return 0\n") {
+		t.Error("not offered, although what it requires said yes")
 	}
 }
 
 // What the pages were answered with is what the script is handed, under the
 // names the pages declared.
-func TestAnOptionIsHandedItsPages(t *testing.T) {
+func TestAnActionIsHandedItsPages(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "said")
-	o, st, r := optioned(t, "title: Greet\nmenu: main\nvariables:\n  - name: GREETING\n    title: Greeting\n",
-		"printf '%s' \"$GREETING\" > '"+out+"'\n", false)
+	sp, st, r := acting(t, "menu: [greet]\n", map[string][2]string{
+		"greet": {"title: Greet\nvariables:\n  - name: GREETING\n    title: Greeting\n", "printf '%s' \"$GREETING\" > '" + out + "'\n"},
+	}, false)
 	st.Set("GREETING", "hello")
-	if err := opened(t, r, o); err != nil {
+	if err := opened(t, r, sp.Action("greet")); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(out); string(got) != "hello" {
@@ -223,42 +235,49 @@ func TestAnOptionIsHandedItsPages(t *testing.T) {
 }
 
 // A script that breaks is reported the way a task that breaks is, and says it
-// was an option.
-func TestAFailingOptionIsReportedAsOne(t *testing.T) {
-	o, _, r := optioned(t, "title: Greet\nmenu: main\n", "echo no network >&2\nexit 1\n", false)
-	err := opened(t, r, o)
+// was an action.
+func TestAFailingActionIsReportedAsOne(t *testing.T) {
+	sp, _, r := acting(t, "menu: [greet]\n", map[string][2]string{
+		"greet": {"title: Greet\n", "echo no network >&2\nexit 1\n"},
+	}, false)
+	err := opened(t, r, sp.Action("greet"))
 	var f *exec.Failure
 	if !errors.As(err, &f) {
 		t.Fatalf("err = %v, want a failure report", err)
 	}
-	if !f.Option || f.Unit != "Greet" || !strings.Contains(f.Stderr, "no network") {
-		t.Errorf("failure = %+v, want the option, its title and what it said", f)
+	if !f.Action || f.Unit != "Greet" || !strings.Contains(f.Stderr, "no network") {
+		t.Errorf("failure = %+v, want the action, its title and what it said", f)
 	}
 }
 
 // A simulated run is read on somebody's own machine, which is neither the one
-// the checks are about nor one to switch off: nothing is waited for, everything
-// is offered, and nothing runs that did not say it simulates itself.
-func TestASimulatedRunNeitherWaitsForNorRunsAnOption(t *testing.T) {
+// the checks are about nor one to switch off: nothing required is asked,
+// everything is offered, and nothing runs that did not say it simulates itself.
+func TestASimulatedRunNeitherAsksNorRunsAnAction(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "ran")
 	script := "touch '" + marker + "'\n"
-	o, _, r := optioned(t, "title: Restart\nmenu: main\nrequires: exit 1\nstart: exit 1\n", script, true)
-	if !r.Offered(o)() || r.Waiting(o)() != nil {
+	sp, _, r := acting(t, "requires: [check]\nmenu: [restart]\n", map[string][2]string{
+		"check":   {"title: Check\n", "exit 1\n"},
+		"restart": {"title: Restart\nrequires: [check]\n", script},
+	}, true)
+	if !r.Offered(sp.Action("restart"))() || r.Says(sp.Action("check"))() != nil {
 		t.Error("a simulated run was held to this machine")
 	}
-	if err := opened(t, r, o); err != nil {
+	if err := opened(t, r, sp.Action("restart")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(marker); err == nil {
-		t.Error("the option ran in a simulated run")
+		t.Error("the action ran in a simulated run")
 	}
 
-	o, _, r = optioned(t, "title: Restart\nmenu: main\nsimulates: true\n", script, true)
-	if err := opened(t, r, o); err != nil {
+	sp, _, r = acting(t, "menu: [restart]\n", map[string][2]string{
+		"restart": {"title: Restart\nsimulates: true\n", script},
+	}, true)
+	if err := opened(t, r, sp.Action("restart")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(marker); err != nil {
-		t.Error("an option that simulates itself did not run")
+		t.Error("an action that simulates itself did not run")
 	}
 }
 

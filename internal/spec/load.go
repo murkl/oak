@@ -33,20 +33,16 @@ func binaryDir() string {
 // status.
 type declaration struct {
 	Title    string `yaml:"title"`
-	Console  string `yaml:"console"`
 	Language string `yaml:"language"`
 
-	// What a machine has to be for this module to be offered on it. Shell, or
-	// the file it lives in, like everything else the yaml may write outright.
-	Requires string `yaml:"requires"`
-
 	// What this module is and what it does: one sentence about the program, the
-	// word for starting it, the last warning before a run starts, and the phases
-	// that run happens in.
+	// word for starting it, and the phases its work happens in.
 	Description string   `yaml:"description"`
-	Action      string   `yaml:"action"`
-	Confirm     string   `yaml:"confirm"`
+	Start       string   `yaml:"start"`
 	Stages      []string `yaml:"stages"`
+
+	// Where it runs its actions, each a list of their names — see Places.
+	Places `yaml:",inline"`
 
 	Presets   []*Preset   `yaml:"presets"`
 	Variables []*Variable `yaml:"variables"`
@@ -68,32 +64,29 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Description: head.Description, Action: head.Action, Console: head.Console}
+	s.UI = UI{Title: head.Title, Description: head.Description, Start: head.Start}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
-	s.Confirm, s.Stages = head.Confirm, head.Stages
+	s.Stages, s.Places = head.Stages, head.Places
 	if err := head.Status.settle(dir, FileModule); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
 	s.Status = head.Status
-	requires, err := written(dir, "requires", head.Requires)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", FileModule, err)
-	}
-	s.Requires = requires
 	if err := checkStages(s.Stages); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
 	s.Shell = beside(dir, FileShell)
 	s.Locales = beside(dir, DirLocales)
-	if beside(dir, dirHooks) != "" {
-		return nil, fmt.Errorf("%s/: the runtime runs no hooks — each is an option now, a folder under %s/", dirHooks, DirOptions)
+	for _, old := range slices.Sorted(maps.Keys(retiredDirs)) {
+		if beside(dir, old) != "" {
+			return nil, fmt.Errorf("%s/: %s", old, retiredDirs[old])
+		}
 	}
 
 	tasks, err := loadTasks(dir, s.Stages)
 	if err != nil {
 		return nil, err
 	}
-	if s.Options, err = loadOptions(dir); err != nil {
+	if s.Actions, err = loadActions(dir); err != nil {
 		return nil, err
 	}
 	if err := s.check(tasks); err != nil {
@@ -102,10 +95,13 @@ func Load(dir string) (*Module, error) {
 	return s, nil
 }
 
-// dirHooks is where a module used to put the shell the runtime ran of its own
-// accord. It is refused rather than passed over, so a module written for an
-// older Oak is told what to do instead of losing its checks without a word.
-const dirHooks = "hooks"
+// retiredDirs is a folder a module used to be able to hold, and what to make of
+// it instead. It is refused rather than passed over, so a module written for an
+// older Oak is told what to do instead of losing what was in it without a word.
+var retiredDirs = map[string]string{
+	"hooks":   "the runtime runs no hooks — each is an action now, a folder under actions/ that module.yaml names where it runs",
+	"options": "an option is an action now, a folder under actions/ that module.yaml names where it runs",
+}
 
 // checkStages settles the phases the work happens in: at least one, each named
 // once, and none of them carrying the mark that says the runtime runs it.
@@ -296,7 +292,10 @@ var retired = map[string]string{
 	"name":    "a title is what a person reads; a name only ever names a variable",
 	"execute": "a task says what it does under script, and how it is tested afterwards under test",
 	"stage":   "a task lies in the folder of its stage, and that is the whole of where it runs",
-	"network": "a wireless network is an option under options/, and the internet the work waits for is an option's start",
+	"network": "a wireless network is an action under actions/, and the internet the work waits for is one named in requires",
+	"action":  "the word for starting the work is start",
+	"console": "the row that leaves to the console is the runtime's own",
+	"confirm": "the page before the run is the runtime's own, and a task that needs asking says confirm itself",
 }
 
 // unknownField is how the decoder says a key is not one of them. It names the
@@ -337,10 +336,7 @@ func (s *Module) check(tasks []*Task) error {
 	if err := s.checkPresets(); err != nil {
 		return fmt.Errorf("%s: %w", FileModule, err)
 	}
-	if err := s.checkText("confirm", s.Confirm); err != nil {
-		return fmt.Errorf("%s: %w", FileModule, err)
-	}
-	if err := s.checkOptions(); err != nil {
+	if err := s.checkActions(); err != nil {
 		return err
 	}
 	return s.checkTasks(tasks)
@@ -399,7 +395,7 @@ func (s *Module) checkTask(t *Task) error {
 	if err := s.checkAsks(t); err != nil {
 		return err
 	}
-	if err := checkConfirm(t); err != nil {
+	if err := checkOffer(t.Default, t.Confirms()); err != nil {
 		return err
 	}
 	if err := s.checkText("confirm", t.Confirm); err != nil {
@@ -408,7 +404,7 @@ func (s *Module) checkTask(t *Task) error {
 	if err := s.checkText("report", t.Report); err != nil {
 		return err
 	}
-	if err := s.checkShows(t); err != nil {
+	if err := s.checkShown(t.Shows, t.Reports()); err != nil {
 		return err
 	}
 	if t.Progress && t.TTY {
@@ -469,35 +465,35 @@ func (t *Task) where() string { return fmt.Sprintf("%s/%s", DirTasks, t.id) }
 // checkConfirm settles a task's `default:`, which says which of the two answers
 // its offer opens on. There are exactly two, and a task that names one without
 // making an offer at all has said something that can never take effect.
-func checkConfirm(t *Task) error {
+func checkOffer(def Scalar, confirms bool) error {
 	switch {
-	case t.Default == "":
+	case def == "":
 		return nil
-	case !t.Confirms():
+	case !confirms:
 		return fmt.Errorf("default: there is no confirm for it to answer")
-	case t.Default != ConfirmYes && t.Default != ConfirmNo:
-		return fmt.Errorf("default: %s or %s, got %q", ConfirmYes, ConfirmNo, t.Default)
+	case def != ConfirmYes && def != ConfirmNo:
+		return fmt.Errorf("default: %s or %s, got %q", ConfirmYes, ConfirmNo, def)
 	}
 	return nil
 }
 
-// checkShows settles a task's `shows:`, which is an answer put on the page its
+// checkShown settles a `shows:`, which is an answer put on the page a
 // `report:` draws — as a code to scan, and under it as itself.
 //
 // A secret is refused for the reason it is refused everywhere: it is never
 // written down, and drawing one at a size a camera across the room can read is
 // the opposite of what it is for.
-func (s *Module) checkShows(t *Task) error {
-	if t.Shows == "" {
+func (s *Module) checkShown(name string, reports bool) error {
+	if name == "" {
 		return nil
 	}
-	v := s.byName[t.Shows]
+	v := s.byName[name]
 	switch {
 	case v == nil:
-		return fmt.Errorf("shows: no such variable: %s", t.Shows)
+		return fmt.Errorf("shows: no such variable: %s", name)
 	case v.Secret():
-		return fmt.Errorf("shows: %s is a secret, and a secret is not put on screen to be read across a room", t.Shows)
-	case !t.Reports():
+		return fmt.Errorf("shows: %s is a secret, and a secret is not put on screen to be read across a room", name)
+	case !reports:
 		return fmt.Errorf("shows: there is no report for it to appear on")
 	}
 	v.deferred = true
@@ -540,15 +536,15 @@ func (s *Module) checkAsks(t *Task) error {
 //
 // A blank line survives, because that is the one break that was meant.
 func (s *Module) normalize(tasks []*Task) {
-	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Action, &s.UI.Console, &s.Confirm}
+	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Start}
 	for _, p := range s.Presets {
 		fields = append(fields, &p.Title, &p.Description)
 		for _, o := range p.Options {
 			fields = append(fields, &o.Title, &o.Description)
 		}
 	}
-	for _, o := range s.Options {
-		fields = append(fields, &o.Title, &o.Description)
+	for _, a := range s.Actions {
+		fields = append(fields, &a.Title, &a.Description, &a.Confirm, &a.Report)
 	}
 	for _, v := range s.Declared() {
 		fields = append(fields, &v.Title, &v.Description, &v.Group, &v.Free, &v.Error)

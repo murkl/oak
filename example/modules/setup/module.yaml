@@ -3,7 +3,8 @@
 # The folder name is the module's identity. `oak --module=setup` opens it
 # outright, and its answers and its log are called setup.conf and setup.log.
 # Everything else in the folder has the name Oak knows it by — module.sh,
-# tasks/, locales/ — so nothing here points at anything.
+# tasks/, actions/, locales/. The one thing this file points at is an action,
+# by its folder, at the place it runs.
 #
 # This one is an installer in miniature. It asks what an installer asks and
 # builds a small system tree out of the answers — in a folder, so the whole
@@ -18,20 +19,16 @@ description: Build a small Linux system tree, the way an installer would.
 # What starting the work is called: the menu's first row, and the button on the
 # last page before the run. A verb, since the title stands over both. Left out,
 # as the recovery beside this one does, it is Start.
-action: Install
+start: Install
 
 # The phases the work happens in, in the order they happen. Every task names one
 # of them, and naming it is the whole of what puts it in the run and where.
 stages: [prepare, install, finish]
 
-# The last thing read before the first task runs, with the answers filled in.
-confirm: |
-  {{TUX_HOST}} will be set up for {{TUX_USER}} in {{TUX_TARGET}}.
-
-  A real installer erases a disk at this point. This one writes files.
-
-# Shown on the terminal on the way out, once the interface is gone.
-console: Run ./oak --module=setup to start it again.
+# Where it runs its actions, each a folder under actions/: what has to say yes
+# before the work begins, and what stands as a row on the menu.
+requires: [writable]
+menu: [note]
 
 variables:
   # A suggestion rather than an answer: the box opens on it, and Oak still asks.

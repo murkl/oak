@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strconv"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -122,6 +123,11 @@ type failureScreen struct {
 	// hint is what the footer calls leaving, kept as the label rather than the
 	// word it renders to: the language can change while this page is up.
 	hint func() string
+
+	// app and picker are the rows under the report where a module names actions
+	// for a run that failed — see offering. Nil everywhere else.
+	app    *app
+	picker *picker
 }
 
 func newFailure(title string, err error, done func() tea.Cmd) *failureScreen {
@@ -135,21 +141,71 @@ func (s *failureScreen) hinted(hint func() string) *failureScreen {
 	return s
 }
 
+// offering puts the actions a module names for a run that failed under the
+// report, as rows above the one that leaves it — sharing the log, say. Where
+// the module names none, or this machine has none of them, the page is the
+// report alone.
+func (s *failureScreen) offering(a *app) *failureScreen {
+	rows := a.rows(a.module.Places.Failure)
+	if len(rows) == 0 {
+		return s
+	}
+	items := make([]item, 0, len(rows)+1)
+	for _, act := range rows {
+		items = append(items, actionRow(act))
+	}
+	items = append(items, item{title: labelReviewed(), key: keyReviewed})
+	s.app, s.picker = a, newPicker(items)
+	return s
+}
+
 func (s *failureScreen) Title() string { return s.title }
-func (s *failureScreen) Hint() string  { return s.hint() }
+
+func (s *failureScreen) Hint() string {
+	if s.picker != nil {
+		return labelHintChecks()
+	}
+	return s.hint()
+}
 
 // Closed by the one key that means yes, and by nothing else. Everywhere else a
 // page that is only read answers to esc as well, because leaving it costs
 // nothing; here it costs the only account of what went wrong that this run will
 // ever give — and the page it is read on is reached by pressing enter, which
-// makes a second enter the one keystroke nobody arrives here holding.
+// makes a second enter the one keystroke nobody arrives here holding. With rows
+// under it, that enter is on the row at the end of them.
 func (s *failureScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok && confirms(key) {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return s, nil
+	}
+	if s.picker == nil {
+		if confirms(key) {
+			return s, s.done()
+		}
+		return s, nil
+	}
+	s.picker.Update(msg)
+	if !confirms(key) {
+		return s, nil
+	}
+	if act := s.app.action(s.picker.selected()); act != nil {
+		return s, s.app.openAction(act)
+	}
+	if s.picker.selected() == keyReviewed {
 		return s, s.done()
 	}
 	return s, nil
 }
 
+// View is the report, and under it the rows where there are any. Only their
+// names: the report is what this page is for, and the room a sentence under
+// the rows would take is the room its last lines need.
 func (s *failureScreen) View(width, height int) string {
-	return renderFailure(s.err, width)
+	report := renderFailure(s.err, width)
+	if s.picker == nil {
+		return report
+	}
+	report = strings.TrimRight(report, "\n") + "\n\n"
+	return report + s.picker.View(width, height-strings.Count(report, "\n"))
 }

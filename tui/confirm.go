@@ -8,10 +8,10 @@ import (
 
 // confirmScreen is the last page before anything is changed.
 //
-// What it says comes entirely from the module, with the answers filled into
-// it, because only the module knows what is about to happen — which disk, whether
-// it is erased or shared, what that costs. The runtime supplies the moment, not
-// the warning.
+// It says the same thing in every module: nothing has happened yet, and the
+// button under it is what starts it. What is about to happen in detail is every
+// answer on the settings page, one esc away — a sentence here repeating a few
+// of them would be a second, shorter copy of that page able to disagree with it.
 //
 // It answers to enter and nothing else. Every other key, and every scroll — a
 // wheel arrives here as an arrow — leaves the page exactly where it is.
@@ -79,10 +79,8 @@ func (s *confirmScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 func (s *confirmScreen) View(width, height int) string {
 	var b strings.Builder
 	b.WriteString(alertStyle.Render(labelReadyToStart()) + "\n\n")
-	if text := s.app.module.ConfirmText(s.app.store.Get); text != "" {
-		b.WriteString(paragraph(text, width) + "\n")
-	}
-	return b.String() + "\n" + accentBold.Render(glyphs.cursor+s.app.action())
+	b.WriteString(paragraph(labelNothingChanged(), width) + "\n")
+	return b.String() + "\n" + accentBold.Render(glyphs.cursor+s.app.verb())
 }
 
 // startInstall is the way into an installation: the secrets that have to be

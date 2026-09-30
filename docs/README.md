@@ -40,7 +40,7 @@ modules/setup/            one module — everything below belongs to it
   module.yaml             what it asks and what order it works in
   module.sh               optional: shell everything this module runs gets
   tasks/@prepare/format/  one task, in the folder of the phase it runs in
-  options/wlan/           optional: one option — something opened rather than run
+  actions/wlan/           optional: one action — a script run where module.yaml names it
 modules/recovery/         another module, another program
 ```
 
@@ -76,14 +76,14 @@ Every page appears only when it has something to show. A module with no presets 
 ```mermaid
 flowchart TD
     L["Welcome<br/>the language"] --> W["Which module"] --> Q1["Questions marked first"]
-    Q1 --> N["What the work waits for<br/>an option's start"] --> PR["Presets"]
+    Q1 --> N["What the work requires<br/>actions, with their fallbacks"] --> PR["Presets"]
     PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
     H --> SE["Settings"] --> H
-    H --> OP["An option<br/>its pages, its script"] --> H
+    H --> OP["An action<br/>its pages, its script"] --> H
     H --> CF["Last warning"] --> R["The run<br/>tasks, top to bottom"]
     R --> OK["Done"]
-    R --> ER["Failure<br/>script · line · command"]
+    R --> ER["Failure<br/>script · line · command<br/>and the actions for it"]
 
     style ER fill:#bf616a,stroke:#bf616a,color:#eceff4
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440

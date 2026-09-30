@@ -352,55 +352,59 @@ func (r *Runner) Fail(t *spec.Task, err error) error {
 	return r.sh.Fail(step(t, t.Work()), err)
 }
 
-// Offered is whether this machine has an option at all, as its requires says.
-// Everything is offered under --debug, the way every module is: a simulated run
-// is read on whatever machine somebody is sitting at, and a list narrowed to it
-// would hide the pages they opened it for.
+// Offered is whether this machine has an action at all: every action it
+// requires says yes, each run by itself. Everything is offered under --debug,
+// the way every module is: a simulated run is read on whatever machine somebody
+// is sitting at, and a list narrowed to it would hide the pages they opened it
+// for.
 //
 // Handed back as something to run, like Import: the environment is taken now,
 // on the goroutine that owns the answers, and the shell — which may wait for a
 // card to show up — runs off the frame.
-func (r *Runner) Offered(o *spec.Option) func() bool {
-	if o.Requires.Empty() || r.store.Debug() {
+func (r *Runner) Offered(a *spec.Action) func() bool {
+	if len(a.Requires) == 0 || r.store.Debug() {
 		return func() bool { return true }
 	}
-	env := r.store.Env()
+	env, required := r.store.Env(), r.mod.Named(a.Requires)
 	return func() bool {
-		err := r.sh.Guard(o.Requires.Text(), env)
-		if err != nil {
-			logging.Info("option %s: not offered: %s", o.ID(), err)
+		for _, c := range required {
+			if err := r.sh.Guard(c.Work.Text(), env); err != nil {
+				logging.Info("action %s: not offered, %s said no: %s", a.ID(), c.ID(), err)
+				return false
+			}
 		}
-		return err == nil
+		return true
 	}
 }
 
-// Waiting is what an option the work waits for still says no about: what its
-// start wrote on stderr, or nil once it says yes. Nothing is waited for under
-// --debug, for the same reason everything is offered there.
+// Says runs an action by itself, as a question rather than as work: nil where
+// it says yes, and where it says no, what it wrote on stderr. That is how an
+// action the work requires is asked. Nothing is asked under --debug, for the
+// same reason everything is offered there.
 //
 // Handed back as something to run, like Offered.
-func (r *Runner) Waiting(o *spec.Option) func() error {
+func (r *Runner) Says(a *spec.Action) func() error {
 	if r.store.Debug() {
 		return func() error { return nil }
 	}
 	env := r.store.Env()
-	return func() error { return r.sh.Guard(o.Start.Text(), env) }
+	return func() error { return r.sh.Guard(a.Work.Text(), env) }
 }
 
-// Open starts what an option does, with its pages' answers in the environment,
-// the way Start starts a task: in the background, reporting how it broke where
-// it did. It is not part of a run, and nothing follows it that a list would
-// show.
+// Open starts what an action does once somebody has opened it, with its pages'
+// answers in the environment, the way Start starts a task: in the background,
+// reporting how it broke where it did. It is not part of a run, and nothing
+// follows it that a list would show.
 //
 // Under --debug it is only started where it declared it simulates itself, the
 // way a task is: the runtime cannot know what a script would change. A nil
 // session is that — nothing started, and nothing to wait for.
-func (r *Runner) Open(o *spec.Option) (*exec.Session, error) {
-	if r.store.Debug() && !o.Simulates {
-		logging.Info("option %s: simulated", o.ID())
+func (r *Runner) Open(a *spec.Action) (*exec.Session, error) {
+	if r.store.Debug() && !a.Simulates {
+		logging.Info("action %s: simulated", a.ID())
 		return nil, nil
 	}
-	logging.Info("option %s", o.ID())
-	st := exec.Step{Name: o.Label(), Option: true, Script: exec.Script{File: o.Work.File, Shell: o.Work.Shell}}
+	logging.Info("action %s", a.ID())
+	st := exec.Step{Name: a.Label(), Action: true, Script: exec.Script{File: a.Work.File, Shell: a.Work.Shell}}
 	return r.sh.Start(st, r.store.Env())
 }

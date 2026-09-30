@@ -48,7 +48,6 @@ type harness struct {
 // questions, three tasks, one of them conditional.
 const testInstaller = `
 title: Test Installer
-confirm: Erasing {{DISK}}.
 stages: [go, finish]
 presets:
   - title: Setup
@@ -490,12 +489,13 @@ func (h *harness) answered() *harness {
 
 // The one thing that cannot wait for the opening run of questions: a question
 // marked `first` is asked before anything the work waits for, because a
-// passphrase typed into an option is already typed on the keyboard this answer
+// passphrase typed into an action is already typed on the keyboard this answer
 // settles.
 func TestAFirstQuestionIsAskedBeforeWhatTheWorkWaitsFor(t *testing.T) {
 	tree := wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true)
 	tree[treeFile] = testInstaller +
-		"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    values: [de, en]\n"
+		"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    values: [de, en]\n" +
+		wirelessPlaces(true)
 	h := newHarness(t, tree)
 	h.wants("Language and formats", "de", "en").refuses("internet connection")
 
@@ -537,7 +537,8 @@ func TestAnsweringAFirstQuestionPutsItInForce(t *testing.T) {
 func TestAnAnsweredFirstQuestionIsNotAskedAgain(t *testing.T) {
 	tree := wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true)
 	tree[treeFile] = testInstaller +
-		"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    default: de\n    values: [de, en]\n"
+		"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    default: de\n    values: [de, en]\n" +
+		wirelessPlaces(true)
 	h := newHarness(t, tree)
 	h.wants("There is no internet connection.").refuses("Language and formats")
 }
@@ -565,7 +566,6 @@ func TestAQuestionAskedFirstOpensItsFilterFromTheStart(t *testing.T) {
 const testRecovery = `
 title: Test Recovery
 description: Open a system already on a disk.
-confirm: Opening {{DISK}}.
 stages: [open]
 variables:
   - name: DISK
@@ -612,7 +612,7 @@ func TestChoosingAProgramSettlesTheQuestionsTheWarningAndTheRun(t *testing.T) {
 	// The frame carries that module's name from here on, the warning is its own,
 	// and only its own tasks run.
 	h.wants("Test Recovery", "Open a system already on a disk.").enter()
-	h.wants("Ready to start", "Opening /dev/sda.", "Start").enter()
+	h.wants("Ready to start", "Nothing has been changed so far.", "Start").enter()
 	h.ran()
 	h.wants("Finished in", "Open the disk")
 	h.refuses("First")
@@ -735,7 +735,7 @@ func TestTheRowsInsideAModuleAreNamedAfterWhatTheyDo(t *testing.T) {
 // first row and the button on the page before the run both say that instead.
 func TestTheModuleNamesWhatStartingItsWorkIsCalled(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\naction: Install", 1),
+		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\nstart: Install", 1),
 	})
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
@@ -1017,25 +1017,23 @@ func TestTheInterfaceLanguageIsNotAnAnswer(t *testing.T) {
 	h.wants("System language", "de_DE", "en_US")
 }
 
-// ─── Options ─────────────────────────────────────────────────────────────────
+// ─── Actions ─────────────────────────────────────────────────────────────────
 
-// wireless is an option the way a module needing the internet writes one: the
-// machine has a card where card says yes, the work waits — where waits — until
-// marker exists, and joining one of two networks writes the network and its
+// wireless is a network the way a module needing the internet writes one, in
+// actions: the machine has a card where card says yes, the work requires —
+// where it waits — internet, which says yes once marker exists and otherwise
+// falls back on joining one of two networks, which writes the network and its
 // passphrase to marker. Nothing in it is anything Oak knows about.
 func wireless(marker, card string, waits bool) map[string]string {
-	start := ""
-	if waits {
-		start = "start: |\n  test -e " + marker + " && return 0\n" +
-			"  echo There is no internet connection. Plug in a cable, or join a wireless network. >&2\n  exit 1\n"
-	}
-	return map[string]string{
-		"options/wlan/option.yaml": `
+	tree := map[string]string{
+		treeFile:                   testInstaller + wirelessPlaces(waits),
+		"actions/card/action.yaml": "title: A wireless card\n",
+		"actions/card/action.sh":   card + "\n",
+		"actions/wlan/action.yaml": `
 title: Wireless network
 description: Join a wireless network.
-menu: main
-requires: ` + card + `
-` + start + `variables:
+requires: [card]
+variables:
   - name: WLAN_SSID
     title: Network
     values: [HomeNet, CafeNet]
@@ -1044,13 +1042,28 @@ requires: ` + card + `
     type: secret
     existing: true
 `,
-		"options/wlan/option.sh": `printf '%s %s' "$WLAN_SSID" "$WLAN_PASSPHRASE" > ` + marker + "\n",
+		"actions/wlan/action.sh": `printf '%s %s' "$WLAN_SSID" "$WLAN_PASSPHRASE" > ` + marker + "\n",
 	}
+	if waits {
+		tree["actions/internet/action.yaml"] = "title: Internet\nfallback: wlan\n"
+		tree["actions/internet/action.sh"] = "test -e " + marker + " && return 0\n" +
+			"echo There is no internet connection. Plug in a cable, or join a wireless network. >&2\nexit 1\n"
+	}
+	return tree
 }
 
-// A start that says yes is never seen: it is a wait for something missing, not
+// wirelessPlaces is where that module names its actions, for a test that writes
+// a declaration of its own.
+func wirelessPlaces(waits bool) string {
+	if waits {
+		return "requires: [internet]\nmenu: [wlan]\n"
+	}
+	return "menu: [wlan]\n"
+}
+
+// A requirement that says yes is never seen: it is a wait for something missing, not
 // a page every run clicks through.
-func TestNothingIsWaitedForWhereTheStartSaysYes(t *testing.T) {
+func TestNothingIsWaitedForWhereTheRequirementSaysYes(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "online")
 	if err := os.WriteFile(marker, nil, 0o644); err != nil {
 		t.Fatal(err)
@@ -1061,9 +1074,9 @@ func TestNothingIsWaitedForWhereTheStartSaysYes(t *testing.T) {
 
 // While it says no, what it said is the page, and nothing behind it is reached:
 // the work would only stop at its first download.
-func TestTheWorkWaitsWhileAStartSaysNo(t *testing.T) {
+func TestTheWorkWaitsWhileARequirementSaysNo(t *testing.T) {
 	h := newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true))
-	h.wants("Wireless network", "There is no internet connection.", "Join a wireless network.", "open").
+	h.wants("Internet", "There is no internet connection.", "Join a wireless network.", "open").
 		refuses("Full", "Bare")
 }
 
@@ -1092,10 +1105,10 @@ func TestTheWaitAnswersOnlyItsOwnClock(t *testing.T) {
 	h.wants("There is no internet connection.")
 }
 
-// Enter opens the option its pages and all, and once it has worked the wait
+// Enter opens the fallback, its pages and all, and once it has worked the wait
 // looks again — and the opening goes on exactly as it would have with a cable.
 // The script is handed what the pages were answered with, under their names.
-func TestOpeningTheOptionFromTheWaitCarriesOn(t *testing.T) {
+func TestOpeningTheFallbackFromTheWaitCarriesOn(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "online")
 	h := newHarness(t, wireless(marker, "exit 0", true))
 	h.enter()
@@ -1106,16 +1119,16 @@ func TestOpeningTheOptionFromTheWaitCarriesOn(t *testing.T) {
 	h.typeIn("secret").enter()
 	h.wants("Full", "Bare")
 	if got, _ := os.ReadFile(marker); string(got) != "HomeNet secret" {
-		t.Errorf("the option was handed %q, want the network and its passphrase", got)
+		t.Errorf("the action was handed %q, want the network and its passphrase", got)
 	}
 	if got := h.a.store.Get("WLAN_PASSPHRASE"); got != "" {
-		t.Errorf("the passphrase is still held after the option ran: %q", got)
+		t.Errorf("the passphrase is still held after the action ran: %q", got)
 	}
 }
 
-// Backing out of the option is not backing out of the wait: the page behind it
+// Backing out of the fallback is not backing out of the wait: the page behind it
 // still says what is missing.
-func TestBackingOutOfTheOptionStillWaits(t *testing.T) {
+func TestBackingOutOfTheFallbackStillWaits(t *testing.T) {
 	h := newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true))
 	h.enter()
 	h.wants("HomeNet")
@@ -1124,9 +1137,9 @@ func TestBackingOutOfTheOptionStillWaits(t *testing.T) {
 	h.wants("There is no internet connection.").refuses("HomeNet")
 }
 
-// A machine without what the option needs is not offered it: the page says what
+// A machine without what the fallback requires is not offered it: the page says what
 // is missing and nothing more, and enter opens nothing.
-func TestWithoutWhatItRequiresTheWaitOffersNothingToOpen(t *testing.T) {
+func TestWithoutWhatTheFallbackRequiresTheWaitOffersNothingToOpen(t *testing.T) {
 	h := newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 1", true))
 	h.wants("There is no internet connection.", "r retry").refuses("Join a wireless network.", "open")
 
@@ -1137,25 +1150,27 @@ func TestWithoutWhatItRequiresTheWaitOffersNothingToOpen(t *testing.T) {
 // A script that does not work says so, in its own words and with where it
 // broke, and the way back is to the last page: the next thing to try is
 // another go at the answers.
-func TestAFailingOptionSaysWhyAndGoesBackAPage(t *testing.T) {
+func TestAFailingActionSaysWhyAndGoesBackAPage(t *testing.T) {
 	tree := wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true)
-	tree["options/wlan/option.sh"] = "echo HomeNet did not accept that passphrase. >&2\nexit 1\n"
+	tree["actions/wlan/action.sh"] = "echo HomeNet did not accept that passphrase. >&2\nexit 1\n"
 	h := newHarness(t, tree)
 	h.enter().enter().typeIn("wrong").enter()
-	h.wants("Wireless network", "HomeNet did not accept that passphrase.", "Option", "option.sh")
+	h.wants("Wireless network", "HomeNet did not accept that passphrase.", "Action", "action.sh")
 
 	h.enter()
 	h.wants("Passphrase")
 }
 
-// The options that each stand in front of the work are asked in turn, in the
-// order their folders sort, and the page moves on to the next the moment one
-// says yes.
-func TestTheOptionsTheWorkWaitsForAreAskedInTurn(t *testing.T) {
+// The actions the work requires are asked in turn, in the order the module
+// names them, and the page moves on to the next the moment one says yes.
+func TestTheActionsTheWorkRequiresAreAskedInTurn(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "root")
 	h := newHarness(t, map[string]string{
-		"options/a-root/option.yaml":     "title: Root\nstart: |\n  test -e " + marker + " && return 0\n  echo Log in as root. >&2\n  exit 1\n",
-		"options/b-firmware/option.yaml": "title: Firmware\nstart: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n",
+		treeFile:                       testInstaller + "requires: [root, firmware]\n",
+		"actions/root/action.yaml":     "title: Root\n",
+		"actions/root/action.sh":       "test -e " + marker + " && return 0\necho Log in as root. >&2\nexit 1\n",
+		"actions/firmware/action.yaml": "title: Firmware\n",
+		"actions/firmware/action.sh":   "echo Set the boot mode to UEFI. >&2\nexit 1\n",
 	})
 	h.wants("Root", "Log in as root.").refuses("UEFI")
 
@@ -1179,40 +1194,41 @@ func toSettings(h *harness) *harness {
 	return h.enter()
 }
 
-// On the menu an option stands between the work and the answers, in its own
+// On the menu an action stands between the work and the answers, in its own
 // words, wherever this machine has it.
-func TestAnOptionStandsOnTheMenuBetweenTheWorkAndTheAnswers(t *testing.T) {
+func TestAnActionStandsOnTheMenuBetweenTheWorkAndTheAnswers(t *testing.T) {
 	h := intoHub(newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 0", false)))
 	view := h.screen()
-	work, option, settings := strings.Index(view, "Start"), strings.Index(view, "Wireless network"), strings.Index(view, "Settings")
-	if work < 0 || option < 0 || settings < 0 || work > option || option > settings {
-		t.Errorf("the menu does not read work, option, settings:\n%s", view)
+	work, action, settings := strings.Index(view, "Start"), strings.Index(view, "Wireless network"), strings.Index(view, "Settings")
+	if work < 0 || action < 0 || settings < 0 || work > action || action > settings {
+		t.Errorf("the menu does not read work, action, settings:\n%s", view)
 	}
 }
 
 // A row this machine cannot use is a row nobody needed.
-func TestAnOptionTheMachineDoesNotHaveIsNoRow(t *testing.T) {
+func TestAnActionTheMachineDoesNotHaveIsNoRow(t *testing.T) {
 	h := intoHub(newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 1", false)))
 	h.wants("Settings").refuses("Wireless network")
 }
 
 // Opened from the menu, it comes back to the menu once it has worked, and the
 // header says what changed the moment it has rather than an interval later.
-func TestAnOptionOpenedFromTheMenuComesBackToIt(t *testing.T) {
+func TestAnActionOpenedFromTheMenuComesBackToIt(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "online")
 	tree := wireless(marker, "exit 0", false)
-	tree[treeFile] = testInstaller + "status:\n  script: test -e " + marker + "\n  pass: Online\n  fail: Offline\n"
+	tree[treeFile] = testInstaller + wirelessPlaces(false) +
+		"status:\n  script: test -e " + marker + "\n  pass: Online\n  fail: Offline\n"
 	h := intoHub(newHarness(t, tree))
 	h.wants("Offline")
 
-	h.down().enter() // the option's row
+	h.down().enter() // the action's row
 	h.enter().typeIn("secret").enter()
 	h.wants("Settings", "Online").refuses("Offline", "Passphrase")
 }
 
-// An option's pages are its own: they are not answers the work reads, so they
+// An action's pages are its own: they are not answers the work reads, so they
 // are neither on the settings page nor in the answer file.
-func TestAnOptionsPagesAreNeitherSettingsNorKept(t *testing.T) {
+func TestAnActionsPagesAreNeitherSettingsNorKept(t *testing.T) {
 	h := newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 0", false))
 	h = intoHub(h)
 	h.down().enter().enter().typeIn("secret").enter()
@@ -1224,7 +1240,7 @@ func TestAnOptionsPagesAreNeitherSettingsNorKept(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(conf), "WLAN_") {
-		t.Errorf("an option's page is in the answer file:\n%s", conf)
+		t.Errorf("an action's page is in the answer file:\n%s", conf)
 	}
 }
 
@@ -1597,7 +1613,7 @@ func TestTheConfirmationNamesTheDiskItIsAbout(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter() // Install
-	h.wants("Ready to start", "Erasing /dev/sda.", "Start")
+	h.wants("Ready to start", "Nothing has been changed so far.", "Start")
 }
 
 func TestTheSecretIsAskedForTwiceAndOnlyThenTheRunBegins(t *testing.T) {
@@ -1841,11 +1857,14 @@ func TestASecretIsForgottenWhenTheRunIsOver(t *testing.T) {
 
 // ─── The system check ────────────────────────────────────────────────────────
 
-// A check of the machine is an option with a start and nothing to open: what it
-// said is the page, in the words it was written in, and nothing gets past it.
+// A check of the machine is an action the work requires with nothing to fall
+// back on: what it said is the page, in the words it was written in, and
+// nothing gets past it.
 func TestAFailedSystemCheckIsWaitedOn(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"options/firmware/option.yaml": "title: Check\nstart: |\n  echo Set the boot mode to UEFI. >&2\n  exit 1\n",
+		treeFile:                       testInstaller + "requires: [firmware]\n",
+		"actions/firmware/action.yaml": "title: Check\n",
+		"actions/firmware/action.sh":   "echo Set the boot mode to UEFI. >&2\nexit 1\n",
 	})
 	h.wants("Check", "Set the boot mode to UEFI.", "r retry").refuses("Full", "open")
 
@@ -1855,7 +1874,9 @@ func TestAFailedSystemCheckIsWaitedOn(t *testing.T) {
 
 func TestASystemCheckThatPassesLeadsStraightOn(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"options/firmware/option.yaml": "title: Check\nstart: echo fine\n",
+		treeFile:                       testInstaller + "requires: [firmware]\n",
+		"actions/firmware/action.yaml": "title: Check\n",
+		"actions/firmware/action.sh":   "echo fine\n",
 	})
 	h.wants("Full", "Bare")
 }
@@ -1887,14 +1908,16 @@ func TestNoPageEverRunsPastTheEdge(t *testing.T) {
 	}
 }
 
-// The page the work waits on says whatever the module wrote, and a module is
+// The page the work waits on says whatever the action wrote, and a module is
 // free to write a lot: at every size it stays inside the terminal.
 func TestTheWaitNeverRunsPastTheEdge(t *testing.T) {
 	long := strings.Repeat("This machine is not ready yet, and here is a long account of why. ", 6)
 	h := newHarness(t, map[string]string{
-		"options/wlan/option.yaml": "title: Wireless network\ndescription: Join a wireless network.\nmenu: main\n" +
-			"start: |\n  echo " + long + " >&2\n  exit 1\n",
-		"options/wlan/option.sh": "true\n",
+		treeFile:                       testInstaller + "requires: [internet]\n",
+		"actions/internet/action.yaml": "title: Internet\nfallback: wlan\n",
+		"actions/internet/action.sh":   "echo " + long + " >&2\nexit 1\n",
+		"actions/wlan/action.yaml":     "title: Wireless network\ndescription: Join a wireless network.\n",
+		"actions/wlan/action.sh":       "true\n",
 	})
 	h.wants("long account of why")
 	for _, size := range [][2]int{{80, 24}, {100, 30}, {34, 13}, {20, 6}} {
@@ -1908,6 +1931,53 @@ func TestTheWaitNeverRunsPastTheEdge(t *testing.T) {
 				t.Errorf("at %dx%d a line is %d wide:\n%s", size[0], size[1], w, line)
 			}
 		}
+	}
+}
+
+// failedRun is a module whose first task fails, and which names an action for a
+// run that failed: sharing its log, asked first and opening on no, with the
+// address it put online drawn as a code.
+func failedRun(t *testing.T) *harness {
+	t.Helper()
+	h := newHarness(t, map[string]string{
+		treeFile: testInstaller + "  - name: LOG_URL\n    title: Log\nfailure: [share-log]\n",
+		"actions/share-log/action.yaml": "title: Share the log\ndescription: Put the log online.\n" +
+			"confirm: Put the log online?\ndefault: no\nshows: LOG_URL\nreport: The log is online\n",
+		"actions/share-log/action.sh": "printf \"LOG_URL='https://paste.example/abc'\\n\" >>\"$MODULE_CONF\"\n",
+		"tasks/@go/a-first/task.sh":   "ls /definitely/not/here\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().enter()
+	h.typeIn("x").enter().typeIn("x").enter()
+	return h.ran().enter()
+}
+
+// A run that failed stops on the report of where, and under it the actions the
+// module names for that: a way to hand the log to somebody who can read it.
+func TestAFailedRunOffersTheModulesActionsForIt(t *testing.T) {
+	h := failedRun(t)
+	h.wants("Exit code", "Share the log", "Continue")
+
+	h.enter()
+	h.wants("Put the log online?", "Yes", "No")
+	if o, ok := h.m.top().(*offerScreen); !ok || o.picker.selected() != keyNo {
+		t.Fatalf("the question does not open on no; the page on top is %T", h.m.top())
+	}
+
+	h.key(tea.KeyUp).enter()
+	h.wants("The log is online", "https://paste.example/abc")
+
+	h.enter()
+	h.wants("Exit code", "Share the log", "Continue")
+}
+
+// No is no: nothing is run, and the report is back.
+func TestDecliningAnActionRunsNothing(t *testing.T) {
+	h := failedRun(t)
+	h.enter().enter() // the action, then No
+	h.wants("Exit code", "Share the log").refuses("The log is online")
+	if got := h.a.store.Get("LOG_URL"); got != "" {
+		t.Errorf("LOG_URL = %q, want nothing: the action was declined", got)
 	}
 }
 
@@ -1965,8 +2035,9 @@ func TestTheSmallestTreeStillWorks(t *testing.T) {
 // behind it to quit into.
 func leaveTree(restart, shutdown string) map[string]string {
 	return map[string]string{
-		"options/reboot/option.yaml":   "title: Restart\ndescription: Close this machine down and start it again.\nmenu: leave\nscript: " + restart + "\n",
-		"options/shutdown/option.yaml": "title: Shut down\ndescription: Switch this machine off.\nmenu: leave\nscript: " + shutdown + "\n",
+		treeFile:                       testInstaller + "leave: [restart, shutdown]\n",
+		"actions/restart/action.yaml":  "title: Restart\ndescription: Close this machine down and start it again.\nscript: " + restart + "\n",
+		"actions/shutdown/action.yaml": "title: Shut down\ndescription: Switch this machine off.\nscript: " + shutdown + "\n",
 	}
 }
 
@@ -1976,7 +2047,7 @@ func TestQuittingAsksWhatToDoWithTheMachine(t *testing.T) {
 	h.wants("Test Installer", "Settings")
 
 	h.typeIn("q")
-	h.wants("Restart", "Shut down").refuses("Exit")
+	h.wants("Restart", "Shut down", "Exit")
 	if h.m.quitting {
 		t.Fatal("q left the program instead of asking")
 	}
@@ -1986,41 +2057,26 @@ func TestQuittingAsksWhatToDoWithTheMachine(t *testing.T) {
 	h.wants("Test Installer", "Settings")
 }
 
-// Where the module says there is a console behind the installer, there is a third
-// way out: the program stops and the machine keeps running. What it leaves on
-// the terminal is the module's own sentence, because a bare prompt says nothing
-// about how to get back.
+// Under the module's ways out is the runtime's own: the program stops and the
+// machine keeps running, which the row says under itself.
 func TestLeavingToTheConsoleClosesOnlyTheProgram(t *testing.T) {
-	const back = "Type installer to start it again."
-	files := leaveTree("true", "true")
-	files[treeFile] = testInstaller + "console: " + back + "\n"
-
-	h := newHarness(t, files)
+	h := newHarness(t, leaveTree("true", "true"))
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.typeIn("q")
-	h.wants("Restart", "Shut down", "Exit")
-
-	// The sentence belongs to the row, so it is under the list once the cursor
-	// is on it.
 	h.down().down()
-	h.wants(back)
+	h.wants("Exit", labelConsoleHelp())
 
 	h.enter()
 	if !h.m.quitting {
 		t.Fatal("choosing the console did not leave the program")
 	}
-	if h.a.farewell != back {
-		t.Errorf("farewell = %q, want the sentence the module wrote", h.a.farewell)
-	}
 }
 
-// A kiosk is a machine with nothing behind the program: whatever the module
-// says about a console, leaving it is starting over. The answers are forgotten
-// and the program closes, for whatever keeps it running to start it again.
+// A kiosk is a machine with nothing behind the program: leaving it is starting
+// over. The answers are forgotten and the program closes, for whatever keeps it
+// running to start it again.
 func TestAKioskStartsOverWhereAConsoleWouldBe(t *testing.T) {
-	files := leaveTree("true", "true")
-	files[treeFile] = testInstaller + "console: Type installer to start it again.\n"
-	mod := loadModule(t, writeModule(t, t.TempDir(), files))
+	mod := loadModule(t, writeModule(t, t.TempDir(), leaveTree("true", "true")))
 
 	h := startAs(t, testRuntime(), openModule(t), "", Opening{Kiosk: true}, mod)
 	h.down().enter().typeIn("moritz").enter().enter()
@@ -2038,9 +2094,6 @@ func TestAKioskStartsOverWhereAConsoleWouldBe(t *testing.T) {
 	}
 	if h.a.store.Exists() {
 		t.Error("starting over kept the answers")
-	}
-	if h.a.farewell != "" {
-		t.Errorf("farewell = %q, want nothing: there is no console to read it on", h.a.farewell)
 	}
 }
 
@@ -2961,7 +3014,10 @@ func TestAnAnswerTheListNoLongerOffersIsAskedAgainBeforeTheRun(t *testing.T) {
 
 	h.enter()
 	h.wants("Settings")
-	h.enter().wants("Ready to start", "Erasing /dev/sdb.")
+	h.enter().wants("Ready to start")
+	if got := h.a.store.Get("DISK"); got != "/dev/sdb" {
+		t.Errorf("DISK = %q, want the answer given again", got)
+	}
 }
 
 // What turned an answer away was its list, so a list that offers it again - the
@@ -2988,7 +3044,10 @@ func TestAnAnswerTheListOffersAgainIsTakenAgain(t *testing.T) {
 	h.down().enter().wants("Every used value")
 	h.down().enter().wants("/dev/sdz").refuses("This answer is not among the ones offered here.")
 	h.enter().esc().wants("Settings")
-	h.key(tea.KeyUp).enter().wants("Ready to start", "Erasing /dev/sdz.")
+	h.key(tea.KeyUp).enter().wants("Ready to start")
+	if got := h.a.store.Get("DISK"); got != "/dev/sdz" {
+		t.Errorf("DISK = %q, want the answer taken again", got)
+	}
 }
 
 // Enter on the last page while its lists are still being read is not lost: the

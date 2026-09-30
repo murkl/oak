@@ -43,18 +43,18 @@ func TestAFailureIsReportedAsLabelledFields(t *testing.T) {
 	}
 }
 
-// An option is a module's own code like a task, so a mistake in one is an
-// authoring bug like any other — and the report says it was an option, because
+// An action is a module's own code like a task, so a mistake in one is an
+// authoring bug like any other — and the report says it was an action, because
 // that is the half of the module to go and look in.
-func TestAFailureInAnOptionNamesTheOption(t *testing.T) {
+func TestAFailureInAnActionNamesTheAction(t *testing.T) {
 	f := &Failure{
-		Module: "Tux Setup", Option: true, Unit: "Wireless network",
-		Script: "/module/options/wlan/option.sh", Line: 3, Code: 127,
+		Module: "Tux Setup", Action: true, Unit: "Wireless network",
+		Script: "/module/actions/wlan/action.sh", Line: 3, Code: 127,
 	}
 	want := []Field{
 		{Label: "Module", Value: "Tux Setup"},
-		{Label: "Option", Value: "Wireless network"},
-		{Label: "Script", Value: "/module/options/wlan/option.sh:3", Path: true},
+		{Label: "Action", Value: "Wireless network"},
+		{Label: "Script", Value: "/module/actions/wlan/action.sh:3", Path: true},
 		{Label: "Exit code", Value: "127"},
 	}
 	got := f.Fields()
@@ -97,10 +97,10 @@ func TestFailCarriesTheExitCodeOfAScriptThatOwnedTheTerminal(t *testing.T) {
 	}
 }
 
-// An option's script runs under the same trap as a task's, so a mistake in it
+// An action's script runs under the same trap as a task's, so a mistake in it
 // names the file and the line — and the report says whose it was.
-func TestAFailingOptionNamesItselfAndTheLine(t *testing.T) {
-	session, err := sh.Start(Step{Name: "Broken", Option: true, Script: sourced(t, "echo fine\nls /definitely/not/here\n")}, Env(os.Environ()))
+func TestAFailingActionNamesItselfAndTheLine(t *testing.T) {
+	session, err := sh.Start(Step{Name: "Broken", Action: true, Script: sourced(t, "echo fine\nls /definitely/not/here\n")}, Env(os.Environ()))
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -109,8 +109,8 @@ func TestAFailingOptionNamesItselfAndTheLine(t *testing.T) {
 	if !errors.As(session.Err(), &f) {
 		t.Fatalf("got %T, want a *Failure", session.Err())
 	}
-	if !f.Option || f.Unit != "Broken" || f.Line != 2 {
-		t.Errorf("got %q (option %v) at line %d, want the option and its line", f.Unit, f.Option, f.Line)
+	if !f.Action || f.Unit != "Broken" || f.Line != 2 {
+		t.Errorf("got %q (action %v) at line %d, want the action and its line", f.Unit, f.Action, f.Line)
 	}
 	// What the tool said, not how it said it: the wording is the machine's
 	// locale and the path is the only part of it this test owns.
