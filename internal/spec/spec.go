@@ -129,6 +129,11 @@ type Module struct {
 	// for a module loaded on its own rather than as part of one.
 	Shell string
 
+	// answered is every name a module of the product declares. The product's
+	// shell runs for each of them, so a name it reads is answered where any one
+	// of them answers it.
+	answered names
+
 	// Status is what the header keeps an eye on while this module is open: its
 	// own, or the product's where it declares none. Nil where neither does.
 	Status *Status

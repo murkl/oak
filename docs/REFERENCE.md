@@ -577,7 +577,7 @@ oak --glyphs                     # every character the interface can put on a co
 | Line | Meaning |
 | --- | --- |
 | `unread` | A question asked where no task that reads the answer can run. **This fails the check** — it is the one authoring mistake a module's shape does not rule out on its own |
-| `unset` | A name in capitals the module's shell reads that nothing here answers. A description, not a verdict — `$HOME` and `$PATH` belong on that line |
+| `unset` | A name in capitals the module's shell reads that nothing here answers. What `oak.sh` reads is answered where any module of the product declares it. A description, not a verdict — `$HOME` and `$PATH` belong on that line |
 | `needs` | A `needs:` naming a task in another stage. Also a description: the stages already put the two in that order |
 | `translation drops` / `adds` | A catalog naming other `{{VAR}}` than the string it translates. **This fails the check** — see [Placeholders](#placeholders) |
 

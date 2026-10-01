@@ -183,6 +183,15 @@ func (r *Runtime) LoadModules() ([]*Module, error) {
 		}
 		out = append(out, mod)
 	}
+	answered := names{}
+	for _, mod := range out {
+		for _, v := range mod.Declared() {
+			answered[v.Name] = true
+		}
+	}
+	for _, mod := range out {
+		mod.answered = answered
+	}
 	return out, nil
 }
 

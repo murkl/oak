@@ -190,6 +190,36 @@ func TestANameTheProductsShellSetsIsNotUnset(t *testing.T) {
 	}
 }
 
+// The product's shell runs for every module of it, so a name it reads for one of
+// them is no gap in another. A name no module of the product answers still is.
+func TestANameTheProductsShellReadsForAnotherModuleIsNotUnset(t *testing.T) {
+	dir := writeRuntime(t, testRuntime, "installer", "recovery")
+	if err := os.WriteFile(filepath.Join(dir, FileRuntimeShell), []byte("disk() { echo \"$DISK $GONE\"; }\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	declare := "title: The installer\nstages: [go]\nvariables:\n  - name: DISK\n    title: Disk\n"
+	if err := os.WriteFile(filepath.Join(dir, DirModules, "installer", FileModule), []byte(declare), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unset, err := mods[1].Unset()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(unset, []string{"GONE"}) {
+		t.Errorf("recovery unset = %v, want GONE alone: DISK is the installer's", unset)
+	}
+}
+
 // The header's status is the product's for every module that says nothing of
 // its own, and its words are in that module's template — a module's catalog is
 // what the line is read through while the module is open.

@@ -73,19 +73,19 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:484
+#: internal/spec/spec.go:489
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:486
+#: internal/spec/spec.go:491
 msgid "This value is required."
 msgstr ""
 
-#: internal/spec/spec.go:496
+#: internal/spec/spec.go:501
 msgid "This answer is not among the ones offered here."
 msgstr ""
 
-#: internal/spec/spec.go:506
+#: internal/spec/spec.go:511
 msgid "This password was not accepted."
 msgstr ""
 
