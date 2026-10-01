@@ -2,6 +2,17 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.14.0](https://github.com/murkl/oak/compare/v0.13.0...v0.14.0) (2026-10-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* an action's `script:`, `variables:`, `confirm:` and `default:` are refused, and so are a task's `script:`, `test:`, `default:`, `shows:`, `quits:` and `tty:`, and a preset option's `asks:` and `apply:`. A task does its work in `task.sh` and is tested by `test.sh`; an action does its work in `action.sh`, says what a no means under `fail:` - required under `offered:` and `requires:` - and has one page at most: `variable:`, `report:` or `tty:`. A second question is a second action named as the `fallback:`. What was offered at the end of a run as a task is an action under the new `success:`. A fetched starting point names the action that fetches it under `action:`.
+
+### Features
+
+* one-page actions with fail and fallback, success rows and actions shared beside oak.yaml ([#29](https://github.com/murkl/oak/issues/29)) ([f75c443](https://github.com/murkl/oak/commit/f75c4430b5ba70f6bb0c37a26c3a814ac824763c))
+
 ## [0.13.0](https://github.com/murkl/oak/compare/v0.12.0...v0.13.0) (2026-09-30)
 
 
