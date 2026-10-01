@@ -207,13 +207,16 @@ jobs:
       #
       # The commit is read off the branch release-please has just written, not
       # off the pull request: that one follows a few seconds later, and the
-      # checks would land on the commit before and leave the merge blocked.
+      # checks would land on the commit before and leave the merge blocked. The
+      # label is filtered here rather than with --label, which asks GitHub's
+      # search - and that lags the label this very run has just set.
       - name: The release pull request is cleared to merge
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh pr list --state open --label "autorelease: pending" --json headRefName --jq '.[].headRefName' |
+          gh pr list --state open --json headRefName,labels \
+            --jq '.[] | select(any(.labels[]; .name == "autorelease: pending")) | .headRefName' |
             while read -r branch; do
               sha="$(gh api "repos/${GH_REPO}/git/ref/heads/${branch}" --jq .object.sha)"
               for check in Ready Title; do
