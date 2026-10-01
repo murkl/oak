@@ -281,6 +281,17 @@ func (a *app) adopt(o *spec.PresetOption) tea.Cmd {
 	return a.save()
 }
 
+// fetched takes a starting point an action fetched: what its script wrote into
+// the answer file is read back over the answers held and put in force, the way
+// adopt takes one written out.
+func (a *app) fetched() tea.Cmd {
+	if err := a.runner.Imported(); err != nil {
+		logging.Error("%s", err)
+		return flashBad(err.Error())
+	}
+	return a.save()
+}
+
 // hintEnd is what enter promises on a page nothing follows. Where the module
 // says how this machine is put down, enter continues to the page that asks; where it
 // does not, it is the end of the program, and otherwise is the word for that.

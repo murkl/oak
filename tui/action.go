@@ -13,10 +13,10 @@ import (
 
 // An action is run in one of two ways. By itself, as a question: whether the
 // work may begin, whether another action is offered. Or opened by somebody —
-// from a row, or as the fallback of a question that said no — which is its
-// yes or no where it asks one, its pages one to a screen, its script on a page
-// of its own, and its report where it has one. What any of it is for is the
-// module's business: this file only walks through what action.yaml declares.
+// from a row, a starting point, or as the fallback of one that said no — which
+// is its one page where it has one, and its script. What any of it is for is
+// the module's business: this file only walks through what action.yaml
+// declares.
 
 // offeredMsg is what the actions an action requires said about this machine.
 // The model takes it, whichever page is in front when it lands.
@@ -76,87 +76,47 @@ func (a *app) action(key string) *spec.Action {
 	return a.module.Action(name)
 }
 
-// openAction is an action opened by somebody: its question where it asks one,
-// then its pages, then its work. Every page is pushed onto the one before it,
-// so esc goes back a page the way it does through any run of questions, and
-// the work page knows how many to take away again once it has worked.
-func (a *app) openAction(act *spec.Action) tea.Cmd {
-	if !act.Confirms() {
-		return a.page(act, 0, 0)
-	}
-	return push(newOffer(a, act, func() tea.Cmd { return a.page(act, 0, 1) }))
+// openAction is an action opened by somebody: its page where it asks one, then
+// its work.
+func (a *app) openAction(act *spec.Action) tea.Cmd { return a.openFrom(act, nil) }
+
+// openFrom is that, with then to carry on with once it has worked, for whoever
+// opened it with somewhere to go next.
+func (a *app) openFrom(act *spec.Action, then func() tea.Cmd) tea.Cmd {
+	return push(a.firstPage(act, 0, then))
 }
 
-// page is what follows the page before it: the next one that applies, given
-// the answers so far, or the work. depth is how many of the action's pages are
-// on the stack already.
-func (a *app) page(act *spec.Action, next, depth int) tea.Cmd {
-	for ; next < len(act.Vars); next++ {
-		v := act.Vars[next]
-		if !v.Applies(a.store.Get) {
-			continue
-		}
-		after := func() tea.Cmd { return a.page(act, next+1, depth+1) }
-		if v.Secret() {
-			return push(newSecret(a, v, after))
-		}
-		return push(newField(a, v, after).under(act.Label()))
+// firstPage is the page an opened action stands on first, on top of depth
+// pages of the actions before it — the one whose fallback this is. Every page
+// is pushed onto the one before it, so esc goes back a page, and the work knows
+// how many to take away again once it is done.
+func (a *app) firstPage(act *spec.Action, depth int, then func() tea.Cmd) screen {
+	work := func(depth int) screen {
+		return &actionScreen{app: a, act: act, depth: depth + 1, then: then}
 	}
-	return push(&actionScreen{app: a, act: act, depth: depth + 1})
-}
-
-// offerScreen is the yes or no an action asks before anything else about it —
-// for the one whose running is a decision of its own, like putting something
-// online. It opens where the action says it does.
-type offerScreen struct {
-	app    *app
-	act    *spec.Action
-	next   func() tea.Cmd
-	picker *picker
-}
-
-func newOffer(a *app, act *spec.Action, next func() tea.Cmd) *offerScreen {
-	s := &offerScreen{app: a, act: act, next: next}
-	s.picker = newPicker([]item{{title: labelYes(), key: keyYes}, {title: labelNo(), key: keyNo}})
-	s.picker.describe(act.Question(a.store.Get))
-	if act.Declines() {
-		s.picker.focus(keyNo)
+	v := act.Var
+	if v == nil || !v.Applies(a.store.Get) {
+		return work(depth)
 	}
-	return s
-}
-
-func (s *offerScreen) Title() string { return s.act.Label() }
-func (s *offerScreen) Hint() string  { return labelHintChoose() }
-
-func (s *offerScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
-	s.picker.Update(msg)
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return s, nil
+	after := func() tea.Cmd { return push(work(depth + 1)) }
+	if v.Secret() {
+		return newSecret(a, v, after)
 	}
-	switch {
-	case confirms(key) && s.picker.selected() == keyYes:
-		return s, s.next()
-	case confirms(key), backs(key):
-		return s, pop()
-	}
-	return s, nil
+	return newField(a, v, after).under(act.Label())
 }
-
-func (s *offerScreen) View(width, height int) string { return s.picker.View(width, height) }
 
 // actionScreen is an action's script running.
 //
-// It goes the moment the script has worked, taking the action's pages with it,
-// back to wherever the action was opened from — which looks again at whatever
-// the action was about — or to the page it reports on first, where it has one.
-// Where it did not work, it gives way to the page every failure opens on, and
-// the way back from that is to the last page: the next thing to try is another
-// go at the answers.
+// It goes the moment the script has worked, taking the pages before it along,
+// back to wherever the action was opened from — or to the page it reports on
+// first, where it has one. Where it did not work, its fallback is opened on top
+// of those pages, and where it has none, the page every failure opens on, whose
+// way back is to the last page: the next thing to try is another go at it.
 type actionScreen struct {
 	app   *app
 	act   *spec.Action
-	depth int // the action's pages on the stack, this one included
+	depth int // the pages that go once it has worked, this one included
+	then  func() tea.Cmd
 
 	session *exec.Session
 }
@@ -171,6 +131,13 @@ func (s *actionScreen) working() bool { return true }
 func (s *actionScreen) Hint() string { return labelHintRunning() }
 
 func (s *actionScreen) Init() tea.Cmd {
+	if s.act.TTY && !(s.app.store.Debug() && !s.act.Simulates) {
+		// The interface stands down for the length of this one, and the frame
+		// is restored exactly as it was when the script exits.
+		return tea.Exec(s.app.runner.Terminal(s.act), func(err error) tea.Msg {
+			return actionRanMsg{s.app.runner.Fail(s.act, err)}
+		})
+	}
 	session, err := s.app.runner.Open(s.act)
 	if err != nil || session == nil {
 		return func() tea.Msg { return actionRanMsg{err} }
@@ -193,12 +160,21 @@ func (s *actionScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	s.app.store.Forget()
 	if ran.err != nil {
 		logging.Error("%s", ran.err)
-		return s, replace(newFailure(s.act.Label(), ran.err, pop))
+		if fb := s.app.module.Action(s.act.Fallback); fb != nil && s.app.has(fb) {
+			return s, replace(s.app.firstPage(fb, s.depth-1, s.then))
+		}
+		return s, replace(newFailure(s.act.Label(), ran.err, pop).saying(s.act.Refusal(s.app.store.Get)))
 	}
 	// What the header keeps an eye on may be what this changed.
-	done := tea.Batch(recheck(), back(s.depth))
+	done := func() tea.Cmd {
+		var then tea.Cmd
+		if s.then != nil {
+			then = s.then()
+		}
+		return tea.Batch(recheck(), back(s.depth, then))
+	}
 	if !s.act.Reports() {
-		return s, done
+		return s, done()
 	}
 	// A report shows what the script wrote down, so the answer file is read
 	// back first — the same moment a task's report reads it.
@@ -207,7 +183,7 @@ func (s *actionScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	}
 	headline, body := s.act.ReportText(s.app.store.Get)
 	told := newReport(headline, body, s.app.store.Get(s.act.Shows))
-	return s, replace(&toldScreen{page: told, done: func() tea.Cmd { return done }})
+	return s, replace(&toldScreen{page: told, done: done})
 }
 
 // stop kills the script, where somebody chose to leave while it ran.
@@ -243,9 +219,9 @@ func (s *toldScreen) View(width, height int) string { return s.page.View(width, 
 
 // gateScreen is the actions the work requires, asked one after another, in the
 // order the module names them. It stands on the first that says no, for as long
-// as it says no: what it wrote on stderr is the page, it asks again by itself
-// every few seconds, and enter opens the action it falls back on where this
-// machine has that. Once every one says yes, the opening goes on.
+// as it says no: its fail is the page, it asks again by itself every few
+// seconds, and enter opens the action it falls back on where this machine has
+// that. Once every one says yes, the opening goes on.
 type gateScreen struct {
 	opening
 	app  *app
@@ -273,7 +249,6 @@ func newGate(a *app, all []*spec.Action, next func() screen) *gateScreen {
 
 type (
 	gateMsg struct {
-		why     string
 		refused bool
 		offered bool
 		round   int
@@ -320,11 +295,10 @@ func (s *gateScreen) check() tea.Cmd {
 		offered = s.app.runner.Offered(fb)
 	}
 	return func() tea.Msg {
-		err := says()
-		if err == nil {
+		if says() {
 			return gateMsg{round: round}
 		}
-		return gateMsg{why: err.Error(), refused: true, offered: offered(), round: round}
+		return gateMsg{refused: true, offered: offered(), round: round}
 	}
 }
 
@@ -348,7 +322,7 @@ func (s *gateScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			}
 			return s, reset(s.next())
 		}
-		s.checked, s.why, s.offered = true, msg.why, msg.offered
+		s.checked, s.why, s.offered = true, s.action().Refusal(s.app.store.Get), msg.offered
 		return s, s.wait()
 
 	case gateDueMsg:
@@ -408,5 +382,7 @@ func (s *gateScreen) View(width, height int) string {
 	return b.String()
 }
 
-// back takes n pages off the stack at once.
-func back(n int) tea.Cmd { return func() tea.Msg { return popScreenMsg{n: n} } }
+// back takes n pages off the stack at once, and carries on with then.
+func back(n int, then tea.Cmd) tea.Cmd {
+	return func() tea.Msg { return popScreenMsg{n: n, then: then} }
+}

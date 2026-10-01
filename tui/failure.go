@@ -58,6 +58,21 @@ func renderFailure(err error, width int) string {
 	return b.String() + logNote(width)
 }
 
+// refusal is a sentence saying no, under the mark that says so: the first line
+// beside the mark, the rest standing under it.
+func refusal(text string, width int) string {
+	lines := wrap(text, max(width-markW, 1))
+	if len(lines) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(failStyle.Render(glyphs.fail) + field(" ") + boldStyle.Render(lines[0]))
+	for _, line := range lines[1:] {
+		b.WriteString("\n" + field("  ") + boldStyle.Render(line))
+	}
+	return b.String()
+}
+
 // said is a failure in its own words: what the tool printed on its way out,
 // which is the half of a failure written for somebody to read. Empty where it
 // said nothing, and the whole error where it is not one of ours.

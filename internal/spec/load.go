@@ -57,7 +57,11 @@ type declaration struct {
 //
 // A module that loads is a module that runs: an authoring mistake is a message
 // at startup, never a task that silently never fires.
-func Load(dir string) (*Module, error) {
+func Load(dir string) (*Module, error) { return load(dir, nil) }
+
+// load is Load with the product's own actions beside the module's — see
+// Runtime.LoadModules.
+func load(dir string, shared []*Action) (*Module, error) {
 	s := &Module{Dir: dir, byName: map[string]*Variable{}}
 
 	var head declaration
@@ -86,10 +90,15 @@ func Load(dir string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	if s.Actions, err = loadActions(dir); err != nil {
+	own, err := loadActions(dir)
+	if err != nil {
 		return nil, err
 	}
-	if err := s.check(tasks); err != nil {
+	runs, err := s.gather(own, shared)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.check(tasks, runs); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -209,58 +218,20 @@ func loadStage(base, stage string) ([]*Task, error) {
 	return out, nil
 }
 
-// loadTask reads one folder: the yaml it is declared in, and what it turns out
-// to run. A folder without that file is an authoring mistake rather than an
-// opt-out — it is an error, not a step quietly dropped from the run.
+// loadTask reads one folder: the yaml it is declared in, the task.sh that does
+// the work and the test.sh that checks it, where there is one. A folder without
+// either file it needs is an authoring mistake rather than an opt-out.
 func loadTask(where string) (*Task, error) {
 	t := &Task{id: filepath.Base(where), dir: where}
 	if err := read(filepath.Join(where, FileTask), t); err != nil {
 		return nil, err
 	}
-	if err := t.resolve(); err != nil {
-		return nil, err
+	t.work = Script(beside(where, FileTaskScript))
+	t.check = Script(beside(where, FileTest))
+	if t.work == "" {
+		return nil, fmt.Errorf("no %s here — a task does its work in one", FileTaskScript)
 	}
 	return t, nil
-}
-
-// resolve settles what a task actually runs and what tests it afterwards: what
-// its yaml wrote, or the file of that name beside it. Both is two answers to
-// the same question, and neither for the work itself is a task that does
-// nothing.
-func (t *Task) resolve() error {
-	work, err := pick(t.dir, "script", t.Script, FileTaskScript)
-	if err != nil {
-		return err
-	}
-	if work.Empty() {
-		return fmt.Errorf("no %s here, and no script in %s", FileTaskScript, FileTask)
-	}
-	check, err := pick(t.dir, "test", t.Test, FileTest)
-	if err != nil {
-		return err
-	}
-	t.work, t.check = work, check
-	return nil
-}
-
-// pick settles one of the two: the shell the yaml wrote, the file it named, or
-// — where it said nothing — the file of that name lying beside it.
-func pick(dir, key, expr, name string) (Script, error) {
-	file := beside(dir, name)
-	switch {
-	case expr != "" && file != "":
-		return Script{}, fmt.Errorf("%s: there is a %s here as well, and one of the two is what runs", key, name)
-	case expr == "":
-		return Script{File: file}, nil
-	}
-	named, err := scriptFile(dir, expr)
-	if err != nil {
-		return Script{}, fmt.Errorf("%s: %w", key, err)
-	}
-	if named != "" {
-		return Script{File: named}, nil
-	}
-	return Script{Shell: expr}, nil
 }
 
 // read decodes one file with unknown keys refused. A misspelled key that is
@@ -287,15 +258,24 @@ func read(path string, into any) error {
 // refusal saying what to do about itself, which is all a message that stops a
 // build is for.
 var retired = map[string]string{
-	"blind":   "a question asked first opens its filter by itself",
-	"id":      "a starting point is named by its title, and nothing anywhere points at one",
-	"name":    "a title is what a person reads; a name only ever names a variable",
-	"execute": "a task says what it does under script, and how it is tested afterwards under test",
-	"stage":   "a task lies in the folder of its stage, and that is the whole of where it runs",
-	"network": "a wireless network is an action under actions/, and the internet the work waits for is one named in requires",
-	"action":  "the word for starting the work is start",
-	"console": "the row that leaves to the console is the runtime's own",
-	"confirm": "the page before the run is the runtime's own, and a task that needs asking says confirm itself",
+	"blind":     "a question asked first opens its filter by itself",
+	"id":        "a starting point is named by its title, and nothing anywhere points at one",
+	"name":      "a title is what a person reads; a name only ever names a variable",
+	"execute":   "a task does its work in the task.sh beside it, and is tested by the test.sh beside it",
+	"script":    "a task does its work in the task.sh beside it, and an action in the action.sh beside it",
+	"test":      "a task is tested by the test.sh beside it",
+	"stage":     "a task lies in the folder of its stage, and that is the whole of where it runs",
+	"network":   "a wireless network is an action under actions/, and the internet the work waits for is one named in requires",
+	"action":    "the word for starting the work is start",
+	"console":   "the row that leaves to the console is the runtime's own",
+	"confirm":   "a task that needs asking says confirm itself, and an action is agreed to by choosing its row",
+	"default":   "a task's confirm opens on yes; what must not be walked into by an enter is an action on a row of its own",
+	"variables": "an action has one page: its variable, and a second question is a second action named as its fallback",
+	"shows":     "a code is drawn by an action, beside its report",
+	"quits":     "a way out is an action, named under success or leave",
+	"tty":       "a shell handed the terminal is an action with tty, named under success or menu",
+	"asks":      "a starting point that is fetched names the action that fetches it",
+	"apply":     "a starting point that is fetched names the action that fetches it",
 }
 
 // unknownField is how the decoder says a key is not one of them. It names the
@@ -325,7 +305,7 @@ func refused(path string, err error) error {
 	return fmt.Errorf("%s: %s", filepath.Base(path), strings.Join(said, "\n"))
 }
 
-func (s *Module) check(tasks []*Task) error {
+func (s *Module) check(tasks []*Task, runs map[string]int) error {
 	s.normalize(tasks)
 	if s.UI.Title == "" {
 		return fmt.Errorf("%s: title is required", FileModule)
@@ -336,7 +316,7 @@ func (s *Module) check(tasks []*Task) error {
 	if err := s.checkPresets(); err != nil {
 		return fmt.Errorf("%s: %w", FileModule, err)
 	}
-	if err := s.checkActions(); err != nil {
+	if err := s.checkActions(runs); err != nil {
 		return err
 	}
 	return s.checkTasks(tasks)
@@ -395,20 +375,11 @@ func (s *Module) checkTask(t *Task) error {
 	if err := s.checkAsks(t); err != nil {
 		return err
 	}
-	if err := checkOffer(t.Default, t.Confirms()); err != nil {
-		return err
-	}
 	if err := s.checkText("confirm", t.Confirm); err != nil {
 		return err
 	}
 	if err := s.checkText("report", t.Report); err != nil {
 		return err
-	}
-	if err := s.checkShown(t.Shows, t.Reports()); err != nil {
-		return err
-	}
-	if t.Progress && t.TTY {
-		return fmt.Errorf("progress: a task handed the terminal already shows everything it prints")
 	}
 	cond, err := s.conditions(t.Conditions)
 	if err != nil {
@@ -462,44 +433,6 @@ func checkNeeds(groups map[string][]*Task) ([]string, error) {
 // where is the folder a task was read from, as a module's author knows it.
 func (t *Task) where() string { return fmt.Sprintf("%s/%s", DirTasks, t.id) }
 
-// checkConfirm settles a task's `default:`, which says which of the two answers
-// its offer opens on. There are exactly two, and a task that names one without
-// making an offer at all has said something that can never take effect.
-func checkOffer(def Scalar, confirms bool) error {
-	switch {
-	case def == "":
-		return nil
-	case !confirms:
-		return fmt.Errorf("default: there is no confirm for it to answer")
-	case def != ConfirmYes && def != ConfirmNo:
-		return fmt.Errorf("default: %s or %s, got %q", ConfirmYes, ConfirmNo, def)
-	}
-	return nil
-}
-
-// checkShown settles a `shows:`, which is an answer put on the page a
-// `report:` draws — as a code to scan, and under it as itself.
-//
-// A secret is refused for the reason it is refused everywhere: it is never
-// written down, and drawing one at a size a camera across the room can read is
-// the opposite of what it is for.
-func (s *Module) checkShown(name string, reports bool) error {
-	if name == "" {
-		return nil
-	}
-	v := s.byName[name]
-	switch {
-	case v == nil:
-		return fmt.Errorf("shows: no such variable: %s", name)
-	case v.Secret():
-		return fmt.Errorf("shows: %s is a secret, and a secret is not put on screen to be read across a room", name)
-	case !reports:
-		return fmt.Errorf("shows: there is no report for it to appear on")
-	}
-	v.deferred = true
-	return nil
-}
-
 // checkAsks settles a task's `asks:`, which is a question put in the middle of
 // a run and therefore has to be one the frame can put there.
 //
@@ -544,7 +477,7 @@ func (s *Module) normalize(tasks []*Task) {
 		}
 	}
 	for _, a := range s.Actions {
-		fields = append(fields, &a.Title, &a.Description, &a.Confirm, &a.Report)
+		fields = append(fields, &a.Title, &a.Description, &a.Fail, &a.Report)
 	}
 	for _, v := range s.Declared() {
 		fields = append(fields, &v.Title, &v.Description, &v.Group, &v.Free, &v.Error)
@@ -697,41 +630,11 @@ func (s *Module) checkPresets() error {
 					return fmt.Errorf("%s: %s: no such variable: %s", p.Title, o.Title, name)
 				}
 			}
-			if err := s.checkFetch(o); err != nil {
-				return fmt.Errorf("%s: %s: %w", p.Title, o.Title, err)
+			if o.Fetches() && len(o.Values) > 0 {
+				return fmt.Errorf("%s: %s: a starting point is written out in values or fetched by an action, not both", p.Title, o.Title)
 			}
 		}
 	}
-	return nil
-}
-
-// checkFetch settles a preset option's `asks:` and `apply:` — the starting
-// point that is fetched rather than written out here.
-//
-// The question is put on a page of its own, so unlike a task's it may be a text
-// box: a code somebody was handed is typed, not chosen. A secret is refused,
-// because a starting point is a set of answers and a secret is never one of
-// them.
-func (s *Module) checkFetch(o *PresetOption) error {
-	if o.Asks == "" {
-		if o.Apply != "" {
-			return fmt.Errorf("apply: there is no asks for it to work from")
-		}
-		return nil
-	}
-	v := s.byName[o.Asks]
-	switch {
-	case v == nil:
-		return fmt.Errorf("asks: no such variable: %s", o.Asks)
-	case v.Secret():
-		return fmt.Errorf("asks: %s is a secret, which is asked for immediately before the run", o.Asks)
-	}
-	resolved, err := shell(s.Dir, o.Apply)
-	if err != nil {
-		return err
-	}
-	o.Apply = resolved
-	v.deferred = true
 	return nil
 }
 

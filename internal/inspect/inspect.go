@@ -27,6 +27,10 @@ import (
 // over to work out how much of it a language actually covers.
 func Report(w io.Writer, rt *spec.Runtime, mods []*spec.Module, base fs.FS) error {
 	reportRuntime(w, rt)
+	unnamed, err := reportUnnamed(w, rt, mods)
+	if err != nil {
+		return err
+	}
 	unread, drifted := 0, 0
 	for _, mod := range mods {
 		d, err := report(w, mod, base)
@@ -40,11 +44,14 @@ func Report(w io.Writer, rt *spec.Runtime, mods []*spec.Module, base fs.FS) erro
 		}
 		unread += n
 	}
-	// The two things here that are verdicts rather than descriptions, so this
-	// fails where a build script runs it — see spec.Unread and drift. Both are
-	// said at once: a run that reported them wants them all fixed, not the
-	// first one found.
+	// The things here that are verdicts rather than descriptions, so this
+	// fails where a build script runs it — see spec.Unread, Runtime.Unnamed and
+	// drift. All are said at once: a run that reported them wants them all
+	// fixed, not the first one found.
 	var faults []string
+	if unnamed > 0 {
+		faults = append(faults, fmt.Sprintf("%d action(s) beside %s that no module names", unnamed, spec.FileRuntime))
+	}
 	if unread > 0 {
 		faults = append(faults, fmt.Sprintf("%d question(s) asked where nothing reads the answer", unread))
 	}
@@ -55,6 +62,23 @@ func Report(w io.Writer, rt *spec.Runtime, mods []*spec.Module, base fs.FS) erro
 		return errors.New(strings.Join(faults, "; "))
 	}
 	return nil
+}
+
+// reportUnnamed names every action beside oak.yaml no module names. Only for
+// the whole product: one module named on the command line says nothing about
+// what the others name.
+func reportUnnamed(w io.Writer, rt *spec.Runtime, mods []*spec.Module) (int, error) {
+	if len(mods) != len(rt.Modules) {
+		return 0, nil
+	}
+	unnamed, err := rt.Unnamed(mods)
+	if err != nil {
+		return 0, err
+	}
+	for _, id := range unnamed {
+		fmt.Fprintf(w, "  %-10s %s/%s: no module names it, so it never runs\n", "unnamed", spec.DirActions, id)
+	}
+	return len(unnamed), nil
 }
 
 // reportUnread names every question this module asks under conditions no task
@@ -110,7 +134,7 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 		key   string
 		names []string
 	}{
-		{"offered", p.Offered}, {"requires", p.Requires}, {"menu", p.Menu}, {"leave", p.Leave}, {"failure", p.Failure},
+		{"offered", p.Offered}, {"requires", p.Requires}, {"menu", p.Menu}, {"leave", p.Leave}, {"failure", p.Failure}, {"success", p.Success},
 	} {
 		if len(at.names) > 0 {
 			fmt.Fprintf(w, "  %-10s %s\n", at.key, strings.Join(at.names, " "))

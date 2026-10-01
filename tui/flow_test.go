@@ -469,22 +469,6 @@ func (h *harness) reported() *harness {
 	return h
 }
 
-// answered waits for a question with shell hanging on it to have run that shell
-// and come back — either onto the next page, or onto the same one with the
-// reason it would not work.
-func (h *harness) answered() *harness {
-	h.t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(deadline) {
-		if f, ok := h.m.top().(*fieldScreen); !ok || !f.busy {
-			return h
-		}
-		h.drain()
-	}
-	h.t.Fatalf("the answer was never made good on")
-	return h
-}
-
 // ─── What comes first ────────────────────────────────────────────────────────
 
 // The one thing that cannot wait for the opening run of questions: a question
@@ -1022,8 +1006,10 @@ func TestTheInterfaceLanguageIsNotAnAnswer(t *testing.T) {
 // wireless is a network the way a module needing the internet writes one, in
 // actions: the machine has a card where card says yes, the work requires —
 // where it waits — internet, which says yes once marker exists and otherwise
-// falls back on joining one of two networks, which writes the network and its
-// passphrase to marker. Nothing in it is anything Oak knows about.
+// falls back on joining one of two networks. The open one is joined as it is
+// chosen; the other says no, and its fallback asks for the passphrase. Both
+// write what they joined with to marker. Nothing in it is anything Oak knows
+// about.
 func wireless(marker, card string, waits bool) map[string]string {
 	tree := map[string]string{
 		treeFile:                   testInstaller + wirelessPlaces(waits),
@@ -1033,21 +1019,27 @@ func wireless(marker, card string, waits bool) map[string]string {
 title: Wireless network
 description: Join a wireless network.
 requires: [card]
-variables:
-  - name: WLAN_SSID
-    title: Network
-    values: [HomeNet, CafeNet]
-  - name: WLAN_PASSPHRASE
-    title: Passphrase
-    type: secret
-    existing: true
+fallback: wlan-passphrase
+variable:
+  name: WLAN_SSID
+  title: Network
+  values: [HomeNet, CafeNet]
 `,
-		"actions/wlan/action.sh": `printf '%s %s' "$WLAN_SSID" "$WLAN_PASSPHRASE" > ` + marker + "\n",
+		"actions/wlan/action.sh": "[ \"$WLAN_SSID\" = CafeNet ] || exit 1\nprintf '%s' \"$WLAN_SSID\" > " + marker + "\n",
+		"actions/wlan-passphrase/action.yaml": `
+title: Wireless network
+fail: "{{WLAN_SSID}} did not accept that passphrase."
+variable:
+  name: WLAN_PASSPHRASE
+  title: Passphrase
+  type: secret
+  existing: true
+`,
+		"actions/wlan-passphrase/action.sh": `printf '%s %s' "$WLAN_SSID" "$WLAN_PASSPHRASE" > ` + marker + "\n",
 	}
 	if waits {
-		tree["actions/internet/action.yaml"] = "title: Internet\nfallback: wlan\n"
-		tree["actions/internet/action.sh"] = "test -e " + marker + " && return 0\n" +
-			"echo There is no internet connection. Plug in a cable, or join a wireless network. >&2\nexit 1\n"
+		tree["actions/internet/action.yaml"] = "title: Internet\nfail: There is no internet connection. Plug in a cable, or join a wireless network.\nfallback: wlan\n"
+		tree["actions/internet/action.sh"] = "test -e " + marker + "\n"
 	}
 	return tree
 }
@@ -1105,16 +1097,17 @@ func TestTheWaitAnswersOnlyItsOwnClock(t *testing.T) {
 	h.wants("There is no internet connection.")
 }
 
-// Enter opens the fallback, its pages and all, and once it has worked the wait
-// looks again — and the opening goes on exactly as it would have with a cable.
-// The script is handed what the pages were answered with, under their names.
+// Enter opens the fallback, and where that says no, the fallback it names in
+// turn: a chain of one page each. Once the last has worked the wait looks again
+// — and the opening goes on exactly as it would have with a cable. Each script
+// is handed what the pages were answered with, under their names.
 func TestOpeningTheFallbackFromTheWaitCarriesOn(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "online")
 	h := newHarness(t, wireless(marker, "exit 0", true))
 	h.enter()
 	h.wants("Wireless network", "Network", "HomeNet", "CafeNet")
 
-	h.enter() // HomeNet
+	h.enter() // HomeNet, which wants a passphrase
 	h.wants("Passphrase")
 	h.typeIn("secret").enter()
 	h.wants("Full", "Bare")
@@ -1124,6 +1117,29 @@ func TestOpeningTheFallbackFromTheWaitCarriesOn(t *testing.T) {
 	if got := h.a.store.Get("WLAN_PASSPHRASE"); got != "" {
 		t.Errorf("the passphrase is still held after the action ran: %q", got)
 	}
+}
+
+// An action that says yes opens no fallback: the open network is joined the
+// moment it is chosen, and nothing asks for a passphrase it does not have.
+func TestAnActionThatWorksOpensNoFallback(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "online")
+	h := newHarness(t, wireless(marker, "exit 0", true))
+	h.enter().down().enter() // CafeNet
+	h.wants("Full", "Bare").refuses("Passphrase")
+	if got, _ := os.ReadFile(marker); string(got) != "CafeNet" {
+		t.Errorf("the action was handed %q, want the open network", got)
+	}
+}
+
+// Backing out of a fallback's page is a page back in the chain: the action
+// before it, to choose again.
+func TestBackingOutOfAFallbacksPageGoesBackAlongTheChain(t *testing.T) {
+	h := newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true))
+	h.enter().enter()
+	h.wants("Passphrase")
+
+	h.esc()
+	h.wants("Network", "HomeNet", "CafeNet")
 }
 
 // Backing out of the fallback is not backing out of the wait: the page behind it
@@ -1147,15 +1163,15 @@ func TestWithoutWhatTheFallbackRequiresTheWaitOffersNothingToOpen(t *testing.T) 
 	h.wants("There is no internet connection.").refuses("HomeNet")
 }
 
-// A script that does not work says so, in its own words and with where it
-// broke, and the way back is to the last page: the next thing to try is
-// another go at the answers.
+// A script that does not work, with no fallback, says so in the action's own
+// words and with where it broke, and the way back is to the last page: the
+// next thing to try is another go at the answer.
 func TestAFailingActionSaysWhyAndGoesBackAPage(t *testing.T) {
 	tree := wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true)
-	tree["actions/wlan/action.sh"] = "echo HomeNet did not accept that passphrase. >&2\nexit 1\n"
+	tree["actions/wlan-passphrase/action.sh"] = "echo wrong key >&2\nexit 1\n"
 	h := newHarness(t, tree)
 	h.enter().enter().typeIn("wrong").enter()
-	h.wants("Wireless network", "HomeNet did not accept that passphrase.", "Action", "action.sh")
+	h.wants("Wireless network", "HomeNet did not accept that passphrase.", "Action", "action.sh", "wrong key")
 
 	h.enter()
 	h.wants("Passphrase")
@@ -1167,10 +1183,10 @@ func TestTheActionsTheWorkRequiresAreAskedInTurn(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "root")
 	h := newHarness(t, map[string]string{
 		treeFile:                       testInstaller + "requires: [root, firmware]\n",
-		"actions/root/action.yaml":     "title: Root\n",
-		"actions/root/action.sh":       "test -e " + marker + " && return 0\necho Log in as root. >&2\nexit 1\n",
-		"actions/firmware/action.yaml": "title: Firmware\n",
-		"actions/firmware/action.sh":   "echo Set the boot mode to UEFI. >&2\nexit 1\n",
+		"actions/root/action.yaml":     "title: Root\nfail: Log in as root.\n",
+		"actions/root/action.sh":       "test -e " + marker + "\n",
+		"actions/firmware/action.yaml": "title: Firmware\nfail: Set the boot mode to UEFI.\n",
+		"actions/firmware/action.sh":   "echo bios >&2\nexit 1\n",
 	})
 	h.wants("Root", "Log in as root.").refuses("UEFI")
 
@@ -1745,27 +1761,6 @@ func TestAnTaskThatAsksIsOfferedRatherThanRun(t *testing.T) {
 	h.wants("Finished in", "First", "Second", "Reboot")
 }
 
-// An offer opens on yes unless the task says otherwise, and one that says `no`
-// is answered no by an enter nobody aimed at it — which is the whole point:
-// the run is over, and the offer under it is an extra.
-func TestAnOfferCanOpenOnNo(t *testing.T) {
-	h := newHarness(t, map[string]string{
-		"tasks/@finish/d-shell/task.yaml": "title: Shell\nconfirm: Open a shell?\ndefault: no\n",
-		// Would fail the run if it were ever started.
-		"tasks/@finish/d-shell/task.sh": "exit 1\n",
-	})
-	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().enter()
-	h.typeIn("x").enter().typeIn("x").enter()
-
-	h.asked()
-	h.wants("Shell", "Open a shell?", "Yes", "No")
-
-	h.enter()
-	h.ran()
-	h.wants("Finished in", "Shell")
-}
-
 // A value that could not have been known before the work started: the run
 // stops where the list of tasks was, asks, and carries on with the answer — and
 // the offer after it can name what was just chosen.
@@ -1863,10 +1858,10 @@ func TestASecretIsForgottenWhenTheRunIsOver(t *testing.T) {
 func TestAFailedSystemCheckIsWaitedOn(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile:                       testInstaller + "requires: [firmware]\n",
-		"actions/firmware/action.yaml": "title: Check\n",
-		"actions/firmware/action.sh":   "echo Set the boot mode to UEFI. >&2\nexit 1\n",
+		"actions/firmware/action.yaml": "title: Check\nfail: Set the boot mode to UEFI.\n",
+		"actions/firmware/action.sh":   "echo bios >&2\nexit 1\n",
 	})
-	h.wants("Check", "Set the boot mode to UEFI.", "r retry").refuses("Full", "open")
+	h.wants("Check", "Set the boot mode to UEFI.", "r retry").refuses("Full", "open", "bios")
 
 	h.enter()
 	h.wants("Set the boot mode to UEFI.").refuses("Full")
@@ -1875,7 +1870,7 @@ func TestAFailedSystemCheckIsWaitedOn(t *testing.T) {
 func TestASystemCheckThatPassesLeadsStraightOn(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile:                       testInstaller + "requires: [firmware]\n",
-		"actions/firmware/action.yaml": "title: Check\n",
+		"actions/firmware/action.yaml": "title: Check\nfail: Set the boot mode to UEFI.\n",
 		"actions/firmware/action.sh":   "echo fine\n",
 	})
 	h.wants("Full", "Bare")
@@ -1914,8 +1909,8 @@ func TestTheWaitNeverRunsPastTheEdge(t *testing.T) {
 	long := strings.Repeat("This machine is not ready yet, and here is a long account of why. ", 6)
 	h := newHarness(t, map[string]string{
 		treeFile:                       testInstaller + "requires: [internet]\n",
-		"actions/internet/action.yaml": "title: Internet\nfallback: wlan\n",
-		"actions/internet/action.sh":   "echo " + long + " >&2\nexit 1\n",
+		"actions/internet/action.yaml": "title: Internet\nfallback: wlan\nfail: " + long + "\n",
+		"actions/internet/action.sh":   "exit 1\n",
 		"actions/wlan/action.yaml":     "title: Wireless network\ndescription: Join a wireless network.\n",
 		"actions/wlan/action.sh":       "true\n",
 	})
@@ -1935,14 +1930,14 @@ func TestTheWaitNeverRunsPastTheEdge(t *testing.T) {
 }
 
 // failedRun is a module whose first task fails, and which names an action for a
-// run that failed: sharing its log, asked first and opening on no, with the
-// address it put online drawn as a code.
+// run that failed: sharing its log, with the address it put online drawn as a
+// code.
 func failedRun(t *testing.T) *harness {
 	t.Helper()
 	h := newHarness(t, map[string]string{
-		treeFile: testInstaller + "  - name: LOG_URL\n    title: Log\nfailure: [share-log]\n",
+		treeFile: testInstaller + "failure: [share-log]\n",
 		"actions/share-log/action.yaml": "title: Share the log\ndescription: Put the log online.\n" +
-			"confirm: Put the log online?\ndefault: no\nshows: LOG_URL\nreport: The log is online\n",
+			"shows: LOG_URL\nreport: The log is online\n",
 		"actions/share-log/action.sh": "printf \"LOG_URL='https://paste.example/abc'\\n\" >>\"$MODULE_CONF\"\n",
 		"tasks/@go/a-first/task.sh":   "ls /definitely/not/here\n",
 	})
@@ -1958,12 +1953,6 @@ func TestAFailedRunOffersTheModulesActionsForIt(t *testing.T) {
 	h := failedRun(t)
 	h.wants("Exit code", "Share the log", "Continue")
 
-	h.enter()
-	h.wants("Put the log online?", "Yes", "No")
-	if o, ok := h.m.top().(*offerScreen); !ok || o.picker.selected() != keyNo {
-		t.Fatalf("the question does not open on no; the page on top is %T", h.m.top())
-	}
-
 	h.key(tea.KeyUp).enter()
 	h.wants("The log is online", "https://paste.example/abc")
 
@@ -1971,13 +1960,46 @@ func TestAFailedRunOffersTheModulesActionsForIt(t *testing.T) {
 	h.wants("Exit code", "Share the log", "Continue")
 }
 
-// No is no: nothing is run, and the report is back.
-func TestDecliningAnActionRunsNothing(t *testing.T) {
+// The rows open on the one that leaves: an action is chosen on purpose, and an
+// enter meant for the page before runs nothing.
+func TestTheRowsUnderAFailedRunOpenOnContinue(t *testing.T) {
 	h := failedRun(t)
-	h.enter().enter() // the action, then No
-	h.wants("Exit code", "Share the log").refuses("The log is online")
+	h.enter()
+	h.wants("Settings").refuses("The log is online")
 	if got := h.a.store.Get("LOG_URL"); got != "" {
-		t.Errorf("LOG_URL = %q, want nothing: the action was declined", got)
+		t.Errorf("LOG_URL = %q, want nothing: the action was never chosen", got)
+	}
+}
+
+// finishedRun is a module whose run works, and which names an action for a run
+// that finished: sharing what it was installed with, drawn as a code.
+func finishedRun(t *testing.T) *harness {
+	t.Helper()
+	return installed(t, map[string]string{
+		treeFile: testInstaller + "success: [share]\n",
+		"actions/share/action.yaml": "title: Share the answers\ndescription: Put them online.\n" +
+			"shows: LINK\nreport: The answers are online\n",
+		"actions/share/action.sh": "printf \"LINK='https://paste.example/def'\\n\" >>\"$MODULE_CONF\"\n",
+	})
+}
+
+// A run that finished ends on its result, and under it the actions the module
+// offers once the work is done — opening on the row that goes on.
+func TestAFinishedRunOffersTheModulesActionsForIt(t *testing.T) {
+	h := finishedRun(t)
+	h.wants("Finished in", "Share the answers", "Continue").refuses("First", "Second")
+	if r, ok := h.m.top().(*runScreen); !ok || r.after.selected() != keyReviewed {
+		t.Fatalf("the rows do not open on Continue; the page on top is %T", h.m.top())
+	}
+
+	h.key(tea.KeyUp).enter()
+	h.wants("The answers are online", "https://paste.example/def")
+
+	h.enter()
+	h.wants("Finished in", "Share the answers", "Continue")
+	h.down().enter()
+	if !h.m.quitting {
+		t.Error("Continue on a finished run did not go where the run leads")
 	}
 }
 
@@ -2036,8 +2058,10 @@ func TestTheSmallestTreeStillWorks(t *testing.T) {
 func leaveTree(restart, shutdown string) map[string]string {
 	return map[string]string{
 		treeFile:                       testInstaller + "leave: [restart, shutdown]\n",
-		"actions/restart/action.yaml":  "title: Restart\ndescription: Close this machine down and start it again.\nscript: " + restart + "\n",
-		"actions/shutdown/action.yaml": "title: Shut down\ndescription: Switch this machine off.\nscript: " + shutdown + "\n",
+		"actions/restart/action.yaml":  "title: Restart\ndescription: Close this machine down and start it again.\n",
+		"actions/restart/action.sh":    restart + "\n",
+		"actions/shutdown/action.yaml": "title: Shut down\ndescription: Switch this machine off.\n",
+		"actions/shutdown/action.sh":   shutdown + "\n",
 	}
 }
 
@@ -2392,60 +2416,26 @@ func TestAQuestionInARunIsLeftRatherThanBackedOutOf(t *testing.T) {
 
 // ─── What a run has to report ────────────────────────────────────────────────
 
-// A run of two dozen identical-looking rows cannot say that the work is done
-// and everything after it is an offer. So a task may stop the run and say it,
-// once, on a page of its own — with whatever it produced drawn as a code for
-// the machine in somebody's hand.
-func TestATaskCanReportWhatItProduced(t *testing.T) {
+// A run of two dozen identical-looking rows cannot say that the work is done.
+// So a task may stop the run and say it, once, on a page of its own.
+func TestATaskCanReportAMilestone(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		treeFile: testInstaller + `
-  - name: LINK
-    title: Shared at
-`,
-		"tasks/@finish/d-share/task.yaml": "title: Share\nshows: LINK\nreport: |\n  Installed on {{DISK}}\n\n  Everything after this is offered rather than needed.\n",
-		// A script answers by writing one line of the answer file, which is the
-		// only channel there is and the same one a person editing it uses.
-		"tasks/@finish/d-share/task.sh": `printf "LINK='https://example.test/abc'\n" >>"$MODULE_CONF"` + "\n",
+		"tasks/@finish/d-done/task.yaml": "title: Done\nreport: |\n  Installed on {{DISK}}\n\n  Everything after this is offered rather than needed.\n",
+		"tasks/@finish/d-done/task.sh":   "true\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().enter()
 	h.typeIn("x").enter().typeIn("x").enter()
 
 	h.reported()
-	// The words are the module's, filled in from the answers, and the value the
-	// task wrote is on the page as itself.
-	h.wants("Installed on /dev/sda", "Everything after this is offered", "https://example.test/abc")
+	// The words are the module's, filled in from the answers.
+	h.wants("Installed on /dev/sda", "Everything after this is offered")
 	// A page being read is not a run in progress: no counter, no turning mark.
 	h.refuses("of 3")
 
-	// And it is an answer like any other from here on.
-	if got := h.a.store.Get("LINK"); got != "https://example.test/abc" {
-		t.Errorf("LINK = %q, want the address the task wrote", got)
-	}
-
 	h.enter()
 	h.ran()
-	h.wants("Finished in", "Share")
-}
-
-// A task that produced nothing still says what it has to say. Not being able to
-// share a configuration is not a reason to withhold the news that the machine
-// is installed.
-func TestAReportWithNothingToShowIsStillShown(t *testing.T) {
-	h := newHarness(t, map[string]string{
-		treeFile: testInstaller + `
-  - name: LINK
-    title: Shared at
-`,
-		"tasks/@finish/d-share/task.yaml": "title: Share\nshows: LINK\nreport: Installed on {{DISK}}\n",
-		"tasks/@finish/d-share/task.sh":   "echo 'it did not work' >&2\n",
-	})
-	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().enter()
-	h.typeIn("x").enter().typeIn("x").enter()
-
-	h.reported()
-	h.wants("Installed on /dev/sda")
+	h.wants("Finished in", "Done")
 }
 
 // ─── What a run proved about itself ──────────────────────────────────────────
@@ -2464,8 +2454,10 @@ func installed(t *testing.T, files map[string]string) *harness {
 // on, and what they all came to is one page at the end of the run.
 func TestTestsThatPassAreCountedAndNothingMore(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\n",
-		"tasks/@go/b-second/task.yaml": "title: Second\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\n",
+		"tasks/@go/a-first/test.sh":    "true\n",
+		"tasks/@go/b-second/task.yaml": "title: Second\n",
+		"tasks/@go/b-second/test.sh":   "true\n",
 	})
 	// One line under the run, and no page: a run that agreed with itself has
 	// nothing anybody could open.
@@ -2480,8 +2472,7 @@ func TestTestsThatPassAreCountedAndNothingMore(t *testing.T) {
 // installation that is already on the disk.
 func TestAFailedTestDoesNotStopTheRun(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\ntest: ./check.sh\n",
-		"tasks/@go/a-first/check.sh":  "echo the disk is empty >&2\nexit 1\n",
+		"tasks/@go/a-first/test.sh": "echo the disk is empty >&2\nexit 1\n",
 	})
 	h.wants("Finished in", "First", "0 of 1 tests passed")
 	h.refuses("failed")
@@ -2493,7 +2484,8 @@ func TestAFailedTestDoesNotStopTheRun(t *testing.T) {
 // the file and the line, laid out exactly as a failed run's is.
 func TestAFailedTestOpensOnWhereItBroke(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\n",
+		"tasks/@go/a-first/test.sh":    "true\n",
 		"tasks/@go/b-second/task.yaml": "title: Second\n",
 		"tasks/@go/b-second/test.sh":   "echo starting\nls /definitely/not/here\n",
 	})
@@ -2515,8 +2507,10 @@ func TestAFailedTestOpensOnWhereItBroke(t *testing.T) {
 // read as a passing one.
 func TestATestThatReturnsNonZeroIsAFailure(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\n",
-		"tasks/@go/b-second/task.yaml": "title: Second\ntest: return 1\nreport: Installed\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\n",
+		"tasks/@go/a-first/test.sh":    "true\n",
+		"tasks/@go/b-second/task.yaml": "title: Second\nreport: Installed\n",
+		"tasks/@go/b-second/test.sh":   "return 1\n",
 		"tasks/@go/b-second/task.sh":   "true\n",
 	})
 	h.wants("Installed", "1 of 2 tests passed")
@@ -2525,7 +2519,8 @@ func TestATestThatReturnsNonZeroIsAFailure(t *testing.T) {
 // And in the file a task keeps it in, which is where it is actually written.
 func TestATestFileThatReturnsNonZeroIsAFailure(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\n",
+		"tasks/@go/a-first/test.sh":    "true\n",
 		"tasks/@go/b-second/task.yaml": "title: Second\nreport: Installed\n",
 		"tasks/@go/b-second/task.sh":   "true\n",
 		"tasks/@go/b-second/test.sh":   "return 1\n",
@@ -2539,7 +2534,8 @@ func TestATestFileThatReturnsNonZeroIsAFailure(t *testing.T) {
 // a restart is a run most people never see the end of.
 func TestAReportWithAFailedTestIsFollowedByTheList(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\n",
+		"tasks/@go/a-first/test.sh":    "true\n",
 		"tasks/@go/b-second/task.yaml": "title: Second\nreport: Installed\n",
 		"tasks/@go/b-second/task.sh":   "true\n",
 		"tasks/@go/b-second/test.sh":   "echo the disk is empty >&2\nls /definitely/not/here\n",
@@ -2564,7 +2560,8 @@ func TestAReportWithAFailedTestIsFollowedByTheList(t *testing.T) {
 // next page that stops for something does not put it up again.
 func TestTheListOfFailedTestsIsOfferedOnce(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: return 1\nreport: Installed\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\nreport: Installed\n",
+		"tasks/@go/a-first/test.sh":    "return 1\n",
 		"tasks/@go/a-first/task.sh":    "true\n",
 		"tasks/@go/b-second/task.yaml": "title: Second\nreport: Shared\n",
 		"tasks/@go/b-second/task.sh":   "true\n",
@@ -2585,7 +2582,8 @@ func TestTheListOfFailedTestsIsOfferedOnce(t *testing.T) {
 // straight on to what it was going to offer next.
 func TestAReportWithNoFailedTestGoesStraightOn(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\nreport: Installed\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\nreport: Installed\n",
+		"tasks/@go/a-first/test.sh":    "true\n",
 		"tasks/@go/a-first/task.sh":    "true\n",
 		"tasks/@go/b-second/task.yaml": "title: Share this configuration\nconfirm: Put these answers online?\n",
 	})
@@ -2632,7 +2630,8 @@ func TestAFailedOptionalTaskOpensOnWhereItBroke(t *testing.T) {
 // Work that did not happen has nothing for a test to read or a report to say.
 func TestAFailedOptionalTaskSkipsItsTestAndReport(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\noptional: true\ntest: \"true\"\nreport: Themed\n",
+		"tasks/@go/a-first/task.yaml": "title: First\noptional: true\nreport: Themed\n",
+		"tasks/@go/a-first/test.sh":   "true\n",
 		"tasks/@go/a-first/task.sh":   "exit 1\n",
 	})
 	h.wants("Finished in", "1 of 1 optional tasks failed").refuses("tests passed", "Themed")
@@ -2656,7 +2655,8 @@ func TestAnOptionalTaskThatWorksSaysNothing(t *testing.T) {
 // happen first, then the checks that disagreed with work that did.
 func TestFailedOptionalTasksAndTestsAreReadTogether(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"false\"\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\n",
+		"tasks/@go/a-first/test.sh":    "false\n",
 		"tasks/@go/b-second/task.yaml": "title: Second\noptional: true\n",
 		"tasks/@go/b-second/task.sh":   "exit 1\n",
 	})
@@ -2696,7 +2696,8 @@ func TestARunWithNoTestsReportsNone(t *testing.T) {
 func TestASimulatedRunStartsNoTaskAndNoTest(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "touched")
 	h := newSimulated(t, map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"false\"\n",
+		"tasks/@go/a-first/task.yaml": "title: First\n",
+		"tasks/@go/a-first/test.sh":   "false\n",
 		"tasks/@go/a-first/task.sh":   "touch '" + marker + "'\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
@@ -2714,7 +2715,8 @@ func TestASimulatedRunStartsNoTaskAndNoTest(t *testing.T) {
 func TestATaskThatSimulatesItselfRunsUnderDebug(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "simulated")
 	h := newSimulated(t, map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\nsimulates: true\ntest: '[ \"$DEBUG\" = true ]'\n",
+		"tasks/@go/a-first/task.yaml": "title: First\nsimulates: true\n",
+		"tasks/@go/a-first/test.sh":   "[ \"$DEBUG\" = true ]\n",
 		"tasks/@go/a-first/task.sh":   "[ \"$DEBUG\" = true ] && touch '" + marker + "'\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
@@ -2731,7 +2733,8 @@ func TestATaskThatSimulatesItselfRunsUnderDebug(t *testing.T) {
 // nothing is run and there is nothing to report.
 func TestValidationCanBeSwitchedOff(t *testing.T) {
 	files := map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"false\"\n",
+		"tasks/@go/a-first/task.yaml": "title: First\n",
+		"tasks/@go/a-first/test.sh":   "false\n",
 	}
 	h := newHarness(t, files)
 	h.a.prefs.SetValidates(false)
@@ -2748,7 +2751,8 @@ func TestValidationCanBeSwitchedOff(t *testing.T) {
 // keeps.
 func TestTheValidationSettingIsOfferedOnlyWhereThereIsSomethingToTest(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml": "title: First\n",
+		"tasks/@go/a-first/test.sh":   "true\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.down().enter().wants("Verify steps", "Yes")
@@ -2762,7 +2766,8 @@ func TestTheValidationSettingIsOfferedOnlyWhereThereIsSomethingToTest(t *testing
 // everything else, with nothing between them.
 func TestTheRowsAboutTheRunStandTogether(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml": "title: First\n",
+		"tasks/@go/a-first/test.sh":   "true\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.down().enter()
@@ -2780,7 +2785,8 @@ func TestTheRowsAboutTheRunStandTogether(t *testing.T) {
 // says so on the way back.
 func TestTheValidationSettingTurnsTestsOff(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml": "title: First\n",
+		"tasks/@go/a-first/test.sh":   "true\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.down().enter()                      // Settings
@@ -2796,7 +2802,8 @@ func TestTheValidationSettingTurnsTestsOff(t *testing.T) {
 // that cannot be taken back stands under the other.
 func TestTheRowsThatAreNotAnswersStandLast(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		"tasks/@go/a-first/task.yaml": "title: First\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml": "title: First\n",
+		"tasks/@go/a-first/test.sh":   "true\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
 
@@ -2813,8 +2820,8 @@ func TestTheRowsThatAreNotAnswersStandLast(t *testing.T) {
 // ─── A starting point that is fetched rather than written down ───────────────
 
 // The third kind of starting point: not a set of answers in the module but a code
-// somebody was handed, and the answers behind it. One row, one question, and
-// from the next page on nothing about it is any different.
+// somebody was handed, and the answers behind it. One row opening one action,
+// and from the next page on nothing about it is any different.
 func TestAPresetCanFetchItsAnswers(t *testing.T) {
 	h := newHarness(t, presetFetches("printf \"USER='moritz'\\nDISK='/dev/sdb'\\nEXTRAS='false'\\n\" >>\"$MODULE_CONF\""))
 	h.down().down()
@@ -2830,7 +2837,7 @@ func TestAPresetCanFetchItsAnswers(t *testing.T) {
 
 	h.enter()
 	h.wants("Configuration code")
-	h.typeIn("abc12").enter().answered()
+	h.typeIn("abc12").enter()
 
 	// Everything the code stood for is an answer now, and with nothing left
 	// open the hub is what follows.
@@ -2845,36 +2852,41 @@ func TestAPresetCanFetchItsAnswers(t *testing.T) {
 	}
 }
 
-// A code that stands for nothing is a page that has not moved, with the reason
-// on it in the shell's own words — there is nothing to do about it but read
-// that and try another.
-func TestAPresetThatCannotFetchSaysWhyAndStaysPut(t *testing.T) {
-	h := newHarness(t, presetFetches("echo 'Nothing is shared under that code' >&2; exit 1"))
+// A code that stands for nothing says so in the action's own words, and the
+// way back is to the code: there is nothing to do about it but try another.
+func TestAPresetThatCannotFetchSaysWhyAndGoesBack(t *testing.T) {
+	h := newHarness(t, presetFetches("exit 1"))
 	h.down().down().enter()
-	h.typeIn("nope").enter().answered()
+	h.typeIn("nope").enter()
 
-	h.wants("Configuration code", "Nothing is shared under that code")
-	h.refuses("Settings")
+	h.wants("Nothing is shared under that code.").refuses("Settings")
+	h.enter()
+	h.wants("Configuration code").refuses("Settings")
 	if _, ok := h.m.top().(*fieldScreen); !ok {
 		t.Errorf("the page moved on to %T", h.m.top())
 	}
 }
 
 // presetFetches is the test module with a third starting point on it: one that
-// asks for a code and runs the given shell to make something of it.
-func presetFetches(apply string) map[string]string {
+// opens an action asking for a code, whose script makes something of it.
+func presetFetches(script string) map[string]string {
 	declared := strings.Replace(testInstaller, "\nvariables:", `
       - title: Online
         description: Take the answers from somewhere else.
-        asks: SOURCE
-        apply: `+apply+`
+        action: fetch
 variables:`, 1)
-	return map[string]string{treeFile: declared + `
-  - name: SOURCE
-    title: Configuration code
-    description: The code of a configuration somebody shared.
-    required: true
-`}
+	return map[string]string{
+		treeFile: declared,
+		"actions/fetch/action.yaml": `title: Online
+fail: Nothing is shared under that code.
+variable:
+  name: SOURCE
+  title: Configuration code
+  description: The code of a configuration somebody shared.
+  required: true
+`,
+		"actions/fetch/action.sh": script + "\n",
+	}
 }
 
 // ─── Failures are not closed by accident ─────────────────────────────────────
@@ -2885,7 +2897,8 @@ variables:`, 1)
 // nothing else.
 func TestAFailureIsNotClosedByTheKeyThatMeansBack(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\n",
+		"tasks/@go/a-first/test.sh":    "true\n",
 		"tasks/@go/b-second/task.yaml": "title: Second\n",
 		"tasks/@go/b-second/test.sh":   "ls /definitely/not/here\n",
 	})
@@ -2902,7 +2915,8 @@ func TestAFailureIsNotClosedByTheKeyThatMeansBack(t *testing.T) {
 // not by a keystroke that means something else everywhere else in the program.
 func TestTheListOfFailuresIsLeftByTheRowThatSaysSo(t *testing.T) {
 	h := installed(t, map[string]string{
-		"tasks/@go/a-first/task.yaml":  "title: First\ntest: \"true\"\n",
+		"tasks/@go/a-first/task.yaml":  "title: First\n",
+		"tasks/@go/a-first/test.sh":    "true\n",
 		"tasks/@go/b-second/task.yaml": "title: Second\nreport: Installed\n",
 		"tasks/@go/b-second/task.sh":   "true\n",
 		"tasks/@go/b-second/test.sh":   "ls /definitely/not/here\n",

@@ -180,22 +180,21 @@ func opened(t *testing.T, r *Runner, a *spec.Action) error {
 	return session.Err()
 }
 
-// An action the work requires says, while it says no, why — in the module's own
-// words, which are what the page standing in front of the work reads.
-func TestARequiredActionSaysWhy(t *testing.T) {
-	sp, _, r := acting(t, "requires: [uefi]\n", map[string][2]string{
-		"uefi": {"title: UEFI\n", "echo Set the boot mode to UEFI. >&2\nexit 1\n"},
-	}, false)
-	err := r.Says(sp.Action("uefi"))()
-	if err == nil || !strings.Contains(err.Error(), "Set the boot mode to UEFI.") {
-		t.Errorf("err = %v, want what the action said", err)
+// An action the work requires answers with its exit status alone: what it
+// means is its fail, which the page standing in front of the work reads.
+func TestARequiredActionAnswersWithItsExitStatus(t *testing.T) {
+	says := func(script string) bool {
+		t.Helper()
+		sp, _, r := acting(t, "requires: [uefi]\n", map[string][2]string{
+			"uefi": {"title: UEFI\nfail: Set the boot mode to UEFI.\n", script},
+		}, false)
+		return r.Says(sp.Action("uefi"))()
 	}
-
-	sp, _, r = acting(t, "requires: [uefi]\n", map[string][2]string{
-		"uefi": {"title: UEFI\n", "return 0\n"},
-	}, false)
-	if err := r.Says(sp.Action("uefi"))(); err != nil {
-		t.Errorf("err = %v, want nothing to say", err)
+	if says("echo bios >&2\nexit 1\n") {
+		t.Error("said yes, although the script said no")
+	}
+	if !says("return 0\n") {
+		t.Error("said no, although the script said yes")
 	}
 }
 
@@ -218,12 +217,12 @@ func TestAnActionIsOfferedWhereWhatItRequiresSaysYes(t *testing.T) {
 	}
 }
 
-// What the pages were answered with is what the script is handed, under the
-// names the pages declared.
-func TestAnActionIsHandedItsPages(t *testing.T) {
+// What the page was answered with is what the script is handed, under the
+// name the page declared.
+func TestAnActionIsHandedItsPage(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "said")
 	sp, st, r := acting(t, "menu: [greet]\n", map[string][2]string{
-		"greet": {"title: Greet\nvariables:\n  - name: GREETING\n    title: Greeting\n", "printf '%s' \"$GREETING\" > '" + out + "'\n"},
+		"greet": {"title: Greet\nvariable:\n  name: GREETING\n  title: Greeting\n", "printf '%s' \"$GREETING\" > '" + out + "'\n"},
 	}, false)
 	st.Set("GREETING", "hello")
 	if err := opened(t, r, sp.Action("greet")); err != nil {
@@ -257,10 +256,10 @@ func TestASimulatedRunNeitherAsksNorRunsAnAction(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "ran")
 	script := "touch '" + marker + "'\n"
 	sp, _, r := acting(t, "requires: [check]\nmenu: [restart]\n", map[string][2]string{
-		"check":   {"title: Check\n", "exit 1\n"},
+		"check":   {"title: Check\nfail: No.\n", "exit 1\n"},
 		"restart": {"title: Restart\nrequires: [check]\n", script},
 	}, true)
-	if !r.Offered(sp.Action("restart"))() || r.Says(sp.Action("check"))() != nil {
+	if !r.Offered(sp.Action("restart"))() || !r.Says(sp.Action("check"))() {
 		t.Error("a simulated run was held to this machine")
 	}
 	if err := opened(t, r, sp.Action("restart")); err != nil {
@@ -287,7 +286,7 @@ func TestStartRunsAnTaskAndReportsIt(t *testing.T) {
 		"bad":  "title: Bad\nneeds: [good]\n",
 	})
 	// The failing one is written over the script setup laid down for it.
-	if err := os.WriteFile(sp.Tasks[1].Work().File, []byte("echo why not >&2\nexit 1\n"), 0o644); err != nil {
+	if err := os.WriteFile(string(sp.Tasks[1].Work()), []byte("echo why not >&2\nexit 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	good, err := r.Start(sp.Tasks[0])
@@ -436,18 +435,22 @@ func TestAListHoldingTrueAndFalseStillReadsInWords(t *testing.T) {
 	}
 }
 
-// The starting point that fetches its answers: a shell writes them into the
-// answer file, and the runner reads them back and puts them into force. This is
-// the whole of how a shared configuration becomes an installation.
-func TestAnImportedConfigurationBecomesTheAnswers(t *testing.T) {
+// The starting point that fetches its answers: an action's script writes them
+// into the answer file, and the runner reads them back and puts them into
+// force. This is the whole of how a shared configuration becomes an
+// installation.
+func TestAFetchedConfigurationBecomesTheAnswers(t *testing.T) {
 	applied := filepath.Join(t.TempDir(), "applied")
-	_, st, r := setup(t, "variables:\n"+
-		"  - name: DISK\n    title: Disk\n"+
-		"  - name: KEYMAP\n    title: Keymap\n    apply: touch \"$APPLIED\"\n", nil)
 	t.Setenv("APPLIED", applied)
+	sp, st, r := acting(t, "variables:\n"+
+		"  - name: DISK\n    title: Disk\n"+
+		"  - name: KEYMAP\n    title: Keymap\n    apply: touch \"$APPLIED\"\n"+
+		"presets:\n  - title: P\n    options:\n      - title: Online\n        action: fetch\n",
+		map[string][2]string{
+			"fetch": {"title: Fetch\n", "printf \"DISK='/dev/sdz'\\nKEYMAP='de'\\n\" >>\"$MODULE_CONF\"\n"},
+		}, false)
 
-	shell := "printf \"DISK='/dev/sdz'\\nKEYMAP='de'\\n\" >>\"$MODULE_CONF\""
-	if err := r.Import(shell)(); err != nil {
+	if err := opened(t, r, sp.Action("fetch")); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.Imported(); err != nil {
@@ -459,19 +462,6 @@ func TestAnImportedConfigurationBecomesTheAnswers(t *testing.T) {
 	}
 	if _, err := os.Stat(applied); err != nil {
 		t.Error("the imported keymap was never applied to the live system")
-	}
-}
-
-// What a shell says on stderr is what stands on the page, so a wrong code reads
-// as a wrong code rather than as a number.
-func TestAnImportThatFailsSaysWhy(t *testing.T) {
-	_, _, r := setup(t, "variables:\n  - name: X\n    title: X\n", nil)
-	err := r.Import("echo 'nothing is kept at that address' >&2; exit 1")()
-	if err == nil {
-		t.Fatal("a failing import reported success")
-	}
-	if !strings.Contains(err.Error(), "nothing is kept at that address") {
-		t.Errorf("the message is %q", err)
 	}
 }
 

@@ -137,30 +137,16 @@ func TestAQuestionNothingReadsAtAllIsReported(t *testing.T) {
 	}
 }
 
-func TestAValueATaskAsksForOrShowsIsReadByThatTask(t *testing.T) {
-	// Neither ever appears as $NAME anywhere: one is a list the run stops to
-	// put, the other a value the task writes into the answer file for the frame
-	// to draw. Being named in task.yaml is the whole of how they are read.
+func TestAValueATaskAsksForIsReadByThatTask(t *testing.T) {
+	// It never appears as $NAME anywhere: it is a list the run stops to put.
+	// Being named in task.yaml is the whole of how it is read.
 	declared := guarded + `  - name: PICK
     title: Pick
     values: [a, b]
     required: true
-  - name: LINK
-    title: Link
 `
 	files := consistent(map[string]string{FileModule: declared})
-	maps.Copy(files, unit("go", "work", "title: Work\nasks: PICK\nshows: LINK\nreport: |\n  Done\n\n  It worked.\n"))
-	if got := unread(t, files); len(got) != 0 {
-		t.Errorf("Unread() = %v, want nothing", got)
-	}
-}
-
-// And the same for an action: being named in action.yaml is how its report reads
-// what it draws, and an action runs whatever the answers say.
-func TestAValueAnActionShowsIsReadByThatAction(t *testing.T) {
-	declared := guarded + "  - name: LINK\n    title: Link\nfailure: [share]\n"
-	files := consistent(map[string]string{FileModule: declared})
-	maps.Copy(files, action("share", "title: Share\nshows: LINK\nreport: Shared\n"))
+	maps.Copy(files, unit("go", "work", "title: Work\nasks: PICK\n"))
 	if got := unread(t, files); len(got) != 0 {
 		t.Errorf("Unread() = %v, want nothing", got)
 	}

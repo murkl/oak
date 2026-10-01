@@ -160,7 +160,7 @@ func offered(mods []*spec.Module, debug bool) ([]*spec.Module, error) {
 	var refused []string
 	for _, mod := range mods {
 		if err := machine(mod); err != nil {
-			refused = append(refused, said(mod, err))
+			refused = append(refused, err.Error())
 			continue
 		}
 		open = append(open, mod)
@@ -172,27 +172,16 @@ func offered(mods []*spec.Module, debug bool) ([]*spec.Module, error) {
 }
 
 // machine asks the actions a module names under `offered:`, each by itself and
-// in order, and answers with what the first to say no wrote on stderr. There
-// are no answers yet, so each is handed the environment it was started in.
+// in order, and answers with the fail of the first to say no. There are no
+// answers yet, so each is handed the environment it was started in.
 func machine(mod *spec.Module) error {
 	sh := exec.Runner{Shells: mod.Shells(), Module: mod.ID()}
 	for _, a := range mod.Named(mod.Places.Offered) {
-		if err := sh.Guard(a.Work.Text(), os.Environ()); err != nil {
-			return err
+		if err := sh.Guard(a.Work().Shell(), os.Environ()); err != nil {
+			return errors.New(a.Refusal(func(string) string { return "" }))
 		}
 	}
 	return nil
-}
-
-// said is one refusal as it is read: what the module had to say about this
-// machine, or its name and nothing else where it said nothing. A module that
-// keeps quiet about why it is not on offer is an authoring gap rather than a
-// sentence worth inventing here.
-func said(mod *spec.Module, err error) string {
-	if text := strings.TrimSpace(err.Error()); text != "" {
-		return text
-	}
-	return i18n.T("%s cannot be opened on this machine.", mod.UI.Title)
 }
 
 // command is a command line, read.

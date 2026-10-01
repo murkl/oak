@@ -158,10 +158,17 @@ func (r *Runtime) Path(id string) string { return filepath.Join(r.Dir, DirModule
 // All of them, whichever one a run turns out to be about. A release ships its
 // modules together, so one that will not load is a broken release, and saying
 // so at startup beats a row that fails when somebody chooses it.
+//
+// Each is handed the product's own actions — the actions/ folder beside
+// oak.yaml — read afresh, so no two modules share one in memory.
 func (r *Runtime) LoadModules() ([]*Module, error) {
 	out := make([]*Module, 0, len(r.Modules))
 	for _, id := range r.Modules {
-		mod, err := Load(r.Path(id))
+		shared, err := loadActions(r.Dir)
+		if err != nil {
+			return nil, err
+		}
+		mod, err := load(r.Path(id), shared)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", id, err)
 		}
@@ -178,6 +185,30 @@ func (r *Runtime) LoadModules() ([]*Module, error) {
 			mod.Status = &inherited
 		}
 		out = append(out, mod)
+	}
+	return out, nil
+}
+
+// Unnamed is every action beside oak.yaml that none of these modules names, so
+// it never runs. A report rather than a refusal: a release may ship some of its
+// modules alone — a recovery booted from a partition of its own — and a lint
+// must never be why one does not start.
+func (r *Runtime) Unnamed(mods []*Module) ([]string, error) {
+	shared, err := loadActions(r.Dir)
+	if err != nil {
+		return nil, err
+	}
+	named := map[string]bool{}
+	for _, mod := range mods {
+		for _, a := range mod.Actions {
+			named[a.id] = true
+		}
+	}
+	var out []string
+	for _, a := range shared {
+		if !named[a.id] {
+			out = append(out, a.id)
+		}
 	}
 	return out, nil
 }

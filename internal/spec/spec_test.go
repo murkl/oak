@@ -89,7 +89,7 @@ presets:
         values:
           DISK: /dev/sda
 `,
-		"tasks/@done/reboot/task.yaml": "title: Reboot\nconfirm: Restart now?\nquits: true\n",
+		"tasks/@done/reboot/task.yaml": "title: Reboot\nconfirm: Restart now?\n",
 		"tasks/@done/reboot/task.sh":   "echo bye\n",
 	})
 	sp, err := Load(dir)
@@ -105,12 +105,12 @@ presets:
 	if len(sp.Tasks) != 2 {
 		t.Fatalf("tasks = %d, want 2", len(sp.Tasks))
 	}
-	if !strings.HasSuffix(sp.Tasks[0].Work().File, filepath.Join("do", FileTaskScript)) {
-		t.Errorf("script = %q", sp.Tasks[0].Work().File)
+	if !strings.HasSuffix(string(sp.Tasks[0].Work()), filepath.Join("do", FileTaskScript)) {
+		t.Errorf("script = %q", sp.Tasks[0].Work())
 	}
 	last := sp.Tasks[1]
-	if !last.Quits || !last.Confirms() {
-		t.Errorf("reboot = %+v, want it to ask and to quit", last)
+	if !last.Confirms() {
+		t.Errorf("reboot = %+v, want it to ask", last)
 	}
 	if got := last.Question(func(string) string { return "" }); got != "Restart now?" {
 		t.Errorf("question = %q", got)
@@ -224,17 +224,20 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 			want:  "no " + FileTaskScript,
 		},
 		{
-			name: "a task saying twice what it does",
+			name: "a task writing its shell into the yaml",
 			files: map[string]string{
 				"tasks/@go/half/task.yaml": "title: Half\nscript: echo hi\n",
 				"tasks/@go/half/task.sh":   "echo hi\n",
 			},
-			want: "one of the two is what runs",
+			want: "a task does its work in the task.sh beside it",
 		},
 		{
-			name:  "a script naming a file that is not there",
-			files: map[string]string{"tasks/@go/half/task.yaml": "title: Half\nscript: ./gone.sh\n"},
-			want:  "no such script",
+			name: "a task writing its test into the yaml",
+			files: map[string]string{
+				"tasks/@go/half/task.yaml": "title: Half\ntest: test -e /\n",
+				"tasks/@go/half/task.sh":   "echo hi\n",
+			},
+			want: "a task is tested by the test.sh beside it",
 		},
 	}
 	for _, tc := range cases {
@@ -255,7 +258,7 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 func TestAModuleNamesWhatItIsOfferedOn(t *testing.T) {
 	sp, err := Load(module(t, units(
 		map[string]string{FileModule: head("offered: [live]\n")},
-		action("live", "title: A live image\n"),
+		action("live", "title: A live image\nfail: This runs from a live image.\n"),
 	)))
 	if err != nil {
 		t.Fatal(err)
@@ -279,8 +282,8 @@ func TestAModuleNamesWhatItIsOfferedOn(t *testing.T) {
 func TestActionsAreNamedWhereTheyRun(t *testing.T) {
 	sp, err := Load(module(t, units(
 		map[string]string{FileModule: head("requires: [root, internet]\nmenu: [wlan]\nleave: [restart]\n")},
-		action("root", "title: Running as root\n"),
-		action("internet", "title: Internet\nfallback: wlan\n"),
+		action("root", "title: Running as root\nfail: Log in as root.\n"),
+		action("internet", "title: Internet\nfail: There is no internet.\nfallback: wlan\n"),
 		action("wlan", "title: Wireless network\nrequires: [card]\n"),
 		action("card", "title: A wireless card\n"),
 		action("restart", "title: Restart\n"),
@@ -301,8 +304,8 @@ func TestActionsAreNamedWhereTheyRun(t *testing.T) {
 	if a := sp.Action("wlan"); len(a.Requires) != 1 || a.Requires[0] != "card" {
 		t.Errorf("wlan requires %v, want the card", a.Requires)
 	}
-	if !strings.HasSuffix(sp.Action("restart").Work.File, filepath.Join("restart", FileActionScript)) {
-		t.Errorf("restart runs %+v, want the %s beside its yaml", sp.Action("restart").Work, FileActionScript)
+	if !strings.HasSuffix(string(sp.Action("restart").Work()), filepath.Join("restart", FileActionScript)) {
+		t.Errorf("restart runs %q, want the %s beside its yaml", sp.Action("restart").Work(), FileActionScript)
 	}
 	if !sp.Leaves() {
 		t.Error("Leaves() = false, want true: an action stands on the way out")
@@ -322,24 +325,22 @@ func TestAModuleWithoutActionsHasNone(t *testing.T) {
 	}
 }
 
-// An action's pages are questions like the module's own, held to the same rules
-// and sharing its names — but they are not the module's questions: never asked
-// on the way in and never on the settings page.
-func TestAnActionsPagesAreDeclaredBesideTheModulesOwn(t *testing.T) {
+// An action's page is a question like the module's own, held to the same rules
+// and sharing its names — but it is not one of the module's questions: never
+// asked on the way in and never on the settings page. The answer its report
+// shows is declared by being named there.
+func TestAnActionsPageIsDeclaredBesideTheModulesOwn(t *testing.T) {
 	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("menu: [wlan]\nvariables:\n  - name: DISK\n    title: Disk\n")},
+		map[string]string{FileModule: head("menu: [wlan, share]\nvariables:\n  - name: DISK\n    title: Disk\n")},
 		action("wlan", `
 title: Wireless network
-variables:
-  - name: WLAN_SSID
-    title: Network
-    command: ./networks.sh
-  - name: WLAN_PASSPHRASE
-    title: Passphrase
-    type: secret
-    existing: true
+variable:
+  name: WLAN_SSID
+  title: Network
+  command: ./networks.sh
 `),
 		map[string]string{"actions/wlan/networks.sh": "echo Home\n"},
+		action("share", "title: Share\nreport: Shared\nshows: LINK\n"),
 	)))
 	if err != nil {
 		t.Fatal(err)
@@ -348,7 +349,10 @@ variables:
 		t.Errorf("Vars = %v, want only the module's own question", sp.Vars)
 	}
 	if got := len(sp.Declared()); got != 3 {
-		t.Errorf("Declared() = %d variables, want the question and both pages", got)
+		t.Errorf("Declared() = %d variables, want the question, the page and the code", got)
+	}
+	if sp.Var("LINK") == nil {
+		t.Error("LINK is not a variable, want it declared by the report that shows it")
 	}
 	ssid := sp.Var("WLAN_SSID")
 	if ssid == nil || !strings.Contains(ssid.Command, filepath.Join("wlan", "networks.sh")) {
@@ -364,7 +368,7 @@ func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 		return units(map[string]string{FileModule: head("menu: [o]\n")}, action("o", yaml))
 	}
 	required := func(yaml string) map[string]string {
-		return units(map[string]string{FileModule: head("requires: [o]\n")}, action("o", yaml))
+		return units(map[string]string{FileModule: head("requires: [o]\n")}, action("o", "fail: No.\n"+yaml))
 	}
 	cases := []struct {
 		name  string
@@ -376,26 +380,35 @@ func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 		{"a name that is no action", map[string]string{FileModule: head("requires: [ghost]\n")}, "requires: no such action: ghost"},
 		{"a fallback that is no action", menu("title: O\nfallback: ghost\n"), "fallback: no such action: ghost"},
 		{"an action nothing names", action("o", "title: O\n"), "nothing names it, so it never runs"},
-		{"a required action that asks", required("title: O\nvariables:\n  - name: X\n    title: X\n"), "run unasked where requires names it"},
-		{"a required action that waits for a yes", required("title: O\nconfirm: Sure?\n"), "nothing waits for a yes"},
-		{"a way out that asks", units(map[string]string{FileModule: head("leave: [o]\n")}, action("o", "title: O\nvariables:\n  - name: X\n    title: X\n")), "a way out asks nothing"},
+		{"a required action that asks", required("title: O\nvariable:\n  name: X\n  title: X\n"), "it runs by itself where it is named, so it has no page"},
+		{"a required action that reports", required("title: O\nreport: Done\n"), "it runs by itself where it is named, so it has no page"},
+		{"a required action that does not say why", units(map[string]string{FileModule: head("requires: [o]\n")}, action("o", "title: O\n")), "fail: it runs by itself in front of the work"},
+		{"a way out that asks", units(map[string]string{FileModule: head("leave: [o]\n")}, action("o", "title: O\nvariable:\n  name: X\n  title: X\n")), "a way out asks nothing"},
 		{"a fallback on itself", menu("title: O\nfallback: o\n"), "cannot put itself right"},
 		{"actions that wait on each other", units(
 			map[string]string{FileModule: head("menu: [a]\n")},
 			action("a", "title: A\nrequires: [b]\n"),
 			action("b", "title: B\nfallback: a\n"),
 		), "actions that wait on each other: a → b → a"},
-		{"a page asked first", menu("title: O\nvariables:\n  - name: X\n    title: X\n    first: true\n"), "a page is asked when its action is opened"},
-		{"a page in a group", menu("title: O\nvariables:\n  - name: X\n    title: X\n    group: G\n"), "a page is never on the settings page"},
-		{"a page worked out", menu("title: O\nvariables:\n  - name: X\n    title: X\n    answer: echo x\n"), "an answer worked out is not"},
+		{"a page asked first", menu("title: O\nvariable:\n  name: X\n  title: X\n  first: true\n"), "a page is asked when its action is opened"},
+		{"a page in a group", menu("title: O\nvariable:\n  name: X\n  title: X\n  group: G\n"), "a page is never on the settings page"},
+		{"a page worked out", menu("title: O\nvariable:\n  name: X\n  title: X\n  answer: echo x\n"), "an answer worked out is not"},
 		{"a page named like a question", units(
 			map[string]string{FileModule: head("menu: [o]\nvariables:\n  - name: X\n    title: X\n")},
-			action("o", "title: O\nvariables:\n  - name: X\n    title: X\n"),
+			action("o", "title: O\nvariable:\n  name: X\n  title: X\n"),
 		), "X is declared twice"},
-		{"a page guarded by nothing", menu("title: O\nvariables:\n  - name: X\n    title: X\n    conditions: NOPE == y\n"), "no such variable: NOPE"},
-		{"a default with nothing to answer", menu("title: O\ndefault: no\n"), "there is no confirm for it to answer"},
-		{"a code with no report to stand on", menu("title: O\nshows: X\nvariables:\n  - name: X\n    title: X\n"), "there is no report for it to appear on"},
-		{"a script and an action.sh", menu("title: O\nscript: echo hi\n"), "one of the two is what runs"},
+		{"a code named like a question", units(
+			map[string]string{FileModule: head("menu: [o]\nvariables:\n  - name: X\n    title: X\n")},
+			action("o", "title: O\nreport: Done\nshows: X\n"),
+		), "X is declared twice"},
+		{"a page guarded by nothing", menu("title: O\nvariable:\n  name: X\n  title: X\n  conditions: NOPE == y\n"), "no such variable: NOPE"},
+		{"two pages", menu("title: O\nreport: Done\ntty: true\n"), "an action has one page"},
+		{"a question and a report", menu("title: O\nreport: Done\nvariable:\n  name: X\n  title: X\n"), "an action has one page"},
+		{"several questions", menu("title: O\nvariables:\n  - name: X\n    title: X\n"), "a second question is a second action named as its fallback"},
+		{"a code with no report to stand on", menu("title: O\nshows: X\n"), "there is no report for it to appear on"},
+		{"a script written into the yaml", menu("title: O\nscript: echo hi\n"), "an action in the action.sh beside it"},
+		{"a yes or no before it runs", menu("title: O\nconfirm: Sure?\n"), "an action is agreed to by choosing its row"},
+		{"a fail naming no answer", menu("title: O\nfail: Nothing on {{NOPE}}.\n"), "{{NOPE}} is not a variable of this module"},
 		{"an options folder from an older Oak", map[string]string{"options/wlan/option.yaml": "title: W\n"}, "an option is an action now"},
 	}
 	for _, tc := range cases {
@@ -411,13 +424,11 @@ func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 	}
 }
 
-// A task's own proof that the work took is a second script beside the first,
-// found the same way: written in the yaml, named by it, or simply lying there
-// under the name Oak knows it by.
-func TestATaskFindsItsCheckTheWayItFindsItsWork(t *testing.T) {
+// A task's own proof that the work took is the test.sh beside its task.sh, and
+// a task without one is simply not checked.
+func TestATaskIsCheckedByTheTestBesideIt(t *testing.T) {
 	sp, err := Load(module(t, units(
 		map[string]string{
-			"tasks/@go/inline/task.yaml": "title: Inline\nscript: echo hi\ntest: test -e /\n",
 			"tasks/@go/beside/task.yaml": "title: Beside\n",
 			"tasks/@go/beside/task.sh":   "echo hi\n",
 			"tasks/@go/beside/test.sh":   "test -e /\n",
@@ -430,60 +441,14 @@ func TestATaskFindsItsCheckTheWayItFindsItsWork(t *testing.T) {
 	for _, task := range sp.Tasks {
 		by[task.ID()] = task
 	}
-	if got := by["inline"].Check(); got.Shell != "test -e /" {
-		t.Errorf("inline check = %+v, want the shell it wrote", got)
+	if got := by["beside"].Check(); !strings.HasSuffix(string(got), filepath.Join("beside", FileTest)) {
+		t.Errorf("beside check = %q, want the %s beside it", got, FileTest)
 	}
-	if got := by["beside"].Check(); !strings.HasSuffix(got.File, FileTest) {
-		t.Errorf("beside check = %+v, want the %s beside it", got, FileTest)
-	}
-	// The default task declares none, and a module is checked only where
-	// something says how.
 	if by["do"].Checks() {
-		t.Errorf("do = %+v, want no check", by["do"].Check())
+		t.Errorf("do = %q, want no check", by["do"].Check())
 	}
 	if !sp.Checks() {
-		t.Error("Checks() = false, want true: two tasks say how to tell")
-	}
-}
-
-// Saying it twice is two answers to one question, exactly as it is for the work
-// itself.
-func TestATaskCannotSayTwiceHowItIsChecked(t *testing.T) {
-	_, err := Load(module(t, map[string]string{
-		"tasks/@go/half/task.yaml": "title: Half\ntest: test -e /\n",
-		"tasks/@go/half/task.sh":   "echo hi\n",
-		"tasks/@go/half/test.sh":   "test -e /\n",
-	}))
-	if err == nil || !strings.Contains(err.Error(), "one of the two is what runs") {
-		t.Errorf("err = %v, want it to refuse two checks", err)
-	}
-}
-
-// A task says what it does in its own yaml or in the file beside it, and the
-// two are told apart because a failure in a file names the file.
-func TestATaskRunsItsFileOrTheShellItsYamlWrote(t *testing.T) {
-	sp, err := Load(module(t, units(
-		map[string]string{
-			"tasks/@go/inline/task.yaml": "title: Inline\nscript: echo hi\n",
-			"tasks/@go/named/task.yaml":  "title: Named\nscript: ./other.sh\n",
-			"tasks/@go/named/other.sh":   "echo other\n",
-		},
-	)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	by := map[string]*Task{}
-	for _, task := range sp.Tasks {
-		by[task.ID()] = task
-	}
-	if got := by["inline"].Work(); got.File != "" || got.Shell != "echo hi" {
-		t.Errorf("inline = %q / %q, want the shell it wrote", got.File, got.Shell)
-	}
-	if got := by["named"].Work(); !strings.HasSuffix(got.File, "other.sh") || got.Shell != "" {
-		t.Errorf("named = %q / %q, want the file it named", got.File, got.Shell)
-	}
-	if got := by["do"].Work(); !strings.HasSuffix(got.File, FileTaskScript) {
-		t.Errorf("do = %q, want the %s beside it", got.File, FileTaskScript)
+		t.Error("Checks() = false, want true: a task says how to tell")
 	}
 }
 
@@ -557,14 +522,9 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "title is required",
 		},
 		{
-			name:  "an offer opening on an answer it does not have",
-			files: unit("go", "do", "title: Do\nconfirm: Really?\ndefault: maybe\n"),
-			want:  "yes or no",
-		},
-		{
-			name:  "an answer to an offer that was never made",
-			files: unit("go", "do", "title: Do\ndefault: no\n"),
-			want:  "no confirm for it to answer",
+			name:  "an offer opening on no, the way an older Oak read it",
+			files: unit("go", "do", "title: Do\nconfirm: Really?\ndefault: no\n"),
+			want:  "default is not a key here — a task's confirm opens on yes",
 		},
 		{
 			name:  "a preset filling in a variable nobody declared",
@@ -711,7 +671,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a task still saying execute",
 			files: unit("go", "do", "title: Do\nexecute: echo hi\n"),
-			want:  "execute is not a key here — a task says what it does under script",
+			want:  "execute is not a key here — a task does its work in the task.sh beside it",
 		},
 		{
 			name:  "a language tied to a variable nobody declared",
@@ -762,32 +722,27 @@ func TestLoadRefuses(t *testing.T) {
 			want: "is a secret",
 		},
 		{
-			name:  "a value shown on a page that does not exist",
-			files: unit("go", "do", "title: Do\nshows: DISK\n"),
-			want:  "no report for it to appear on",
+			name:  "a task showing a code, the way an older Oak drew one",
+			files: unit("go", "do", "title: Do\nreport: Done\nshows: DISK\n"),
+			want:  "shows is not a key here — a code is drawn by an action",
 		},
 		{
-			name:  "a report showing a variable nobody declared",
-			files: unit("go", "do", "title: Do\nreport: Done\nshows: NOPE\n"),
-			want:  "no such variable",
+			name:  "a starting point fetched the way an older Oak fetched one",
+			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: O\n        asks: DISK\n")},
+			want:  "asks is not a key here — a starting point that is fetched names the action that fetches it",
 		},
 		{
-			name: "a report showing a secret",
+			name:  "a starting point opening an action that is not there",
+			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: O\n        action: ghost\n")},
+			want:  "no such action: ghost",
+		},
+		{
+			name: "a starting point both written out and fetched",
 			files: units(
-				map[string]string{FileModule: head("variables:\n  - name: PW\n    title: Password\n    type: secret\n")},
-				unit("go", "do", "title: Do\nreport: Done\nshows: PW\n"),
+				map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: Disk\npresets:\n  - title: P\n    options:\n      - title: O\n        action: fetch\n        values:\n          DISK: /dev/sda\n")},
+				action("fetch", "title: Fetch\n"),
 			),
-			want: "is a secret",
-		},
-		{
-			name:  "a starting point asking for a variable nobody declared",
-			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: O\n        asks: NOPE\n")},
-			want:  "no such variable",
-		},
-		{
-			name:  "a starting point with shell and nothing to run it on",
-			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: O\n        apply: echo hi\n")},
-			want:  "no asks for it to work from",
+			want: "written out in values or fetched by an action, not both",
 		},
 		{
 			name:  "the network said the way an older Oak read it",
@@ -1017,42 +972,48 @@ func TestConditionsRefuseAnythingButAConditionOrAListOfThem(t *testing.T) {
 	}
 }
 
-// A value a task shows and one a starting point asks for are both values the
-// opening run of questions has no business asking: the first does not exist yet
-// and the second stands for nothing once it has been used. Nothing declares
-// that — being named is the declaration.
+// A value a task asks for mid-run is one the opening run of questions has no
+// business asking: it does not exist yet. Nothing declares that — being named
+// is the declaration.
 func TestBeingNamedIsWhatDefersAValue(t *testing.T) {
 	dir := module(t, units(
 		map[string]string{
-			FileModule: head(`presets:
-  - title: P
-    options:
-      - title: O
-        asks: SOURCE
-        apply: echo hi
-variables:
+			FileModule: head(`variables:
   - name: DISK
     title: Disk
     required: true
-  - name: LINK
-    title: Shared at
-  - name: SOURCE
-    title: Configuration code
+  - name: SNAPSHOT
+    title: Snapshot
+    values: [a, b]
 `),
 		},
-		unit("go", "do", "title: Do\nreport: Done\nshows: LINK\n"),
+		unit("go", "do", "title: Do\nasks: SNAPSHOT\n"),
 	))
 	sp, err := Load(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"LINK", "SOURCE"} {
-		if !sp.Var(name).Deferred() {
-			t.Errorf("%s is not deferred", name)
-		}
+	if !sp.Var("SNAPSHOT").Deferred() {
+		t.Error("SNAPSHOT is not deferred")
 	}
 	if sp.Var("DISK").Deferred() {
 		t.Error("an ordinary question was deferred")
+	}
+}
+
+// A starting point that is fetched rather than written out opens an action,
+// whose page asks for what it fetches.
+func TestAStartingPointMayBeFetchedByAnAction(t *testing.T) {
+	sp, err := Load(module(t, units(
+		map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: Online\n        action: fetch\n")},
+		action("fetch", "title: Fetch\nvariable:\n  name: SOURCE\n  title: Code\n"),
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := sp.Presets[0].Options[0]
+	if !o.Fetches() || sp.Action(o.Action) == nil {
+		t.Errorf("option = %+v, want it to open the action it names", o)
 	}
 }
 
@@ -1078,8 +1039,8 @@ func TestAReportsFirstParagraphIsItsHeadline(t *testing.T) {
 	}
 }
 
-// A task may say its output is its progress, and the load keeps that - except
-// where the terminal is handed over, which shows everything already.
+// A task may say its output is its progress, and the load keeps that on that
+// task alone.
 func TestATaskMayDeclareItsOutputItsProgress(t *testing.T) {
 	sp, err := Load(module(t, unit("go", "fetch", "title: Fetch\nprogress: true\n")))
 	if err != nil {
@@ -1089,11 +1050,6 @@ func TestATaskMayDeclareItsOutputItsProgress(t *testing.T) {
 		if task.Progress != (task.ID() == "fetch") {
 			t.Errorf("%s: Progress = %v, want it only where it was declared", task.ID(), task.Progress)
 		}
-	}
-
-	_, err = Load(module(t, unit("go", "shell", "title: Shell\nprogress: true\ntty: true\n")))
-	if err == nil || !strings.Contains(err.Error(), "progress") {
-		t.Errorf("err = %v, want progress refused beside tty", err)
 	}
 }
 

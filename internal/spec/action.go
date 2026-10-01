@@ -11,15 +11,17 @@ import (
 )
 
 // Action is something a module does outside its run: a folder under actions/,
-// holding what it is and the script that does it.
+// holding what it is and the action.sh that does it.
 //
-// It is a script and nothing more. It says yes by exiting 0, and where it says
-// no, what it wrote on stderr is why. Where it is run is not the action's
+// The yaml says how it behaves and the script only does the work: it says yes
+// by exiting 0 and no by anything else. Where it runs is not the action's
 // business but the place that names it: the module's `offered:` and
-// `requires:`, its `menu:`, `leave:` and `failure:`, and another action's
-// `requires:` and `fallback:`. The runtime knows nothing about what any of
-// them is for — joining a wireless network, switching the machine off and
-// checking that it booted the right way are all actions a module wrote.
+// `requires:`, its `menu:`, `leave:`, `failure:` and `success:`, a preset
+// option, and another action's `requires:` and `fallback:`.
+//
+// An action has at most one page: a question before its script, the report
+// after it, or the terminal handed to it. A flow of several pages is several
+// actions, each the fallback of the one before.
 type Action struct {
 	Title       string
 	Description string
@@ -28,46 +30,49 @@ type Action struct {
 	// all: a wireless network is not one on a machine with no card.
 	Requires []string
 
-	// Fallback is the action offered where this one says no, to put right what
-	// it found: no internet, and a wireless network to join.
+	// Fallback is the action opened where this one says no: no internet, and a
+	// wireless network to join.
 	Fallback string
 
-	// Vars are the pages it asks before it runs, in order: questions like the
-	// module's own, whose answers are handed to its script and kept for this
-	// session only — never on the settings page, never in the answer file.
-	Vars []*Variable
+	// Fail is what a no from this one means, in words: the page in front of the
+	// work, the reason a module is not offered, the headline over a failure.
+	Fail string
 
-	// Work is what it does.
-	Work Script
+	// Var is its one page before it runs: a question like the module's own,
+	// whose answer is handed to its script and kept for this session only.
+	Var *Variable
 
-	// Confirm, Default, Report and Shows are what they are on a task: a yes or
-	// no before it runs, which of the two that opens on, the page it stops on
-	// once it has, and the answer drawn on that page as a code.
-	Confirm string
-	Default Scalar
-	Report  string
-	Shows   string
+	// Report is its one page after it has run, and Shows the answer drawn
+	// there as a code. The script writes that answer into the answer file, and
+	// being named here is its whole declaration.
+	Report string
+	Shows  string
 
-	// Simulates runs it under --debug as well, the way it does a task.
+	// TTY is its one page being the terminal itself: the interface stands
+	// aside, and the script has the keyboard until it exits.
+	TTY bool
+
+	// Simulates runs it under --debug as well, for one that reads DEBUG itself.
 	Simulates bool
 
-	id  string
-	dir string
+	work  Script
+	shown *Variable
+	id    string
+	dir   string
 }
 
 // actionDeclaration is action.yaml as it is written.
 type actionDeclaration struct {
-	Title       string      `yaml:"title"`
-	Description string      `yaml:"description"`
-	Requires    []string    `yaml:"requires"`
-	Fallback    string      `yaml:"fallback"`
-	Variables   []*Variable `yaml:"variables"`
-	Script      string      `yaml:"script"`
-	Confirm     string      `yaml:"confirm"`
-	Default     Scalar      `yaml:"default"`
-	Report      string      `yaml:"report"`
-	Shows       string      `yaml:"shows"`
-	Simulates   bool        `yaml:"simulates"`
+	Title       string    `yaml:"title"`
+	Description string    `yaml:"description"`
+	Requires    []string  `yaml:"requires"`
+	Fallback    string    `yaml:"fallback"`
+	Fail        string    `yaml:"fail"`
+	Variable    *Variable `yaml:"variable"`
+	Report      string    `yaml:"report"`
+	Shows       string    `yaml:"shows"`
+	TTY         bool      `yaml:"tty"`
+	Simulates   bool      `yaml:"simulates"`
 }
 
 // Places is where a module names its actions. Each is a list of their names,
@@ -82,12 +87,13 @@ type Places struct {
 	// where it has one.
 	Requires []string `yaml:"requires"`
 
-	// Menu, Leave and Failure are rows: on the menu between the work and the
-	// settings, on the page every way out arrives at, and on the page a run
-	// that failed stops on.
+	// Menu, Leave, Failure and Success are rows: on the menu between the work
+	// and the settings, on the page every way out arrives at, under a run that
+	// failed, and under a run that finished.
 	Menu    []string `yaml:"menu"`
 	Leave   []string `yaml:"leave"`
 	Failure []string `yaml:"failure"`
+	Success []string `yaml:"success"`
 }
 
 // ID is the folder this action was read from, which is the name every place
@@ -97,17 +103,16 @@ func (a *Action) ID() string { return a.id }
 // Dir is its own folder, absolute: everything it ships with is in there.
 func (a *Action) Dir() string { return a.dir }
 
+// Work is the action.sh it does its work in.
+func (a *Action) Work() Script { return a.work }
+
 func (a *Action) Label() string { return i18n.T(a.Title) }
 func (a *Action) Help() string  { return i18n.T(a.Description) }
 
-// Confirms reports whether it asks before it runs, and Declines whether that
-// question opens on no.
-func (a *Action) Confirms() bool { return a.Confirm != "" }
-func (a *Action) Declines() bool { return a.Default == ConfirmNo }
-
-// Question is the offer, translated and with the answers filled in.
-func (a *Action) Question(get func(string) string) string {
-	return strings.TrimSpace(Expand(i18n.T(a.Confirm), get))
+// Refusal is what a no from it means, translated and with the answers filled
+// in. Empty where it says nothing about it.
+func (a *Action) Refusal(get func(string) string) string {
+	return strings.TrimSpace(Expand(i18n.T(a.Fail), get))
 }
 
 // Reports reports whether it stops on a page of its own once it has run.
@@ -119,6 +124,18 @@ func (a *Action) ReportText(get func(string) string) (headline, body string) {
 	text := strings.TrimSpace(Expand(i18n.T(a.Report), get))
 	headline, body, _ = strings.Cut(text, "\n\n")
 	return headline, strings.TrimSpace(body)
+}
+
+// vars is every value this action has: its page, and the answer its report
+// shows.
+func (a *Action) vars() []*Variable {
+	var out []*Variable
+	for _, v := range []*Variable{a.Var, a.shown} {
+		if v != nil {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // Action finds one by the name every place reaches it by.
@@ -141,17 +158,17 @@ func (s *Module) Named(names []string) []*Action {
 }
 
 // Declared is every variable this module has a value for: its own questions,
-// and then the pages of its actions.
+// and then those of its actions.
 func (s *Module) Declared() []*Variable {
 	out := append([]*Variable{}, s.Vars...)
 	for _, a := range s.Actions {
-		out = append(out, a.Vars...)
+		out = append(out, a.vars()...)
 	}
 	return out
 }
 
-// loadActions reads actions/, one folder per action. A module with no
-// actions/ has none, which is not an error.
+// loadActions reads the actions/ folder in dir, one folder per action. A
+// folder with no actions/ has none, which is not an error.
 func loadActions(dir string) ([]*Action, error) {
 	base := filepath.Join(dir, DirActions)
 	entries, err := os.ReadDir(base)
@@ -175,123 +192,179 @@ func loadActions(dir string) ([]*Action, error) {
 	return out, nil
 }
 
-// loadAction reads one folder: what it is, and the script it runs. An action
-// that runs nothing is not one.
+// loadAction reads one folder: what it is, and the action.sh it does it in.
 func loadAction(where string) (*Action, error) {
 	var d actionDeclaration
 	if err := read(filepath.Join(where, FileAction), &d); err != nil {
 		return nil, err
 	}
-	work, err := pick(where, "script", d.Script, FileActionScript)
-	if err != nil {
-		return nil, err
-	}
-	if work.Empty() {
-		return nil, fmt.Errorf("no %s here, and no script in %s", FileActionScript, FileAction)
+	work := Script(beside(where, FileActionScript))
+	if work == "" {
+		return nil, fmt.Errorf("no %s here — an action does its work in one", FileActionScript)
 	}
 	return &Action{
 		Title: d.Title, Description: d.Description,
-		Requires: d.Requires, Fallback: d.Fallback, Vars: d.Variables,
-		Work: work, Confirm: d.Confirm, Default: d.Default,
-		Report: d.Report, Shows: d.Shows, Simulates: d.Simulates,
-		id: filepath.Base(where), dir: where,
+		Requires: d.Requires, Fallback: d.Fallback, Fail: d.Fail, Var: d.Variable,
+		Report: d.Report, Shows: d.Shows, TTY: d.TTY, Simulates: d.Simulates,
+		work: work, id: filepath.Base(where), dir: where,
 	}, nil
 }
 
-// checkActions settles the actions against the rest of the module: every name
-// a place gives is an action, every action is named somewhere, and what each
-// one says can take effect where it is run.
+// How an action is run, which decides what it may say.
+const (
+	// opened is an action somebody opens: a row, a fallback, a preset option.
+	opened = iota
+	// unasked runs by itself to answer a question, so it has no page.
+	unasked
+	// gating runs by itself, and a no from it is read by somebody — the page in
+	// front of the work, the reason a module is not offered — so it says why.
+	gating
+)
+
+// gather settles which actions this module has: its own, and those of the
+// product's it names. A name in both is refused, so a name always means one
+// folder. Every own action must be named somewhere; a product's action this
+// module does not name is simply not one of its own.
 //
-// An action is run in one of two ways, and what it may say follows from which.
-// One that answers a question by itself — whether this module is on offer,
-// whether the work may begin, whether another action is — runs unasked, so it
-// asks nothing. One that somebody opens — a row, or the fallback of a check that
-// said no — may ask its pages and its yes or no first.
-func (s *Module) checkActions() error {
-	named := map[string]bool{}
-	unasked := map[string]string{}
-	place := func(key string, names []string, asked bool) error {
-		for _, name := range names {
-			if s.Action(name) == nil {
-				return fmt.Errorf("%s: no such action: %s — an action is a folder under %s/", key, name, DirActions)
-			}
-			named[name] = true
-			if !asked {
-				unasked[name] = key
+// What it hands back is how each one is run, the strictest place first.
+func (s *Module) gather(own, shared []*Action) (map[string]int, error) {
+	for _, a := range own {
+		if slices.ContainsFunc(shared, func(b *Action) bool { return b.id == a.id }) {
+			return nil, fmt.Errorf("%s/%s: the product has an action of that name too, and a name means one folder", DirActions, a.id)
+		}
+	}
+	find := func(name string) *Action {
+		for _, list := range [][]*Action{own, shared} {
+			if i := slices.IndexFunc(list, func(a *Action) bool { return a.id == name }); i >= 0 {
+				return list[i]
 			}
 		}
 		return nil
 	}
+
+	runs := map[string]int{}
+	var queue []*Action
+	place := func(where, key string, names []string, how int) error {
+		for _, name := range names {
+			a := find(name)
+			if a == nil {
+				return fmt.Errorf("%s: %s: no such action: %s — an action is a folder under %s/", where, key, name, DirActions)
+			}
+			was, seen := runs[name]
+			runs[name] = max(was, how)
+			if !seen {
+				queue = append(queue, a)
+			}
+		}
+		return nil
+	}
+
 	p := s.Places
 	for _, at := range []struct {
 		key   string
 		names []string
-		asked bool
+		how   int
 	}{
-		{"offered", p.Offered, false},
-		{"requires", p.Requires, false},
-		{"menu", p.Menu, true},
-		{"leave", p.Leave, true},
-		{"failure", p.Failure, true},
+		{"offered", p.Offered, gating},
+		{"requires", p.Requires, gating},
+		{"menu", p.Menu, opened},
+		{"leave", p.Leave, opened},
+		{"failure", p.Failure, opened},
+		{"success", p.Success, opened},
 	} {
-		if err := place(at.key, at.names, at.asked); err != nil {
-			return fmt.Errorf("%s: %w", FileModule, err)
+		if err := place(FileModule, at.key, at.names, at.how); err != nil {
+			return nil, err
 		}
 	}
-	for _, a := range s.Actions {
-		where := fmt.Sprintf("%s/%s", DirActions, a.id)
-		if err := place("requires", a.Requires, false); err != nil {
-			return fmt.Errorf("%s: %w", where, err)
-		}
-		if a.Fallback != "" {
-			if err := place("fallback", []string{a.Fallback}, true); err != nil {
-				return fmt.Errorf("%s: %w", where, err)
+	for _, pr := range s.Presets {
+		for _, o := range pr.Options {
+			if o.Action == "" {
+				continue
+			}
+			if err := place(FileModule, pr.Title+": "+o.Title, []string{o.Action}, opened); err != nil {
+				return nil, err
 			}
 		}
 	}
-	for _, a := range s.Actions {
+	for len(queue) > 0 {
+		a := queue[0]
+		queue = queue[1:]
 		where := fmt.Sprintf("%s/%s", DirActions, a.id)
-		if !named[a.id] {
-			return fmt.Errorf("%s: nothing names it, so it never runs — name it in %s or in another action", where, FileModule)
+		if err := place(where, "requires", a.Requires, unasked); err != nil {
+			return nil, err
 		}
-		if err := s.checkAction(a, unasked[a.id]); err != nil {
-			return fmt.Errorf("%s: %w", where, err)
+		if a.Fallback != "" {
+			if err := place(where, "fallback", []string{a.Fallback}, opened); err != nil {
+				return nil, err
+			}
 		}
 	}
-	if slices.ContainsFunc(p.Leave, func(name string) bool { return len(s.Action(name).Vars) > 0 }) {
+
+	for _, a := range own {
+		if _, ok := runs[a.id]; !ok {
+			return nil, fmt.Errorf("%s/%s: nothing names it, so it never runs — name it in %s or in another action", DirActions, a.id, FileModule)
+		}
+	}
+	s.Actions = append([]*Action{}, own...)
+	for _, a := range shared {
+		if _, ok := runs[a.id]; ok {
+			s.Actions = append(s.Actions, a)
+		}
+	}
+	return runs, nil
+}
+
+// checkActions settles what each action says against how it is run: one that
+// runs by itself shows no page, and one whose no somebody reads says why.
+func (s *Module) checkActions(runs map[string]int) error {
+	where := func(a *Action) string { return fmt.Sprintf("%s/%s", DirActions, a.id) }
+	for _, a := range s.Actions {
+		if err := s.checkAction(a, runs[a.id]); err != nil {
+			return fmt.Errorf("%s: %w", where(a), err)
+		}
+	}
+	if slices.ContainsFunc(s.Named(s.Places.Leave), func(a *Action) bool { return a.Var != nil }) {
 		return fmt.Errorf("%s: leave: a way out asks nothing, it only goes", FileModule)
 	}
 	if ring := s.circle(); ring != "" {
 		return fmt.Errorf("%s: actions that wait on each other: %s", DirActions, ring)
 	}
-	// Conditions once every page is known, so one may be guarded by a page
-	// after it.
+	// Conditions once every page is known, so one may be guarded by a page of
+	// another action.
 	for _, a := range s.Actions {
-		for _, v := range a.Vars {
-			cond, err := s.conditions(v.Conditions)
-			if err != nil {
-				return fmt.Errorf("%s/%s: %s: %w", DirActions, a.id, v.Name, err)
-			}
-			v.cond = cond
+		if a.Var == nil {
+			continue
 		}
+		cond, err := s.conditions(a.Var.Conditions)
+		if err != nil {
+			return fmt.Errorf("%s: %s: %w", where(a), a.Var.Name, err)
+		}
+		a.Var.cond = cond
 	}
 	return nil
 }
 
-// checkAction refuses what an action cannot mean. unasked names the place that
-// runs it by itself, empty where only somebody opening it does.
-func (s *Module) checkAction(a *Action, unasked string) error {
+// checkAction refuses what an action cannot mean, given how it is run.
+func (s *Module) checkAction(a *Action, how int) error {
+	pages := 0
+	for _, has := range []bool{a.Var != nil, a.Reports(), a.TTY} {
+		if has {
+			pages++
+		}
+	}
 	switch {
 	case a.Title == "":
 		return fmt.Errorf("title is required")
-	case unasked != "" && len(a.Vars) > 0:
-		return fmt.Errorf("variables: it is run unasked where %s names it, so it asks nothing", unasked)
-	case unasked != "" && a.Confirms():
-		return fmt.Errorf("confirm: it is run unasked where %s names it, so nothing waits for a yes", unasked)
+	case pages > 1:
+		return fmt.Errorf("an action has one page: variable, report or tty — a second one is a second action, named as its fallback")
+	case how != opened && pages > 0:
+		return fmt.Errorf("it runs by itself where it is named, so it has no page")
+	case how == gating && a.Fail == "":
+		return fmt.Errorf("fail: it runs by itself in front of the work, and a no there is read as this sentence")
 	case a.Fallback == a.id:
 		return fmt.Errorf("fallback: an action cannot put itself right")
 	}
-	for _, v := range a.Vars {
+	if v := a.Var; v != nil {
 		switch {
 		case v.First:
 			return fmt.Errorf("%s: first: a page is asked when its action is opened", v.Name)
@@ -304,16 +377,32 @@ func (s *Module) checkAction(a *Action, unasked string) error {
 			return err
 		}
 	}
-	if err := checkOffer(a.Default, a.Confirms()); err != nil {
+	if err := s.checkShown(a); err != nil {
 		return err
 	}
-	if err := s.checkText("confirm", a.Confirm); err != nil {
+	if err := s.checkText("fail", a.Fail); err != nil {
 		return err
 	}
-	if err := s.checkText("report", a.Report); err != nil {
-		return err
+	return s.checkText("report", a.Report)
+}
+
+// checkShown settles a `shows:`, which is an answer put on the page a
+// `report:` draws — as a code to scan, and under it as itself. Being named is
+// its declaration: the action's script answers it, and nothing else does.
+func (s *Module) checkShown(a *Action) error {
+	if a.Shows == "" {
+		return nil
 	}
-	return s.checkShown(a.Shows, a.Reports())
+	if !a.Reports() {
+		return fmt.Errorf("shows: there is no report for it to appear on")
+	}
+	if a.shown == nil {
+		a.shown = &Variable{Name: a.Shows, Title: a.Shows}
+	}
+	if err := s.checkVar(a.shown, a.dir); err != nil {
+		return fmt.Errorf("shows: %w", err)
+	}
+	return nil
 }
 
 // circle is the first ring of actions that wait on each other through their

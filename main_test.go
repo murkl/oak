@@ -434,11 +434,11 @@ func TestDebugOnTheCommandLineReachesEveryScript(t *testing.T) {
 }
 
 // offeredBy is a module whose one action, machine, says whether it is on offer
-// here, by doing what script does.
-func offeredBy(t *testing.T, title, script string, files map[string]string) string {
+// here, by doing what script does, and says fail where it is not.
+func offeredBy(t *testing.T, title, fail, script string, files map[string]string) string {
 	t.Helper()
 	all := map[string]string{
-		"actions/machine/action.yaml": "title: This machine\n",
+		"actions/machine/action.yaml": "title: This machine\nfail: " + fail + "\n",
 		"actions/machine/action.sh":   script,
 	}
 	maps.Copy(all, files)
@@ -453,8 +453,8 @@ func offeringRuntime(t *testing.T) (*spec.Runtime, []*spec.Module) {
 	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte(runtimeDecl), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	put(t, dir, "here", offeredBy(t, "here", "true\n", nil))
-	put(t, dir, "elsewhere", offeredBy(t, "elsewhere", "echo \"not this machine\" >&2\nexit 1\n", nil))
+	put(t, dir, "here", offeredBy(t, "here", "Not here.", "true\n", nil))
+	put(t, dir, "elsewhere", offeredBy(t, "elsewhere", "not this machine", "echo bios >&2\nexit 1\n", nil))
 	put(t, dir, "anywhere", writeModule(t, "title: anywhere\nstages: [go]\n", nil))
 	return product(t, dir)
 }
@@ -494,8 +494,8 @@ func TestASimulatedRunIsOfferedEveryModule(t *testing.T) {
 }
 
 // Named outright, a module that does not belong here is refused in its own
-// words: the sentence it wrote is the whole of what is worth saying, and an
-// exit status in front of it only gets in the way.
+// words: the fail it wrote is the whole of what is worth saying, and neither an
+// exit status nor what the script printed for the log gets in the way.
 func TestAModuleNamedOutrightIsRefusedInItsOwnWords(t *testing.T) {
 	rt, mods := offeringRuntime(t)
 
@@ -519,8 +519,8 @@ func TestAMachineNoModuleBelongsOnIsToldByEveryOneOfThem(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte(runtimeDecl), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	put(t, dir, "one", offeredBy(t, "one", "echo \"needs a live image\" >&2\nexit 1\n", nil))
-	put(t, dir, "two", offeredBy(t, "two", "echo \"needs a plugged-in device\" >&2\nexit 1\n", nil))
+	put(t, dir, "one", offeredBy(t, "one", "needs a live image", "exit 1\n", nil))
+	put(t, dir, "two", offeredBy(t, "two", "needs a plugged-in device", "exit 1\n", nil))
 	_, mods := product(t, dir)
 
 	_, err := offered(mods, false)
@@ -538,7 +538,7 @@ func TestAMachineNoModuleBelongsOnIsToldByEveryOneOfThem(t *testing.T) {
 // as a sentence rather than as a line of test flags — and the one place that
 // names the rule is the module it belongs to.
 func TestWhatAModuleIsOfferedOnIsGivenTheModulesOwnShell(t *testing.T) {
-	dir := around(t, offeredBy(t, "shelled", "belongs_here\n",
+	dir := around(t, offeredBy(t, "shelled", "No.", "belongs_here\n",
 		map[string]string{spec.FileShell: "belongs_here() { return 0; }\n"}))
 	_, mods := product(t, dir)
 
@@ -555,7 +555,7 @@ func TestWhatAModuleIsOfferedOnIsGivenTheModulesOwnShell(t *testing.T) {
 // where `return 0` is how a guard says yes. Shell that means one thing there
 // and another here would be a trap laid for whoever writes the next module.
 func TestAnActionMaySayYesTheWayEveryOtherGuardDoes(t *testing.T) {
-	dir := around(t, offeredBy(t, "returning", "[ -n \"$HOME\" ] && return 0\necho no home >&2\nexit 1\n", nil))
+	dir := around(t, offeredBy(t, "returning", "No home.", "[ -n \"$HOME\" ] && return 0\nexit 1\n", nil))
 	_, mods := product(t, dir)
 
 	if _, err := offered(mods, false); err != nil {

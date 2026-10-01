@@ -31,10 +31,12 @@ func New(mod *spec.Module, st *store.Store) *Runner {
 // runs is passed in, because a task holds two: the work, and the test that
 // looks at what the work left behind.
 func step(t *spec.Task, script spec.Script) exec.Step {
-	return exec.Step{
-		Name:   t.Label(),
-		Script: exec.Script{File: script.File, Shell: script.Shell},
-	}
+	return exec.Step{Name: t.Label(), Script: exec.Script{File: string(script)}}
+}
+
+// actionStep is an action as the shell layer takes it.
+func actionStep(a *spec.Action) exec.Step {
+	return exec.Step{Name: a.Label(), Action: true, Script: exec.Script{File: string(a.Work())}}
 }
 
 // Option is one answer a question offers: the value that gets stored, and the
@@ -181,27 +183,12 @@ func (r *Runner) Apply(v *spec.Variable) error {
 	return err
 }
 
-// Import is shell that answers questions rather than reporting anything: a
-// configuration fetched from wherever somebody shared it, merged into the
-// answer file. What comes back is what it said if it would not work, which is a
-// sentence for the page that asked rather than a report of a broken task.
-//
-// It is handed back as something to run rather than run here, because it talks
-// to the network and the frame has to keep drawing while it does. The
-// environment is taken now, on the goroutine that owns the answers; the shell
-// itself may run anywhere. Reading back what it wrote is Imported, which
-// belongs on this side again.
-func (r *Runner) Import(shell string) func() error {
-	env := r.store.Env()
-	return func() error { return r.sh.Reason(shell, env) }
-}
-
 // Check hands a secret to the module's check before it is taken — an existing
 // password, tried on what it opens — and answers whether it was accepted. What
 // the check said where it said no goes to the log, since the page reads the
 // module's own words. Nil where the variable declares none.
 //
-// Handed back as something to run, like Import: the environment is taken now,
+// Handed back as something to run: the environment is taken now,
 // with the value in it under its own name, and the shell runs off the frame —
 // a wrong password is refused slowly on purpose.
 func (r *Runner) Check(v *spec.Variable, value string) func() bool {
@@ -218,8 +205,8 @@ func (r *Runner) Check(v *spec.Variable, value string) func() bool {
 	}
 }
 
-// Imported reads back what such a script left in the answer file and puts
-// whatever it answered into force — the console keyboard, most of all, since
+// Imported reads back what a script left in the answer file and puts whatever
+// it answered into force — the console keyboard, most of all, since
 // what is typed next is typed on it.
 func (r *Runner) Imported() error {
 	// Load again over what is held. The answer file is the channel because it
@@ -338,18 +325,17 @@ func (r *Runner) Test(t *spec.Task) (*exec.Session, error) {
 	return r.sh.Start(step(t, t.Check()), r.store.Env())
 }
 
-// Terminal is a task that takes the terminal over, built but not started —
+// Terminal is an action that takes the terminal over, built but not started —
 // the interface has to stand aside first, and only it knows how.
-func (r *Runner) Terminal(t *spec.Task) *exec.Handover {
-	logging.Info("%s", t.Title)
-	work := t.Work()
-	return r.sh.Terminal(exec.Script{File: work.File, Shell: work.Shell}, r.store.Env())
+func (r *Runner) Terminal(a *spec.Action) *exec.Handover {
+	logging.Info("action %s", a.ID())
+	return r.sh.Terminal(exec.Script{File: string(a.Work())}, r.store.Env())
 }
 
-// Fail is what comes back from a task the interface stood aside for, in the one
-// shape failures are reported in.
-func (r *Runner) Fail(t *spec.Task, err error) error {
-	return r.sh.Fail(step(t, t.Work()), err)
+// Fail is what comes back from an action the interface stood aside for, in the
+// one shape failures are reported in.
+func (r *Runner) Fail(a *spec.Action, err error) error {
+	return r.sh.Fail(actionStep(a), err)
 }
 
 // Offered is whether this machine has an action at all: every action it
@@ -358,9 +344,9 @@ func (r *Runner) Fail(t *spec.Task, err error) error {
 // is sitting at, and a list narrowed to it would hide the pages they opened it
 // for.
 //
-// Handed back as something to run, like Import: the environment is taken now,
-// on the goroutine that owns the answers, and the shell — which may wait for a
-// card to show up — runs off the frame.
+// Handed back as something to run: the environment is taken now, on the
+// goroutine that owns the answers, and the shell — which may wait for a card to
+// show up — runs off the frame.
 func (r *Runner) Offered(a *spec.Action) func() bool {
 	if len(a.Requires) == 0 || r.store.Debug() {
 		return func() bool { return true }
@@ -368,7 +354,7 @@ func (r *Runner) Offered(a *spec.Action) func() bool {
 	env, required := r.store.Env(), r.mod.Named(a.Requires)
 	return func() bool {
 		for _, c := range required {
-			if err := r.sh.Guard(c.Work.Text(), env); err != nil {
+			if err := r.sh.Guard(c.Work().Shell(), env); err != nil {
 				logging.Info("action %s: not offered, %s said no: %s", a.ID(), c.ID(), err)
 				return false
 			}
@@ -377,34 +363,40 @@ func (r *Runner) Offered(a *spec.Action) func() bool {
 	}
 }
 
-// Says runs an action by itself, as a question rather than as work: nil where
-// it says yes, and where it says no, what it wrote on stderr. That is how an
-// action the work requires is asked. Nothing is asked under --debug, for the
-// same reason everything is offered there.
+// Says runs an action by itself, as a question rather than as work: whether it
+// says yes. That is how an action the work requires is asked. What it wrote on
+// stderr where it says no goes to the log: what somebody reads is its fail.
+// Nothing is asked under --debug, for the same reason everything is offered
+// there.
 //
 // Handed back as something to run, like Offered.
-func (r *Runner) Says(a *spec.Action) func() error {
+func (r *Runner) Says(a *spec.Action) func() bool {
 	if r.store.Debug() {
-		return func() error { return nil }
+		return func() bool { return true }
 	}
 	env := r.store.Env()
-	return func() error { return r.sh.Guard(a.Work.Text(), env) }
+	return func() bool {
+		err := r.sh.Guard(a.Work().Shell(), env)
+		if err != nil {
+			logging.Info("action %s said no: %s", a.ID(), err)
+		}
+		return err == nil
+	}
 }
 
-// Open starts what an action does once somebody has opened it, with its pages'
-// answers in the environment, the way Start starts a task: in the background,
+// Open starts what an action does once somebody has opened it, with its page's
+// answer in the environment, the way Start starts a task: in the background,
 // reporting how it broke where it did. It is not part of a run, and nothing
 // follows it that a list would show.
 //
-// Under --debug it is only started where it declared it simulates itself, the
-// way a task is: the runtime cannot know what a script would change. A nil
-// session is that — nothing started, and nothing to wait for.
+// Under --debug it is only started where it declared it simulates itself: the
+// runtime cannot know what a script would change. A nil session is that —
+// nothing started, and nothing to wait for.
 func (r *Runner) Open(a *spec.Action) (*exec.Session, error) {
 	if r.store.Debug() && !a.Simulates {
 		logging.Info("action %s: simulated", a.ID())
 		return nil, nil
 	}
 	logging.Info("action %s", a.ID())
-	st := exec.Step{Name: a.Label(), Action: true, Script: exec.Script{File: a.Work.File, Shell: a.Work.Shell}}
-	return r.sh.Start(st, r.store.Env())
+	return r.sh.Start(actionStep(a), r.store.Env())
 }

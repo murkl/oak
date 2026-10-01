@@ -8,11 +8,3 @@ needs: [base]
 # but never part of the list.
 conditions:
   - TUX_DESKTOP != none
-
-# Short enough to read here, so there is no task.sh beside this file. The other
-# form is a single line naming one: `script: ./install.sh`.
-script: |
-  echo "$TUX_DESKTOP" >"$TUX_TARGET/etc/desktop"
-
-test: |
-  grep -q "^$TUX_DESKTOP$" "$TUX_TARGET/etc/desktop"
