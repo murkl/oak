@@ -1,5 +1,5 @@
-# An action is a script the module runs outside its work, wherever module.yaml
-# names it. This one is named under requires: it runs by itself before the
-# questions, and again every few seconds for as long as it says no — what it
-# writes to stderr is what somebody reads.
+# Named under requires: it runs by itself before the questions, and again every
+# few seconds for as long as it says no. The script only answers; what somebody
+# reads while it says no is fail.
 title: Check the working folder
+fail: This folder cannot be written to. Start Tux Setup somewhere you own.

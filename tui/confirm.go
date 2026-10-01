@@ -96,9 +96,8 @@ func startInstall(a *app, next int) screen {
 			return push(startInstall(a, next+1))
 		})
 	}
-	// Nothing follows a finished run: everything the module had to offer once the
-	// system was installed was a task of the last stage and has been offered.
-	// Enter on the result leaves. A failed one lands back on the hub, which is
-	// where a wrong answer is corrected.
+	// A finished run ends on its result, under it whatever the module offers
+	// once the work is done, and going on from there leaves. A failed one lands
+	// back on the hub, which is where a wrong answer is corrected.
 	return newRun(a, a.runner.Tasks(), leave, func() tea.Cmd { return reset(newHub(a)) })
 }

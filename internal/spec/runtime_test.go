@@ -253,3 +253,99 @@ func TestAStatusWithoutAScriptIsRefused(t *testing.T) {
 		t.Errorf("err = %v, want a status without a script refused", err)
 	}
 }
+
+// productAction lays an action down in the actions/ folder beside oak.yaml.
+func productAction(t *testing.T, dir, id, yaml string) {
+	t.Helper()
+	at := filepath.Join(dir, DirActions, id)
+	if err := os.MkdirAll(at, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{FileAction: yaml, FileActionScript: "true\n"} {
+		if err := os.WriteFile(filepath.Join(at, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// declare rewrites one module's declaration.
+func declare(t *testing.T, dir, module, yaml string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, DirModules, module, FileModule), []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// What several modules do alike is one folder beside oak.yaml: each module that
+// names it has it, from there, and one that does not name it does not.
+func TestAProductsActionIsTheModulesThatNameIt(t *testing.T) {
+	dir := writeRuntime(t, testRuntime, "installer", "recovery")
+	productAction(t, dir, "restart", "title: Restart\n")
+	declare(t, dir, "installer", "title: The installer\nstages: [go]\nleave: [restart]\n")
+
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := mods[0].Action("restart")
+	if a == nil || a.Dir() != filepath.Join(dir, DirActions, "restart") {
+		t.Fatalf("installer's restart = %+v, want the product's", a)
+	}
+	if mods[1].Action("restart") != nil {
+		t.Error("recovery has the restart, although it never named it")
+	}
+	if got := mods[0].Messages(); !slices.ContainsFunc(got, func(m Message) bool {
+		return m.Text == "Restart" && slices.Contains(m.Files, "../../actions/restart/action.yaml")
+	}) {
+		t.Errorf("Messages() = %+v, want the title named from the module's folder", got)
+	}
+}
+
+// A product's action no module names never runs. It is said rather than
+// refused: a release that ships some of its modules alone still starts.
+func TestAProductsActionNothingNamesIsReportedNotRefused(t *testing.T) {
+	dir := writeRuntime(t, testRuntime, "installer")
+	productAction(t, dir, "restart", "title: Restart\n")
+
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatalf("a product with an unnamed action did not load: %v", err)
+	}
+	if got, err := rt.Unnamed(mods); err != nil || !slices.Equal(got, []string{"restart"}) {
+		t.Errorf("Unnamed() = %v, %v, want restart", got, err)
+	}
+}
+
+// One name means one folder: a module may not have an action of the name the
+// product already gives one.
+func TestAModulesActionMayNotShadowTheProducts(t *testing.T) {
+	dir := writeRuntime(t, testRuntime, "installer")
+	productAction(t, dir, "restart", "title: Restart\n")
+	declare(t, dir, "installer", "title: The installer\nstages: [go]\nleave: [restart]\n")
+	at := filepath.Join(dir, DirModules, "installer", DirActions, "restart")
+	if err := os.MkdirAll(at, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{FileAction: "title: Mine\n", FileActionScript: "true\n"} {
+		if err := os.WriteFile(filepath.Join(at, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = rt.LoadModules()
+	if err == nil || !strings.Contains(err.Error(), "the product has an action of that name too") {
+		t.Errorf("err = %v, want the second restart refused", err)
+	}
+}

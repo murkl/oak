@@ -302,7 +302,7 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if r, ok := m.top().(refresher); ok {
 			r.Refresh()
 		}
-		return m, tea.Batch(initOf(m.top()), m.turn())
+		return m, tea.Batch(initOf(m.top()), m.turn(), msg.then)
 
 	case replaceScreenMsg:
 		m.stack[len(m.stack)-1] = msg.s

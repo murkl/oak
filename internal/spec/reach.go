@@ -63,7 +63,7 @@ func (s *Module) Unread() ([]Unread, error) {
 	}
 	var out []Unread
 	for _, v := range s.Vars {
-		if sh.free[v.Name] || s.shown(v.Name) {
+		if sh.free[v.Name] {
 			continue
 		}
 		tasks := s.readers(sh, v.Name)
@@ -106,8 +106,7 @@ func (s *Module) unreachable(v *Variable, tasks []*Task) (Unread, bool) {
 }
 
 // readers is the tasks that read one variable: the ones whose own files name
-// it, and the ones that consume it by declaring it — a guard, an `asks:`, a
-// `shows:`.
+// it, and the ones that consume it by declaring it — a guard, an `asks:`.
 func (s *Module) readers(sh *refs, name string) []*Task {
 	var out []*Task
 	for _, t := range s.Tasks {
@@ -134,21 +133,15 @@ func (s *Module) everywhere() ([]string, error) {
 	return out, nil
 }
 
-// shown reports whether an action draws this answer on its report. Actions run
-// whatever the answers say, so that is a read on every run there is.
-func (s *Module) shown(name string) bool {
-	return slices.ContainsFunc(s.Actions, func(a *Action) bool { return a.Shows == name })
-}
-
 // reads is what a task consumes by declaring it rather than by naming it in
 // shell: a guard is an answer being read — it is what decides whether this task
-// runs at all — and so are the values it stops the run to ask for and to show.
+// runs at all — and so is the value it stops the run to ask for.
 func (t *Task) reads() []string {
-	out := make([]string, 0, len(t.cond)+2)
+	out := make([]string, 0, len(t.cond)+1)
 	for _, c := range t.cond {
 		out = append(out, c.name)
 	}
-	return append(out, t.Asks, t.Shows)
+	return append(out, t.Asks)
 }
 
 // refs is a module's own shell, read: which names each part of it reaches for,

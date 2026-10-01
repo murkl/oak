@@ -73,19 +73,19 @@ msgstr ""
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:615
+#: internal/spec/spec.go:515
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:617
+#: internal/spec/spec.go:517
 msgid "This value is required."
 msgstr ""
 
-#: internal/spec/spec.go:627
+#: internal/spec/spec.go:527
 msgid "This answer is not among the ones offered here."
 msgstr ""
 
-#: internal/spec/spec.go:637
+#: internal/spec/spec.go:537
 msgid "This password was not accepted."
 msgstr ""
 
@@ -114,52 +114,47 @@ msgstr ""
 msgid "No"
 msgstr ""
 
-#: main.go:195
-#, c-format
-msgid "%s cannot be opened on this machine."
-msgstr ""
-
-#: main.go:242
+#: main.go:231
 #, c-format
 msgid "One language at a time: %s or %s."
 msgstr ""
 
-#: main.go:246
+#: main.go:235
 #, c-format
 msgid "%s needs the code of a language: %s=<code>."
 msgstr ""
 
-#: main.go:249
+#: main.go:238
 #, c-format
 msgid "One module at a time: %s or %s."
 msgstr ""
 
-#: main.go:253
+#: main.go:242
 #, c-format
 msgid "%s needs the name of a module: %s=<id>."
 msgstr ""
 
-#: main.go:256
+#: main.go:245
 #, c-format
 msgid "%q is not something this program takes."
 msgstr ""
 
-#: main.go:257
+#: main.go:246
 #, c-format
 msgid "It takes %s."
 msgstr ""
 
-#: main.go:277
+#: main.go:266
 #, c-format
 msgid "No module called %s."
 msgstr ""
 
-#: main.go:278 main.go:330
+#: main.go:267 main.go:319
 #, c-format
 msgid "This one offers %s."
 msgstr ""
 
-#: main.go:329
+#: main.go:318
 #, c-format
 msgid "No language called %s."
 msgstr ""

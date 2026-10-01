@@ -124,7 +124,7 @@ variables:
     type: secret
     required: true
 `, map[string]string{
-		"actions/root/action.yaml": "title: Root\n",
+		"actions/root/action.yaml": "title: Root\nfail: Log in as root.\n",
 		"actions/root/action.sh":   "true\n",
 		// The one task reads both answers, so the report is about what the
 		// module holds rather than about a guard that disagrees — see
@@ -226,10 +226,14 @@ variables:
 // falls back on something nobody meant it to is visible on the line.
 func TestEveryActionIsListedWithWhatItNames(t *testing.T) {
 	mod, err := spec.Load(writeModule(t, "title: T\nstages: [go]\nrequires: [internet]\nleave: [reboot]\n", map[string]string{
-		"actions/card/action.yaml":     "title: Card\nscript: \"true\"\n",
-		"actions/internet/action.yaml": "title: Internet\nfallback: wlan\nscript: \"true\"\n",
-		"actions/reboot/action.yaml":   "title: Reboot\nscript: \"true\"\n",
-		"actions/wlan/action.yaml":     "title: Wireless\nrequires: [card]\nscript: \"true\"\n",
+		"actions/card/action.yaml":     "title: Card\n",
+		"actions/card/action.sh":       "true\n",
+		"actions/internet/action.yaml": "title: Internet\nfail: There is no internet.\nfallback: wlan\n",
+		"actions/internet/action.sh":   "true\n",
+		"actions/reboot/action.yaml":   "title: Reboot\n",
+		"actions/reboot/action.sh":     "true\n",
+		"actions/wlan/action.yaml":     "title: Wireless\nrequires: [card]\n",
+		"actions/wlan/action.sh":       "true\n",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -245,7 +249,8 @@ func TestEveryActionIsListedWithWhatItNames(t *testing.T) {
 // wrote it sees that.
 func TestANeedReachingIntoAnotherStageIsReported(t *testing.T) {
 	dir := around(t, writeModule(t, "title: T\nstages: [go, later]\n", map[string]string{
-		"tasks/@later/after/task.yaml": "title: After\nneeds: [first]\nscript: \"true\"\n",
+		"tasks/@later/after/task.yaml": "title: After\nneeds: [first]\n",
+		"tasks/@later/after/task.sh":   "true\n",
 		"tasks/@go/first/task.sh":      "echo \"$HOST\"\n",
 	}))
 	rt, mods := product(t, dir)
@@ -270,5 +275,37 @@ func TestATemplateOfSeveralModulesAtOnceIsRefused(t *testing.T) {
 	var out strings.Builder
 	if err := Template(&out, rt, mods); err == nil {
 		t.Fatal("a template was written for two modules at once")
+	}
+}
+
+// An action beside oak.yaml that no module names fails the check, the way a
+// question nothing reads does: the load lets it pass, so a release shipping
+// some of its modules alone still starts.
+func TestAnActionNoModuleNamesFailsTheCheck(t *testing.T) {
+	dir := around(t, writeModule(t, "title: T\nstages: [go]\n", nil))
+	at := filepath.Join(dir, spec.DirActions, "restart")
+	if err := os.MkdirAll(at, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{spec.FileAction: "title: Restart\n", spec.FileActionScript: "true\n"} {
+		if err := os.WriteFile(filepath.Join(at, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rt, err := spec.LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	err = Report(&out, rt, mods, locales.FS)
+	if err == nil || !strings.Contains(err.Error(), "1 action(s) beside oak.yaml that no module names") {
+		t.Errorf("Report() = %v, want the unnamed action to fail the check", err)
+	}
+	if want := "unnamed    actions/restart: no module names it"; !strings.Contains(out.String(), want) {
+		t.Errorf("the report does not say %q:\n%s", want, out.String())
 	}
 }

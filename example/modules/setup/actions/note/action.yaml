@@ -1,12 +1,11 @@
-# Named under menu: a row between Install and Settings. Opening it asks its
-# pages, the way any question is asked, and hands the answers to action.sh
-# beside this file. They are kept for this session only: never on the settings
-# page, never in setup.conf.
+# Named under menu: a row between Install and Settings. Opening it asks its one
+# page and hands the answer to action.sh beside this file. It is kept for this
+# session only: never on the settings page, never in setup.conf.
 title: Leave a note
 description: Write a line for whoever logs in to the tree first.
 
-variables:
-  - name: TUX_NOTE
-    title: Note
-    description: What the tree greets its first login with.
-    default: Welcome to Tux.
+variable:
+  name: TUX_NOTE
+  title: Note
+  description: What the tree greets its first login with.
+  default: Welcome to Tux.

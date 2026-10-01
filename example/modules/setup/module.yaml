@@ -25,10 +25,12 @@ start: Install
 # of them, and naming it is the whole of what puts it in the run and where.
 stages: [prepare, install, finish]
 
-# Where it runs its actions, each a folder under actions/: what has to say yes
-# before the work begins, and what stands as a row on the menu.
+# Where it runs its actions, each a folder under actions/ — its own, or the
+# product's beside oak.yaml: what has to say yes before the work begins, what
+# stands as a row on the menu, and what is offered once the run has finished.
 requires: [writable]
 menu: [note]
+success: [shell]
 
 variables:
   # A suggestion rather than an answer: the box opens on it, and Oak still asks.

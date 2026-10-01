@@ -1,7 +1,1 @@
 title: Install the base system
-
-# Short enough to read here, so there is no test.sh beside this file. The other
-# form is a single line naming one: `test: ./verify.sh`.
-test: |
-  grep -q "^$TUX_HOST$" "$TUX_TARGET/etc/hostname"
-  grep -qx "ID=$TUX_ID" "$(tux_release)"

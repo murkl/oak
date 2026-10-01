@@ -155,8 +155,12 @@ func initOf(s screen) tea.Cmd {
 // command rather than manipulating the stack, so the stack has exactly one
 // owner.
 type (
-	pushScreenMsg    struct{ s screen }
-	popScreenMsg     struct{ n int }
+	pushScreenMsg struct{ s screen }
+	popScreenMsg  struct {
+		n int
+		// then runs once the pages are gone, on whatever is on top by then.
+		then tea.Cmd
+	}
 	replaceScreenMsg struct{ s screen }
 	resetStackMsg    struct{ s screen }
 	flashMsg         struct {
@@ -180,7 +184,7 @@ type (
 )
 
 func push(s screen) tea.Cmd    { return func() tea.Msg { return pushScreenMsg{s} } }
-func pop() tea.Cmd             { return func() tea.Msg { return popScreenMsg{n: 1} } }
+func pop() tea.Cmd             { return back(1, nil) }
 func replace(s screen) tea.Cmd { return func() tea.Msg { return replaceScreenMsg{s} } }
 func reset(s screen) tea.Cmd   { return func() tea.Msg { return resetStackMsg{s} } }
 func leave() tea.Cmd           { return func() tea.Msg { return leaveMsg{} } }

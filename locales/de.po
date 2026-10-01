@@ -70,19 +70,19 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:615
+#: internal/spec/spec.go:515
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:617
+#: internal/spec/spec.go:517
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
-#: internal/spec/spec.go:627
+#: internal/spec/spec.go:527
 msgid "This answer is not among the ones offered here."
 msgstr "Diese Antwort gehört nicht zu den hier angebotenen."
 
-#: internal/spec/spec.go:637
+#: internal/spec/spec.go:537
 msgid "This password was not accepted."
 msgstr "Dieses Passwort wurde nicht angenommen."
 
@@ -111,52 +111,47 @@ msgstr "Ja"
 msgid "No"
 msgstr "Nein"
 
-#: main.go:195
-#, c-format
-msgid "%s cannot be opened on this machine."
-msgstr "%s lässt sich auf dieser Maschine nicht öffnen."
-
-#: main.go:242
+#: main.go:231
 #, c-format
 msgid "One language at a time: %s or %s."
 msgstr "Nur eine Sprache auf einmal: %s oder %s."
 
-#: main.go:246
+#: main.go:235
 #, c-format
 msgid "%s needs the code of a language: %s=<code>."
 msgstr "%s braucht den Code einer Sprache: %s=<code>."
 
-#: main.go:249
+#: main.go:238
 #, c-format
 msgid "One module at a time: %s or %s."
 msgstr "Nur ein Modul auf einmal: %s oder %s."
 
-#: main.go:253
+#: main.go:242
 #, c-format
 msgid "%s needs the name of a module: %s=<id>."
 msgstr "%s braucht den Namen eines Moduls: %s=<id>."
 
-#: main.go:256
+#: main.go:245
 #, c-format
 msgid "%q is not something this program takes."
 msgstr "%q kennt dieses Programm nicht."
 
-#: main.go:257
+#: main.go:246
 #, c-format
 msgid "It takes %s."
 msgstr "Es kennt %s."
 
-#: main.go:277
+#: main.go:266
 #, c-format
 msgid "No module called %s."
 msgstr "Kein Modul namens %s."
 
-#: main.go:278 main.go:330
+#: main.go:267 main.go:319
 #, c-format
 msgid "This one offers %s."
 msgstr "Angeboten werden %s."
 
-#: main.go:329
+#: main.go:318
 #, c-format
 msgid "No language called %s."
 msgstr "Keine Sprache namens %s."

@@ -42,11 +42,11 @@ const (
 	DirLocales = "locales"     // one catalog per language the module speaks
 
 	FileTask       = "task.yaml" // what a task is
-	FileTaskScript = "task.sh"   // what it does, where its yaml does not say so itself
-	FileTest       = "test.sh"   // how the machine is checked once it has, likewise
+	FileTaskScript = "task.sh"   // what it does
+	FileTest       = "test.sh"   // how the machine is checked once it has, where there is one
 
 	FileAction       = "action.yaml" // what an action is
-	FileActionScript = "action.sh"   // what it does, where its yaml does not say so itself
+	FileActionScript = "action.sh"   // what it does
 
 	ScriptExt = ".sh"
 )
@@ -67,29 +67,13 @@ func Stage(name string) string { return Mark + name }
 // marked reports whether a folder name carries it.
 func marked(name string) bool { return strings.HasPrefix(name, Mark) }
 
-// Script is one piece of shell a task holds: the file it lives in, or what its
-// yaml wrote outright. Exactly one of the two, and neither where the task
-// declares none.
-//
-// Which it is travels with it, because the two do not fail alike: a file has a
-// line to point at, and shell written into the yaml has only the command that
-// broke.
-type Script struct {
-	File  string
-	Shell string
-}
+// Script is the file a task or an action does its work in, beside its yaml.
+// Always a file, so a failure always has a line to point at and a linter
+// always has something to read. Empty where there is none.
+type Script string
 
-// Empty reports whether there is nothing here to run.
-func (s Script) Empty() bool { return s.File == "" && s.Shell == "" }
-
-// Text is either of them as one piece of shell, for the places that only run it
-// and never report on where it broke.
-func (s Script) Text() string {
-	if s.File != "" {
-		return source(s.File)
-	}
-	return s.Shell
-}
+// Shell is that file as one piece of shell, for the places that only run it.
+func (s Script) Shell() string { return source(string(s)) }
 
 // The two names Oak puts into a script's environment, and the whole of what it
 // puts there. Neither is something a module's data can own: whether a run only
@@ -252,24 +236,14 @@ type PresetOption struct {
 	Description string            `yaml:"description"`
 	Values      map[string]Scalar `yaml:"values"`
 
-	// Asks names the one question choosing this row puts, for the starting
-	// point that is not written down here but fetched: a code somebody was
-	// handed, and a whole set of answers standing behind it.
-	//
-	// The variable it names is asked on the page every other question is asked
-	// on, and being named here is its whole declaration — it is left out of the
-	// opening run and off the settings page, because a code that has already
-	// been used stands for nothing anybody would want to change.
-	Asks string `yaml:"asks"`
-
-	// Apply is shell run once that answer is given, and the row is not got past
-	// until it has worked. It is how an answer becomes answers: it writes them
-	// into the answer file, which the runtime reads back — see Runner.Import.
-	Apply string `yaml:"apply"`
+	// Action is opened in place of values, for the starting point that is
+	// fetched rather than written out here: a code somebody was handed, and the
+	// answers behind it, which its script writes into the answer file.
+	Action string `yaml:"action"`
 }
 
-// Fetches reports whether this row asks something before it fills anything in.
-func (o *PresetOption) Fetches() bool { return o.Asks != "" }
+// Fetches reports whether choosing this row opens an action.
+func (o *PresetOption) Fetches() bool { return o.Action != "" }
 
 func (p *Preset) Label() string { return i18n.T(p.Title) }
 func (p *Preset) Help() string  { return i18n.T(p.Description) }
@@ -278,105 +252,47 @@ func (o *PresetOption) Label() string { return i18n.T(o.Title) }
 func (o *PresetOption) Help() string  { return i18n.T(o.Description) }
 
 // Task is one unit of work: a folder under tasks/, holding what it is, the
-// script that does it, and — where it says so — the one that checks the machine
-// afterwards.
+// task.sh that does it, and — where there is one — the test.sh that checks the
+// machine afterwards.
 //
-// Which phase it belongs to is the `stage:` it names, and what it needs from
-// that same stage is all it says about when it runs. The order follows from
-// those two. Nothing keeps a list of the installation's steps: adding a folder
-// adds a step, and the two can never disagree.
+// Which phase it belongs to is the stage folder it lies in, and what it needs
+// from that same stage is all it says about when it runs. Nothing keeps a list
+// of the installation's steps: adding a folder adds a step.
 type Task struct {
 	Title string `yaml:"title"`
 
 	Needs      []string   `yaml:"needs"`
 	Conditions Conditions `yaml:"conditions"`
 
-	// Script is what this task does, and Test how the machine is looked at once
-	// it has. Either is shell written here, or a single line beginning with ./
-	// or ../ naming a file beside this yaml.
-	//
-	// Left out, the file of that name in the same folder is what runs — task.sh
-	// and test.sh — which is the rule the rest of a module follows, where being
-	// there is the declaration. A task must do something; testing afterwards is
-	// optional, and a module with no test anywhere simply never validates.
-	Script string `yaml:"script"`
-	Test   string `yaml:"test"`
-
 	// Asks names a variable whose answer is not knowable before this point: the
 	// snapshot to go back to, once the disk holding it is open. The run stops and
-	// puts the question in the frame, exactly where the list of tasks was, and
-	// carries on with the answer.
-	//
-	// It is asked every time, whatever the answer file says. A value that had to
-	// wait for the work to start is a value about what the work found, and last
-	// run found something else.
+	// asks it every time, whatever the answer file says.
 	Asks string `yaml:"asks"`
 
 	// Confirm is asked before this one runs, as a yes or no in the frame.
-	// Declining skips it and the run carries on — which is what makes an
-	// offer ("reboot now?") a unit like any other rather than a page of its own.
-	// It comes after `asks`, so the offer can name what was just chosen.
+	// Declining skips it and the run carries on. It comes after `asks`, so the
+	// offer can name what was just chosen.
 	Confirm string `yaml:"confirm"`
 
-	// Default is which of the two answers the offer opens on: `yes`, which is
-	// what it is when nothing says otherwise, or `no`.
-	//
-	// Most offers are the obvious next thing and belong on yes. The ones that
-	// are an extra — a root shell inside the system that was just installed —
-	// belong on no, so that an enter meant for the page before it does not walk
-	// into one.
-	Default Scalar `yaml:"default"`
-
 	// Report is what the run stops to say once this one has run: the milestone
-	// somebody watching a list of task names has no other way of recognising —
-	// the work is done, and everything after it is offered rather than
-	// required. {{VAR}} is filled in from the answers, and the first paragraph
-	// is the headline, the way the opening logo's first block is its eyebrow.
-	//
-	// A run has at most a handful of these and most have none. It is not a
-	// progress note: it is the page the run holds still on until somebody has
-	// read it.
+	// somebody watching a list of task names has no other way of recognising.
+	// {{VAR}} is filled in from the answers, and the first paragraph is the
+	// headline.
 	Report string `yaml:"report"`
 
-	// Shows names an answer to put on that page as a code to scan, and under it
-	// as itself. For the value that is of no use inside the frame — a link, a
-	// key — because the machine it is wanted on is the one in somebody's hand.
-	//
-	// The value is read back out of the answer file after this task has run, so
-	// the task itself is what puts it there. Empty is not a failure: a page that
-	// has nothing to show simply shows its words.
-	Shows string `yaml:"shows"`
-
-	// Quits marks a task the program does not come back from — a reboot. The
-	// frame stops drawing rather than waiting for output nobody will read.
-	Quits bool `yaml:"quits"`
-
-	// TTY hands this one the terminal: it draws over the interface, keyboard
-	// and all, and the frame comes back untouched when it exits. For the one
-	// kind of unit that is a session rather than a step — a shell in the system
-	// that was just installed.
-	TTY bool `yaml:"tty"`
-
 	// Progress marks a task whose output is its progress: the one line it drew
-	// last is shown under its name while it runs. For the few whose running time
-	// nobody can guess and whose output is a bar rather than chatter - an image
-	// of several gigabytes arriving over a home connection. Everything any other
-	// task prints stays in the log, which is the promise the run page makes.
+	// last is shown under its name while it runs. Everything any other task
+	// prints stays in the log.
 	Progress bool `yaml:"progress"`
 
-	// Simulates marks a task that is run under --debug as well, because it reads
-	// DEBUG and decides for itself what a simulated run does — a task whose
-	// report is worth seeing, and which can fill it in without touching
-	// anything. Every other task, and its test, is only shown as run: the
-	// runtime cannot know what a script would change, so it does not start one
-	// that has not said it knows.
+	// Simulates marks a task that is run under --debug as well, test and all,
+	// because it reads DEBUG and decides for itself what a simulated run does —
+	// one that only reads, say. Every other task is only shown as run.
 	Simulates bool `yaml:"simulates"`
 
 	// Optional marks a task the result stands without. Its failure does not
-	// stop the run: the row keeps a cross, the tasks after it run, and what went
-	// wrong is counted and read the way a failed test is. For the work that
-	// hangs on something outside the machine — a download from a service that
-	// may be down — and that nothing after it builds on.
+	// stop the run: the row keeps a cross, and what went wrong is counted and
+	// read the way a failed test is.
 	Optional bool `yaml:"optional"`
 
 	id    string
@@ -401,26 +317,15 @@ func (t *Task) Stage() string { return t.stage }
 func (t *Task) Dir() string { return t.dir }
 
 // Work is what this task does, and Check how the machine is looked at once it
-// has. Check is empty where the task declares none.
+// has. Check is empty where the task has no test.sh.
 func (t *Task) Work() Script  { return t.work }
 func (t *Task) Check() Script { return t.check }
 
 // Checks reports whether this task says how to tell that it worked.
-func (t *Task) Checks() bool { return !t.check.Empty() }
+func (t *Task) Checks() bool { return t.check != "" }
 
 // Confirms reports whether this one is offered rather than simply run.
 func (t *Task) Confirms() bool { return t.Confirm != "" }
-
-// Declines reports whether the offer opens on no rather than on yes.
-func (t *Task) Declines() bool { return t.Default == ConfirmNo }
-
-// The two answers `default:` takes on a task. They are the words somebody
-// writing a task.yaml would reach for, not the true/false a variable is stored
-// as: this is which row a question opens on, not a value anything reads back.
-const (
-	ConfirmYes = "yes"
-	ConfirmNo  = "no"
-)
 
 // Question is the offer, translated and with the answers filled in.
 func (t *Task) Question(get func(string) string) string {
@@ -577,14 +482,9 @@ type Variable struct {
 }
 
 // Deferred reports whether this value is one the opening run of questions has
-// no business asking. Nothing declares it: being named by a task's `asks:` or
-// `shows:`, or by a preset option's `asks:`, is the declaration.
-//
-// It is the second kind of required value that does not stop the program from
-// being ready, and for the same reason a secret is the first: there is no
-// answering it yet, or no point answering it twice. A snapshot to go back to
-// cannot be chosen, or shown on a settings page, while the disk holding it is
-// still locked; a link a run has yet to produce is not a question at all.
+// no business asking. Nothing declares it: being named by a task's `asks:` is
+// the declaration. A snapshot to go back to cannot be chosen, or shown on a
+// settings page, while the disk holding it is still locked.
 func (v *Variable) Deferred() bool { return v.deferred }
 
 // Derived reports whether this value is read off the machine rather than asked
@@ -699,6 +599,15 @@ func (s *Module) Var(name string) *Variable { return s.byName[name] }
 // Name is the module's own title, translated: what it is called.
 func (s *Module) Name() string { return i18n.T(s.UI.Title) }
 
+// rel is a path as this module's folder names it: a translator's template
+// names every file a string came out of from there, the product's included.
+func (s *Module) rel(file string) string {
+	if from, err := filepath.Rel(s.Dir, file); err == nil {
+		return filepath.ToSlash(from)
+	}
+	return file
+}
+
 // Message is one thing a module says: the text, what it is, and the files it
 // was read out of. The last two are all a translator has — the words arrive out
 // of the module they belong to, one sentence at a time.
@@ -764,13 +673,13 @@ func (s *Module) Messages() []Message {
 		add(file, "read once the step is done, and held on until somebody has", t.Report)
 	}
 	for _, a := range s.Actions {
-		file := path.Join(DirActions, a.ID(), FileAction)
-		add(file, "an action: its row, and the heading over its pages", a.Title)
+		file := s.rel(filepath.Join(a.Dir(), FileAction))
+		add(file, "an action: its row, and the heading over its page", a.Title)
 		add(file, "an action: what it does, under its row", a.Description)
-		add(file, "asked before the action runs", a.Confirm)
+		add(file, "an action: what a no from it means", a.Fail)
 		add(file, "read once the action is done, and held on until somebody has", a.Report)
-		for _, v := range a.Vars {
-			add(file, v.Name+": a page of the action", v.Title)
+		if v := a.Var; v != nil {
+			add(file, v.Name+": the page of the action", v.Title)
 			add(file, v.Name+": what it means", v.Description)
 			add(file, v.Name+": the row that opens a box for an answer of one's own", v.Free)
 			add(file, v.Name+": what a wrong answer is told", v.Error)

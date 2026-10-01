@@ -36,6 +36,7 @@ Oak looks next to itself, and nowhere else:
 oak                       the binary
 oak.yaml                  the product: name, colour, version, wordmark
 oak.sh                    optional: shell every module of the product gets
+actions/shell/            optional: an action several modules name
 modules/setup/            one module — everything below belongs to it
   module.yaml             what it asks and what order it works in
   module.sh               optional: shell everything this module runs gets
@@ -80,9 +81,9 @@ flowchart TD
     PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
     H --> SE["Settings"] --> H
-    H --> OP["An action<br/>its pages, its script"] --> H
+    H --> OP["An action<br/>one page, its script"] --> H
     H --> CF["Last warning"] --> R["The run<br/>tasks, top to bottom"]
-    R --> OK["Done"]
+    R --> OK["Done<br/>and the actions for it"]
     R --> ER["Failure<br/>script · line · command<br/>and the actions for it"]
 
     style ER fill:#bf616a,stroke:#bf616a,color:#eceff4
@@ -142,16 +143,10 @@ mkdir -p ./tux/etc
 echo "$TUX_HOST" >./tux/etc/hostname
 ```
 
-A step short enough to read at a glance skips the file and says it in the yaml instead:
+Optional, `test.sh` beside both says how to tell that it took. It reads the machine and changes nothing:
 
-```yaml
-title: Write the hostname
-script: |
-  mkdir -p ./tux/etc
-  echo "$TUX_HOST" >./tux/etc/hostname
-
-# Optional: how to tell that it took. Reads the machine, changes nothing.
-test: grep -q "^$TUX_HOST$" ./tux/etc/hostname
+```bash
+grep -q "^$TUX_HOST$" ./tux/etc/hostname
 ```
 
 ### 5. Run it
@@ -162,7 +157,7 @@ test: grep -q "^$TUX_HOST$" ./tux/etc/hostname
 
 Oak opens on its welcome page, asks the one question that is required and still unanswered, then runs the task. The answers land in `setup.conf`, everything the script printed in `setup.log`.
 
-The **[example](../example)** is the same shape, filled out: two modules, three stages, a task that only runs under a condition, tests beside the work, and a page the run stops on when it is done.
+The **[example](../example)** is the same shape, filled out: two modules, three stages, a task that only runs under a condition, tests beside the work, a page the run stops on when it is done, and an action both modules offer once it is.
 
 <p align="center">
   <img src="screenshots/welcome.png" width="49%" alt="The page every run opens on">
@@ -241,7 +236,7 @@ Nothing on the command line answers a module's question. Those are answered in t
 
 ## Everything else
 
-**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, tests, conditions, options, the script contract and translations.
+**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, tests, conditions, actions, the script contract and translations.
 
 **[➜ Changelog](../CHANGELOG.md)** — what each release changed.
 

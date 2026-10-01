@@ -27,9 +27,9 @@ import (
 // last line it drew shown dimmed under its name - one line, sanitized, and only
 // while it runs.
 //
-// The one thing that interrupts the list is a task that asks first. That is how
-// a module offers something rather than does it — reboot now, unmount, drop into
-// the new system — without any of them being a page of their own.
+// The one thing that interrupts the list is a task that asks first: a value it
+// needs, or whether to go ahead. What a module offers once the work is done is
+// not a task at all but its success rows, on the page the run ends on.
 type runScreen struct {
 	app *app
 
@@ -50,6 +50,10 @@ type runScreen struct {
 	session *exec.Session
 	err     error
 	done    bool
+
+	// after is the rows a finished run ends on — what the module offers once
+	// the work is done — and nil where it offers nothing.
+	after *picker
 
 	// reviewed is whether the tests the machine disagreed with have been put in
 	// front of somebody yet. They are worth reading once, at the first moment
@@ -203,6 +207,8 @@ func (s *runScreen) Hint() string {
 		return labelHintRunning()
 	case s.told != nil:
 		return s.told.Hint()
+	case s.after != nil:
+		return labelHintChecks()
 	case len(s.tests) > 0 || len(s.optional) > 0:
 		// Enter opens what the run went on past, so this is not the last page.
 		return labelHintContinue()
@@ -287,9 +293,6 @@ func (s *runScreen) step() tea.Cmd {
 				{title: labelYes(), key: keyYes},
 				{title: labelNo(), key: keyNo},
 			})
-			if e.Declines() {
-				s.asking.focus(keyNo)
-			}
 			return s.settle()
 		}
 	}
@@ -341,20 +344,15 @@ func proved(session *exec.Session) tea.Cmd {
 // tell puts up what a task had to report of what it just did, and holds the run
 // there until it has been read.
 //
-// The answer file is read back first, because a task that has something to show
-// is a task that wrote it down: the value the page draws as a code is an answer
-// like any other, and this is the moment it arrives. A task with nothing to
-// report — which is nearly all of them — passes straight through.
+// A task with nothing to report — which is nearly all of them — passes straight
+// through.
 func (s *runScreen) tell(e *spec.Task) tea.Cmd {
 	if !e.Reports() {
 		return s.advance()
 	}
-	if err := s.app.runner.Imported(); err != nil {
-		logging.Warn("%s: %s", e.Title, err)
-	}
 	headline, body := e.ReportText(s.app.store.Get)
 	note, alarm := s.tally()
-	s.told = newReport(headline, body, s.app.store.Get(e.Shows)).says(note, alarm)
+	s.told = newReport(headline, body, "").says(note, alarm)
 	return tea.Batch(s.app.save(), s.settle())
 }
 
@@ -366,22 +364,13 @@ func (s *runScreen) advance() tea.Cmd {
 	return s.step()
 }
 
-// start runs the task at the cursor, either in the background like every
-// other one or by handing it the terminal.
+// start runs the task at the cursor in the background.
 func (s *runScreen) start() tea.Cmd {
 	s.settled = false
 	e := s.steps[s.at]
 	if s.app.runner.Simulated(e) {
 		logging.Info("%s: simulated", e.Title)
 		return after(simulateFor, func(time.Time) tea.Msg { return simulatedMsg{} })
-	}
-	if e.TTY {
-		// The interface stands down for the length of this one: bubbletea
-		// releases the terminal, the script has it whole, and the frame is
-		// restored exactly as it was when the script exits.
-		return tea.Exec(s.app.runner.Terminal(e), func(err error) tea.Msg {
-			return stepDoneMsg{s.app.runner.Fail(e, err)}
-		})
 	}
 	session, err := s.app.runner.Start(e)
 	if err != nil {
@@ -429,6 +418,7 @@ func (s *runScreen) finish(err error) tea.Cmd {
 		s.told = newReport(s.failed(), labelRunStopped(s.stoppedAt()), "").stop()
 	} else {
 		logging.Info("run: ok")
+		s.after = s.app.offers(s.app.module.Places.Success)
 	}
 	// Whatever a run was given is gone the moment it is over, whether it worked
 	// or not: a failed installation is one that gets looked at, and nothing
@@ -467,19 +457,11 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		if s.steps[s.at].Optional {
 			s.optional = append(s.optional, outcome{task: s.steps[s.at]})
 		}
-		// A task the program does not come back from — a reboot — ends it
-		// here rather than carrying on into a list nobody will ever see again.
-		if s.steps[s.at].Quits {
-			return s, quit()
-		}
 		s.stage = phaseCheck
 		return s, s.step()
 
 	case simulatedMsg:
 		s.state[s.at] = ran
-		if s.steps[s.at].Quits {
-			return s, quit()
-		}
 		// Straight to what it has to report: there is nothing on the machine
 		// for its test to read.
 		s.stage = phaseReport
@@ -550,6 +532,9 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			}
 			return s, nil
 		}
+		if s.after != nil {
+			return s, s.choose(msg)
+		}
 		// The result is dismissed deliberately or not at all: enter and esc,
 		// nothing else. Every other key — and every scroll, which arrives here
 		// as an arrow — leaves the report on screen.
@@ -561,6 +546,25 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		}
 	}
 	return s, nil
+}
+
+// choose is a row under a finished run being chosen: an action the module
+// offers once the work is done, or the last row, which goes where the run
+// leads. Whatever the run went on past is read first, the one time it is.
+func (s *runScreen) choose(key tea.KeyMsg) tea.Cmd {
+	s.after.Update(key)
+	if !confirms(key) {
+		return nil
+	}
+	next := s.then
+	if act := s.app.action(s.after.selected()); act != nil {
+		next = func() tea.Cmd { return s.app.openAction(act) }
+	}
+	reviewed := func() tea.Cmd { return back(1, next()) }
+	if cmd := s.review(reviewed); cmd != nil {
+		return cmd
+	}
+	return next()
 }
 
 // answerAsk takes the value a task asked for and carries on into whatever else
@@ -621,6 +625,8 @@ func (s *runScreen) View(width, height int) string {
 		return b.String() + s.ask.View(width, height-used)
 	case s.asking != nil:
 		return b.String() + s.question(width, height-used)
+	case s.after != nil:
+		return b.String() + s.after.View(width, height-used)
 	}
 	return b.String() + s.list(width, height-used)
 }

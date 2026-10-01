@@ -120,6 +120,10 @@ type failureScreen struct {
 	err   error
 	done  func() tea.Cmd
 
+	// said is what the failure means in the module's own words, over the
+	// report: an action's fail. Empty where it says nothing.
+	said string
+
 	// hint is what the footer calls leaving, kept as the label rather than the
 	// word it renders to: the language can change while this page is up.
 	hint func() string
@@ -134,6 +138,12 @@ func newFailure(title string, err error, done func() tea.Cmd) *failureScreen {
 	return &failureScreen{title: title, err: err, done: done, hint: labelHintBack}
 }
 
+// saying puts what a failure means, in the module's own words, over the report.
+func (s *failureScreen) saying(text string) *failureScreen {
+	s.said = text
+	return s
+}
+
 // hinted names the way out for a page there is no going back from — where what
 // is behind it is leaving rather than the page it was opened from.
 func (s *failureScreen) hinted(hint func() string) *failureScreen {
@@ -146,17 +156,26 @@ func (s *failureScreen) hinted(hint func() string) *failureScreen {
 // the module names none, or this machine has none of them, the page is the
 // report alone.
 func (s *failureScreen) offering(a *app) *failureScreen {
-	rows := a.rows(a.module.Places.Failure)
+	s.app, s.picker = a, a.offers(a.module.Places.Failure)
+	return s
+}
+
+// offers is the rows a place names that this machine has, above the one that
+// leaves the page, or nil where there are none. It opens on that last row: an
+// action is chosen on purpose, never by an enter meant for the page before.
+func (a *app) offers(names []string) *picker {
+	rows := a.rows(names)
 	if len(rows) == 0 {
-		return s
+		return nil
 	}
 	items := make([]item, 0, len(rows)+1)
 	for _, act := range rows {
 		items = append(items, actionRow(act))
 	}
 	items = append(items, item{title: labelReviewed(), key: keyReviewed})
-	s.app, s.picker = a, newPicker(items)
-	return s
+	p := newPicker(items)
+	p.focus(keyReviewed)
+	return p
 }
 
 func (s *failureScreen) Title() string { return s.title }
@@ -203,6 +222,9 @@ func (s *failureScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 // the rows would take is the room its last lines need.
 func (s *failureScreen) View(width, height int) string {
 	report := renderFailure(s.err, width)
+	if s.said != "" {
+		report = refusal(s.said, width) + "\n\n" + report
+	}
 	if s.picker == nil {
 		return report
 	}
