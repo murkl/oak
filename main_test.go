@@ -442,7 +442,7 @@ func offeredBy(t *testing.T, title, fail, script string, files map[string]string
 		"actions/machine/action.sh":   script,
 	}
 	maps.Copy(all, files)
-	return writeModule(t, "title: "+title+"\nstages: [go]\noffered: [machine]\n", all)
+	return writeModule(t, "title: "+title+"\nstages: [go]\nrules:\n  offer-if: [machine]\n", all)
 }
 
 // offeringRuntime is a product whose modules disagree about which machine they
@@ -534,17 +534,18 @@ func TestAMachineNoModuleBelongsOnIsToldByEveryOneOfThem(t *testing.T) {
 	}
 }
 
-// The action it is decided by is handed the module's own shell, so a check reads
-// as a sentence rather than as a line of test flags — and the one place that
-// names the rule is the module it belongs to.
-func TestWhatAModuleIsOfferedOnIsGivenTheModulesOwnShell(t *testing.T) {
-	dir := around(t, offeredBy(t, "shelled", "No.", "belongs_here\n",
-		map[string]string{spec.FileShell: "belongs_here() { return 0; }\n"}))
+// The action it is decided by is handed the product's shell, so a check reads
+// as a sentence rather than as a line of test flags.
+func TestWhatAModuleIsOfferedOnIsGivenTheProductsShell(t *testing.T) {
+	dir := around(t, offeredBy(t, "shelled", "No.", "belongs_here\n", nil))
+	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntimeShell), []byte("belongs_here() { return 0; }\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	_, mods := product(t, dir)
 
 	got, err := offered(mods, false)
 	if err != nil {
-		t.Fatalf("a module whose check its own shell answers was refused: %v", err)
+		t.Fatalf("a module whose check the product's shell answers was refused: %v", err)
 	}
 	if len(got) != 1 {
 		t.Errorf("offered() = %d modules, want the one", len(got))

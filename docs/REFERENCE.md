@@ -29,13 +29,15 @@ logo: |
 | `logo` | The wordmark the run comes up out of, and the welcome page stands under. Everything above the first blank line is a dim eyebrow over it |
 | `status` | What the header keeps an eye on while a module is open — see [The header's status](#the-headers-status) |
 
+`version` is the product's own. Oak's own is what `--version` answers — `0.1.0`, the release and nothing beside it, so a build that pins Oak reads the line as it stands — and what the splash signs off with under the wordmark. It is never shown as though it belonged to the product.
+
 ### The header's status
 
 One thing about the machine, opposite the name on every page of every module: shell run every so often, and the words it reads as while that shell says yes and while it says no.
 
 ```yaml
 status:
-  script: is_online      # shell or ./file, with oak.sh and module.sh loaded: exit 0 is yes
+  script: is_online      # shell or ./file, with oak.sh loaded: exit 0 is yes
   every: 10              # seconds between two runs. Left out, 10
   pass: Online           # what it reads while the script says yes
   fail: Offline          # ...and while it says no
@@ -47,13 +49,17 @@ Written in `oak.yaml`, it is every module's. A module that writes `status:` in i
 
 ### The product's shell — `oak.sh`
 
-Optional, beside `oak.yaml`. It is loaded in front of every script of every module, before that module's own `module.sh` — so what two modules of one product have to agree about is written once rather than kept in step by hand, and a module can still build on it or replace a function of it. Everything [`module.sh`](#what-a-script-receives) is held to, it is held to as well.
+Optional, beside `oak.yaml`, and **the one place scripts share code**. It is a library: loaded in front of every script of every module — see [What a script receives](#what-a-script-receives) — so a function two tasks, two actions or two modules would otherwise each carry a copy of is written once, and a yaml calls it by name. A value the scripts share is set with `export`, which says it is read somewhere else.
 
-### The product's actions — `actions/`
+```bash
+# oak.sh
+export TUX_ROOT=/mnt
 
-Optional, beside `oak.yaml`: an [action](#actions) several modules run alike — a wireless network, a restart, sharing the log — is one folder here instead of a copy in each. A module that names it has it, exactly as if it were its own; one that does not name it does not. A module may not have an action of the same name, so a name always means one folder. One here that no module names never runs, and `--inspect` fails on it — at load it is let pass, since a release may ship some of its modules alone.
+# The release file in whichever tree the answers point at.
+tux_release() { printf '%s/etc/os-release' "$TUX_TARGET"; }
+```
 
-`version` is the product's own. Oak's own is what `--version` answers — `0.1.0`, the release and nothing beside it, so a build that pins Oak reads the line as it stands — and what the splash signs off with under the wordmark. It is never shown as though it belonged to the product.
+There is no second one. A module has no shell of its own, and an action belongs to the module that names it: a `module.sh` in a module and an `actions/` beside `oak.yaml` are both refused at load, with this file named as where their contents go. What only one task or one action needs stays in its folder.
 
 ## A module
 
@@ -62,11 +68,10 @@ One folder. Only the declaration has to be there — a module turns a part of th
 | Path | Description |
 | --- | --- |
 | `module.yaml` | The declaration: what the module is, what it asks, and the order its work happens in |
-| `module.sh` | Sourced in front of everything this module runs, after the product's [`oak.sh`](#the-products-shell--oaksh) |
 | `tasks/@<stage>/<task>/task.yaml` | What a task is |
 | `tasks/@<stage>/<task>/task.sh` | What it does |
 | `tasks/@<stage>/<task>/test.sh` | How to tell that it took. Optional — see [Testing the work](#testing-the-work) |
-| `actions/<action>/action.yaml` | A script run outside the work, wherever `module.yaml` names it — see [Actions](#actions) |
+| `actions/<action>/action.yaml` | A script run outside the work, wherever a rule names it — see [Actions](#actions) |
 | `actions/<action>/action.sh` | What it does |
 | `locales/<code>.po` | One catalog per language |
 
@@ -79,18 +84,19 @@ The folder name is the module's identity: what `oak --module=<name>` opens, and 
 ```yaml
 title: Tux Setup                         # the module's one name, wherever it is named
 description: Set a machine up for Tux.   # shown under the row that starts the work
-start: Install                           # optional: what starting the work is called
+start-title: Install                     # optional: what starting the work is called
 stages: [prepare, install]               # the phases the work happens in, in order
                                          # — each a folder under tasks/
 
 language: TUX_LOCALE                     # optional: ties the interface language to one answer
 
-offered: [live-image]                    # optional: the actions a machine must say yes to
-requires: [root, internet]               # optional: the actions the work waits for
-menu: [wlan]                             # optional: rows on the menu
-leave: [restart, shutdown]               # optional: rows on the way out
-failure: [share-log]                     # optional: rows under a run that failed
-success: [shell]                         # optional: rows under a run that finished
+rules:                                   # optional: when its actions run
+  offer-if: [live-image]                 # offered on a machine these say yes on
+  start-if: [root, internet]             # the work starts once these say yes
+  menu: [wlan]                           # rows on the menu
+  on-leave: [restart, shutdown]          # rows on the way out
+  on-failure: [share-log]                # rows under a run that failed
+  on-success: [shell]                    # rows under a run that finished
 ```
 
 | Key | Description |
@@ -98,15 +104,14 @@ success: [shell]                         # optional: rows under a run that finis
 | `title` | **Required.** What the module is called, everywhere: the row that opens it, the trail across the top of every page once it is open, and every sentence the interface writes about it |
 | `stages` | **Required.** The phases the work happens in, in order. Each is a folder under `tasks/`, marked — `tasks/@install/` — and the name written here carries no `@` of its own |
 | `description` | One sentence, read on the menu under the row that starts the work |
-| `start` | What starting the work is called: the first row of the menu, and the button on the last page before the run. Left out, `Start` |
+| `start-title` | What starting the work is called: the first row of the menu, and the button on the last page before the run. Left out, `Start` |
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
-| `offered` | The actions a machine has to say yes to for this module to be offered on it — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
-| `requires`, `menu`, `leave`, `failure`, `success` | Where it runs its actions — see [Actions](#actions) |
+| `rules` | When its actions run, each rule a list of them — see [Actions](#actions), and for `offer-if` [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `status` | This module's own line in the header, in place of the product's — see [The header's status](#the-headers-status) |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
 
-**One name, and a verb for pressing it.** The frame carries the title on every page, so the rows inside a module are named after what they do — `Start`, `Settings` — and the lines a run writes about itself say `Failed` rather than the module's name over again. A name read twice on one screen is a line that says nothing. `start:` is what the first of those rows does in the module's own word — `Install`, `Repair` — where `Start` says too little. It is a verb and not a second name: a module whose title already says what it does — `Write an image` — would only repeat it, and names a shorter verb, `Write`, or none.
+**One name, and a verb for pressing it.** The frame carries the title on every page, so the rows inside a module are named after what they do — `Start`, `Settings` — and the lines a run writes about itself say `Failed` rather than the module's name over again. A name read twice on one screen is a line that says nothing. `start-title:` is what the first of those rows does in the module's own word — `Install`, `Repair` — where `Start` says too little. It is a verb and not a second name: a module whose title already says what it does — `Write an image` — would only repeat it, and names a shorter verb, `Write`, or none.
 
 ### Placeholders
 
@@ -119,7 +124,7 @@ A name is filled in with nothing where nothing answers it, because braces on scr
 
 ### Which modules a machine is offered
 
-`offered:` names actions, each run by itself, in order, and they are the only thing Oak runs before a module has been opened. They read the machine and nothing else — there are no answers yet — which is why they are shell rather than the `conditions:` a task is guarded with. A module that names none is on offer everywhere.
+`rules: offer-if` names actions, each run by itself, in order, and they are the only thing Oak runs before a module has been opened. They read the machine and nothing else — there are no answers yet — which is why they are shell rather than the `conditions:` a task is guarded with. A module that names none is on offer everywhere.
 
 What is left is what the interface does with them:
 
@@ -129,11 +134,12 @@ What is left is what the interface does with them:
 | One | It is opened on the way in. No list of one row |
 | None | The program says so and stops, in the words each module wrote |
 
-An action answers with its exit status, and the `fail:` of the first to say no is the sentence somebody reads when they named that module outright with `--module=`. So a check that says no says why, in the module's own words, the way every action the work requires does — and in the language the interface is read in, since it is a string of the yaml rather than whatever the script printed.
+An action answers with its exit status, and the `fail:` of the first to say no is the sentence somebody reads when they named that module outright with `--module=`. So a check that says no says why, in the module's own words, the way every action under `start-if` does — and in the language the interface is read in, since it is a string of the yaml rather than whatever the script printed.
 
 ```yaml
 # modules/writer/module.yaml
-offered: [installed-system]
+rules:
+  offer-if: [installed-system]
 ```
 
 ```yaml
@@ -229,7 +235,7 @@ It is typed twice, because a password being **chosen** is checked by nothing: a 
   - name: TUX_ENCRYPTED
     title: Encrypted
     type: bool
-    answer: disk_is_encrypted          # a function in module.sh
+    answer: disk_is_encrypted          # a function in oak.sh
 ```
 
 It is read when the module opens and again whenever an answer changes, so a value worked out from another answer follows it. Such a variable is **never asked, never on the settings page and never written to the answer file** — the next run reads it off the machine again, and a stored copy could only disagree with it. It is still an answer like any other everywhere else: scripts read it under its own name, and `conditions:` are written against it.
@@ -302,7 +308,7 @@ Six more keys change what a task **is** rather than what it does:
 | `simulates: true` | Run under `--debug` as well, test and all, because the task reads `DEBUG` itself — see [Simulating](#simulating) |
 | `optional: true` | The result stands without it: a failure does not stop the run — see below |
 
-What a module offers once the work is done — a shell in the new system, a restart, a configuration to share — is not a task but an action under `success:`: a row on the page the run ends on, chosen or not — see [Actions](#actions).
+What a module offers once the work is done — a shell in the new system, a restart, a configuration to share — is not a task but an action under `rules: on-success`: a row on the page the run ends on, chosen or not — see [Actions](#actions).
 
 **`progress: true`** is for the task nobody can guess the length of and whose output is a bar rather than chatter — an image of several gigabytes arriving over a home connection. Everything any other task prints goes to the log and nowhere else. Here the one line it drew last, on either channel, is shown under its name: a bar redrawn in place counts as the line it was redrawn to, colour is stripped, a line wider than the page loses its start rather than the percentage at its end, and the line is gone as soon as the task is.
 
@@ -321,7 +327,7 @@ It runs immediately after the work, on the machine that work was done to, and it
 
 Its exit status is the answer, the same way a task's own is: a command that failed, or whatever it handed back at the end.
 
-A script can say no without any command having failed — `return 1` and a guard that does not fire both look like that, and the trap sees neither — and the report still names the line: what comes back then is the last line the script itself was on. A command that really did fail is named where that command is, which for a function out of `module.sh` is the line inside `module.sh`.
+A script can say no without any command having failed — `return 1` and a guard that does not fire both look like that, and the trap sees neither — and the report still names the line: what comes back then is the last line the script itself was on. A command that really did fail is named where that command is, which for a function out of `oak.sh` is the line inside `oak.sh`.
 
 A run started with `--debug` starts a test only where its task declares `simulates: true` — see [Simulating](#simulating).
 
@@ -373,52 +379,53 @@ A folder under `tasks/` whose name is not a declared stage is refused, and so is
 
 ## Presets
 
-Pages of starting points, offered once on a machine that has answered nothing yet. A preset is a set of answers, not a mode: every value it sets can still be changed afterwards.
+Starting points, offered once on a machine that has answered nothing yet, as the rows of one page. The page is Oak's own — its heading and the sentence under it are the same for every module — so a module writes only the rows. A preset is a set of answers, not a mode: every value it sets can still be changed afterwards.
 
 ```yaml
 presets:
-  - title: Setup
-    description: What kind of system to install.
-    options:
-      - title: Desktop
-        description: A full desktop.
-        values:
-          TUX_DESKTOP: gnome
+  - title: Desktop
+    description: A full desktop.
+    values:
+      TUX_DESKTOP: gnome
 
-      - title: Online                  # a starting point fetched rather than written out
-        description: Take the answers somebody shared.
-        action: import                 # the action that fetches them — see Actions
+  - title: Online                      # a starting point fetched rather than written out
+    description: Take the answers somebody shared.
+    action: import                     # the action that fetches them — see Actions
 ```
 
 A preset is named by its title and nothing else. Nothing points at one, so there is no id to keep unique.
 
-An option either writes its answers out under `values:` or names the action that fetches them under `action:` — never both. The action's page asks for whatever the answers are fetched by, its script writes them into the answer file, and once it has worked they are read back over the answers held, put in force, and the opening goes on exactly as it would have after a written-out one.
+A preset either writes its answers out under `values:` or names the action that fetches them under `action:` — never both. The action's page asks for whatever the answers are fetched by, its script writes them into the answer file, and once it has worked they are read back over the answers held, put in force, and the opening goes on exactly as it would have after a written-out one.
 
 ## Actions
 
-A script a module runs outside its work. Each is a folder under `actions/` — the module's own, or the [product's](#the-products-actions--actions) beside `oak.yaml` — holding an `action.yaml` and an `action.sh`. **The yaml says how it behaves, and the script only does the work:** exit 0 is yes, anything else is no, and what happens on either is written in the yaml. Oak knows nothing about what any of them is for: joining a wireless network, switching the machine off and checking that it booted the right way are all actions a module wrote.
+A script a module runs outside its work. Each is a folder under the module's `actions/`, holding an `action.yaml` and an `action.sh`. What two actions share — the same row in two modules, say — is a function in [`oak.sh`](#the-products-shell--oaksh) that both scripts call. **The yaml says how it behaves, and the script only does the work:** exit 0 is yes, anything else is no, and what happens on either is written in the yaml. Oak knows nothing about what any of them is for: joining a wireless network, switching the machine off and checking that it booted the right way are all actions a module wrote.
 
-An action does not say where it runs. The place that needs it names it, by its folder:
+An action does not say where it runs. A rule names it, by its folder — every rule is under `rules:`, in `module.yaml` or in another action's `action.yaml`:
 
-| Named in | What happens there |
+| Rule | What happens there |
 | --- | --- |
-| `offered:` in `module.yaml` | Run by itself before the module is opened: whether it is on offer on this machine — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
-| `requires:` in `module.yaml` | Run by itself before the work begins, in order. The first that says no stands a page in front of everything — see below |
-| `menu:` in `module.yaml` | A row on the menu, between the row that starts the work and Settings |
-| `leave:` in `module.yaml` | A row on the page every way out arrives at |
-| `failure:` in `module.yaml` | A row under the report of a run that failed |
-| `success:` in `module.yaml` | A row under a run that finished — what is offered once the work is done |
-| `action:` of a preset option | Opened when that starting point is chosen — see [Presets](#presets) |
-| `requires:` in `action.yaml` | Run by itself before this action is offered anywhere: a row this machine cannot use is not shown |
-| `fallback:` in `action.yaml` | Opened where this action says no, to put right what it found |
+| `offer-if` in `module.yaml` | Run by itself before the module is opened: whether it is on offer on this machine — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
+| `start-if` in `module.yaml` | Run by itself before the work begins, in order. The first that says no stands a page in front of everything — see below |
+| `menu` in `module.yaml` | A row on the menu, between the row that starts the work and Settings |
+| `on-leave` in `module.yaml` | A row on the page every way out arrives at |
+| `on-failure` in `module.yaml` | A row under the report of a run that failed |
+| `on-success` in `module.yaml` | A row under a run that finished — what is offered once the work is done |
+| `offer-if` in `action.yaml` | Run by itself before this action is offered anywhere: a row this machine cannot use is not shown |
+| `on-failure` in `action.yaml` | One action, opened where this one says no, to put right what it found |
 
-**An action has at most one page:** a question before its script, its report after it, or the terminal handed to it. A flow of several pages is several actions, each the fallback of the one before — which is also how a step that is not always needed is left out: the network is joined as it is chosen, and only where that says no is the passphrase asked for.
+A preset's `action:` is the one name outside `rules:`: opened when that starting point is chosen — see [Presets](#presets).
+
+The same word means the same thing in both files: `offer-if` is what has to say yes before the module or the action is offered at all, and `on-failure` is what is offered once the run or the action said no.
+
+**An action has at most one page:** a question before its script, its report after it, or the terminal handed to it. A flow of several pages is several actions, each opened on the failure of the one before — which is also how a step that is not always needed is left out: the network is joined as it is chosen, and only where that says no is the passphrase asked for.
 
 ```yaml
-# actions/internet/action.yaml — named in requires:
+# actions/internet/action.yaml — named under start-if
 title: Internet
 fail: There is no internet connection. Plug in a cable, or join a wireless network.
-fallback: wlan
+rules:
+  on-failure: wlan
 ```
 
 ```bash
@@ -427,11 +434,12 @@ is_online
 ```
 
 ```yaml
-# actions/wlan/action.yaml — named in menu: and as the fallback above
+# actions/wlan/action.yaml — named under menu, and on the failure above
 title: Wireless network
 description: Join a wireless network.
-requires: [wireless-card]
-fallback: wlan-passphrase                # the network wants one
+rules:
+  offer-if: [wireless-card]
+  on-failure: wlan-passphrase            # the network wants one
 variable:                                # its one page
   name: WLAN_SSID
   title: Network
@@ -439,7 +447,7 @@ variable:                                # its one page
 ```
 
 ```yaml
-# actions/wlan-passphrase/action.yaml — the fallback of the one above
+# actions/wlan-passphrase/action.yaml — opened on the failure of the one above
 title: Wireless network
 fail: "{{WLAN_SSID}} did not accept that passphrase."
 variable:
@@ -453,27 +461,26 @@ variable:
 | --- | --- |
 | `title` | **Required.** Its row, the heading over its page, and what the page says while it runs |
 | `description` | The sentence under its row |
-| `requires` | Actions that must say yes before this one is offered at all |
-| `fallback` | The action opened where this one says no |
-| `fail` | What a no means, in the module's words: the page in front of the work, the reason a module is not offered, the headline over a failure. **Required** on an action named under `offered:` or `requires:` |
+| `rules` | `offer-if`: the actions that must say yes before this one is offered at all. `on-failure`: the one action opened where this one says no |
+| `fail` | What a no means, in the module's words: the page in front of the work, the reason a module is not offered, the headline over a failure. **Required** on an action named under `offer-if` or `start-if` |
 | `variable` | Its one page before it runs: a question with the fields a module's own have, bar `first`, `group` and `answer` |
 | `report`, `shows` | Its one page after it has run, and an answer drawn there as a code. Being named is that answer's whole declaration: the script writes it into the answer file, the way any script answers |
 | `tty` | Its one page is the terminal: the interface steps aside and hands the script all of it |
 | `simulates` | Run under `--debug` as well — see [Simulating](#simulating) |
 
-**Run by itself** — named under `offered:` or `requires:`, or in another action's `requires:` — an action is a question, and shows no page. **Opened** — from a row, a starting point or as a fallback — it asks its page where it has one, then runs its script with the answer in the environment under its own name. Esc goes back a page. Once the script has worked, the pages go and the page it was opened from is back — after its report, where it has one — and the header's status is read again. Where it did not work and has a fallback this machine has, that is opened on top, so esc from its page goes back along the chain. Where it has none, the page every failure opens on says so, under its `fail:`, with the file, the line and what the script said, and the way back is to the last page: the next thing to try is another go at the answer. An answer is the session's alone: never on the settings page and never in the answer file, and a secret is forgotten as soon as the script has run.
+**Run by itself** — named under `offer-if` or `start-if` — an action is a question, and shows no page. **Opened** — from a row, a starting point or on another's failure — it asks its page where it has one, then runs its script with the answer in the environment under its own name. Esc goes back a page. Once the script has worked, the pages go and the page it was opened from is back — after its report, where it has one — and the header's status is read again. Where it did not work and its `on-failure` is an action this machine has, that is opened on top, so esc from its page goes back along the chain. Where it has none, the page every failure opens on says so, under its `fail:`, with the file, the line and what the script said, and the way back is to the last page: the next thing to try is another go at the answer. An answer is the session's alone: never on the settings page and never in the answer file, and a secret is forgotten as soon as the script has run.
 
 The terminal is handed over **outright**: all three channels are the terminal itself, whatever Oak's own were pointed at — a service on a console has its stderr in the journal, and a shell draws its prompt on stderr. The script gets a foreground process group of its own on it, so an interactive shell does its job control there, and Oak takes the terminal back when the script exits. A shell inside another system is therefore one line: `arch-chroot /mnt || true`.
 
-**What the work requires** is asked after the questions marked `first` and before the presets. The first that says no stands a page in front of everything: its `fail:` is that page, and what the script printed goes to the log. It asks again by itself every few seconds and carries on the moment it says yes, so a cable plugged in needs no key, and `r` asks at once. Where it has a fallback this machine has, enter opens that, and the page asks again once it has worked. One with no fallback is a check of the machine, and the page is the whole of it.
+**What the work starts if** is asked after the questions marked `first` and before the presets. The first that says no stands a page in front of everything: its `fail:` is that page, and what the script printed goes to the log. It asks again by itself every few seconds and carries on the moment it says yes, so a cable plugged in needs no key, and `r` asks at once. Where its `on-failure` is an action this machine has, enter opens that, and the page asks again once it has worked. One with nothing to open is a check of the machine, and the page is the whole of it.
 
-**What an action requires** is asked when the module opens and again every time the menu comes up, since what it asks about is a thing that gets plugged in. Until it has answered, the row is not shown: a row that would be taken away again is worse than one that lands a moment late.
+**What an action is offered if** is asked when the module opens and again every time the menu comes up, since what it asks about is a thing that gets plugged in. Until it has answered, the row is not shown: a row that would be taken away again is worse than one that lands a moment late.
 
-What cannot take effect is refused when the module loads: a name that is no action, an action nothing names, a fallback on itself, actions whose `requires:` and `fallback:` go round in a ring, more than one page, a page on an action run by itself, a check under `offered:` or `requires:` without a `fail:`, a page asked `first`, in a `group` or worked out with `answer:`, and an action under `leave:` with a question, since a way out asks nothing. A page shares the module's names, so it may not be called what one of its questions is.
+What cannot take effect is refused when the module loads: a name that is no action, an action nothing names, an action opened on its own failure, actions whose `offer-if` and `on-failure` go round in a ring, more than one page, a page on an action run by itself, a check under `offer-if` or `start-if` without a `fail:`, a page asked `first`, in a `group` or worked out with `answer:`, and an action under `on-leave` with a question, since a way out asks nothing. A page shares the module's names, so it may not be called what one of its questions is.
 
-**`leave:`** turns leaving the interface into a choice rather than a plain exit: a module that names actions there is saying the machine booted specifically to run it. Its rows come first, then the runtime's own **Exit**, which closes the program and leaves the machine running. A module that names none exits like any ordinary program.
+**`on-leave`** turns leaving the interface into a choice rather than a plain exit: a module that names actions there is saying the machine booted specifically to run it. Its rows come first, then the runtime's own **Exit**, which closes the program and leaves the machine running. A module that names none exits like any ordinary program.
 
-**`failure:`** and **`success:`** put rows under the end of a run — the report of one that failed, the result of one that finished — above the one that goes on from there. The list opens on that last row: an action is chosen on purpose, and an enter meant for the page before runs nothing. Sharing the log of a failed run is the one to put under `failure:`, with the address it was put at drawn as a code; the log is `<module>.log` beside the answer file — see [Files it writes](#files-it-writes). Under `success:` stands what is offered once the work is done: a shell in what was built, the answers shared for the next machine.
+**`on-failure`** and **`on-success`** put rows under the end of a run — the report of one that failed, the result of one that finished — above the one that goes on from there. The list opens on that last row: an action is chosen on purpose, and an enter meant for the page before runs nothing. Sharing the log of a failed run is the one to put under `on-failure`, with the address it was put at drawn as a code; the log is `<module>.log` beside the answer file — see [Files it writes](#files-it-writes). Under `on-success` stands what is offered once the work is done: a shell in what was built, the answers shared for the next machine.
 
 **`oak --kiosk`** is for a machine that is nothing but this program, which is the machine's business rather than the module's: the same recovery can be one choice of several on a live image and the only thing a small partition boots into. There is no console behind a kiosk, so the row that would return to one is **Reset** instead: every answer is forgotten and the program closes, for whatever keeps it running to start it again — a systemd unit with `Restart=always`. A new process is the one start that owes nothing to the run before it. Every module offers that row in a kiosk, so leaving always asks, even where the module names nothing on the way out.
 
@@ -486,22 +493,22 @@ Every declared variable under its own name, answered or not, and two names of Oa
 | `MODULE_CONF` | The answer file. Also how a script answers a question back: append `KEY='value'` to it |
 | `DEBUG` | `true` when the run was started with `--debug`. Absent otherwise — see [Simulating](#simulating) |
 
-That is the whole list, and it is meant to stay that way. Anything else a script needs it works out for itself — its own folder, for instance, is where `module.sh` was sourced from:
+That is the whole list, and it is meant to stay that way. Anything else a script needs it works out for itself — its own folder, for instance:
 
 ```bash
-MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ```
 
-Scripts run in a shell that already carries an `ERR` trap and, where there are any, `oak.sh` and `module.sh`. They need no preamble: no shebang, no `set -e`, no error handling. **Any non-zero status is a failure** — a command that failed anywhere in the script, or whatever the script itself hands back at the end. If one fails, the unit fails, the run stops there, and the page it stops on is the one a finished run stops on under the other mark. Behind it is the module, the unit, the file, the line, the command, the exit code and what the tool said — the same page every failure in the program opens on.
+Scripts run in a shell that already carries an `ERR` trap and, where there is one, `oak.sh`. They need no preamble: no shebang, no `set -e`, no error handling. **Any non-zero status is a failure** — a command that failed anywhere in the script, or whatever the script itself hands back at the end. If one fails, the unit fails, the run stops there, and the page it stops on is the one a finished run stops on under the other mark. Behind it is the module, the unit, the file, the line, the command, the exit code and what the tool said — the same page every failure in the program opens on.
 
-**`oak.sh` and then `module.sh` are sourced in front of everything** — every task, every test, every action, and every piece of shell the yaml writes for a question's `command:`, `prefill:`, `apply:`, `answer:` or `check:` and the header's status `script:`. So a function defined in either is called by name from the yaml:
+**`oak.sh` is sourced in front of everything** — every task, every test, every action, and every piece of shell the yaml writes for a question's `command:`, `prefill:`, `apply:`, `answer:` or `check:` and the header's status `script:`. So a function defined there is called by name from the yaml:
 
 ```yaml
 apply: load_console_keyboard
 command: list_locales
 ```
 
-The work itself is always a file — `task.sh`, `test.sh`, `action.sh` — in the folder of what it belongs to. What only one task or one action needs stays there, beside its yaml, and `module.sh` holds only what several of them would otherwise each carry a copy of.
+The work itself is always a file — `task.sh`, `test.sh`, `action.sh` — in the folder of what it belongs to. What only one task or one action needs stays there, beside its yaml, and `oak.sh` holds only what several of them would otherwise each carry a copy of.
 
 It is **loaded, not run**. A lookup in it that tries one thing and falls back to another is ordinary shell and is nobody's failure, so it is sourced outside the trap: what it recovers from is never reported as the failure of the unit that was about to run. The one thing that is its own failure is a shell that will not load at all, and that fails the unit with whatever it said on the way out.
 
@@ -515,7 +522,7 @@ A `test.sh` keeps all three and adds a fourth: **change nothing at all**. It rea
 
 ### Simulating
 
-`--debug` shows a run without doing it. **No task, no test and no action is started**: a task is shown running for a moment and marked done, its `report:` still stops the run, an action comes back as though it had worked, and the pages look as they would. Every module and every action is offered and nothing the work requires is asked: a simulated run is read on whatever machine somebody happens to be sitting at, which is not the one those actions are about. So a script needs no guard against it.
+`--debug` shows a run without doing it. **No task, no test and no action is started**: a task is shown running for a moment and marked done, its `report:` still stops the run, an action comes back as though it had worked, and the pages look as they would. Every module and every action is offered and nothing under `start-if` is asked: a simulated run is read on whatever machine somebody happens to be sitting at, which is not the one those actions are about. So a script needs no guard against it.
 
 What still runs is what reads rather than acts — the shell a question is offered, suggested, applied and worked out with, an action's page among them. It is handed `DEBUG=true` and decides for itself; an `apply:` that loads a keyboard, for one, has no business doing so on somebody's own machine.
 
@@ -572,7 +579,6 @@ oak --glyphs                     # every character the interface can put on a co
 | `unread` | A question asked where no task that reads the answer can run. **This fails the check** — it is the one authoring mistake a module's shape does not rule out on its own |
 | `unset` | A name in capitals the module's shell reads that nothing here answers. A description, not a verdict — `$HOME` and `$PATH` belong on that line |
 | `needs` | A `needs:` naming a task in another stage. Also a description: the stages already put the two in that order |
-| `unnamed` | An action beside `oak.yaml` that no module names, so it never runs. **This fails the check**, for the whole product only |
 | `translation drops` / `adds` | A catalog naming other `{{VAR}}` than the string it translates. **This fails the check** — see [Placeholders](#placeholders) |
 
 `unset` is where a name that used to arrive and no longer does becomes visible. In shell an unset name is an empty string rather than an error, so nothing else would ever say so.

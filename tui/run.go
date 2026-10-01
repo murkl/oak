@@ -418,7 +418,7 @@ func (s *runScreen) finish(err error) tea.Cmd {
 		s.told = newReport(s.failed(), labelRunStopped(s.stoppedAt()), "").stop()
 	} else {
 		logging.Info("run: ok")
-		s.after = s.app.offers(s.app.module.Places.Success)
+		s.after = s.app.offers(s.app.module.Rules.OnSuccess)
 	}
 	// Whatever a run was given is gone the moment it is over, whether it worked
 	// or not: a failed installation is one that gets looked at, and nothing

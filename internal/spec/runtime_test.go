@@ -120,16 +120,12 @@ func TestAModuleIsIdentifiedByItsFolder(t *testing.T) {
 	}
 }
 
-// The product's own shell is found by its name beside oak.yaml and handed to
-// every module in front of the module's own, which may then build on it.
-func TestEveryModuleIsGivenTheProductsShellBeforeItsOwn(t *testing.T) {
+// The product's shell is found by its name beside oak.yaml and handed to every
+// module of it.
+func TestEveryModuleIsGivenTheProductsShell(t *testing.T) {
 	dir := writeRuntime(t, testRuntime, "installer", "recovery")
 	shared := filepath.Join(dir, FileRuntimeShell)
 	if err := os.WriteFile(shared, []byte("shared() { :; }\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	own := filepath.Join(dir, DirModules, "installer", FileShell)
-	if err := os.WriteFile(own, []byte("own() { :; }\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -142,17 +138,15 @@ func TestEveryModuleIsGivenTheProductsShellBeforeItsOwn(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := strings.Join(mods[0].Shells(), " "); got != shared+" "+own {
-		t.Errorf("installer shells = %q, want the product's, then its own", got)
-	}
-	if got := strings.Join(mods[1].Shells(), " "); got != shared {
-		t.Errorf("recovery shells = %q, want the product's alone", got)
+	for _, mod := range mods {
+		if mod.Shell != shared {
+			t.Errorf("%s shell = %q, want the product's", mod.ID(), mod.Shell)
+		}
 	}
 }
 
-// A product without one hands its modules nothing extra, the same as before
-// the file existed.
-func TestAProductWithoutAShellOfItsOwnSharesNothing(t *testing.T) {
+// A product without one hands its modules nothing extra.
+func TestAProductWithoutAShellSharesNothing(t *testing.T) {
 	rt, err := LoadRuntime(writeRuntime(t, testRuntime, "installer"))
 	if err != nil {
 		t.Fatal(err)
@@ -161,13 +155,13 @@ func TestAProductWithoutAShellOfItsOwnSharesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mods[0].Shells(); len(got) != 0 {
-		t.Errorf("shells = %q, want none", got)
+	if mods[0].Shell != "" {
+		t.Errorf("shell = %q, want none", mods[0].Shell)
 	}
 }
 
 // A name the product's shell sets is answered for every module of it, the same
-// as one the module's own sets.
+// as one a module sets itself.
 func TestANameTheProductsShellSetsIsNotUnset(t *testing.T) {
 	dir := writeRuntime(t, testRuntime, "installer")
 	if err := os.WriteFile(filepath.Join(dir, FileRuntimeShell), []byte("SHARED=yes\n"), 0o600); err != nil {
@@ -254,98 +248,18 @@ func TestAStatusWithoutAScriptIsRefused(t *testing.T) {
 	}
 }
 
-// productAction lays an action down in the actions/ folder beside oak.yaml.
-func productAction(t *testing.T, dir, id, yaml string) {
-	t.Helper()
-	at := filepath.Join(dir, DirActions, id)
-	if err := os.MkdirAll(at, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for name, body := range map[string]string{FileAction: yaml, FileActionScript: "true\n"} {
-		if err := os.WriteFile(filepath.Join(at, name), []byte(body), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-// declare rewrites one module's declaration.
-func declare(t *testing.T, dir, module, yaml string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, DirModules, module, FileModule), []byte(yaml), 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// What several modules do alike is one folder beside oak.yaml: each module that
-// names it has it, from there, and one that does not name it does not.
-func TestAProductsActionIsTheModulesThatNameIt(t *testing.T) {
-	dir := writeRuntime(t, testRuntime, "installer", "recovery")
-	productAction(t, dir, "restart", "title: Restart\n")
-	declare(t, dir, "installer", "title: The installer\nstages: [go]\nleave: [restart]\n")
-
-	rt, err := LoadRuntime(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mods, err := rt.LoadModules()
-	if err != nil {
-		t.Fatal(err)
-	}
-	a := mods[0].Action("restart")
-	if a == nil || a.Dir() != filepath.Join(dir, DirActions, "restart") {
-		t.Fatalf("installer's restart = %+v, want the product's", a)
-	}
-	if mods[1].Action("restart") != nil {
-		t.Error("recovery has the restart, although it never named it")
-	}
-	if got := mods[0].Messages(); !slices.ContainsFunc(got, func(m Message) bool {
-		return m.Text == "Restart" && slices.Contains(m.Files, "../../actions/restart/action.yaml")
-	}) {
-		t.Errorf("Messages() = %+v, want the title named from the module's folder", got)
-	}
-}
-
-// A product's action no module names never runs. It is said rather than
-// refused: a release that ships some of its modules alone still starts.
-func TestAProductsActionNothingNamesIsReportedNotRefused(t *testing.T) {
+// An action is a module's own. One beside oak.yaml would be a second place to
+// look a name up in, and an older product that has one is told where its work
+// goes instead of losing it without a word.
+func TestAnActionsFolderBesideTheProductIsRefused(t *testing.T) {
 	dir := writeRuntime(t, testRuntime, "installer")
-	productAction(t, dir, "restart", "title: Restart\n")
-
-	rt, err := LoadRuntime(dir)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, DirActions, "restart"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mods, err := rt.LoadModules()
-	if err != nil {
-		t.Fatalf("a product with an unnamed action did not load: %v", err)
-	}
-	if got, err := rt.Unnamed(mods); err != nil || !slices.Equal(got, []string{"restart"}) {
-		t.Errorf("Unnamed() = %v, %v, want restart", got, err)
-	}
-}
 
-// One name means one folder: a module may not have an action of the name the
-// product already gives one.
-func TestAModulesActionMayNotShadowTheProducts(t *testing.T) {
-	dir := writeRuntime(t, testRuntime, "installer")
-	productAction(t, dir, "restart", "title: Restart\n")
-	declare(t, dir, "installer", "title: The installer\nstages: [go]\nleave: [restart]\n")
-	at := filepath.Join(dir, DirModules, "installer", DirActions, "restart")
-	if err := os.MkdirAll(at, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for name, body := range map[string]string{FileAction: "title: Mine\n", FileActionScript: "true\n"} {
-		if err := os.WriteFile(filepath.Join(at, name), []byte(body), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
+	_, err := LoadRuntime(dir)
 
-	rt, err := LoadRuntime(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = rt.LoadModules()
-	if err == nil || !strings.Contains(err.Error(), "the product has an action of that name too") {
-		t.Errorf("err = %v, want the second restart refused", err)
+	if err == nil || !strings.Contains(err.Error(), "an action is a module's own") {
+		t.Errorf("err = %v, want the product's actions/ refused", err)
 	}
 }

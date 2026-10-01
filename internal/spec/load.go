@@ -29,8 +29,8 @@ func binaryDir() string {
 
 // declaration is a module's yaml as it is written: flat, because every key in
 // it is about the module as a whole and a nesting level would only be there to
-// be typed — but for the one subject with parts of its own, the header's
-// status.
+// be typed — but for the two subjects with parts of their own: the rules that
+// run its actions, and the header's status.
 type declaration struct {
 	Title    string `yaml:"title"`
 	Language string `yaml:"language"`
@@ -38,11 +38,11 @@ type declaration struct {
 	// What this module is and what it does: one sentence about the program, the
 	// word for starting it, and the phases its work happens in.
 	Description string   `yaml:"description"`
-	Start       string   `yaml:"start"`
+	StartTitle  string   `yaml:"start-title"`
 	Stages      []string `yaml:"stages"`
 
-	// Where it runs its actions, each a list of their names — see Places.
-	Places `yaml:",inline"`
+	// Where it runs its actions, each a list of their names — see Rules.
+	Rules Rules `yaml:"rules"`
 
 	Presets   []*Preset   `yaml:"presets"`
 	Variables []*Variable `yaml:"variables"`
@@ -57,20 +57,16 @@ type declaration struct {
 //
 // A module that loads is a module that runs: an authoring mistake is a message
 // at startup, never a task that silently never fires.
-func Load(dir string) (*Module, error) { return load(dir, nil) }
-
-// load is Load with the product's own actions beside the module's — see
-// Runtime.LoadModules.
-func load(dir string, shared []*Action) (*Module, error) {
+func Load(dir string) (*Module, error) {
 	s := &Module{Dir: dir, byName: map[string]*Variable{}}
 
 	var head declaration
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Description: head.Description, Start: head.Start}
+	s.UI = UI{Title: head.Title, Description: head.Description, StartTitle: head.StartTitle}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
-	s.Stages, s.Places = head.Stages, head.Places
+	s.Stages, s.Rules = head.Stages, head.Rules
 	if err := head.Status.settle(dir, FileModule); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
@@ -78,11 +74,10 @@ func load(dir string, shared []*Action) (*Module, error) {
 	if err := checkStages(s.Stages); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
-	s.Shell = beside(dir, FileShell)
 	s.Locales = beside(dir, DirLocales)
-	for _, old := range slices.Sorted(maps.Keys(retiredDirs)) {
-		if beside(dir, old) != "" {
-			return nil, fmt.Errorf("%s/: %s", old, retiredDirs[old])
+	for _, old := range slices.Sorted(maps.Keys(retiredParts)) {
+		if beside(dir, strings.TrimSuffix(old, "/")) != "" {
+			return nil, fmt.Errorf("%s: %s", old, retiredParts[old])
 		}
 	}
 
@@ -94,7 +89,7 @@ func load(dir string, shared []*Action) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	runs, err := s.gather(own, shared)
+	runs, err := s.gather(own)
 	if err != nil {
 		return nil, err
 	}
@@ -104,12 +99,14 @@ func load(dir string, shared []*Action) (*Module, error) {
 	return s, nil
 }
 
-// retiredDirs is a folder a module used to be able to hold, and what to make of
-// it instead. It is refused rather than passed over, so a module written for an
-// older Oak is told what to do instead of losing what was in it without a word.
-var retiredDirs = map[string]string{
-	"hooks":   "the runtime runs no hooks — each is an action now, a folder under actions/ that module.yaml names where it runs",
-	"options": "an option is an action now, a folder under actions/ that module.yaml names where it runs",
+// retiredParts is a file or folder a module used to be able to hold, and what
+// to make of it instead. It is refused rather than passed over, so a module
+// written for an older Oak is told what to do instead of losing what was in it
+// without a word.
+var retiredParts = map[string]string{
+	"hooks/":    "the runtime runs no hooks — each is an action now, a folder under actions/ that module.yaml names under rules:",
+	"options/":  "an option is an action now, a folder under actions/ that module.yaml names under rules:",
+	"module.sh": "a module has no shell of its own — what its scripts share with each other and with the modules beside it is a function in oak.sh beside oak.yaml",
 }
 
 // checkStages settles the phases the work happens in: at least one, each named
@@ -265,17 +262,26 @@ var retired = map[string]string{
 	"script":    "a task does its work in the task.sh beside it, and an action in the action.sh beside it",
 	"test":      "a task is tested by the test.sh beside it",
 	"stage":     "a task lies in the folder of its stage, and that is the whole of where it runs",
-	"network":   "a wireless network is an action under actions/, and the internet the work waits for is one named in requires",
-	"action":    "the word for starting the work is start",
+	"network":   "a wireless network is an action under actions/, and the internet the work waits for is one named under rules: start-if",
+	"action":    "the word for starting the work is start-title",
+	"start":     "the word for starting the work is start-title",
 	"console":   "the row that leaves to the console is the runtime's own",
 	"confirm":   "a task that needs asking says confirm itself, and an action is agreed to by choosing its row",
 	"default":   "a task's confirm opens on yes; what must not be walked into by an enter is an action on a row of its own",
-	"variables": "an action has one page: its variable, and a second question is a second action named as its fallback",
+	"variables": "an action has one page: its variable, and a second question is a second action named under its rules: on-failure",
 	"shows":     "a code is drawn by an action, beside its report",
-	"quits":     "a way out is an action, named under success or leave",
-	"tty":       "a shell handed the terminal is an action with tty, named under success or menu",
+	"quits":     "a way out is an action, named under rules: on-success or on-leave",
+	"tty":       "a shell handed the terminal is an action with tty, named under rules: on-success or menu",
 	"asks":      "a starting point that is fetched names the action that fetches it",
 	"apply":     "a starting point that is fetched names the action that fetches it",
+	"options":   "a starting point stands under presets: itself, and the page they are offered on is the runtime's own",
+	"offered":   "it is a rule now: under rules:, as offer-if",
+	"requires":  "it is a rule now: under rules:, as start-if in module.yaml and as offer-if in action.yaml",
+	"menu":      "it is a rule now: under rules:",
+	"leave":     "it is a rule now: under rules:, as on-leave",
+	"failure":   "it is a rule now: under rules:, as on-failure",
+	"success":   "it is a rule now: under rules:, as on-success",
+	"fallback":  "it is a rule now: under rules:, as on-failure",
 }
 
 // unknownField is how the decoder says a key is not one of them. It names the
@@ -469,12 +475,9 @@ func (s *Module) checkAsks(t *Task) error {
 //
 // A blank line survives, because that is the one break that was meant.
 func (s *Module) normalize(tasks []*Task) {
-	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Start}
-	for _, p := range s.Presets {
-		fields = append(fields, &p.Title, &p.Description)
-		for _, o := range p.Options {
-			fields = append(fields, &o.Title, &o.Description)
-		}
+	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.StartTitle}
+	for _, o := range s.Presets {
+		fields = append(fields, &o.Title, &o.Description)
 	}
 	for _, a := range s.Actions {
 		fields = append(fields, &a.Title, &a.Description, &a.Fail, &a.Report)
@@ -606,33 +609,21 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 	return nil
 }
 
-// checkPresets settles the starting points. A preset is named by its title and
-// nothing else: it is a page with rows on it, and there is nothing about it a
-// module ever has to point at from somewhere else.
+// checkPresets settles the starting points. One is named by its title and
+// nothing else: it is a row on a page, and nothing a module declares ever has
+// to point at one.
 func (s *Module) checkPresets() error {
-	for i, p := range s.Presets {
-		where := fmt.Sprintf("preset %d", i+1)
-		switch {
-		case p.Title == "":
-			return fmt.Errorf("%s: title is required", where)
-		case len(p.Options) == 0:
-			// A page with nothing on it to choose would be a page nobody can
-			// get past, which is an authoring mistake rather than a way of
-			// turning the page off: leaving the whole preset out is that.
-			return fmt.Errorf("%s: no options", p.Title)
+	for i, o := range s.Presets {
+		if o.Title == "" {
+			return fmt.Errorf("presets: %d: title is required", i+1)
 		}
-		for j, o := range p.Options {
-			if o.Title == "" {
-				return fmt.Errorf("%s: option %d: title is required", p.Title, j+1)
+		for name := range o.Values {
+			if s.byName[name] == nil {
+				return fmt.Errorf("presets: %s: no such variable: %s", o.Title, name)
 			}
-			for name := range o.Values {
-				if s.byName[name] == nil {
-					return fmt.Errorf("%s: %s: no such variable: %s", p.Title, o.Title, name)
-				}
-			}
-			if o.Fetches() && len(o.Values) > 0 {
-				return fmt.Errorf("%s: %s: a starting point is written out in values or fetched by an action, not both", p.Title, o.Title)
-			}
+		}
+		if o.Fetches() && len(o.Values) > 0 {
+			return fmt.Errorf("presets: %s: a starting point is written out in values or fetched by an action, not both", o.Title)
 		}
 	}
 	return nil

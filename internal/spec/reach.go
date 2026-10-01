@@ -53,7 +53,7 @@ func (u Unread) String() string {
 // something, so a value several tasks read is only reported when none of them
 // can.
 //
-// Read outside a task — in the module's own shell, one of its actions, or the
+// Read outside a task — in the product's shell, one of the actions, or the
 // declaration's own shell — and there is nothing to compare against: those run
 // whatever the answers say, so the question is answered by definition.
 func (s *Module) Unread() ([]Unread, error) {
@@ -118,11 +118,13 @@ func (s *Module) readers(sh *refs, name string) []*Task {
 }
 
 // everywhere is every file of this module that runs whatever the answers say:
-// the declaration and the shell in it, the product's and the module's own
-// shell, and every action. Nothing here is guarded by anything, so a value one
+// the declaration and the shell in it, the product's shell, and every action. Nothing here is guarded by anything, so a value one
 // of them reads is read on every run there is.
 func (s *Module) everywhere() ([]string, error) {
-	out := append([]string{filepath.Join(s.Dir, FileModule)}, s.Shells()...)
+	out := []string{filepath.Join(s.Dir, FileModule)}
+	if s.Shell != "" {
+		out = append(out, s.Shell)
+	}
 	for _, a := range s.Actions {
 		paths, err := filesUnder(a.Dir())
 		if err != nil {
@@ -154,7 +156,7 @@ type refs struct {
 	tasks map[*Task]names
 
 	// sets is every name the module's shell puts a value into, wherever it did
-	// so: a name a task reads and oak.sh or module.sh assigns is answered.
+	// so: a name a task reads and oak.sh assigns is answered.
 	sets names
 }
 

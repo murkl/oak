@@ -2,6 +2,8 @@ package spec
 
 import (
 	"maps"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -115,14 +117,20 @@ func TestOneTaskThatCanRunAnywhereIsEnough(t *testing.T) {
 	}
 }
 
-func TestTheSharedLibraryReadsForEveryTask(t *testing.T) {
-	files := consistent(map[string]string{
+func TestTheProductsShellReadsForEveryTask(t *testing.T) {
+	sp, err := Load(module(t, consistent(map[string]string{
 		FileModule:                  widened,
 		"tasks/@go/desktop/task.sh": "echo desktop\n",
-		FileShell:                   "echo \"$EXTRAS\"\n",
-	})
-	if got := unread(t, files); len(got) != 0 {
-		t.Errorf("Unread() = %v, want nothing: module.sh runs whatever the answers say", got)
+	})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp.Shell = filepath.Join(t.TempDir(), FileRuntimeShell)
+	if err := os.WriteFile(sp.Shell, []byte("echo \"$EXTRAS\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := sp.Unread(); err != nil || len(got) != 0 {
+		t.Errorf("Unread() = %v, %v, want nothing: %s runs whatever the answers say", got, err, FileRuntimeShell)
 	}
 }
 
@@ -185,9 +193,8 @@ func TestANameNothingAnswersIsReported(t *testing.T) {
 // the module, which is the whole point of the line.
 func TestANameTheModuleSetsItselfIsNotReported(t *testing.T) {
 	got := unset(t, consistent(map[string]string{
-		FileShell:                "MODULE_DIR=\"$(dirname \"${BASH_SOURCE[0]}\")\"\n",
 		"tasks/@go/do/task.yaml": "title: Do\n",
-		"tasks/@go/do/task.sh":   "echo \"$MODULE_DIR\"\n",
+		"tasks/@go/do/task.sh":   "MODULE_DIR=\"$(dirname \"${BASH_SOURCE[0]}\")\"\necho \"$MODULE_DIR\"\n",
 	}))
 	if len(got) != 0 {
 		t.Errorf("Unset() = %v, want nothing", got)

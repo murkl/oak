@@ -44,23 +44,20 @@ type harness struct {
 	inflight atomic.Int64
 }
 
-// The module every flow test starts from: one page of presets, a handful of
+// The module every flow test starts from: two starting points, a handful of
 // questions, three tasks, one of them conditional.
 const testInstaller = `
 title: Test Installer
 stages: [go, finish]
 presets:
-  - title: Setup
-    description: Choose what kind of system to install.
-    options:
-      - title: Full
-        description: Everything at once.
-        values:
-          EXTRAS: "true"
-      - title: Bare
-        description: Nothing at all.
-        values:
-          EXTRAS: "false"
+  - title: Full
+    description: Everything at once.
+    values:
+      EXTRAS: "true"
+  - title: Bare
+    description: Nothing at all.
+    values:
+      EXTRAS: "false"
 variables:
   - name: USER
     title: User name
@@ -479,7 +476,7 @@ func TestAFirstQuestionIsAskedBeforeWhatTheWorkWaitsFor(t *testing.T) {
 	tree := wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true)
 	tree[treeFile] = testInstaller +
 		"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    values: [de, en]\n" +
-		wirelessPlaces(true)
+		wirelessRules(true)
 	h := newHarness(t, tree)
 	h.wants("Language and formats", "de", "en").refuses("internet connection")
 
@@ -522,7 +519,7 @@ func TestAnAnsweredFirstQuestionIsNotAskedAgain(t *testing.T) {
 	tree := wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true)
 	tree[treeFile] = testInstaller +
 		"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    default: de\n    values: [de, en]\n" +
-		wirelessPlaces(true)
+		wirelessRules(true)
 	h := newHarness(t, tree)
 	h.wants("There is no internet connection.").refuses("Language and formats")
 }
@@ -607,7 +604,7 @@ func TestChoosingAProgramSettlesTheQuestionsTheWarningAndTheRun(t *testing.T) {
 func TestTheOtherProgramsQuestionsAreNotAsked(t *testing.T) {
 	h := start(t, both(t)...)
 	h.enter() // the installer, the row the page opens on
-	h.wants("Setup", "Choose what kind of system to install.")
+	h.wants(labelPresets(), "Everything at once.")
 	h.refuses("Snapshot")
 }
 
@@ -719,7 +716,7 @@ func TestTheRowsInsideAModuleAreNamedAfterWhatTheyDo(t *testing.T) {
 // first row and the button on the page before the run both say that instead.
 func TestTheModuleNamesWhatStartingItsWorkIsCalled(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\nstart: Install", 1),
+		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\nstart-title: Install", 1),
 	})
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
@@ -777,7 +774,7 @@ func TestTheStatusGivesWayToWhatIsHappening(t *testing.T) {
 // ordinary answer somebody may have changed.
 func TestAPresetIsOnlyOfferedOnce(t *testing.T) {
 	h := newHarness(t, nil)
-	h.wants("Setup", "Full", "Bare")
+	h.wants(labelPresets(), "Full", "Bare")
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.wants("Test Installer", "Settings")
 
@@ -791,8 +788,8 @@ func TestAPresetIsOnlyOfferedOnce(t *testing.T) {
 // can do beyond being stored.
 func presetTreeTying(apply string) map[string]string {
 	declared := strings.Replace(testInstaller,
-		"          EXTRAS: \"true\"\n",
-		"          EXTRAS: \"true\"\n          LOCALE: de_DE\n", 1)
+		"      EXTRAS: \"true\"\n",
+		"      EXTRAS: \"true\"\n      LOCALE: de_DE\n", 1)
 	return map[string]string{
 		treeFile: declared +
 			"  - name: LOCALE\n    title: System language\n    required: true\n    values: [de_DE, en_US]\n" + apply +
@@ -835,7 +832,7 @@ func twoLanguageTree() map[string]string {
 	return map[string]string{
 		treeFile: testInstaller +
 			"  - name: LOCALE\n    title: System language\n    required: true\n    values: [de_DE, en_US]\n",
-		"locales/de.po": "msgid \"English\"\nmsgstr \"Deutsch\"\n\nmsgid \"Setup\"\nmsgstr \"Einrichtung\"\n",
+		"locales/de.po": "msgid \"English\"\nmsgstr \"Deutsch\"\n\nmsgid \"Full\"\nmsgstr \"Vollständig\"\n",
 	}
 }
 
@@ -974,7 +971,7 @@ func TestTheWelcomePageNeverRunsPastTheEdge(t *testing.T) {
 func TestALanguageNamedOnTheCommandLineSkipsTheWelcomePage(t *testing.T) {
 	mod := loadModule(t, writeModule(t, t.TempDir(), twoLanguageTree()))
 	h := startAs(t, testRuntime(), openModule(t), "", Opening{Settled: true}, mod)
-	h.wants("Setup", "Full", "Bare").refuses(landingChoose)
+	h.wants(labelPresets(), "Full", "Bare").refuses(landingChoose)
 }
 
 // The landing page leads, because every word of every page after it is in the
@@ -984,7 +981,7 @@ func TestTheLandingPageIsTheFirstThingDrawn(t *testing.T) {
 	h.wants(landingChoose, "Deutsch").refuses("Full", "Bare")
 
 	h.down().enter() // Deutsch
-	h.wants("Einrichtung", "Full", "Bare")
+	h.wants("Vollständig", "Bare")
 }
 
 // And it answers nothing about the machine being installed: the module's own
@@ -1012,14 +1009,15 @@ func TestTheInterfaceLanguageIsNotAnAnswer(t *testing.T) {
 // about.
 func wireless(marker, card string, waits bool) map[string]string {
 	tree := map[string]string{
-		treeFile:                   testInstaller + wirelessPlaces(waits),
+		treeFile:                   testInstaller + wirelessRules(waits),
 		"actions/card/action.yaml": "title: A wireless card\n",
 		"actions/card/action.sh":   card + "\n",
 		"actions/wlan/action.yaml": `
 title: Wireless network
 description: Join a wireless network.
-requires: [card]
-fallback: wlan-passphrase
+rules:
+  offer-if: [card]
+  on-failure: wlan-passphrase
 variable:
   name: WLAN_SSID
   title: Network
@@ -1038,19 +1036,19 @@ variable:
 		"actions/wlan-passphrase/action.sh": `printf '%s %s' "$WLAN_SSID" "$WLAN_PASSPHRASE" > ` + marker + "\n",
 	}
 	if waits {
-		tree["actions/internet/action.yaml"] = "title: Internet\nfail: There is no internet connection. Plug in a cable, or join a wireless network.\nfallback: wlan\n"
+		tree["actions/internet/action.yaml"] = "title: Internet\nfail: There is no internet connection. Plug in a cable, or join a wireless network.\nrules:\n  on-failure: wlan\n"
 		tree["actions/internet/action.sh"] = "test -e " + marker + "\n"
 	}
 	return tree
 }
 
-// wirelessPlaces is where that module names its actions, for a test that writes
+// wirelessRules is where that module names its actions, for a test that writes
 // a declaration of its own.
-func wirelessPlaces(waits bool) string {
+func wirelessRules(waits bool) string {
 	if waits {
-		return "requires: [internet]\nmenu: [wlan]\n"
+		return "rules:\n  start-if: [internet]\n  menu: [wlan]\n"
 	}
-	return "menu: [wlan]\n"
+	return "rules:\n  menu: [wlan]\n"
 }
 
 // A requirement that says yes is never seen: it is a wait for something missing, not
@@ -1182,7 +1180,7 @@ func TestAFailingActionSaysWhyAndGoesBackAPage(t *testing.T) {
 func TestTheActionsTheWorkRequiresAreAskedInTurn(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "root")
 	h := newHarness(t, map[string]string{
-		treeFile:                       testInstaller + "requires: [root, firmware]\n",
+		treeFile:                       testInstaller + "rules:\n  start-if: [root, firmware]\n",
 		"actions/root/action.yaml":     "title: Root\nfail: Log in as root.\n",
 		"actions/root/action.sh":       "test -e " + marker + "\n",
 		"actions/firmware/action.yaml": "title: Firmware\nfail: Set the boot mode to UEFI.\n",
@@ -1232,7 +1230,7 @@ func TestAnActionTheMachineDoesNotHaveIsNoRow(t *testing.T) {
 func TestAnActionOpenedFromTheMenuComesBackToIt(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "online")
 	tree := wireless(marker, "exit 0", false)
-	tree[treeFile] = testInstaller + wirelessPlaces(false) +
+	tree[treeFile] = testInstaller + wirelessRules(false) +
 		"status:\n  script: test -e " + marker + "\n  pass: Online\n  fail: Offline\n"
 	h := intoHub(newHarness(t, tree))
 	h.wants("Offline")
@@ -1280,7 +1278,7 @@ func TestAModuleCanTieTheInterfaceToOneOfItsOwnAnswers(t *testing.T) {
 	// The answer is a locale rather than the name of a catalog, and it is read
 	// as one: de_DE is German.
 	h.enter()
-	h.wants("Einrichtung")
+	h.wants("Vollständig")
 	if got := h.a.prefs.Lang(); got != "de" {
 		t.Errorf("the language kept = %q, want the one the answer came closest to", got)
 	}
@@ -1292,7 +1290,7 @@ func TestAnAnswerNoCatalogFitsLeavesTheSourceLanguage(t *testing.T) {
 	h := newHarness(t, regionTree)
 	h.enter()        // English
 	h.down().enter() // en_US
-	h.wants("Setup").refuses("Einrichtung")
+	h.wants("Full").refuses("Vollständig")
 }
 
 // And the settings page does not offer a second way to set it: the module's own
@@ -1313,7 +1311,7 @@ var regionTree = map[string]string{
 		"  - name: LOCALE\n    title: Language and region\n    required: true\n    first: true\n" +
 		"    values: [de_DE, en_US]\n" +
 		"language: LOCALE\n",
-	"locales/de.po": "msgid \"English\"\nmsgstr \"Deutsch\"\n\nmsgid \"Setup\"\nmsgstr \"Einrichtung\"\n",
+	"locales/de.po": "msgid \"English\"\nmsgstr \"Deutsch\"\n\nmsgid \"Full\"\nmsgstr \"Vollständig\"\n",
 }
 
 func TestTheOpeningRunsPresetThenQuestionsThenHub(t *testing.T) {
@@ -1366,11 +1364,11 @@ func TestTheOpeningPagesStandUnderOneHeadingRatherThanInsideEachOther(t *testing
 	h.wants("Start", "Console keyboard").refuses("Language and formats")
 
 	h.enter()
-	h.wants("Start", "Setup").refuses("Console keyboard")
+	h.wants(labelPresets()).refuses("Console keyboard")
 
 	// And the run of questions leaves the opening behind it entirely.
 	h.enter()
-	h.wants("User name", "1 of 3").refuses("Setup")
+	h.wants("User name", "1 of 3").refuses(labelPresets())
 }
 
 func TestAnAnswerThatBreaksTheRulesIsRefusedWithTheReason(t *testing.T) {
@@ -1601,7 +1599,7 @@ func TestResettingForgetsEveryAnswerAndOffersTheStartingPointsAgain(t *testing.T
 	// starting points are spent by then, and bringing them back is half of what
 	// the reset is for.
 	h.restart()
-	h.wants("Settings").refuses("Setup")
+	h.wants("Settings").refuses(labelPresets())
 
 	h.down().enter()           // Settings
 	h.typeIn("/reset").enter() // the one row there that is not an answer
@@ -1617,7 +1615,7 @@ func TestResettingForgetsEveryAnswerAndOffersTheStartingPointsAgain(t *testing.T
 
 	h.enter()                // the row again
 	h.key(tea.KeyUp).enter() // Yes, the row above No
-	h.wants("Setup", "Choose what kind of system to install.")
+	h.wants(labelPresets(), "Everything at once.")
 	if _, err := os.Stat(conf); !os.IsNotExist(err) {
 		t.Errorf("the answer file is still there after a reset: %v", err)
 	}
@@ -1857,7 +1855,7 @@ func TestASecretIsForgottenWhenTheRunIsOver(t *testing.T) {
 // nothing gets past it.
 func TestAFailedSystemCheckIsWaitedOn(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		treeFile:                       testInstaller + "requires: [firmware]\n",
+		treeFile:                       testInstaller + "rules:\n  start-if: [firmware]\n",
 		"actions/firmware/action.yaml": "title: Check\nfail: Set the boot mode to UEFI.\n",
 		"actions/firmware/action.sh":   "echo bios >&2\nexit 1\n",
 	})
@@ -1869,7 +1867,7 @@ func TestAFailedSystemCheckIsWaitedOn(t *testing.T) {
 
 func TestASystemCheckThatPassesLeadsStraightOn(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		treeFile:                       testInstaller + "requires: [firmware]\n",
+		treeFile:                       testInstaller + "rules:\n  start-if: [firmware]\n",
 		"actions/firmware/action.yaml": "title: Check\nfail: Set the boot mode to UEFI.\n",
 		"actions/firmware/action.sh":   "echo fine\n",
 	})
@@ -1908,8 +1906,8 @@ func TestNoPageEverRunsPastTheEdge(t *testing.T) {
 func TestTheWaitNeverRunsPastTheEdge(t *testing.T) {
 	long := strings.Repeat("This machine is not ready yet, and here is a long account of why. ", 6)
 	h := newHarness(t, map[string]string{
-		treeFile:                       testInstaller + "requires: [internet]\n",
-		"actions/internet/action.yaml": "title: Internet\nfallback: wlan\nfail: " + long + "\n",
+		treeFile:                       testInstaller + "rules:\n  start-if: [internet]\n",
+		"actions/internet/action.yaml": "title: Internet\nrules:\n  on-failure: wlan\nfail: " + long + "\n",
 		"actions/internet/action.sh":   "exit 1\n",
 		"actions/wlan/action.yaml":     "title: Wireless network\ndescription: Join a wireless network.\n",
 		"actions/wlan/action.sh":       "true\n",
@@ -1935,7 +1933,7 @@ func TestTheWaitNeverRunsPastTheEdge(t *testing.T) {
 func failedRun(t *testing.T) *harness {
 	t.Helper()
 	h := newHarness(t, map[string]string{
-		treeFile: testInstaller + "failure: [share-log]\n",
+		treeFile: testInstaller + "rules:\n  on-failure: [share-log]\n",
 		"actions/share-log/action.yaml": "title: Share the log\ndescription: Put the log online.\n" +
 			"shows: LOG_URL\nreport: The log is online\n",
 		"actions/share-log/action.sh": "printf \"LOG_URL='https://paste.example/abc'\\n\" >>\"$MODULE_CONF\"\n",
@@ -1976,7 +1974,7 @@ func TestTheRowsUnderAFailedRunOpenOnContinue(t *testing.T) {
 func finishedRun(t *testing.T) *harness {
 	t.Helper()
 	return installed(t, map[string]string{
-		treeFile: testInstaller + "success: [share]\n",
+		treeFile: testInstaller + "rules:\n  on-success: [share]\n",
 		"actions/share/action.yaml": "title: Share the answers\ndescription: Put them online.\n" +
 			"shows: LINK\nreport: The answers are online\n",
 		"actions/share/action.sh": "printf \"LINK='https://paste.example/def'\\n\" >>\"$MODULE_CONF\"\n",
@@ -2057,7 +2055,7 @@ func TestTheSmallestTreeStillWorks(t *testing.T) {
 // behind it to quit into.
 func leaveTree(restart, shutdown string) map[string]string {
 	return map[string]string{
-		treeFile:                       testInstaller + "leave: [restart, shutdown]\n",
+		treeFile:                       testInstaller + "rules:\n  on-leave: [restart, shutdown]\n",
 		"actions/restart/action.yaml":  "title: Restart\ndescription: Close this machine down and start it again.\n",
 		"actions/restart/action.sh":    restart + "\n",
 		"actions/shutdown/action.yaml": "title: Shut down\ndescription: Switch this machine off.\n",
@@ -2296,10 +2294,10 @@ func TestBackspaceOnlyDeletesInFrontOfABox(t *testing.T) {
 	for range 10 {
 		h.erase()
 	}
-	h.wants("User name").refuses("Setup", "Full", "Bare")
+	h.wants("User name").refuses(labelPresets(), "Full", "Bare")
 
 	h.esc()
-	h.wants("Setup", "Full", "Bare")
+	h.wants(labelPresets(), "Full", "Bare")
 }
 
 // The same in a narrowing box: clearing a query cannot close the box and then
@@ -2871,9 +2869,9 @@ func TestAPresetThatCannotFetchSaysWhyAndGoesBack(t *testing.T) {
 // opens an action asking for a code, whose script makes something of it.
 func presetFetches(script string) map[string]string {
 	declared := strings.Replace(testInstaller, "\nvariables:", `
-      - title: Online
-        description: Take the answers from somewhere else.
-        action: fetch
+  - title: Online
+    description: Take the answers from somewhere else.
+    action: fetch
 variables:`, 1)
 	return map[string]string{
 		treeFile: declared,

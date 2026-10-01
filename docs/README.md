@@ -35,13 +35,11 @@ Oak looks next to itself, and nowhere else:
 ```
 oak                       the binary
 oak.yaml                  the product: name, colour, version, wordmark
-oak.sh                    optional: shell every module of the product gets
-actions/shell/            optional: an action several modules name
+oak.sh                    optional: the library every script of every module gets
 modules/setup/            one module — everything below belongs to it
-  module.yaml             what it asks and what order it works in
-  module.sh               optional: shell everything this module runs gets
+  module.yaml             what it asks, what order it works in, and its rules
   tasks/@prepare/format/  one task, in the folder of the phase it runs in
-  actions/wlan/           optional: one action — a script run where module.yaml names it
+  actions/wlan/           optional: one action — a script run where a rule names it
 modules/recovery/         another module, another program
 ```
 
@@ -56,7 +54,7 @@ flowchart LR
     subgraph Y["What you write"]
         direction TB
         C["oak.yaml<br/>module.yaml"]
-        S["module.sh<br/>task.sh"]
+        S["oak.sh<br/>task.sh"]
     end
     subgraph O["What Oak does"]
         direction TB
@@ -77,7 +75,7 @@ Every page appears only when it has something to show. A module with no presets 
 ```mermaid
 flowchart TD
     L["Welcome<br/>the language"] --> W["Which module"] --> Q1["Questions marked first"]
-    Q1 --> N["What the work requires<br/>actions, with their fallbacks"] --> PR["Presets"]
+    Q1 --> N["What the work starts if<br/>actions, and what each opens on failure"] --> PR["Presets"]
     PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
     H --> SE["Settings"] --> H

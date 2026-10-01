@@ -156,7 +156,7 @@ func (s *failureScreen) hinted(hint func() string) *failureScreen {
 // the module names none, or this machine has none of them, the page is the
 // report alone.
 func (s *failureScreen) offering(a *app) *failureScreen {
-	s.app, s.picker = a, a.offers(a.module.Places.Failure)
+	s.app, s.picker = a, a.offers(a.module.Rules.OnFailure)
 	return s
 }
 

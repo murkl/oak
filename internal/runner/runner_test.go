@@ -185,7 +185,7 @@ func opened(t *testing.T, r *Runner, a *spec.Action) error {
 func TestARequiredActionAnswersWithItsExitStatus(t *testing.T) {
 	says := func(script string) bool {
 		t.Helper()
-		sp, _, r := acting(t, "requires: [uefi]\n", map[string][2]string{
+		sp, _, r := acting(t, "rules:\n  start-if: [uefi]\n", map[string][2]string{
 			"uefi": {"title: UEFI\nfail: Set the boot mode to UEFI.\n", script},
 		}, false)
 		return r.Says(sp.Action("uefi"))()
@@ -203,8 +203,8 @@ func TestARequiredActionAnswersWithItsExitStatus(t *testing.T) {
 func TestAnActionIsOfferedWhereWhatItRequiresSaysYes(t *testing.T) {
 	offered := func(card string) bool {
 		t.Helper()
-		sp, _, r := acting(t, "menu: [wlan]\n", map[string][2]string{
-			"wlan": {"title: Wireless\nrequires: [card]\n", "true\n"},
+		sp, _, r := acting(t, "rules:\n  menu: [wlan]\n", map[string][2]string{
+			"wlan": {"title: Wireless\nrules:\n  offer-if: [card]\n", "true\n"},
 			"card": {"title: Card\n", card},
 		}, false)
 		return r.Offered(sp.Action("wlan"))()
@@ -221,7 +221,7 @@ func TestAnActionIsOfferedWhereWhatItRequiresSaysYes(t *testing.T) {
 // name the page declared.
 func TestAnActionIsHandedItsPage(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "said")
-	sp, st, r := acting(t, "menu: [greet]\n", map[string][2]string{
+	sp, st, r := acting(t, "rules:\n  menu: [greet]\n", map[string][2]string{
 		"greet": {"title: Greet\nvariable:\n  name: GREETING\n  title: Greeting\n", "printf '%s' \"$GREETING\" > '" + out + "'\n"},
 	}, false)
 	st.Set("GREETING", "hello")
@@ -236,7 +236,7 @@ func TestAnActionIsHandedItsPage(t *testing.T) {
 // A script that breaks is reported the way a task that breaks is, and says it
 // was an action.
 func TestAFailingActionIsReportedAsOne(t *testing.T) {
-	sp, _, r := acting(t, "menu: [greet]\n", map[string][2]string{
+	sp, _, r := acting(t, "rules:\n  menu: [greet]\n", map[string][2]string{
 		"greet": {"title: Greet\n", "echo no network >&2\nexit 1\n"},
 	}, false)
 	err := opened(t, r, sp.Action("greet"))
@@ -255,9 +255,9 @@ func TestAFailingActionIsReportedAsOne(t *testing.T) {
 func TestASimulatedRunNeitherAsksNorRunsAnAction(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "ran")
 	script := "touch '" + marker + "'\n"
-	sp, _, r := acting(t, "requires: [check]\nmenu: [restart]\n", map[string][2]string{
+	sp, _, r := acting(t, "rules:\n  start-if: [check]\n  menu: [restart]\n", map[string][2]string{
 		"check":   {"title: Check\nfail: No.\n", "exit 1\n"},
-		"restart": {"title: Restart\nrequires: [check]\n", script},
+		"restart": {"title: Restart\nrules:\n  offer-if: [check]\n", script},
 	}, true)
 	if !r.Offered(sp.Action("restart"))() || !r.Says(sp.Action("check"))() {
 		t.Error("a simulated run was held to this machine")
@@ -269,7 +269,7 @@ func TestASimulatedRunNeitherAsksNorRunsAnAction(t *testing.T) {
 		t.Error("the action ran in a simulated run")
 	}
 
-	sp, _, r = acting(t, "menu: [restart]\n", map[string][2]string{
+	sp, _, r = acting(t, "rules:\n  menu: [restart]\n", map[string][2]string{
 		"restart": {"title: Restart\nsimulates: true\n", script},
 	}, true)
 	if err := opened(t, r, sp.Action("restart")); err != nil {
@@ -445,7 +445,7 @@ func TestAFetchedConfigurationBecomesTheAnswers(t *testing.T) {
 	sp, st, r := acting(t, "variables:\n"+
 		"  - name: DISK\n    title: Disk\n"+
 		"  - name: KEYMAP\n    title: Keymap\n    apply: touch \"$APPLIED\"\n"+
-		"presets:\n  - title: P\n    options:\n      - title: Online\n        action: fetch\n",
+		"presets:\n  - title: Online\n    action: fetch\n",
 		map[string][2]string{
 			"fetch": {"title: Fetch\n", "printf \"DISK='/dev/sdz'\\nKEYMAP='de'\\n\" >>\"$MODULE_CONF\"\n"},
 		}, false)

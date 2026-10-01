@@ -27,10 +27,6 @@ import (
 // over to work out how much of it a language actually covers.
 func Report(w io.Writer, rt *spec.Runtime, mods []*spec.Module, base fs.FS) error {
 	reportRuntime(w, rt)
-	unnamed, err := reportUnnamed(w, rt, mods)
-	if err != nil {
-		return err
-	}
 	unread, drifted := 0, 0
 	for _, mod := range mods {
 		d, err := report(w, mod, base)
@@ -44,14 +40,11 @@ func Report(w io.Writer, rt *spec.Runtime, mods []*spec.Module, base fs.FS) erro
 		}
 		unread += n
 	}
-	// The things here that are verdicts rather than descriptions, so this
-	// fails where a build script runs it — see spec.Unread, Runtime.Unnamed and
-	// drift. All are said at once: a run that reported them wants them all
-	// fixed, not the first one found.
+	// The two things here that are verdicts rather than descriptions, so this
+	// fails where a build script runs it — see spec.Unread and drift. Both are
+	// said at once: a run that reported them wants them all fixed, not the
+	// first one found.
 	var faults []string
-	if unnamed > 0 {
-		faults = append(faults, fmt.Sprintf("%d action(s) beside %s that no module names", unnamed, spec.FileRuntime))
-	}
 	if unread > 0 {
 		faults = append(faults, fmt.Sprintf("%d question(s) asked where nothing reads the answer", unread))
 	}
@@ -62,23 +55,6 @@ func Report(w io.Writer, rt *spec.Runtime, mods []*spec.Module, base fs.FS) erro
 		return errors.New(strings.Join(faults, "; "))
 	}
 	return nil
-}
-
-// reportUnnamed names every action beside oak.yaml no module names. Only for
-// the whole product: one module named on the command line says nothing about
-// what the others name.
-func reportUnnamed(w io.Writer, rt *spec.Runtime, mods []*spec.Module) (int, error) {
-	if len(mods) != len(rt.Modules) {
-		return 0, nil
-	}
-	unnamed, err := rt.Unnamed(mods)
-	if err != nil {
-		return 0, err
-	}
-	for _, id := range unnamed {
-		fmt.Fprintf(w, "  %-10s %s/%s: no module names it, so it never runs\n", "unnamed", spec.DirActions, id)
-	}
-	return len(unnamed), nil
 }
 
 // reportUnread names every question this module asks under conditions no task
@@ -126,15 +102,16 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 	}
 	fmt.Fprintf(w, "%s\n", filepath.Join(mod.Dir, spec.FileModule))
 	fmt.Fprintf(w, "  title      %s\n", mod.UI.Title)
-	// Where it names its actions, each only where it names any: a module on offer
-	// everywhere is the ordinary case, and a line saying so on every one of them
-	// would drown the one that does not.
-	p := mod.Places
+	// Its rules, each only where it names any: a module on offer everywhere is
+	// the ordinary case, and a line saying so on every one of them would drown
+	// the one that does not.
+	r := mod.Rules
 	for _, at := range []struct {
 		key   string
 		names []string
 	}{
-		{"offered", p.Offered}, {"requires", p.Requires}, {"menu", p.Menu}, {"leave", p.Leave}, {"failure", p.Failure}, {"success", p.Success},
+		{"offer-if", r.OfferIf}, {"start-if", r.StartIf}, {"menu", r.Menu},
+		{"on-leave", r.OnLeave}, {"on-failure", r.OnFailure}, {"on-success", r.OnSuccess},
 	} {
 		if len(at.names) > 0 {
 			fmt.Fprintf(w, "  %-10s %s\n", at.key, strings.Join(at.names, " "))
@@ -241,17 +218,17 @@ func oneSentence(s string) string {
 	return s
 }
 
-// actions is every action this module has, with what it names itself: the
-// actions it requires and the one it falls back on.
+// actions is every action this module has, with its own rules: what it is
+// offered under and what it opens on failure.
 func actions(mod *spec.Module) []string {
 	var out []string
 	for _, a := range mod.Actions {
 		var says []string
-		if len(a.Requires) > 0 {
-			says = append(says, "requires "+strings.Join(a.Requires, " "))
+		if len(a.OfferIf) > 0 {
+			says = append(says, "offer-if "+strings.Join(a.OfferIf, " "))
 		}
-		if a.Fallback != "" {
-			says = append(says, "fallback "+a.Fallback)
+		if a.OnFailure != "" {
+			says = append(says, "on-failure "+a.OnFailure)
 		}
 		if len(says) == 0 {
 			out = append(out, a.ID())

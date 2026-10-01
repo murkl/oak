@@ -8,10 +8,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// presetScreen is one of the questions a fresh machine is asked before the real
-// ones: where it is, what kind of system it is going to be. What the page is
-// called and what it says come from the module, because what a starting point
-// stands for is the module's own business.
+// presetScreen is the one question a fresh machine is asked before the real
+// ones: where to start from. The rows are the module's, because what a starting
+// point stands for is its own business; the page is the runtime's, and reads
+// the same in every module.
 //
 // A preset is a set of answers, not a mode. Choosing one fills in what that
 // kind of installation usually wants and then stops mattering — every value it
@@ -20,27 +20,26 @@ import (
 // be one keypress: nothing it does is hard to undo.
 type presetScreen struct {
 	opening
-	app    *app
-	preset *spec.Preset
-	done   func() tea.Cmd
-	picker *picker
+	app     *app
+	presets []*spec.Preset
+	done    func() tea.Cmd
+	picker  *picker
 }
 
-func newPreset(a *app, p *spec.Preset, done func() tea.Cmd) *presetScreen {
-	s := &presetScreen{app: a, preset: p, done: done}
-	items := make([]item, 0, len(p.Options))
-	// Keyed by where the row sits, because that is the whole of an option's
-	// identity: a starting point is a set of answers, and nothing anywhere
-	// points at one.
-	for i, o := range p.Options {
+func newPreset(a *app, presets []*spec.Preset, done func() tea.Cmd) *presetScreen {
+	s := &presetScreen{app: a, presets: presets, done: done}
+	items := make([]item, 0, len(presets))
+	// Keyed by where the row sits, because that is the whole of a starting
+	// point's identity: it is a set of answers, and nothing points at one.
+	for i, o := range presets {
 		items = append(items, item{title: o.Label(), detail: o.Help(), key: strconv.Itoa(i)})
 	}
 	s.picker = newPicker(items)
-	s.picker.describe(p.Help())
+	s.picker.describe(labelPresetsHelp())
 	return s
 }
 
-func (s *presetScreen) Title() string { return s.preset.Label() }
+func (s *presetScreen) Title() string { return labelPresets() }
 func (s *presetScreen) Hint() string  { return labelHintChoose() }
 
 func (s *presetScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
@@ -52,10 +51,10 @@ func (s *presetScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	switch {
 	case confirms(key):
 		at, err := strconv.Atoi(s.picker.selected())
-		if err != nil || at >= len(s.preset.Options) {
+		if err != nil || at >= len(s.presets) {
 			return s, nil
 		}
-		return s, s.take(s.preset.Options[at])
+		return s, s.take(s.presets[at])
 	case backs(key):
 		return s, pop()
 	}
@@ -69,7 +68,7 @@ func (s *presetScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 // starting point somebody was handed rather than picked off this page — a
 // configuration shared after another installation — is an action whose script
 // fetches the answers, since only the module knows where such a thing is kept.
-func (s *presetScreen) take(o *spec.PresetOption) tea.Cmd {
+func (s *presetScreen) take(o *spec.Preset) tea.Cmd {
 	if !o.Fetches() {
 		return tea.Batch(s.app.adopt(o), s.done())
 	}

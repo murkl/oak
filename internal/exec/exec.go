@@ -26,17 +26,17 @@ type Env []string
 
 // Runner starts scripts, each wrapped in the same failure-reporting trap.
 //
-// Shells is what the product and the module hand to everything they run, in
-// front of that script's own text and in that order — one place for what
-// several scripts share, and the functions a yaml calls by name. The runtime
-// never reads them and has no idea what is in them; it only makes sure
-// everything it starts gets the same ones.
+// Shell is what the product hands to everything it runs, in front of that
+// script's own text — one place for what several scripts share, and the
+// functions a yaml calls by name. Empty where there is none. The runtime never
+// reads it and has no idea what is in it; it only makes sure everything it
+// starts gets the same one.
 //
 // Module is that module's name, and it is here rather than at every call site
 // because every failure this package builds carries it: a run has one module in
 // it, and which one is the first thing somebody reading a failure needs.
 type Runner struct {
-	Shells []string
+	Shell  string
 	Module string
 }
 
@@ -91,10 +91,10 @@ const strict = `set -Eo pipefail
 const strictTrace = `set -Eo pipefail -T
 `
 
-// The arguments every invocation is given: the script to run, and the shells
-// to put in front of it. Sourcing those here is what lets a script be plain
-// shell with no preamble at all, and what puts the module's functions within
-// reach of everything — its tasks, and the shell its yaml wrote.
+// The arguments every invocation is given: the script to run, and the shell to
+// put in front of it. Sourcing that here is what lets a script be plain shell
+// with no preamble at all, and what puts the product's functions within reach
+// of everything — its tasks, its actions, and the shell its yaml wrote.
 //
 // It is **loaded, not run**, and that is why the trap is installed after it
 // rather than before. A lookup that tries one thing and falls back to another
@@ -102,9 +102,9 @@ const strictTrace = `set -Eo pipefail -T
 // which the unit about to run would then be blamed for, naming a line of
 // somebody else's file.
 //
-// The one failure that is the module's own is a shell that will not load at
-// all, and that is caught here, with whatever it said on the way out.
-const preamble = `for oak_shell in "${@:2}"; do source "$oak_shell" || exit $?; done
+// The one failure that is the shell's own is one that will not load at all,
+// and that is caught here, with whatever it said on the way out.
+const preamble = `[ -z "$2" ] || source "$2" || exit $?
 `
 
 // The trap, in its two shapes. A file names the file and the line it broke in;
@@ -124,7 +124,7 @@ const (
 // that says no without anything having failed would otherwise not produce.
 //
 // It records the script's own lines and nothing else: a function it called out
-// of the module's shell is where that function is, not where the script said
+// of the product's shell is where that function is, not where the script said
 // no. `set -T` is what carries the trap into everything the script runs.
 const lastLine = `trap '[ "${BASH_SOURCE[0]}" = "$1" ] && { oak_line=$LINENO; oak_cmd=$BASH_COMMAND; }; :' DEBUG
 `
@@ -186,9 +186,9 @@ exit $?`
 const handover = preamble + `eval "$1"`
 
 // args is how bash is handed a wrapper: the wrapper itself, then what it runs
-// as $1 and the shells to load in front of it after that.
+// as $1 and the shell to load in front of it as $2.
 func (r Runner) args(wrapper, payload string) []string {
-	return append([]string{"-c", wrapper, "--", payload}, r.Shells...)
+	return []string{"-c", wrapper, "--", payload, r.Shell}
 }
 
 // Run executes a one-liner and returns its trimmed stdout. Used for the small
