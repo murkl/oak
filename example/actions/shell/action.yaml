@@ -1,5 +1,0 @@
-# Beside oak.yaml rather than in a module: both modules offer it, under
-# success, once their run has finished. Its one page is the terminal itself.
-title: Open a shell
-description: In the system tree, until you type exit.
-tty: true

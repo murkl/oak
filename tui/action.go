@@ -13,7 +13,7 @@ import (
 
 // An action is run in one of two ways. By itself, as a question: whether the
 // work may begin, whether another action is offered. Or opened by somebody —
-// from a row, a starting point, or as the fallback of one that said no — which
+// from a row, a starting point, or on the failure of one that said no — which
 // is its one page where it has one, and its script. What any of it is for is
 // the module's business: this file only walks through what action.yaml
 // declares.
@@ -31,7 +31,7 @@ type offeredMsg struct {
 func (a *app) lookFor() tea.Cmd {
 	var cmds []tea.Cmd
 	for _, act := range a.module.Actions {
-		if len(act.Requires) == 0 {
+		if len(act.OfferIf) == 0 {
 			continue
 		}
 		ask := a.runner.Offered(act)
@@ -43,7 +43,7 @@ func (a *app) lookFor() tea.Cmd {
 // has reports whether this machine has an action, as what it requires last
 // said. Until that has said, the row is not shown: a row that would be taken
 // away again is worse than one that lands a moment late.
-func (a *app) has(act *spec.Action) bool { return len(act.Requires) == 0 || a.offered[act] }
+func (a *app) has(act *spec.Action) bool { return len(act.OfferIf) == 0 || a.offered[act] }
 
 // rows is the actions a place names that this machine has, in its order.
 func (a *app) rows(names []string) []*spec.Action {
@@ -87,7 +87,7 @@ func (a *app) openFrom(act *spec.Action, then func() tea.Cmd) tea.Cmd {
 }
 
 // firstPage is the page an opened action stands on first, on top of depth
-// pages of the actions before it — the one whose fallback this is. Every page
+// pages of the actions before it — the one that opened this on failure. Every page
 // is pushed onto the one before it, so esc goes back a page, and the work knows
 // how many to take away again once it is done.
 func (a *app) firstPage(act *spec.Action, depth int, then func() tea.Cmd) screen {
@@ -109,7 +109,7 @@ func (a *app) firstPage(act *spec.Action, depth int, then func() tea.Cmd) screen
 //
 // It goes the moment the script has worked, taking the pages before it along,
 // back to wherever the action was opened from — or to the page it reports on
-// first, where it has one. Where it did not work, its fallback is opened on top
+// first, where it has one. Where it did not work, what it opens on failure is opened on top
 // of those pages, and where it has none, the page every failure opens on, whose
 // way back is to the last page: the next thing to try is another go at it.
 type actionScreen struct {
@@ -160,7 +160,7 @@ func (s *actionScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	s.app.store.Forget()
 	if ran.err != nil {
 		logging.Error("%s", ran.err)
-		if fb := s.app.module.Action(s.act.Fallback); fb != nil && s.app.has(fb) {
+		if fb := s.app.module.Action(s.act.OnFailure); fb != nil && s.app.has(fb) {
 			return s, replace(s.app.firstPage(fb, s.depth-1, s.then))
 		}
 		return s, replace(newFailure(s.act.Label(), ran.err, pop).saying(s.act.Refusal(s.app.store.Get)))
@@ -258,8 +258,8 @@ type (
 
 func (s *gateScreen) action() *spec.Action { return s.all[s.at] }
 
-// fallback is the action the one standing now falls back on, or nil.
-func (s *gateScreen) fallback() *spec.Action { return s.app.module.Action(s.action().Fallback) }
+// onFailure is the action the one standing now opens on failure, or nil.
+func (s *gateScreen) onFailure() *spec.Action { return s.app.module.Action(s.action().OnFailure) }
 
 func (s *gateScreen) Title() string { return s.action().Label() }
 
@@ -278,20 +278,20 @@ func (s *gateScreen) Hint() string {
 }
 
 // Init asks again from the action standing now: when the page first comes up,
-// and whenever it is back on top after its fallback was opened.
+// and whenever it is back on top after what it opens on failure was opened.
 func (s *gateScreen) Init() tea.Cmd {
 	s.checked = false
 	return s.check()
 }
 
 // check asks the action standing now, as a new round, whether the work may go
-// on — and whether this machine has its fallback to open.
+// on — and whether this machine has what it opens on failure.
 func (s *gateScreen) check() tea.Cmd {
 	s.round++
 	round := s.round
 	says := s.app.runner.Says(s.action())
 	offered := func() bool { return false }
-	if fb := s.fallback(); fb != nil {
+	if fb := s.onFailure(); fb != nil {
 		offered = s.app.runner.Offered(fb)
 	}
 	return func() tea.Msg {
@@ -337,7 +337,7 @@ func (s *gateScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		}
 		switch {
 		case confirms(msg) && s.offered:
-			return s, s.app.openAction(s.fallback())
+			return s, s.app.openAction(s.onFailure())
 		case msg.String() == "r":
 			return s, s.check()
 		case backs(msg):
@@ -361,7 +361,7 @@ func (s *gateScreen) View(width, height int) string {
 	}
 	var help []string
 	if s.offered {
-		help = wrap(s.fallback().Help(), bodyWidth(width))
+		help = wrap(s.onFailure().Help(), bodyWidth(width))
 	}
 	if len(lines)+1+len(help) > height {
 		help = nil

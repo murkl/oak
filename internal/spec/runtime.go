@@ -21,11 +21,10 @@ const (
 	DirModules  = "modules"
 )
 
-// FileRuntimeShell is the shell every module of the product shares, beside
-// oak.yaml: what two modules would otherwise each carry a copy of and have to
-// keep in step by hand. It is loaded in front of each module's own module.sh,
-// which may therefore build on it and override it. Being there is the
-// declaration, the same as for module.sh.
+// FileRuntimeShell is the product's one shell, beside oak.yaml: the library
+// every script of every module is given first, and the only place they share
+// code - a function two tasks, two actions or two modules would otherwise each
+// carry a copy of. Being there is the declaration.
 const FileRuntimeShell = "oak.sh"
 
 // Runtime is the whole of what a binary and the folders beside it add up to.
@@ -104,6 +103,11 @@ func LoadRuntime(explicit string) (*Runtime, error) {
 	}
 	r.File, r.Dir = path, dir
 	r.Shell = beside(dir, FileRuntimeShell)
+	// An action is a module's own; one beside oak.yaml would be a second place
+	// to look for a name, and what modules share is a function in oak.sh.
+	if beside(dir, DirActions) != "" {
+		return nil, fmt.Errorf("%s/: an action is a module's own, a folder under its %s/ - what modules share is a function in %s", DirActions, DirActions, FileRuntimeShell)
+	}
 	if err := r.check(); err != nil {
 		return nil, err
 	}
@@ -158,21 +162,14 @@ func (r *Runtime) Path(id string) string { return filepath.Join(r.Dir, DirModule
 // All of them, whichever one a run turns out to be about. A release ships its
 // modules together, so one that will not load is a broken release, and saying
 // so at startup beats a row that fails when somebody chooses it.
-//
-// Each is handed the product's own actions — the actions/ folder beside
-// oak.yaml — read afresh, so no two modules share one in memory.
 func (r *Runtime) LoadModules() ([]*Module, error) {
 	out := make([]*Module, 0, len(r.Modules))
 	for _, id := range r.Modules {
-		shared, err := loadActions(r.Dir)
-		if err != nil {
-			return nil, err
-		}
-		mod, err := load(r.Path(id), shared)
+		mod, err := Load(r.Path(id))
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", id, err)
 		}
-		mod.Shared = r.Shell
+		mod.Shell = r.Shell
 		if mod.Status == nil && r.Status != nil {
 			// Named from the module's folder, the way a translator's template
 			// names every other file a string of the module came out of.
@@ -186,29 +183,14 @@ func (r *Runtime) LoadModules() ([]*Module, error) {
 		}
 		out = append(out, mod)
 	}
-	return out, nil
-}
-
-// Unnamed is every action beside oak.yaml that none of these modules names, so
-// it never runs. A report rather than a refusal: a release may ship some of its
-// modules alone — a recovery booted from a partition of its own — and a lint
-// must never be why one does not start.
-func (r *Runtime) Unnamed(mods []*Module) ([]string, error) {
-	shared, err := loadActions(r.Dir)
-	if err != nil {
-		return nil, err
-	}
-	named := map[string]bool{}
-	for _, mod := range mods {
-		for _, a := range mod.Actions {
-			named[a.id] = true
+	answered := names{}
+	for _, mod := range out {
+		for _, v := range mod.Declared() {
+			answered[v.Name] = true
 		}
 	}
-	var out []string
-	for _, a := range shared {
-		if !named[a.id] {
-			out = append(out, a.id)
-		}
+	for _, mod := range out {
+		mod.answered = answered
 	}
 	return out, nil
 }
@@ -236,7 +218,7 @@ func root(explicit string) (string, error) {
 // own declaration for that module alone, which replaces the product's outright.
 type Status struct {
 	// Script is shell, or the file it lives in, whose exit status is the answer:
-	// zero for yes. Run with the module's shell loaded and its answers in the
+	// zero for yes. Run with the product's shell loaded and its answers in the
 	// environment, like everything else a module runs.
 	Script string `yaml:"script"`
 

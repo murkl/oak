@@ -1,5 +1,5 @@
-# Named under requires: it runs by itself before the questions, and again every
-# few seconds for as long as it says no. The script only answers; what somebody
-# reads while it says no is fail.
+# Named under rules: start-if, it runs by itself before the questions, and
+# again every few seconds for as long as it says no. The script only answers;
+# what somebody reads while it says no is fail.
 title: Check the working folder
 fail: This folder cannot be written to. Start Tux Setup somewhere you own.

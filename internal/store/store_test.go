@@ -189,9 +189,9 @@ func TestALeftoverKeyIsNotAnError(t *testing.T) {
 }
 
 func TestApplyingAPresetIsJustSettingValues(t *testing.T) {
-	sp := load(t, "title: T\nstages: [go]\npresets:\n  - title: Start\n    options:\n      - title: Full\n        values:\n          HOST: server\n"+twoVars)
+	sp := load(t, "title: T\nstages: [go]\npresets:\n  - title: Full\n    values:\n      HOST: server\n"+twoVars)
 	s := New(sp, filepath.Join(t.TempDir(), "c"), false)
-	s.Apply(sp.Presets[0].Options[0])
+	s.Apply(sp.Presets[0])
 	if got := s.Get("HOST"); got != "server" {
 		t.Errorf("HOST = %q", got)
 	}

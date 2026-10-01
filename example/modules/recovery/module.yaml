@@ -7,8 +7,9 @@ description: Check a system tree that is already there.
 
 stages: [check]
 
-# The same row Tux Setup ends on: one folder beside oak.yaml, named by both.
-success: [shell]
+# The same row Tux Setup ends on, doing its work in the function both share.
+rules:
+  on-success: [shell]
 
 variables:
   # Its own answer, in its own file: recovery.conf sits beside setup.conf and

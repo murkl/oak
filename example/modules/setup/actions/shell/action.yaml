@@ -1,0 +1,5 @@
+# Named under rules: on-success, once the run has finished. Its one page is the
+# terminal itself.
+title: Open a shell
+description: In the system tree, until you type exit.
+tty: true

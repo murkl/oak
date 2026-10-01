@@ -272,7 +272,7 @@ func (a *app) speakLike(value string) {
 // console keyboard is loaded, because what is typed next is typed on it, and
 // where the module tied the interface's own words to one of its variables the
 // next frame is already read in that language.
-func (a *app) adopt(o *spec.PresetOption) tea.Cmd {
+func (a *app) adopt(o *spec.Preset) tea.Cmd {
 	a.store.Apply(o)
 	a.runner.Settle()
 	if _, ok := o.Values[a.module.Language]; ok {
@@ -376,23 +376,21 @@ func (a *app) upfront() screen {
 // actions it requires says no — the machine is not the one it needs, there is
 // no internet — or nothing, where it requires none.
 func (a *app) waits() screen {
-	if len(a.module.Places.Requires) == 0 {
+	if len(a.module.Rules.StartIf) == 0 {
 		return a.afterCheck()
 	}
-	return newGate(a, a.module.Named(a.module.Places.Requires), a.afterCheck)
+	return newGate(a, a.module.Named(a.module.Rules.StartIf), a.afterCheck)
 }
 
-// afterCheck is the module's starting points, one page each and in the order
-// they were declared. They are skipped on a machine that has answered before: a
-// starting point is only a starting point once, and after that every value one
-// filled in is an ordinary answer somebody may since have changed.
-func (a *app) afterCheck() screen { return a.preset(0) }
-
-func (a *app) preset(next int) screen {
-	if !a.first || next >= len(a.module.Presets) {
+// afterCheck is the module's starting points, on one page. They are skipped on
+// a machine that has answered before: a starting point is only a starting point
+// once, and after that every value one filled in is an ordinary answer somebody
+// may since have changed.
+func (a *app) afterCheck() screen {
+	if !a.first || len(a.module.Presets) == 0 {
 		return a.afterPreset()
 	}
-	return newPreset(a, a.module.Presets[next], func() tea.Cmd { return push(a.preset(next + 1)) })
+	return newPreset(a, a.module.Presets, func() tea.Cmd { return push(a.afterPreset()) })
 }
 
 // afterPreset is the fork the whole program turns on: a question still open

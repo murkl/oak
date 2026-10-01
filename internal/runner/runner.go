@@ -23,7 +23,7 @@ type Runner struct {
 }
 
 func New(mod *spec.Module, st *store.Store) *Runner {
-	sh := exec.Runner{Shells: mod.Shells(), Module: mod.Name()}
+	sh := exec.Runner{Shell: mod.Shell, Module: mod.Name()}
 	return &Runner{mod: mod, store: st, sh: sh}
 }
 
@@ -338,8 +338,8 @@ func (r *Runner) Fail(a *spec.Action, err error) error {
 	return r.sh.Fail(actionStep(a), err)
 }
 
-// Offered is whether this machine has an action at all: every action it
-// requires says yes, each run by itself. Everything is offered under --debug,
+// Offered is whether this machine has an action at all: every action its
+// offer-if names says yes, each run by itself. Everything is offered under --debug,
 // the way every module is: a simulated run is read on whatever machine somebody
 // is sitting at, and a list narrowed to it would hide the pages they opened it
 // for.
@@ -348,10 +348,10 @@ func (r *Runner) Fail(a *spec.Action, err error) error {
 // goroutine that owns the answers, and the shell — which may wait for a card to
 // show up — runs off the frame.
 func (r *Runner) Offered(a *spec.Action) func() bool {
-	if len(a.Requires) == 0 || r.store.Debug() {
+	if len(a.OfferIf) == 0 || r.store.Debug() {
 		return func() bool { return true }
 	}
-	env, required := r.store.Env(), r.mod.Named(a.Requires)
+	env, required := r.store.Env(), r.mod.Named(a.OfferIf)
 	return func() bool {
 		for _, c := range required {
 			if err := r.sh.Guard(c.Work().Shell(), env); err != nil {

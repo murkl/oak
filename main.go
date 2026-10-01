@@ -171,12 +171,12 @@ func offered(mods []*spec.Module, debug bool) ([]*spec.Module, error) {
 	return open, nil
 }
 
-// machine asks the actions a module names under `offered:`, each by itself and
+// machine asks the actions a module names under `offer-if`, each by itself and
 // in order, and answers with the fail of the first to say no. There are no
 // answers yet, so each is handed the environment it was started in.
 func machine(mod *spec.Module) error {
-	sh := exec.Runner{Shells: mod.Shells(), Module: mod.ID()}
-	for _, a := range mod.Named(mod.Places.Offered) {
+	sh := exec.Runner{Shell: mod.Shell, Module: mod.ID()}
+	for _, a := range mod.Named(mod.Rules.OfferIf) {
 		if err := sh.Guard(a.Work().Shell(), os.Environ()); err != nil {
 			return errors.New(a.Refusal(func(string) string { return "" }))
 		}

@@ -1,6 +1,6 @@
-# Named under menu: a row between Install and Settings. Opening it asks its one
-# page and hands the answer to action.sh beside this file. It is kept for this
-# session only: never on the settings page, never in setup.conf.
+# Named under rules: menu, a row between Install and Settings. Opening it asks
+# its one page and hands the answer to action.sh beside this file. It is kept
+# for this session only: never on the settings page, never in setup.conf.
 title: Leave a note
 description: Write a line for whoever logs in to the tree first.
 

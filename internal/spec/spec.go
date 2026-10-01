@@ -25,9 +25,9 @@ import (
 //
 // One folder holds one module, so every part of it has the name it has here.
 // Nothing is configured and nothing points at anything: module.yaml is the
-// module, module.sh is the shell it puts in front of everything it runs, the
-// work is a folder each under tasks/, and what it does outside that work is a
-// folder each under actions/.
+// module, the work is a folder each under tasks/, and what it does outside that
+// work is a folder each under actions/. What its scripts share with each other
+// and with the modules beside it is the product's one shell, oak.sh.
 //
 // The two halves are kept apart because they are answerable to different
 // things: a task is the module's own work, listed and ordered and guarded,
@@ -36,7 +36,6 @@ import (
 // the two it is, so nothing is read as the other.
 const (
 	FileModule = "module.yaml" // the declaration: what the module is, asks, and does
-	FileShell  = "module.sh"   // shell put in front of every script this module runs
 	DirTasks   = "tasks"       // the work, one folder per task
 	DirActions = "actions"     // what it does outside the work, one folder per action
 	DirLocales = "locales"     // one catalog per language the module speaks
@@ -80,9 +79,8 @@ func (s Script) Shell() string { return source(string(s)) }
 // pretends to work is how it was started rather than something it was told, and
 // where the answers live is settled by whoever started the program.
 //
-// Everything else a script needs it works out for itself. A module's own folder
-// is where its module.sh was sourced from, and what a script is told is every
-// answer under its own name.
+// Everything else a script needs it works out for itself, and what a script is
+// told is every answer under its own name.
 const (
 	DebugVar = "DEBUG"       // true under --debug, absent otherwise
 	ConfVar  = "MODULE_CONF" // the answer file, which is also how a script answers
@@ -112,10 +110,10 @@ type Module struct {
 	// again.
 	Tasks []*Task
 
-	// Actions, in the order their folders sort, and where the module names
-	// them — see Action.
+	// Actions, in the order their folders sort, and the rules that say where
+	// the module runs them — see Action.
 	Actions []*Action
-	Places  Places
+	Rules   Rules
 
 	// Warnings is what loaded but says something that can never take effect. A
 	// module that behaves is not a module that refuses to start, so these are
@@ -123,16 +121,18 @@ type Module struct {
 	// rather than raised.
 	Warnings []string
 
-	// Shell is what every script of this module is given before its own, and
-	// Locales the folder its catalogs live in. Both are whatever FileShell and
-	// DirLocales turned out to be, or empty where the module has neither.
-	Shell   string
+	// Locales is the folder its catalogs live in, or empty where it has none.
 	Locales string
 
-	// Shared is the product's own shell, FileRuntimeShell, which every module
-	// of it is given in front of its own. Empty where the product has none, and
+	// Shell is the product's one shell, FileRuntimeShell, which every script of
+	// every module of it is given first. Empty where the product has none, and
 	// for a module loaded on its own rather than as part of one.
-	Shared string
+	Shell string
+
+	// answered is every name a module of the product declares. The product's
+	// shell runs for each of them, so a name it reads is answered where any one
+	// of them answers it.
+	answered names
 
 	// Status is what the header keeps an eye on while this module is open: its
 	// own, or the product's where it declares none. Nil where neither does.
@@ -169,11 +169,11 @@ type UI struct {
 	// under the row that starts the work.
 	Description string
 
-	// Start is what starting the work is called — "Install", "Repair" — on the
-	// first row of the menu and on the button of the page before the run. A verb
-	// rather than a second name: the title already stands over both. Empty
+	// StartTitle is what starting the work is called — "Install", "Repair" — on
+	// the first row of the menu and on the button of the page before the run. A
+	// verb rather than a second name: the title already stands over both. Empty
 	// leaves the runtime's own word.
-	Start string
+	StartTitle string
 }
 
 // Help is what this module is, in one sentence: the line under the row that
@@ -182,19 +182,7 @@ func (s *Module) Help() string { return i18n.T(s.UI.Description) }
 
 // Start is what starting the work is called, translated. Empty where the
 // module leaves it to the runtime.
-func (s *Module) Start() string { return i18n.T(s.UI.Start) }
-
-// Shells is everything loaded in front of a script of this module, in the
-// order it is loaded: the product's shell, then the module's own.
-func (s *Module) Shells() []string {
-	var out []string
-	for _, path := range []string{s.Shared, s.Shell} {
-		if path != "" {
-			out = append(out, path)
-		}
-	}
-	return out
-}
+func (s *Module) Start() string { return i18n.T(s.UI.StartTitle) }
 
 // Checks reports whether anything in this module says how to tell that it
 // worked. A module with nothing to check is never offered the setting that
@@ -214,24 +202,13 @@ func source(path string) string { return "source " + quote(path) }
 // Leaves reports whether this machine can be left at all: a module that says
 // how is saying the machine booted to run it, so every way out of the interface
 // asks what to do with the machine instead of quitting.
-func (s *Module) Leaves() bool { return len(s.Places.Leave) > 0 }
+func (s *Module) Leaves() bool { return len(s.Rules.OnLeave) > 0 }
 
-// Preset is one page of starting points: a question a machine with no answer
-// file is asked before the real ones, answered by choosing one of the options
-// under it. It is the only place a value arrives without being typed.
-//
-// A module may declare several, each a page of its own, asked in the order
-// they are declared.
-type Preset struct {
-	Title       string          `yaml:"title"`
-	Description string          `yaml:"description"`
-	Options     []*PresetOption `yaml:"options"`
-}
-
-// PresetOption is one answer to that question: the values choosing it fills in.
+// Preset is one starting point, a row on the one page a machine with no answer
+// file is asked before the real questions: the values choosing it fills in.
 // Nothing else about it survives being chosen — it is a set of answers, not a
-// mode the module stays in.
-type PresetOption struct {
+// mode the module stays in. The page itself is the runtime's own.
+type Preset struct {
 	Title       string            `yaml:"title"`
 	Description string            `yaml:"description"`
 	Values      map[string]Scalar `yaml:"values"`
@@ -243,13 +220,10 @@ type PresetOption struct {
 }
 
 // Fetches reports whether choosing this row opens an action.
-func (o *PresetOption) Fetches() bool { return o.Action != "" }
+func (o *Preset) Fetches() bool { return o.Action != "" }
 
-func (p *Preset) Label() string { return i18n.T(p.Title) }
-func (p *Preset) Help() string  { return i18n.T(p.Description) }
-
-func (o *PresetOption) Label() string { return i18n.T(o.Title) }
-func (o *PresetOption) Help() string  { return i18n.T(o.Description) }
+func (o *Preset) Label() string { return i18n.T(o.Title) }
+func (o *Preset) Help() string  { return i18n.T(o.Description) }
 
 // Task is one unit of work: a folder under tasks/, holding what it is, the
 // task.sh that does it, and — where there is one — the test.sh that checks the
@@ -599,15 +573,6 @@ func (s *Module) Var(name string) *Variable { return s.byName[name] }
 // Name is the module's own title, translated: what it is called.
 func (s *Module) Name() string { return i18n.T(s.UI.Title) }
 
-// rel is a path as this module's folder names it: a translator's template
-// names every file a string came out of from there, the product's included.
-func (s *Module) rel(file string) string {
-	if from, err := filepath.Rel(s.Dir, file); err == nil {
-		return filepath.ToSlash(from)
-	}
-	return file
-}
-
 // Message is one thing a module says: the text, what it is, and the files it
 // was read out of. The last two are all a translator has — the words arrive out
 // of the module they belong to, one sentence at a time.
@@ -646,14 +611,10 @@ func (s *Module) Messages() []Message {
 	decl := FileModule
 	add(decl, "what this module is called, wherever the interface names it", s.UI.Title)
 	add(decl, "what it is, in one sentence, under the row that starts the work", s.UI.Description)
-	add(decl, "the row that starts the work, and the button on the page before it", s.UI.Start)
-	for _, p := range s.Presets {
-		add(decl, "a starting point: the question", p.Title)
-		add(decl, "starting point "+p.Title+": what it means", p.Description)
-		for _, o := range p.Options {
-			add(decl, "starting point "+p.Title+": a row", o.Title)
-			add(decl, "starting point "+p.Title+", "+o.Title+": what choosing it does", o.Description)
-		}
+	add(decl, "the row that starts the work, and the button on the page before it", s.UI.StartTitle)
+	for _, o := range s.Presets {
+		add(decl, "a starting point: its row", o.Title)
+		add(decl, "starting point "+o.Title+": what choosing it does", o.Description)
 	}
 	for _, v := range s.Vars {
 		add(decl, v.Name+": the question", v.Title)
@@ -673,7 +634,7 @@ func (s *Module) Messages() []Message {
 		add(file, "read once the step is done, and held on until somebody has", t.Report)
 	}
 	for _, a := range s.Actions {
-		file := s.rel(filepath.Join(a.Dir(), FileAction))
+		file := path.Join(DirActions, a.ID(), FileAction)
 		add(file, "an action: its row, and the heading over its page", a.Title)
 		add(file, "an action: what it does, under its row", a.Description)
 		add(file, "an action: what a no from it means", a.Fail)

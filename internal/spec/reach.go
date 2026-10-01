@@ -53,7 +53,7 @@ func (u Unread) String() string {
 // something, so a value several tasks read is only reported when none of them
 // can.
 //
-// Read outside a task — in the module's own shell, one of its actions, or the
+// Read outside a task — in the product's shell, one of the actions, or the
 // declaration's own shell — and there is nothing to compare against: those run
 // whatever the answers say, so the question is answered by definition.
 func (s *Module) Unread() ([]Unread, error) {
@@ -63,7 +63,7 @@ func (s *Module) Unread() ([]Unread, error) {
 	}
 	var out []Unread
 	for _, v := range s.Vars {
-		if sh.free[v.Name] {
+		if sh.free[v.Name] || sh.shared[v.Name] {
 			continue
 		}
 		tasks := s.readers(sh, v.Name)
@@ -118,11 +118,11 @@ func (s *Module) readers(sh *refs, name string) []*Task {
 }
 
 // everywhere is every file of this module that runs whatever the answers say:
-// the declaration and the shell in it, the product's and the module's own
-// shell, and every action. Nothing here is guarded by anything, so a value one
-// of them reads is read on every run there is.
+// the declaration and the shell in it, and every action. Nothing here is
+// guarded by anything, so a value one of them reads is read on every run there
+// is.
 func (s *Module) everywhere() ([]string, error) {
-	out := append([]string{filepath.Join(s.Dir, FileModule)}, s.Shells()...)
+	out := []string{filepath.Join(s.Dir, FileModule)}
 	for _, a := range s.Actions {
 		paths, err := filesUnder(a.Dir())
 		if err != nil {
@@ -153,8 +153,12 @@ type refs struct {
 	free  names
 	tasks map[*Task]names
 
+	// shared is what the product's shell reads. It runs whatever the answers
+	// say too, and for every module of the product.
+	shared names
+
 	// sets is every name the module's shell puts a value into, wherever it did
-	// so: a name a task reads and oak.sh or module.sh assigns is answered.
+	// so: a name a task reads and oak.sh assigns is answered.
 	sets names
 }
 
@@ -163,13 +167,18 @@ type names map[string]bool
 
 // scan reads every file the module's shell lives in, once.
 func (s *Module) scan() (*refs, error) {
-	sh := &refs{free: names{}, tasks: map[*Task]names{}, sets: names{}}
+	sh := &refs{free: names{}, tasks: map[*Task]names{}, shared: names{}, sets: names{}}
 	free, err := s.everywhere()
 	if err != nil {
 		return nil, err
 	}
 	if err := sh.read(sh.free, free); err != nil {
 		return nil, err
+	}
+	if s.Shell != "" {
+		if err := sh.read(sh.shared, []string{s.Shell}); err != nil {
+			return nil, err
+		}
 	}
 	for _, t := range s.Tasks {
 		found := names{}
@@ -226,6 +235,8 @@ func (c *condition) String() string {
 // Unread is a question nothing reads. Unset is a read nothing answers: a name
 // the module's own shell reaches for that this module does not declare, does
 // not set anywhere itself, and that Oak does not put in the environment either.
+// What the product's shell reads is answered where any module of the product
+// declares it, since it runs for each of them.
 //
 // In shell that is not an error. An unset name is an empty string, the line
 // runs, and what comes out the far end is a path with a hole in it — which is
@@ -250,6 +261,11 @@ func (s *Module) Unset() ([]string, error) {
 	maps.Copy(read, sh.free)
 	for _, found := range sh.tasks {
 		maps.Copy(read, found)
+	}
+	for name := range sh.shared {
+		if !s.answered[name] {
+			read[name] = true
+		}
 	}
 	var out []string
 	for name := range read {

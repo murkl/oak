@@ -42,11 +42,11 @@ func (h *hub) Refresh() {
 // word for it where it has one — and not after the module it belongs to: the
 // frame overhead carries that name on every page, and a row repeating it would
 // be the same word twice on one screen. What the module has to say for itself
-// is the sentence under the row. The actions it names under `menu:` stand
+// is the sentence under the row. The actions its rules name under `menu` stand
 // between that and the answers, each in its own words.
 func (h *hub) build() {
 	items := []item{{title: h.app.verb(), detail: h.app.module.Help(), key: keyInstall}}
-	for _, act := range h.app.rows(h.app.module.Places.Menu) {
+	for _, act := range h.app.rows(h.app.module.Rules.Menu) {
 		items = append(items, actionRow(act))
 	}
 	items = append(items, item{title: labelSettings(), detail: labelSettingsSummary(), key: keySettings})

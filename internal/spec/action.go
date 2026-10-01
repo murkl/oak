@@ -15,24 +15,24 @@ import (
 //
 // The yaml says how it behaves and the script only does the work: it says yes
 // by exiting 0 and no by anything else. Where it runs is not the action's
-// business but the place that names it: the module's `offered:` and
-// `requires:`, its `menu:`, `leave:`, `failure:` and `success:`, a preset
-// option, and another action's `requires:` and `fallback:`.
+// business but the rule that names it: the module's `rules:` — offer-if,
+// start-if, menu, on-leave, on-failure, on-success — a preset, and another
+// action's own `rules:`, offer-if and on-failure.
 //
 // An action has at most one page: a question before its script, the report
 // after it, or the terminal handed to it. A flow of several pages is several
-// actions, each the fallback of the one before.
+// actions, each opened on the failure of the one before.
 type Action struct {
 	Title       string
 	Description string
 
-	// Requires is the actions that must say yes before this one is offered at
+	// OfferIf is the actions that must say yes before this one is offered at
 	// all: a wireless network is not one on a machine with no card.
-	Requires []string
+	OfferIf []string
 
-	// Fallback is the action opened where this one says no: no internet, and a
+	// OnFailure is the action opened where this one says no: no internet, and a
 	// wireless network to join.
-	Fallback string
+	OnFailure string
 
 	// Fail is what a no from this one means, in words: the page in front of the
 	// work, the reason a module is not offered, the headline over a failure.
@@ -63,37 +63,45 @@ type Action struct {
 
 // actionDeclaration is action.yaml as it is written.
 type actionDeclaration struct {
-	Title       string    `yaml:"title"`
-	Description string    `yaml:"description"`
-	Requires    []string  `yaml:"requires"`
-	Fallback    string    `yaml:"fallback"`
-	Fail        string    `yaml:"fail"`
-	Variable    *Variable `yaml:"variable"`
-	Report      string    `yaml:"report"`
-	Shows       string    `yaml:"shows"`
-	TTY         bool      `yaml:"tty"`
-	Simulates   bool      `yaml:"simulates"`
+	Title       string      `yaml:"title"`
+	Description string      `yaml:"description"`
+	Rules       actionRules `yaml:"rules"`
+	Fail        string      `yaml:"fail"`
+	Variable    *Variable   `yaml:"variable"`
+	Report      string      `yaml:"report"`
+	Shows       string      `yaml:"shows"`
+	TTY         bool        `yaml:"tty"`
+	Simulates   bool        `yaml:"simulates"`
 }
 
-// Places is where a module names its actions. Each is a list of their names,
-// in the order they are run or stand as rows.
-type Places struct {
-	// Offered is what a machine has to say yes to for this module to be on
-	// offer on it at all — the only thing run before a module is opened.
-	Offered []string `yaml:"offered"`
+// actionRules is an action's own rules: when it is offered at all, and what
+// is opened where it says no — the same two words a module's rules use.
+type actionRules struct {
+	OfferIf   []string `yaml:"offer-if"`
+	OnFailure string   `yaml:"on-failure"`
+}
 
-	// Requires is what has to say yes before the work begins. The first that
-	// says no stands a page in front of everything, with its fallback to open
-	// where it has one.
-	Requires []string `yaml:"requires"`
+// Rules is where a module runs its actions, under `rules:`, each a list of
+// their names in the order they are run or stand as rows. Two conditions, the
+// one place that is always there, and three moments.
+type Rules struct {
+	// OfferIf is what a machine has to say yes to for this module to be offered
+	// on it at all — the only thing run before a module is opened.
+	OfferIf []string `yaml:"offer-if"`
 
-	// Menu, Leave, Failure and Success are rows: on the menu between the work
-	// and the settings, on the page every way out arrives at, under a run that
-	// failed, and under a run that finished.
-	Menu    []string `yaml:"menu"`
-	Leave   []string `yaml:"leave"`
-	Failure []string `yaml:"failure"`
-	Success []string `yaml:"success"`
+	// StartIf is what has to say yes before the work starts. The first that
+	// says no stands a page in front of everything, with what it opens on
+	// failure where it has that.
+	StartIf []string `yaml:"start-if"`
+
+	// Menu is rows on the menu, between the work and the settings.
+	Menu []string `yaml:"menu"`
+
+	// OnLeave, OnFailure and OnSuccess are rows too: on the page every way out
+	// arrives at, under a run that failed, and under a run that finished.
+	OnLeave   []string `yaml:"on-leave"`
+	OnFailure []string `yaml:"on-failure"`
+	OnSuccess []string `yaml:"on-success"`
 }
 
 // ID is the folder this action was read from, which is the name every place
@@ -204,7 +212,7 @@ func loadAction(where string) (*Action, error) {
 	}
 	return &Action{
 		Title: d.Title, Description: d.Description,
-		Requires: d.Requires, Fallback: d.Fallback, Fail: d.Fail, Var: d.Variable,
+		OfferIf: d.Rules.OfferIf, OnFailure: d.Rules.OnFailure, Fail: d.Fail, Var: d.Variable,
 		Report: d.Report, Shows: d.Shows, TTY: d.TTY, Simulates: d.Simulates,
 		work: work, id: filepath.Base(where), dir: where,
 	}, nil
@@ -212,7 +220,7 @@ func loadAction(where string) (*Action, error) {
 
 // How an action is run, which decides what it may say.
 const (
-	// opened is an action somebody opens: a row, a fallback, a preset option.
+	// opened is an action somebody opens: a row, a preset, or what another opens on failure.
 	opened = iota
 	// unasked runs by itself to answer a question, so it has no page.
 	unasked
@@ -221,23 +229,12 @@ const (
 	gating
 )
 
-// gather settles which actions this module has: its own, and those of the
-// product's it names. A name in both is refused, so a name always means one
-// folder. Every own action must be named somewhere; a product's action this
-// module does not name is simply not one of its own.
-//
-// What it hands back is how each one is run, the strictest place first.
-func (s *Module) gather(own, shared []*Action) (map[string]int, error) {
-	for _, a := range own {
-		if slices.ContainsFunc(shared, func(b *Action) bool { return b.id == a.id }) {
-			return nil, fmt.Errorf("%s/%s: the product has an action of that name too, and a name means one folder", DirActions, a.id)
-		}
-	}
+// gather settles how each of this module's actions is run, the strictest place
+// first, and refuses one nothing names: it would never run.
+func (s *Module) gather(own []*Action) (map[string]int, error) {
 	find := func(name string) *Action {
-		for _, list := range [][]*Action{own, shared} {
-			if i := slices.IndexFunc(list, func(a *Action) bool { return a.id == name }); i >= 0 {
-				return list[i]
-			}
+		if i := slices.IndexFunc(own, func(a *Action) bool { return a.id == name }); i >= 0 {
+			return own[i]
 		}
 		return nil
 	}
@@ -259,42 +256,40 @@ func (s *Module) gather(own, shared []*Action) (map[string]int, error) {
 		return nil
 	}
 
-	p := s.Places
+	r := s.Rules
 	for _, at := range []struct {
 		key   string
 		names []string
 		how   int
 	}{
-		{"offered", p.Offered, gating},
-		{"requires", p.Requires, gating},
-		{"menu", p.Menu, opened},
-		{"leave", p.Leave, opened},
-		{"failure", p.Failure, opened},
-		{"success", p.Success, opened},
+		{"rules: offer-if", r.OfferIf, gating},
+		{"rules: start-if", r.StartIf, gating},
+		{"rules: menu", r.Menu, opened},
+		{"rules: on-leave", r.OnLeave, opened},
+		{"rules: on-failure", r.OnFailure, opened},
+		{"rules: on-success", r.OnSuccess, opened},
 	} {
 		if err := place(FileModule, at.key, at.names, at.how); err != nil {
 			return nil, err
 		}
 	}
-	for _, pr := range s.Presets {
-		for _, o := range pr.Options {
-			if o.Action == "" {
-				continue
-			}
-			if err := place(FileModule, pr.Title+": "+o.Title, []string{o.Action}, opened); err != nil {
-				return nil, err
-			}
+	for _, o := range s.Presets {
+		if o.Action == "" {
+			continue
+		}
+		if err := place(FileModule, "presets: "+o.Title, []string{o.Action}, opened); err != nil {
+			return nil, err
 		}
 	}
 	for len(queue) > 0 {
 		a := queue[0]
 		queue = queue[1:]
 		where := fmt.Sprintf("%s/%s", DirActions, a.id)
-		if err := place(where, "requires", a.Requires, unasked); err != nil {
+		if err := place(where, "rules: offer-if", a.OfferIf, unasked); err != nil {
 			return nil, err
 		}
-		if a.Fallback != "" {
-			if err := place(where, "fallback", []string{a.Fallback}, opened); err != nil {
+		if a.OnFailure != "" {
+			if err := place(where, "rules: on-failure", []string{a.OnFailure}, opened); err != nil {
 				return nil, err
 			}
 		}
@@ -302,15 +297,10 @@ func (s *Module) gather(own, shared []*Action) (map[string]int, error) {
 
 	for _, a := range own {
 		if _, ok := runs[a.id]; !ok {
-			return nil, fmt.Errorf("%s/%s: nothing names it, so it never runs — name it in %s or in another action", DirActions, a.id, FileModule)
+			return nil, fmt.Errorf("%s/%s: nothing names it, so it never runs — name it under rules: in %s or in another action", DirActions, a.id, FileModule)
 		}
 	}
-	s.Actions = append([]*Action{}, own...)
-	for _, a := range shared {
-		if _, ok := runs[a.id]; ok {
-			s.Actions = append(s.Actions, a)
-		}
-	}
+	s.Actions = own
 	return runs, nil
 }
 
@@ -323,8 +313,8 @@ func (s *Module) checkActions(runs map[string]int) error {
 			return fmt.Errorf("%s: %w", where(a), err)
 		}
 	}
-	if slices.ContainsFunc(s.Named(s.Places.Leave), func(a *Action) bool { return a.Var != nil }) {
-		return fmt.Errorf("%s: leave: a way out asks nothing, it only goes", FileModule)
+	if slices.ContainsFunc(s.Named(s.Rules.OnLeave), func(a *Action) bool { return a.Var != nil }) {
+		return fmt.Errorf("%s: rules: on-leave: a way out asks nothing, it only goes", FileModule)
 	}
 	if ring := s.circle(); ring != "" {
 		return fmt.Errorf("%s: actions that wait on each other: %s", DirActions, ring)
@@ -356,13 +346,13 @@ func (s *Module) checkAction(a *Action, how int) error {
 	case a.Title == "":
 		return fmt.Errorf("title is required")
 	case pages > 1:
-		return fmt.Errorf("an action has one page: variable, report or tty — a second one is a second action, named as its fallback")
+		return fmt.Errorf("an action has one page: variable, report or tty — a second one is a second action, named under rules: on-failure")
 	case how != opened && pages > 0:
 		return fmt.Errorf("it runs by itself where it is named, so it has no page")
 	case how == gating && a.Fail == "":
 		return fmt.Errorf("fail: it runs by itself in front of the work, and a no there is read as this sentence")
-	case a.Fallback == a.id:
-		return fmt.Errorf("fallback: an action cannot put itself right")
+	case a.OnFailure == a.id:
+		return fmt.Errorf("rules: on-failure: an action cannot put itself right")
 	}
 	if v := a.Var; v != nil {
 		switch {
@@ -406,8 +396,8 @@ func (s *Module) checkShown(a *Action) error {
 }
 
 // circle is the first ring of actions that wait on each other through their
-// requires and fallbacks, written the way it goes round, or empty where there
-// is none. Such a ring would ask one of them forever.
+// rules, written the way it goes round, or empty where there is none. Such a
+// ring would ask one of them forever.
 func (s *Module) circle() string {
 	// Nothing in the map is a name not walked yet.
 	const (
@@ -428,9 +418,9 @@ func (s *Module) circle() string {
 		state[name] = open
 		path = append(path, name)
 		a := s.Action(name)
-		next := append([]string{}, a.Requires...)
-		if a.Fallback != "" {
-			next = append(next, a.Fallback)
+		next := append([]string{}, a.OfferIf...)
+		if a.OnFailure != "" {
+			next = append(next, a.OnFailure)
 		}
 		for _, n := range next {
 			if ring := walk(n); ring != "" {

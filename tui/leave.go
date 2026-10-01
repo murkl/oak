@@ -50,7 +50,7 @@ const (
 func newLeave(a *app, halt func(), running bool) *leaveScreen {
 	s := &leaveScreen{app: a, halt: halt}
 	var items []item
-	for _, act := range a.rows(a.module.Places.Leave) {
+	for _, act := range a.rows(a.module.Rules.OnLeave) {
 		items = append(items, actionRow(act))
 	}
 	// Last: the rows above end this machine's session, and this one only ends

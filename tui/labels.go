@@ -97,6 +97,13 @@ func labelCounter(at, of int) string { return say("%d of %d", at, of) }
 
 func labelSettings() string { return say("Settings") }
 
+// The page a fresh machine's starting points stand on. The runtime's own words,
+// so it reads the same in every module; the rows are the module's.
+func labelPresets() string { return say("Starting point") }
+func labelPresetsHelp() string {
+	return say("Choose where to start from. Every answer it fills in can still be changed afterwards.")
+}
+
 // What a run proved about itself: how many of the tests its tasks declared the
 // machine agreed with. It is read twice — under the line that says the run is
 // over, and again as the heading of the page listing the ones it did not.

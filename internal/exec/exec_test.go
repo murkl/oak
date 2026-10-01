@@ -183,18 +183,18 @@ func TestAScriptStillNamesWhereItBroke(t *testing.T) {
 	}
 }
 
-// The module's shell is loaded, not run. A lookup in it that tries one thing
+// The product's shell is loaded, not run. A lookup in it that tries one thing
 // and falls back to another is ordinary shell — and under the trap every such
 // fallback wrote a report, which the unit about to run was then blamed for,
 // naming a line of somebody else's file.
-func TestWhatTheModuleShellRecoversFromIsNotTheUnitsFailure(t *testing.T) {
+func TestWhatTheShellRecoversFromIsNotTheUnitsFailure(t *testing.T) {
 	shell := script(t, "lib_recovered=$(grep nothing /dev/null || true)\n")
 	// The same shape the real one had: a pipeline whose first command finds
 	// nothing, under pipefail, inside a substitution the shell goes on from.
-	noisy := Runner{Module: "Test Module", Shells: []string{script(t,
-		`: "${found:=$(grep nothing /dev/null | tail -n1)}"`+"\n")}}
+	noisy := Runner{Module: "Test Module", Shell: script(t,
+		`: "${found:=$(grep nothing /dev/null | tail -n1)}"`+"\n")}
 
-	for _, r := range []Runner{{Module: "Test Module", Shells: []string{shell}}, noisy} {
+	for _, r := range []Runner{{Module: "Test Module", Shell: shell}, noisy} {
 		s, err := r.Start(Step{Name: "Test", Script: sourced(t, "return 1\n")}, Env(os.Environ()))
 		if err != nil {
 			t.Fatal(err)
@@ -216,8 +216,8 @@ func TestWhatTheModuleShellRecoversFromIsNotTheUnitsFailure(t *testing.T) {
 
 // And a shell that will not load at all is still the unit's failure, with
 // whatever it said on the way out.
-func TestAModuleShellThatWillNotLoadFailsTheUnit(t *testing.T) {
-	r := Runner{Module: "Test Module", Shells: []string{script(t, "echo broken >&2\nexit 3\n")}}
+func TestAShellThatWillNotLoadFailsTheUnit(t *testing.T) {
+	r := Runner{Module: "Test Module", Shell: script(t, "echo broken >&2\nexit 3\n")}
 	s, err := r.Start(Step{Name: "Test", Script: sourced(t, "echo never\n")}, Env(os.Environ()))
 	if err != nil {
 		t.Fatal(err)
@@ -263,10 +263,10 @@ func TestAScriptThatSaysNoWithoutFailingStillNamesTheLine(t *testing.T) {
 
 // The fallback is only for a script that said no without anything failing. A
 // command that really did fail is reported where that command is — inside the
-// module's shell, where a function it called lives — and naming the call site
+// product's shell, where a function it called lives — and naming the call site
 // instead would be pointing away from the line somebody has to open.
-func TestAFailureInsideTheModuleShellIsReportedThere(t *testing.T) {
-	r := Runner{Module: "Test Module", Shells: []string{script(t, "no_thanks() { ls /definitely/not/here; }\n")}}
+func TestAFailureInsideTheShellIsReportedThere(t *testing.T) {
+	r := Runner{Module: "Test Module", Shell: script(t, "no_thanks() { ls /definitely/not/here; }\n")}
 	own := sourced(t, "# a comment\nno_thanks\n")
 	s, err := r.Start(Step{Name: "Test", Script: own}, Env(os.Environ()))
 	if err != nil {
@@ -405,21 +405,18 @@ func TestReasonIsSilentWhenTheScriptWorks(t *testing.T) {
 	}
 }
 
-// Every shell is loaded before the script, in the order given, so a module's
-// own can build on the product's and replace what it needs to.
-func TestShellsAreLoadedInOrderBeforeTheScript(t *testing.T) {
-	r := Runner{Module: "Test Module", Shells: []string{
-		script(t, "greet() { echo product; }\nshared=yes\n"),
-		script(t, "greet() { echo \"module after $shared\"; }\n"),
-	}}
+// The product's shell is loaded before the script, so whatever it defines is
+// there to call.
+func TestTheShellIsLoadedBeforeTheScript(t *testing.T) {
+	r := Runner{Module: "Test Module", Shell: script(t, "greet() { echo \"hello $shared\"; }\nshared=there\n")}
 
 	out, err := r.Run("greet", Env(os.Environ()))
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "module after yes" {
-		t.Errorf("out = %q, want the module's own, built on the product's", out)
+	if out != "hello there" {
+		t.Errorf("out = %q, want what the shell defined", out)
 	}
 }
 

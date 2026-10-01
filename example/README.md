@@ -1,25 +1,26 @@
 # The example product
 
-A whole Oak product, small enough to read in one sitting: an `oak.yaml`, two modules beside it, an action they share, and a handful of shell scripts between them. It is what the screenshots in the [README](../docs/README.md) are taken from.
+A whole Oak product, small enough to read in one sitting: an `oak.yaml`, the `oak.sh` its modules share, two modules beside them, and a handful of shell scripts between them. It is what the screenshots in the [README](../docs/README.md) are taken from.
 
 Nothing here touches the machine. **Tux Setup** asks what an installer asks — a hostname, a user, a desktop — and builds a small system tree in `./tux` out of the answers. **Tux Recovery** is a second whole program from the same binary: it checks that the tree is there, and works out for itself which desktop it was built with rather than asking.
 
 ```
 oak.yaml                                    the product: name, colour, version, wordmark
-oak.sh                                      what the two modules agree about
-actions/shell/                              what both offer once their run has finished: a shell
-modules/setup/module.yaml                   what it asks, and the order its work happens in
-modules/setup/actions/writable/             what the work requires: can this folder be written to
+oak.sh                                      the library: what the two modules agree about
+modules/setup/module.yaml                   what it asks, the order its work happens in, its rules
+modules/setup/actions/writable/             what the work starts if: can this folder be written to
 modules/setup/actions/note/                 a row on the menu, with a page and a script
+modules/setup/actions/shell/                what it offers once the run has finished: a shell
 modules/setup/tasks/@prepare/target/        make the folder, and a test.sh beside it
 modules/setup/tasks/@install/base/          hostname and os-release, and its test
 modules/setup/tasks/@install/desktop/       only when a desktop was chosen
 modules/setup/tasks/@finish/user/           the home folder, and the report
 modules/recovery/module.yaml                the second module
+modules/recovery/actions/shell/             the same shell, out of the same function in oak.sh
 modules/recovery/tasks/@check/verify/       is the tree still there
 ```
 
-A folder under `tasks/` is one phase of the run, marked `@` and named in `module.yaml`; a folder inside it is one task, doing its work in `task.sh`. `actions/` is the other half: one folder per script the module runs outside its work, declared in `action.yaml`, doing its work in `action.sh`, and named in `module.yaml` where it runs. The `actions/` beside `oak.yaml` holds the ones several modules name.
+A folder under `tasks/` is one phase of the run, marked `@` and named in `module.yaml`; a folder inside it is one task, doing its work in `task.sh`. `actions/` is the other half: one folder per script the module runs outside its work, declared in `action.yaml`, doing its work in `action.sh`, and named under `rules:` in `module.yaml`. What several scripts or both modules need is a function in `oak.sh`, which Oak loads in front of every one of them.
 
 ## Running it
 
