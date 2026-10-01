@@ -2,6 +2,17 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.15.0](https://github.com/murkl/oak/compare/v0.14.0...v0.15.0) (2026-10-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* `offered:`, `requires:`, `menu:`, `leave:`, `failure:` and `success:` in `module.yaml` move under `rules:` as `offer-if`, `start-if`, `menu`, `on-leave`, `on-failure` and `on-success`; an action's `requires:` and `fallback:` move under its `rules:` as `offer-if` and `on-failure`. `start:` is `start-title:`. A preset's `options:` are refused: every option is a preset of its own, and the page's title and description are gone. `module.sh` and a product's `actions/` are refused: shared shell goes into `oak.sh`, and an action into the module that names it.
+
+### Features
+
+* rules for actions, one shared shell, and one page of starting points ([#32](https://github.com/murkl/oak/issues/32)) ([ca9ad76](https://github.com/murkl/oak/commit/ca9ad76d5eeca0ca444a19763e98e6542da803ee))
+
 ## [0.14.0](https://github.com/murkl/oak/compare/v0.13.0...v0.14.0) (2026-10-01)
 
 
