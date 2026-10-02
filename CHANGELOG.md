@@ -2,6 +2,17 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.16.0](https://github.com/murkl/oak/compare/v0.15.0...v0.16.0) (2026-10-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* `rules: menu` is `rules: settings`, and its rows stand on the settings page. A variable a task names under `asks:` declares `type: deferred`, and a yes or no in the middle of a run is the task's `confirm:`. The last page before the work opens on No.
+
+### Features
+
+* actions on the settings page, a yes or no before the work, and deferred questions declared as such ([#34](https://github.com/murkl/oak/issues/34)) ([78c1c81](https://github.com/murkl/oak/commit/78c1c812efa79b5f66531cd2733597982efd40e2))
+
 ## [0.15.0](https://github.com/murkl/oak/compare/v0.14.0...v0.15.0) (2026-10-01)
 
 
