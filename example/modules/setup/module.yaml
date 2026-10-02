@@ -3,7 +3,15 @@
 
 title: Tux Setup
 description: Build a small Linux system tree, the way an installer would.
-start-title: Install
+
+# The words of its own pages: the row that starts the work, and the last page
+# before it, filled in from the answers.
+text:
+  start: Install
+  confirm: |
+    Build the system tree in {{TUX_TARGET}}?
+
+    Files already there under the same names are overwritten.
 
 # Each a folder under tasks/, marked: tasks/@install/.
 stages: [prepare, install, finish]

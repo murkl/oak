@@ -13,6 +13,10 @@ import (
 type hub struct {
 	app    *app
 	picker *picker
+
+	// checking is whether the answers a list vouches for are being read against
+	// that list again, between the row that starts the work and its first page.
+	checking bool
 }
 
 // The rows. The NUL prefix cannot collide with anything the folder names.
@@ -57,17 +61,25 @@ func (h *hub) Hint() string  { return labelHintMenu() }
 // none of it is behind this page any more.
 func (h *hub) crumbRoot() bool { return true }
 
+// working puts the turning mark in the header while the lists are read.
+func (h *hub) working() bool { return h.checking }
+
 func (h *hub) Update(msg tea.Msg) (screen, tea.Cmd) {
+	if msg, ok := msg.(unofferedMsg); ok {
+		return h, h.unoffered(msg.names)
+	}
 	h.picker.Update(msg)
 	key, ok := msg.(tea.KeyMsg)
-	if !ok {
+	if !ok || h.checking {
 		return h, nil
 	}
 	switch {
 	case confirms(key):
 		switch h.picker.selected() {
 		case keyInstall:
-			return h, push(newConfirm(h.app))
+			h.checking = true
+			check := h.app.runner.Unoffered()
+			return h, func() tea.Msg { return unofferedMsg{check()} }
 		case keySettings:
 			return h, push(newSettings(h.app))
 		}
@@ -81,3 +93,21 @@ func (h *hub) Update(msg tea.Msg) (screen, tea.Cmd) {
 }
 
 func (h *hub) View(width, height int) string { return withDetail(h.picker, width, height) }
+
+// unofferedMsg is the answers the lists no longer offer.
+type unofferedMsg struct{ names []string }
+
+// unoffered asks again what a list no longer offers - an answer file from
+// another machine names a disk this one does not have - before any password is
+// typed, and starts the work once nothing is missing. Asked as a run of
+// questions over the hub, so esc on one is a step back and not the way out.
+func (h *hub) unoffered(names []string) tea.Cmd {
+	h.checking = false
+	for _, name := range names {
+		h.app.store.Unoffer(name)
+	}
+	if missing := h.app.store.Missing(); len(missing) > 0 {
+		return push(newWizard(h.app).screen(missing[0]))
+	}
+	return push(startInstall(h.app, 0))
+}

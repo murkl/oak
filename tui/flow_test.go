@@ -737,7 +737,7 @@ func TestTheRowsInsideAModuleAreNamedAfterWhatTheyDo(t *testing.T) {
 // first row says that instead.
 func TestTheModuleNamesWhatStartingItsWorkIsCalled(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\nstart-title: Install", 1),
+		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\ntext:\n  start: Install", 1),
 	})
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
@@ -748,7 +748,7 @@ func TestTheModuleNamesWhatStartingItsWorkIsCalled(t *testing.T) {
 // the page it opens.
 func TestTheModuleNamesWhatItsSettingsAreCalled(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\nsettings-title: Configuration", 1),
+		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\ntext:\n  settings: Configuration", 1),
 	})
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
@@ -1732,12 +1732,15 @@ func TestResettingForgetsEveryAnswerAndOffersTheStartingPointsAgain(t *testing.T
 
 // ─── Installing ──────────────────────────────────────────────────────────────
 
-// The last page before the work is a yes or no that opens on No: an enter
-// pressed once too often on the menu does not start anything.
+// The last page before the work comes after every password, and is a yes or no
+// that opens on No: the enter that confirmed the password does not start
+// anything.
 func TestTheLastPageBeforeTheWorkOpensOnNo(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter() // Start
+	h.wants("Password").refuses("Do you want to continue?")
+	h.typeIn("x").enter().typeIn("x").enter()
 	h.wants("Do you want to continue?", "This step cannot be undone.", "Yes", "No")
 	if s, ok := h.m.top().(*confirmScreen); !ok || s.picker.selected() != keyNo {
 		t.Fatalf("the page does not open on No; the page on top is %T", h.m.top())
@@ -1747,12 +1750,42 @@ func TestTheLastPageBeforeTheWorkOpensOnNo(t *testing.T) {
 	h.wants("Start", "Settings").refuses("Do you want to continue?")
 }
 
+// A module says in its own words what is about to happen, with the answers in
+// them, and the runtime's warning gives way to it.
+func TestTheLastPageSaysWhatTheModuleWillDo(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: strings.Replace(testInstaller, "title: Test Installer",
+			"title: Test Installer\ntext:\n  confirm: |\n    Erase {{DISK}}?\n\n    Everything on it is lost.", 1),
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter()
+	h.wants("Erase /dev/sda?", "Everything on it is lost.", "No").refuses("Do you want to continue?")
+	if s, ok := h.m.top().(*confirmScreen); !ok || s.picker.selected() != keyNo {
+		t.Fatalf("the page does not open on No; the page on top is %T", h.m.top())
+	}
+}
+
+// No on the last page is the menu again, not the password that led to it, and
+// the password is forgotten there.
+func TestNoOnTheLastPageForgetsThePassword(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().typeIn("hunter2").enter().typeIn("hunter2").enter()
+	h.wants("Do you want to continue?")
+
+	h.enter()
+	h.wants("Start", "Settings").refuses("Password")
+	if got := h.a.store.Get("PW"); got != "" {
+		t.Errorf("PW = %q after No", got)
+	}
+}
+
 // It carries no heading of its own: the frame names the module, and a line
 // under it saying the same again would say nothing.
 func TestTheLastPageBeforeTheWorkRepeatsNoName(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter() // Start
+	h.enter().typeIn("x").enter().typeIn("x").enter() // Start, and the password
 	if got := strings.Count(h.screen(), "Test Installer"); got != 1 {
 		t.Errorf("the module is named %d times:\n%s", got, h.screen())
 	}
@@ -1761,7 +1794,7 @@ func TestTheLastPageBeforeTheWorkRepeatsNoName(t *testing.T) {
 func TestTheSecretIsAskedForTwiceAndOnlyThenTheRunBegins(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes() // Install, then start
+	h.enter() // Install, which asks for the password first
 
 	h.wants("Password")
 	h.typeIn("hunter2").enter()
@@ -1769,7 +1802,7 @@ func TestTheSecretIsAskedForTwiceAndOnlyThenTheRunBegins(t *testing.T) {
 	h.typeIn("different").enter()
 	h.wants("The entries do not match.", "Password")
 
-	h.typeIn("hunter2").enter().typeIn("hunter2").enter()
+	h.typeIn("hunter2").enter().typeIn("hunter2").enter().yes()
 	h.ran()
 	h.wants("Finished in", "First", "Second").refuses("Only with extras")
 }
@@ -1795,8 +1828,7 @@ func TestARunStartsFromItsAnswersWrittenOutWhole(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h.enter().yes() // Install, then start
-	h.typeIn("hunter2").enter().typeIn("hunter2").enter()
+	h.enter().typeIn("hunter2").enter().typeIn("hunter2").enter().yes()
 	h.ran()
 
 	raw, err := os.ReadFile(copied)
@@ -1816,13 +1848,13 @@ func TestASecretThatAlreadyExistsIsAskedOnce(t *testing.T) {
 		"    title: Password\n    type: secret\n",
 		"    title: Password\n    type: secret\n    existing: true\n", 1)})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes() // Install, then start
+	h.enter() // Install, which asks for the password first
 
 	h.wants("Password")
 	h.typeIn("hunter2").enter()
 	h.refuses("Repeat")
 
-	h.ran()
+	h.yes().ran()
 	h.wants("Finished in", "First", "Second")
 }
 
@@ -1838,7 +1870,7 @@ func TestASecretTheModuleChecksIsRefusedWhereItWasTyped(t *testing.T) {
 		"check.sh": "[ \"$PW\" = hunter2 ]\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes() // Install, then start
+	h.enter() // Install, which asks for the password first
 
 	h.typeIn("hunter3").enter()
 	h.wants("Password", "That is not the password.").refuses("Finished in")
@@ -1846,7 +1878,7 @@ func TestASecretTheModuleChecksIsRefusedWhereItWasTyped(t *testing.T) {
 		t.Errorf("PW = %q, want a refused password never taken", got)
 	}
 
-	h.typeIn("hunter2").enter()
+	h.typeIn("hunter2").enter().yes()
 	h.ran()
 	h.wants("Finished in")
 }
@@ -1859,8 +1891,7 @@ func TestAFailedTaskStopsTheRunAndSaysWhereItBroke(t *testing.T) {
 		"tasks/@go/b-second/task.sh": "echo starting\nls /definitely/not/here\necho never\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	h.ran()
 	h.wants("Failed", "It stopped at Second").refuses("Script", "Exit code")
 
@@ -1878,8 +1909,7 @@ func TestAnTaskThatAsksIsOfferedRatherThanRun(t *testing.T) {
 		"tasks/@finish/d-reboot/task.sh":   "echo never\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 
 	h.asked()
 	h.wants("Reboot", "Restart /dev/sda now?", "Yes", "No")
@@ -1888,6 +1918,23 @@ func TestAnTaskThatAsksIsOfferedRatherThanRun(t *testing.T) {
 	h.down().enter()
 	h.ran()
 	h.wants("Finished in", "First", "Second", "Reboot")
+}
+
+// A task that asks first opens on No as well: the enter that answered the page
+// before it does not walk into it.
+func TestATaskThatAsksOpensOnNo(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		"tasks/@finish/d-reboot/task.yaml": "title: Reboot\nconfirm: Restart now?\n",
+		"tasks/@finish/d-reboot/task.sh":   "echo never\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
+
+	h.asked()
+	h.wants("Restart now?")
+	if r, ok := h.m.top().(*runScreen); !ok || r.asking.selected() != keyNo {
+		t.Fatalf("the question does not open on No; the page on top is %T", h.m.top())
+	}
 }
 
 // A value that could not have been known before the work started: the run
@@ -1908,8 +1955,7 @@ func TestATaskCanAskForAValueInTheMiddleOfTheRun(t *testing.T) {
 		"tasks/@finish/d-roll/task.sh":   "echo rolled\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 
 	h.askedFor()
 	h.wants("Roll back", "Which one to go back to.", "one", "two")
@@ -1922,7 +1968,7 @@ func TestATaskCanAskForAValueInTheMiddleOfTheRun(t *testing.T) {
 		t.Errorf("SNAPSHOT = %q, want two", got)
 	}
 
-	h.enter()
+	h.yes()
 	h.ran()
 	h.wants("Finished in", "Roll back")
 }
@@ -1944,8 +1990,7 @@ func TestAskingForSomethingThatIsNotThereSkipsTheTask(t *testing.T) {
 		"tasks/@finish/d-roll/task.sh":   "exit 1\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	h.ran()
 	h.wants("Finished in", "Roll back")
 }
@@ -1966,8 +2011,7 @@ func TestAskingWithACommandThatFailsEndsTheRun(t *testing.T) {
 		"tasks/@finish/d-roll/task.sh":   "echo never\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	h.ran()
 	h.wants("Failed", "Roll back")
 }
@@ -1977,8 +2021,7 @@ func TestAskingWithACommandThatFailsEndsTheRun(t *testing.T) {
 func TestASecretIsForgottenWhenTheRunIsOver(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("hunter2").enter().typeIn("hunter2").enter()
+	h.enter().typeIn("hunter2").enter().typeIn("hunter2").enter().yes()
 	h.ran()
 	if got := h.a.store.Get("PW"); got != "" {
 		t.Errorf("PW = %q after the run", got)
@@ -2077,8 +2120,7 @@ func failedRun(t *testing.T) *harness {
 		"tasks/@go/a-first/task.sh":   "ls /definitely/not/here\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	return h.ran().enter()
 }
 
@@ -2145,7 +2187,7 @@ func TestAFailureReportFitsTheSmallestTerminal(t *testing.T) {
 		"tasks/@go/a-first/task.sh": "echo starting\nls /definitely/not/here\necho never\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes().typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	h.ran().enter()
 	h.send(tea.WindowSizeMsg{Width: 80, Height: 24})
 	view := h.screen()
@@ -2302,8 +2344,7 @@ func TestAMachineThatWillNotRestartIsSaidSo(t *testing.T) {
 func TestAFinishedInstallationEndsOnTheWayOut(t *testing.T) {
 	h := newHarness(t, leaveTree("true", "true"))
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	h.ran()
 	h.wants("Finished in")
 
@@ -2322,8 +2363,7 @@ func TestAskingToLeaveDuringARunDoesNotStopIt(t *testing.T) {
 	files["tasks/@go/a-first/task.sh"] = "sleep 30\n"
 	h := newHarness(t, files)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	h.wants("Working · 00:0")
 
 	h.esc()
@@ -2347,8 +2387,7 @@ func TestChoosingAWayOutStopsTheRun(t *testing.T) {
 	files["tasks/@go/a-first/task.sh"] = "sleep 30\n"
 	h := newHarness(t, files)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	h.wants("Working · 00:0")
 
 	run, ok := h.m.top().(*runScreen)
@@ -2376,8 +2415,7 @@ func TestChoosingAWayOutStopsTheRun(t *testing.T) {
 func TestTheHeadlineCarriesTheClock(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	h.ran()
 	h.wants("Finished in 00:0")
 }
@@ -2460,8 +2498,7 @@ func TestBackspaceInANarrowingBoxOnlyDeletes(t *testing.T) {
 func TestBackspaceInAPasswordOnlyDeletes(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.key(tea.KeyUp).enter() // the row that installs, and the warning it opens
-	h.yes()                  // start, which asks for the password first
+	h.key(tea.KeyUp).enter() // the row that installs, which asks for the password first
 	h.typeIn("hunter2")
 
 	for range 12 {
@@ -2522,8 +2559,7 @@ func TestQIsACharacterWhereSomethingIsBeingTyped(t *testing.T) {
 
 	// And in a password, which may hold any letter there is.
 	h.esc().esc()            // close the box, then leave settings
-	h.key(tea.KeyUp).enter() // the install row, and the warning it opens
-	h.yes()                  // start, which asks for the password first
+	h.key(tea.KeyUp).enter() // the install row, which asks for the password first
 	h.typeIn("q")
 	h.wants("Password").refuses("Restart", "Shut down")
 }
@@ -2537,8 +2573,7 @@ func TestAQuestionInARunIsLeftRatherThanBackedOutOf(t *testing.T) {
 	files["tasks/@finish/d-reboot/task.sh"] = "echo never\n"
 	h := newHarness(t, files)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 
 	h.asked()
 	h.wants("Restart now?", "Yes", "No")
@@ -2559,8 +2594,7 @@ func TestATaskCanReportAMilestone(t *testing.T) {
 		"tasks/@finish/d-done/task.sh":   "true\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 
 	h.reported()
 	// The words are the module's, filled in from the answers.
@@ -2581,7 +2615,7 @@ func installed(t *testing.T, files map[string]string) *harness {
 	t.Helper()
 	h := newHarness(t, files)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes().typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	return h.ran()
 }
 
@@ -2815,7 +2849,7 @@ func TestASimulatedRunStartsNoTaskAndNoTest(t *testing.T) {
 		"tasks/@go/a-first/task.sh":   "touch '" + marker + "'\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes().typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 
 	h.ran().refuses("tests passed")
 
@@ -2834,7 +2868,7 @@ func TestATaskThatSimulatesItselfRunsUnderDebug(t *testing.T) {
 		"tasks/@go/a-first/task.sh":   "[ \"$DEBUG\" = true ] && touch '" + marker + "'\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes().typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 
 	h.ran().wants("1 of 1 tests passed")
 
@@ -2853,7 +2887,7 @@ func TestValidationCanBeSwitchedOff(t *testing.T) {
 	h := newHarness(t, files)
 	h.a.prefs.SetValidates(false)
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes().typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 	h.ran().enter()
 	if !h.m.quitting {
 		t.Error("a run with validation off stopped on the validation page")
@@ -3042,8 +3076,7 @@ func progressing(t *testing.T, declared bool, bar string) (*harness, func()) {
 		"tasks/@go/b-second/task.sh":   "printf 'fetching\\n 40%%\\r" + bar + " 75%%'\nread -r _ <" + gate + "\n",
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.enter().yes()
-	h.typeIn("x").enter().typeIn("x").enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
 
 	// Running, and at the gate: the second task has started and drawn its bar.
 	deadline := time.Now().Add(20 * time.Second)
@@ -3098,9 +3131,9 @@ func TestATaskThatDeclaresNothingShowsNothingOfWhatItPrints(t *testing.T) {
 
 // An answer file carried over from another machine names a disk this one does
 // not have. Nothing about the value itself is wrong, so it is the list that
-// says so, read once more on the way into the run: the question comes back,
-// with the reason on it and on the list's own suggestion rather than on its
-// first row - and the run is only one enter away once it is answered.
+// says so, read once more on the way into the run and before any password: the
+// question comes back, with the reason on it and on the list's own suggestion
+// rather than on its first row.
 func TestAnAnswerTheListNoLongerOffersIsAskedAgainBeforeTheRun(t *testing.T) {
 	tree := strings.Replace(testInstaller, "    options-from: disks()",
 		"    prefill: ./suggest.sh\n    options-from: disks()", 1)
@@ -3110,14 +3143,14 @@ func TestAnAnswerTheListNoLongerOffersIsAskedAgainBeforeTheRun(t *testing.T) {
 
 	h.a.store.Set("DISK", "/dev/sdz")
 	h.enter()
-	h.wants("Disk", "This answer is not among the ones offered here.").refuses("Do you want to continue?")
+	h.wants("Disk", "This answer is not among the ones offered here.").refuses("Password")
 	if f, ok := h.m.top().(*fieldScreen); !ok || f.picker.selected() != "/dev/sdb" {
 		t.Fatalf("the question does not open on its suggestion; the page on top is %T", h.m.top())
 	}
 
 	h.enter()
 	h.wants("Settings")
-	h.enter().wants("Do you want to continue?")
+	h.enter().typeIn("x").enter().typeIn("x").enter().wants("Do you want to continue?")
 	if got := h.a.store.Get("DISK"); got != "/dev/sdb" {
 		t.Errorf("DISK = %q, want the answer given again", got)
 	}
@@ -3146,28 +3179,34 @@ func TestAnAnswerTheListOffersAgainIsTakenAgain(t *testing.T) {
 	h.down().enter().wants("Every used value")
 	h.down().enter().wants("/dev/sdz").refuses("This answer is not among the ones offered here.")
 	h.enter().esc().wants("Settings")
-	h.key(tea.KeyUp).enter().wants("Do you want to continue?")
+	h.key(tea.KeyUp).enter().typeIn("x").enter().typeIn("x").enter().wants("Do you want to continue?")
 	if got := h.a.store.Get("DISK"); got != "/dev/sdz" {
 		t.Errorf("DISK = %q, want the answer taken again", got)
 	}
 }
 
-// Yes on the last page while its lists are still being read is not lost: the
-// run starts the moment they are through.
-func TestYesWhileTheListsAreReadStartsTheRunOnceTheyAreThrough(t *testing.T) {
+// Enter on the row that starts the work while its lists are still being read
+// starts nothing twice: the first page opens once they are through.
+func TestStartWhileTheListsAreReadOpensTheFirstPageOnceTheyAreThrough(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
+	menu, ok := h.m.top().(*hub)
+	if !ok {
+		t.Fatalf("the page on top is %T, want the menu", h.m.top())
+	}
 
-	s := newConfirm(h.a)
-	s.Update(tea.KeyMsg{Type: tea.KeyUp})
-	if _, cmd := s.Update(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil || !s.pressed {
-		t.Fatal("enter during the check went somewhere other than into waiting for it")
+	if _, cmd := menu.Update(tea.KeyMsg{Type: tea.KeyEnter}); cmd == nil || !menu.checking {
+		t.Fatal("enter on the row did not start reading the lists")
 	}
-	_, cmd := s.Update(unofferedMsg{})
-	if cmd == nil {
-		t.Fatal("the run did not start once the lists were through")
+	if _, cmd := menu.Update(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
+		t.Error("a second enter while the lists were read started something")
 	}
-	if _, ok := cmd().(pushScreenMsg); !ok {
-		t.Error("what followed the check was not the way into the run")
+	_, cmd := menu.Update(unofferedMsg{})
+	next, ok := cmd().(pushScreenMsg)
+	if !ok {
+		t.Fatal("nothing followed the check")
+	}
+	if _, ok := next.s.(*secretScreen); !ok {
+		t.Errorf("what followed the check was %T, want the password", next.s)
 	}
 }

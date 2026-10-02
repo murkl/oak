@@ -280,6 +280,8 @@ func (s *runScreen) step() tea.Cmd {
 				{title: labelYes(), key: keyYes},
 				{title: labelNo(), key: keyNo},
 			})
+			// No first, like every confirm: the page before it was left with enter.
+			s.asking.focus(keyNo)
 			return s.settle()
 		}
 	}

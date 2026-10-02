@@ -70,19 +70,19 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:495
+#: internal/spec/spec.go:515
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:497
+#: internal/spec/spec.go:517
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
-#: internal/spec/spec.go:507
+#: internal/spec/spec.go:527
 msgid "This answer is not among the ones offered here."
 msgstr "Diese Antwort gehört nicht zu den hier angebotenen."
 
-#: internal/spec/spec.go:517
+#: internal/spec/spec.go:537
 msgid "This password was not accepted."
 msgstr "Dieses Passwort wurde nicht angenommen."
 
