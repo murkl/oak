@@ -30,19 +30,18 @@ func binaryDir() string {
 
 // declaration is a module's yaml as it is written: flat, because every key in
 // it is about the module as a whole and a nesting level would only be there to
-// be typed — but for the two subjects with parts of their own: the rules that
-// run its actions, and the header's status.
+// be typed — but for the subjects with parts of their own: the words of its
+// pages, the rules that run its actions, and the header's status.
 type declaration struct {
 	Title    string `yaml:"title"`
 	Language string `yaml:"language"`
 
-	// What this module is and what it does: one sentence about the program, the
-	// words for starting it and for its settings, and the phases its work
-	// happens in.
-	Description   string   `yaml:"description"`
-	StartTitle    string   `yaml:"start-title"`
-	SettingsTitle string   `yaml:"settings-title"`
-	Stages        []string `yaml:"stages"`
+	// What this module is and the phases its work happens in.
+	Description string   `yaml:"description"`
+	Stages      []string `yaml:"stages"`
+
+	// The words its own pages are drawn with, in place of the runtime's.
+	Text Text `yaml:"text"`
 
 	// Where it runs its actions, each a list of their names — see Rules.
 	Rules Rules `yaml:"rules"`
@@ -67,7 +66,7 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Description: head.Description, StartTitle: head.StartTitle, SettingsTitle: head.SettingsTitle}
+	s.UI = UI{Title: head.Title, Description: head.Description, Text: head.Text}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Stages, s.Rules = head.Stages, head.Rules
 	if err := head.Status.settle(dir, FileModule); err != nil {
@@ -261,45 +260,47 @@ func read(path string, into any) error {
 // refusal saying what to do about itself, which is all a message that stops a
 // build is for.
 var retired = map[string]string{
-	"blind":     "a question asked first opens its filter by itself",
-	"id":        "a starting point is named by its title, and nothing anywhere points at one",
-	"name":      "a title is what a person reads; a name only ever names a variable",
-	"execute":   "a task does its work in the task.sh beside it, and is tested by the test.sh beside it",
-	"script":    "a task does its work in the task.sh beside it, an action in the action.sh beside it, and the header's status reads check",
-	"test":      "a task is tested by the test.sh beside it",
-	"stage":     "a task lies in the folder of its stage, and that is the whole of where it runs",
-	"network":   "a wireless network is an action under actions/, and the internet the work waits for is one named under rules: start-if",
-	"action":    "the word for starting the work is start-title",
-	"start":     "the word for starting the work is start-title",
-	"console":   "the row that leaves to the console is the runtime's own",
-	"confirm":   "a task that needs asking says confirm itself, and an action is agreed to by choosing its row",
-	"default":   "a task's confirm opens on yes; what must not be walked into by an enter is an action on a row of its own",
-	"variables": "an action has one page: its variable, and a second question is a second action named under its rules: on-failure",
-	"shows":     "a code is drawn by an action, beside its report",
-	"quits":     "a way out is an action, named under rules: on-success or on-leave",
-	"tty":       "a shell handed the terminal is an action with tty, named under rules: on-success or settings",
-	"asks":      "a starting point that is fetched names the action that fetches it",
-	"apply":     "a starting point that is fetched names the action that fetches it",
-	"options":   "a starting point stands under presets: itself, and the page they are offered on is the runtime's own",
-	"offered":   "it is a rule now: under rules:, as offer-if",
-	"requires":  "it is a rule now: under rules:, as start-if in module.yaml and as offer-if in action.yaml",
-	"menu":      "its rows stand on the settings page: under rules:, as on-settings",
-	"settings":  "it is a row on the settings page: under rules:, as on-settings",
-	"values":    "a question's list is options, and what prints one is options-from",
-	"command":   "what prints a question's list is options-from",
-	"answer":    "a value worked out instead of asked is value-from",
-	"optional":  "a task the run goes on past when it fails says allow-failure",
-	"fail":      "what a no from an action means is its error",
-	"leave":     "it is a rule now: under rules:, as on-leave",
-	"failure":   "it is a rule now: under rules:, as on-failure",
-	"success":   "it is a rule now: under rules:, as on-success",
-	"fallback":  "it is a rule now: under rules:, as on-failure",
+	"blind":          "a question asked first opens its filter by itself",
+	"id":             "a starting point is named by its title, and nothing anywhere points at one",
+	"name":           "a title is what a person reads; a name only ever names a variable",
+	"execute":        "a task does its work in the task.sh beside it, and is tested by the test.sh beside it",
+	"script":         "a task does its work in the task.sh beside it, an action in the action.sh beside it, and the header's status reads check",
+	"test":           "a task is tested by the test.sh beside it",
+	"stage":          "a task lies in the folder of its stage, and that is the whole of where it runs",
+	"network":        "a wireless network is an action under actions/, and the internet the work waits for is one named under rules: start-if",
+	"action":         "the word for starting the work is text: start",
+	"start":          "the word for starting the work is text: start",
+	"start-title":    "it is text: start",
+	"settings-title": "it is text: settings",
+	"console":        "the row that leaves to the console is the runtime's own",
+	"confirm":        "a task that needs asking says confirm itself, the last page before a module's work is text: confirm, and an action is agreed to by choosing its row",
+	"default":        "every confirm opens on no",
+	"variables":      "an action has one page: its variable, and a second question is a second action named under its rules: on-failure",
+	"shows":          "a code is drawn by an action, beside its report",
+	"quits":          "a way out is an action, named under rules: on-success or on-leave",
+	"tty":            "a shell handed the terminal is an action with tty, named under rules: on-success or settings",
+	"asks":           "a starting point that is fetched names the action that fetches it",
+	"apply":          "a starting point that is fetched names the action that fetches it",
+	"options":        "a starting point stands under presets: itself, and the page they are offered on is the runtime's own",
+	"offered":        "it is a rule now: under rules:, as offer-if",
+	"requires":       "it is a rule now: under rules:, as start-if in module.yaml and as offer-if in action.yaml",
+	"menu":           "its rows stand on the settings page: under rules:, as on-settings",
+	"settings":       "the settings page is named by text: settings, and a row on it is an action under rules:, as on-settings",
+	"values":         "a question's list is options, and what prints one is options-from",
+	"command":        "what prints a question's list is options-from",
+	"answer":         "a value worked out instead of asked is value-from",
+	"optional":       "a task the run goes on past when it fails says allow-failure",
+	"fail":           "what a no from an action means is its error",
+	"leave":          "it is a rule now: under rules:, as on-leave",
+	"failure":        "it is a rule now: under rules:, as on-failure",
+	"success":        "it is a rule now: under rules:, as on-success",
+	"fallback":       "it is a rule now: under rules:, as on-failure",
 }
 
 // unknownField is how the decoder says a key is not one of them. It names the
 // Go type it was decoding into, which is true and of no use to anybody holding
 // the yaml.
-var unknownField = regexp.MustCompile(`^line (\d+): field (\w+) not found in type \S+$`)
+var unknownField = regexp.MustCompile(`^line (\d+): field ([\w-]+) not found in type \S+$`)
 
 // refused says what is wrong with a file in the file's own terms.
 func refused(path string, err error) error {
@@ -329,6 +330,9 @@ func (s *Module) check(tasks []*Task, runs map[string]int) error {
 		return fmt.Errorf("%s: title is required", FileModule)
 	}
 	if err := s.checkVars(); err != nil {
+		return fmt.Errorf("%s: %w", FileModule, err)
+	}
+	if err := s.checkText("text: confirm", s.UI.Text.Confirm); err != nil {
 		return fmt.Errorf("%s: %w", FileModule, err)
 	}
 	if err := s.checkPresets(); err != nil {
@@ -519,7 +523,7 @@ func (s *Module) checkDeferredAsked(tasks []*Task) error {
 //
 // A blank line survives, because that is the one break that was meant.
 func (s *Module) normalize(tasks []*Task) {
-	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.StartTitle, &s.UI.SettingsTitle}
+	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Text.Start, &s.UI.Text.Settings, &s.UI.Text.Confirm}
 	for _, o := range s.Presets {
 		fields = append(fields, &o.Title, &o.Description)
 	}

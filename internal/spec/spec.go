@@ -173,15 +173,26 @@ type UI struct {
 	// under the row that starts the work.
 	Description string
 
-	// StartTitle is what starting the work is called — "Install", "Repair" — on
-	// the first row of the menu. A verb rather than a second name: the title
-	// already stands over it. Empty leaves the runtime's own word.
-	StartTitle string
+	// Text is the words of its own pages, each in place of the runtime's.
+	Text Text
+}
 
-	// SettingsTitle is what the page of every answer is called — "Configuration"
-	// — on its row of the menu and over the page itself. Empty leaves the
-	// runtime's own word.
-	SettingsTitle string
+// Text is what a module calls its own pages and what it asks before its work.
+// Each is optional, and an empty one leaves the runtime's own words.
+type Text struct {
+	// Start is what starting the work is called — "Install", "Repair" — on the
+	// first row of the menu. A verb rather than a second name: the title
+	// already stands over it.
+	Start string `yaml:"start"`
+
+	// Settings is what the page of every answer is called — "Configuration"
+	// — on its row of the menu and over the page itself.
+	Settings string `yaml:"settings"`
+
+	// Confirm is the last page before the work, after every password: what is
+	// about to happen, in the module's own words. {{VAR}} is filled in from the
+	// answers, and the first paragraph is the question.
+	Confirm string `yaml:"confirm"`
 }
 
 // Help is what this module is, in one sentence: the line under the row that
@@ -190,11 +201,20 @@ func (s *Module) Help() string { return i18n.T(s.UI.Description) }
 
 // Start is what starting the work is called, translated. Empty where the
 // module leaves it to the runtime.
-func (s *Module) Start() string { return i18n.T(s.UI.StartTitle) }
+func (s *Module) Start() string { return i18n.T(s.UI.Text.Start) }
 
 // Settings is what the page of every answer is called, translated. Empty where
 // the module leaves it to the runtime.
-func (s *Module) Settings() string { return i18n.T(s.UI.SettingsTitle) }
+func (s *Module) Settings() string { return i18n.T(s.UI.Text.Settings) }
+
+// Confirm is the last page's words, translated and with the answers filled in:
+// the question, then whatever else it says. Empty where the module leaves the
+// page to the runtime.
+func (s *Module) Confirm(get func(string) string) (question, body string) {
+	text := strings.TrimSpace(Expand(i18n.T(s.UI.Text.Confirm), get))
+	question, body, _ = strings.Cut(text, "\n\n")
+	return question, strings.TrimSpace(body)
+}
 
 // Checks reports whether anything in this module says how to tell that it
 // worked. A module with nothing to check is never offered the setting that
@@ -617,8 +637,9 @@ func (s *Module) Messages() []Message {
 	decl := FileModule
 	add(decl, "what this module is called, wherever the interface names it", s.UI.Title)
 	add(decl, "what it is, in one sentence, under the row that starts the work", s.UI.Description)
-	add(decl, "the row that starts the work", s.UI.StartTitle)
-	add(decl, "the row that opens every answer, and the heading over that page", s.UI.SettingsTitle)
+	add(decl, "the row that starts the work", s.UI.Text.Start)
+	add(decl, "the row that opens every answer, and the heading over that page", s.UI.Text.Settings)
+	add(decl, "the last page before the work, after every password", s.UI.Text.Confirm)
 	for _, o := range s.Presets {
 		add(decl, "a starting point: its row", o.Title)
 		add(decl, "starting point "+o.Title+": what choosing it does", o.Description)

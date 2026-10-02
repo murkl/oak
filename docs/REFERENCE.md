@@ -94,10 +94,16 @@ The folder name is the module's identity: `oak --module=setup` opens it, and it 
 ```yaml
 title: Tux Setup
 description: Set a machine up for Tux.
-start-title: Install
-settings-title: Configuration
 stages: [prepare, install]
 language: TUX_LOCALE
+
+text:
+  start: Install
+  settings: Configuration
+  confirm: |
+    Erase {{TUX_DISK}} and install Tux?
+
+    Everything on it is lost.
 
 rules:
   offer-if: [live-image]
@@ -113,13 +119,23 @@ rules:
 | `title` | **Required.** The module's one name: its row, and the trail over every page |
 | `stages` | **Required.** The phases of the work, in order. Each is a folder `tasks/@<stage>/` |
 | `description` | One sentence under the row that starts the work |
-| `start-title` | The row that starts the work, a verb: `Install`, `Repair`. Default `Start` |
-| `settings-title` | The row and page of every answer. Default `Settings` |
+| `text` | The words of its own pages, see [Text](#text) |
 | `language` | A variable whose answer also sets the interface language: `de_DE` is German |
 | `rules` | Where its actions run, see [Rules](#rules) |
 | `status` | Its own header line, in place of the product's |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
+
+### Text
+
+| Key under `text` | Description |
+| --- | --- |
+| `start` | The row that starts the work, a verb: `Install`, `Repair`. Default `Start` |
+| `settings` | The row and page of every answer. Default `Settings` |
+| `confirm` | The last page before the work, after every password. The first paragraph is the question. Default: whether to continue, as a step that cannot be undone |
+
+- The last page opens on No, and No goes back to the menu with every password forgotten
+- `{{VAR}}` in `confirm` is filled in from the answers
 
 ### Rules
 
@@ -194,7 +210,7 @@ variables:
 - `true` and `false` read as Yes and No, so `options: [auto, true, false]` is a bool with a third answer
 - A secret is asked right before the run, used and forgotten
 - `value-from` is read when the module opens and whenever an answer changes
-- An answer from `options-from` is held to its list again right before the run. One the list no longer prints is asked again
+- An answer from `options-from` is held to its list again when the work is started, before any password. One the list no longer prints is asked again
 - `apply` failing on an answer just given is a warning. At startup the answer is dropped and asked again
 
 **Note:** _`value-from` is refused on a secret, and together with `prefill` or `first`. A deferred question needs `options` or `options-from`, and takes no `first`, `group` or `value-from`._
@@ -211,7 +227,7 @@ conditions:
 
 ### Placeholders
 
-`{{VAR}}` is filled in from the answers in a task's `confirm` and `report`, and an action's `error` and `report`. A name the module does not declare is refused at startup, and a translation that drops or adds one fails `--inspect`.
+`{{VAR}}` is filled in from the answers in a module's `text: confirm`, a task's `confirm` and `report`, and an action's `error` and `report`. A name the module does not declare is refused at startup, and a translation that drops or adds one fails `--inspect`.
 
 ## Tasks
 
@@ -230,7 +246,7 @@ conditions:
 | `needs` | Tasks of its own stage it runs after |
 | `conditions` | Every one must hold, or it is left out of the run |
 | `asks` | A deferred question the run stops for first. A list that comes back empty skips the task |
-| `confirm` | A yes or no before it runs, opening on Yes. No skips it |
+| `confirm` | A yes or no before it runs, opening on No. No skips it |
 | `report` | A page the run stops on afterwards. The first paragraph is the headline |
 | `progress` | `true`: the last line it printed is shown under it while it runs |
 | `simulates` | `true`: run under `--debug` too, reading `DEBUG` itself |

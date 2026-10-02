@@ -3,6 +3,7 @@ package spec
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -487,7 +488,7 @@ func TestLocalesAreFoundBesideTheDeclaration(t *testing.T) {
 // looks it up by.
 func TestTheWordForStartingIsTranslatable(t *testing.T) {
 	sp, err := Load(module(t, map[string]string{
-		FileModule: head("start-title: |\n  Install\n"),
+		FileModule: head("text:\n  start: |\n    Install\n"),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -501,10 +502,28 @@ func TestTheWordForStartingIsTranslatable(t *testing.T) {
 	}
 }
 
+// So is the last page, its question and what it says under it, with the
+// answers it names filled in.
+func TestTheLastPageIsTheModulesOwnAndTranslatable(t *testing.T) {
+	sp, err := Load(module(t, map[string]string{
+		FileModule: head("text:\n  confirm: |\n    Erase {{DISK}}?\n\n    Everything on it\n    is lost.\nvariables:\n  - name: DISK\n    title: Disk\n"),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := texts(sp); !slices.Contains(got, "Erase {{DISK}}?\n\nEverything on it is lost.") {
+		t.Errorf("Messages() = %v, want the last page among them, one line per paragraph", got)
+	}
+	question, body := sp.Confirm(func(string) string { return "/dev/sda" })
+	if question != "Erase /dev/sda?" || body != "Everything on it is lost." {
+		t.Errorf("Confirm() = %q, %q", question, body)
+	}
+}
+
 // So is the word for its settings, the same way.
 func TestTheWordForTheSettingsIsTranslatable(t *testing.T) {
 	sp, err := Load(module(t, map[string]string{
-		FileModule: head("settings-title: |\n  Configuration\n"),
+		FileModule: head("text:\n  settings: |\n    Configuration\n"),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -546,7 +565,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "an offer opening on no, the way an older Oak read it",
 			files: unit("go", "do", "title: Do\nconfirm: Really?\ndefault: no\n"),
-			want:  "default is not a key here — a task's confirm opens on yes",
+			want:  "default is not a key here — every confirm opens on no",
 		},
 		{
 			name:  "a preset filling in a variable nobody declared",
@@ -631,7 +650,22 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "the word for starting said the way an older Oak read it",
 			files: map[string]string{FileModule: head("action: Install\n")},
-			want:  "the word for starting the work is start",
+			want:  "the word for starting the work is text: start",
+		},
+		{
+			name:  "the word for starting said the way Oak 0.17 read it",
+			files: map[string]string{FileModule: head("start-title: Install\n")},
+			want:  "start-title is not a key here — it is text: start",
+		},
+		{
+			name:  "the name of the settings said the way Oak 0.17 read it",
+			files: map[string]string{FileModule: head("settings-title: Configuration\n")},
+			want:  "settings-title is not a key here — it is text: settings",
+		},
+		{
+			name:  "the last page naming a variable nothing declares",
+			files: map[string]string{FileModule: head("text:\n  confirm: Erase {{DSIK}}?\nvariables:\n  - name: DISK\n    title: D\n")},
+			want:  "text: confirm: {{DSIK}} is not a variable of this module",
 		},
 		{
 			name: "a task's offer naming a variable nothing declares",
@@ -800,7 +834,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a row on the settings page the way an older Oak named it",
 			files: map[string]string{FileModule: head("rules:\n  settings: [o]\n")},
-			want:  "settings is not a key here — it is a row on the settings page: under rules:, as on-settings",
+			want:  "settings is not a key here — the settings page is named by text: settings, and a row on it is an action under rules:, as on-settings",
 		},
 		{
 			name:  "the header's status read the way an older Oak named it",
