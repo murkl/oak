@@ -60,6 +60,7 @@ presets:
       EXTRAS: "false"
 variables:
   - name: USER
+    type: text
     title: User name
     description: The account you log in with.
     group: Identity
@@ -68,9 +69,10 @@ variables:
     error: Lower case letters only.
   - name: PW
     title: Password
-    type: secret
+    type: new-password
     required: true
   - name: DISK
+    type: list
     title: Disk
     group: Storage
     required: true
@@ -80,6 +82,7 @@ variables:
     group: Storage
     type: bool
   - name: DRIVER
+    type: list
     title: Driver
     options: [mesa, nvidia]
     required: true
@@ -494,7 +497,7 @@ func (h *harness) reported() *harness {
 func TestAFirstQuestionIsAskedBeforeWhatTheWorkWaitsFor(t *testing.T) {
 	tree := wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true)
 	tree[treeFile] = testInstaller +
-		"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    options: [de, en]\n" +
+		"  - name: LOCALE\n    type: list\n    title: Language and formats\n    required: true\n    first: true\n    options: [de, en]\n" +
 		wirelessRules(true)
 	h := newHarness(t, tree)
 	h.wants("Language and formats", "de", "en").refuses("internet connection")
@@ -514,7 +517,7 @@ func TestAnsweringAFirstQuestionPutsItInForce(t *testing.T) {
 	loaded := filepath.Join(t.TempDir(), "loaded")
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
-			"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n" +
+			"  - name: LOCALE\n    type: list\n    title: Language and formats\n    required: true\n    first: true\n" +
 			"    options: [de, en]\n    apply: ./apply.sh\n",
 		"apply.sh": "echo \"$LOCALE\" > " + loaded + "\n",
 	})
@@ -539,7 +542,7 @@ func TestAnsweringAFirstQuestionPutsItInForce(t *testing.T) {
 func TestAnAnsweredFirstQuestionIsNotAskedAgain(t *testing.T) {
 	tree := wireless(filepath.Join(t.TempDir(), "online"), "exit 0", true)
 	tree[treeFile] = testInstaller +
-		"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    default: de\n    options: [de, en]\n" +
+		"  - name: LOCALE\n    type: list\n    title: Language and formats\n    required: true\n    first: true\n    default: de\n    options: [de, en]\n" +
 		wirelessRules(true)
 	h := newHarness(t, tree)
 	h.wants("HomeNet").refuses("Language and formats")
@@ -552,7 +555,7 @@ func TestAnAnsweredFirstQuestionIsNotAskedAgain(t *testing.T) {
 func TestAQuestionAskedFirstOpensItsFilterFromTheStart(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
-			"  - name: KEYMAP\n    title: Console keyboard\n    required: true\n    first: true\n    options: [us, de]\n",
+			"  - name: KEYMAP\n    type: list\n    title: Console keyboard\n    required: true\n    first: true\n    options: [us, de]\n",
 	})
 	h.wants("Console keyboard", "Filter …")
 	h.typeIn("de")
@@ -571,10 +574,12 @@ description: Open a system already on a disk.
 stages: [open]
 variables:
   - name: DISK
+    type: list
     title: Disk
     required: true
     options: [/dev/sda]
   - name: SNAPSHOT
+    type: list
     title: Snapshot
     required: true
     options: [one, two]
@@ -829,7 +834,7 @@ func presetTreeTying(apply string) map[string]string {
 		"      EXTRAS: \"true\"\n      LOCALE: de_DE\n", 1)
 	return map[string]string{
 		treeFile: declared +
-			"  - name: LOCALE\n    title: System language\n    required: true\n    options: [de_DE, en_US]\n" + apply +
+			"  - name: LOCALE\n    type: list\n    title: System language\n    required: true\n    options: [de_DE, en_US]\n" + apply +
 			"language: LOCALE\n",
 		"locales/de.po": "msgid \"English\"\nmsgstr \"Deutsch\"\n\nmsgid \"User name\"\nmsgstr \"Benutzername\"\n",
 	}
@@ -870,7 +875,7 @@ func TestAPresetPutsWhatItFilledInInForce(t *testing.T) {
 func twoLanguageTree() map[string]string {
 	return map[string]string{
 		treeFile: testInstaller +
-			"  - name: LOCALE\n    title: System language\n    required: true\n    options: [de_DE, en_US]\n",
+			"  - name: LOCALE\n    type: list\n    title: System language\n    required: true\n    options: [de_DE, en_US]\n",
 		"locales/de.po": "msgid \"English\"\nmsgstr \"Deutsch\"\n\nmsgid \"Full\"\nmsgstr \"Vollständig\"\n",
 	}
 }
@@ -1056,26 +1061,26 @@ title: Wireless network
 description: Join a wireless network.
 rules:
   offer-if: [card]
-  on-failure: wlan-passphrase
-variable:
-  name: WLAN_SSID
-  title: Network
-  options: [HomeNet, CafeNet]
+  on-failure: [wlan-passphrase]
+variables:
+  - name: WLAN_SSID
+    type: list
+    title: Network
+    options: [HomeNet, CafeNet]
 `,
 		"actions/wlan/action.sh": "[ \"$WLAN_SSID\" = CafeNet ] || exit 1\nprintf '%s' \"$WLAN_SSID\" > " + marker + "\n",
 		"actions/wlan-passphrase/action.yaml": `
 title: Wireless network
 error: "{{WLAN_SSID}} did not accept that passphrase."
-variable:
-  name: WLAN_PASSPHRASE
-  title: Passphrase
-  type: secret
-  existing: true
+variables:
+  - name: WLAN_PASSPHRASE
+    title: Passphrase
+    type: password
 `,
 		"actions/wlan-passphrase/action.sh": `printf '%s %s' "$WLAN_SSID" "$WLAN_PASSPHRASE" > ` + marker + "\n",
 	}
 	if waits {
-		tree["actions/internet/action.yaml"] = "title: Internet\nerror: There is no internet connection. Plug in a cable, or join a wireless network.\nrules:\n  on-failure: wlan\n"
+		tree["actions/internet/action.yaml"] = "title: Internet\nerror: There is no internet connection. Plug in a cable, or join a wireless network.\nrules:\n  on-failure: [wlan]\n"
 		tree["actions/internet/action.sh"] = "test -e " + marker + "\n"
 	}
 	return tree
@@ -1126,7 +1131,7 @@ func TestAFallbackThatRunsAtOnceWaitsForEnter(t *testing.T) {
 	ran := filepath.Join(t.TempDir(), "ran")
 	h := newHarness(t, map[string]string{
 		treeFile:                       testInstaller + "rules:\n  start-if: [internet]\n",
-		"actions/internet/action.yaml": "title: Internet\nerror: There is no internet connection.\nrules:\n  on-failure: dhcp\n",
+		"actions/internet/action.yaml": "title: Internet\nerror: There is no internet connection.\nrules:\n  on-failure: [dhcp]\n",
 		"actions/internet/action.sh":   "exit 1\n",
 		"actions/dhcp/action.yaml":     "title: Ask for an address\n",
 		"actions/dhcp/action.sh":       "touch " + ran + "\n",
@@ -1364,6 +1369,77 @@ func TestAnActionsPagesAreNeitherSettingsNorKept(t *testing.T) {
 	}
 }
 
+// An action asks its questions in the order it lists them, a page each, and its
+// script is handed every answer.
+func TestAnActionAsksEachOfItsQuestionsInTurn(t *testing.T) {
+	joined := filepath.Join(t.TempDir(), "joined")
+	tree := map[string]string{
+		treeFile: testInstaller + "rules:\n  on-settings: [join]\n",
+		"actions/join/action.yaml": `
+title: Join a network
+variables:
+  - name: SSID
+    type: list
+    title: Network
+    options: [HomeNet, CafeNet]
+  - name: KEY
+    type: password
+    title: Passphrase
+`,
+		"actions/join/action.sh": `printf '%s %s' "$SSID" "$KEY" > ` + joined + "\n",
+	}
+	h := toAction(intoHub(newHarness(t, tree)), "Join a network")
+
+	h.enter().wants("Network", "HomeNet", "CafeNet")
+	h.down().enter().wants("Passphrase")
+	h.typeIn("secret").enter()
+
+	h.wants("User name")
+	got, err := os.ReadFile(joined)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "CafeNet secret" {
+		t.Errorf("the script was handed %q, want both answers", got)
+	}
+}
+
+// An action that says no opens the first of what it names on failure that this
+// machine has: one it does not have is passed over.
+func TestAFailureOpensTheFirstFallbackTheMachineHas(t *testing.T) {
+	tree := map[string]string{
+		treeFile:                     testInstaller + "rules:\n  on-settings: [try]\n",
+		"actions/try/action.yaml":    "title: Try it\nrules:\n  on-failure: [first, second]\n",
+		"actions/try/action.sh":      "exit 1\n",
+		"actions/first/action.yaml":  "title: First fallback\nrules:\n  offer-if: [never]\nvariables:\n  - name: A\n    type: text\n    title: The first one asks\n",
+		"actions/first/action.sh":    "true\n",
+		"actions/never/action.yaml":  "title: Never\n",
+		"actions/never/action.sh":    "exit 1\n",
+		"actions/second/action.yaml": "title: Second fallback\nvariables:\n  - name: B\n    type: text\n    title: The second one asks\n",
+		"actions/second/action.sh":   "true\n",
+	}
+	h := toAction(intoHub(newHarness(t, tree)), "Try it")
+	h.enter()
+	h.wants("The second one asks").refuses("The first one asks")
+}
+
+// A list that only suggests offers one more row, under its answers, for an
+// answer of one's own - and that row opens a box.
+func TestAnOpenListOffersAnAnswerOfOnesOwn(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: strings.Replace(testInstaller, "    type: list\n    title: Disk\n", "    type: open-list\n    title: Disk\n", 1),
+	})
+	h.down().enter().typeIn("moritz").enter()
+	h.wants("Disk", "An answer of your own")
+}
+
+// A closed list has no such row.
+func TestAListOffersOnlyItsAnswers(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter().typeIn("moritz").enter()
+	h.wants("Disk").refuses("An answer of your own")
+}
+
 // ─── The opening ─────────────────────────────────────────────────────────────
 
 // One language on offer means no landing page: the one thing it asks is not a
@@ -1414,7 +1490,7 @@ func TestSettingsOffersNoLanguageOfItsOwnWhenTheModuleOwnsIt(t *testing.T) {
 // region, and a catalog for one of the languages it can come to.
 var regionTree = map[string]string{
 	treeFile: testInstaller +
-		"  - name: LOCALE\n    title: Language and region\n    required: true\n    first: true\n" +
+		"  - name: LOCALE\n    type: list\n    title: Language and region\n    required: true\n    first: true\n" +
 		"    options: [de_DE, en_US]\n" +
 		"language: LOCALE\n",
 	"locales/de.po": "msgid \"English\"\nmsgstr \"Deutsch\"\n\nmsgid \"Full\"\nmsgstr \"Vollständig\"\n",
@@ -1461,8 +1537,8 @@ func TestTheOpeningQuestionsShowACounterRatherThanATrail(t *testing.T) {
 func TestTheOpeningPagesStandUnderOneHeadingRatherThanInsideEachOther(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
-			"  - name: LOCALE\n    title: Language and formats\n    required: true\n    first: true\n    options: [de, en]\n" +
-			"  - name: KEYMAP\n    title: Console keyboard\n    required: true\n    first: true\n    options: [de, us]\n",
+			"  - name: LOCALE\n    type: list\n    title: Language and formats\n    required: true\n    first: true\n    options: [de, en]\n" +
+			"  - name: KEYMAP\n    type: list\n    title: Console keyboard\n    required: true\n    first: true\n    options: [de, us]\n",
 	})
 	h.wants("Start", "Language and formats")
 
@@ -1555,7 +1631,7 @@ func TestChangingAValueInSettingsShowsTheNewOne(t *testing.T) {
 func TestALongListStillWaitsForTheKey(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
-			"  - name: ZONE\n    title: Time zone\n    required: true\n    options-from: ./zones.sh\n",
+			"  - name: ZONE\n    type: list\n    title: Time zone\n    required: true\n    options-from: ./zones.sh\n",
 		"zones.sh": "seq 1 30\n",
 	})
 	h.down().enter()           // Bare, past the presets
@@ -1596,7 +1672,7 @@ func TestAShortListKeepsItsFilterBehindTheKey(t *testing.T) {
 func TestAQuestionCanCarryItsFilterWhateverTheList(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
-			"  - name: VARIANT\n    title: Keyboard variant\n    required: true\n    filter: open\n    options-from: ./variants.sh\n",
+			"  - name: VARIANT\n    type: list\n    title: Keyboard variant\n    required: true\n    filter: open\n    options-from: ./variants.sh\n",
 		"variants.sh": "printf 'none\\ndead keys\\n'\n",
 	})
 	h.down().enter()
@@ -1613,7 +1689,7 @@ func TestAQuestionCanCarryItsFilterWhateverTheList(t *testing.T) {
 func TestAQuestionCanKeepItsFilterBehindTheKeyWhateverTheList(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
-			"  - name: ZONE\n    title: Time zone\n    required: true\n    filter: collapsed\n    options-from: ./zones.sh\n",
+			"  - name: ZONE\n    type: list\n    title: Time zone\n    required: true\n    filter: collapsed\n    options-from: ./zones.sh\n",
 		"zones.sh": "seq 1 30\n",
 	})
 	h.down().enter()
@@ -1845,8 +1921,8 @@ func TestARunStartsFromItsAnswersWrittenOutWhole(t *testing.T) {
 // and says which entry was wrong, which is more than a second box can.
 func TestASecretThatAlreadyExistsIsAskedOnce(t *testing.T) {
 	h := newHarness(t, map[string]string{treeFile: strings.Replace(testInstaller,
-		"    title: Password\n    type: secret\n",
-		"    title: Password\n    type: secret\n    existing: true\n", 1)})
+		"    title: Password\n    type: new-password\n",
+		"    title: Password\n    type: password\n", 1)})
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter() // Install, which asks for the password first
 
@@ -1864,8 +1940,8 @@ func TestASecretThatAlreadyExistsIsAskedOnce(t *testing.T) {
 func TestASecretTheModuleChecksIsRefusedWhereItWasTyped(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: strings.Replace(testInstaller,
-			"    title: Password\n    type: secret\n",
-			"    title: Password\n    type: secret\n    existing: true\n"+
+			"    title: Password\n    type: new-password\n",
+			"    title: Password\n    type: password\n"+
 				"    check: ./check.sh\n    error: That is not the password.\n", 1),
 		"check.sh": "[ \"$PW\" = hunter2 ]\n",
 	})
@@ -2087,7 +2163,7 @@ func TestTheWaitNeverRunsPastTheEdge(t *testing.T) {
 	long := strings.Repeat("This machine is not ready yet, and here is a long account of why. ", 6)
 	h := newHarness(t, map[string]string{
 		treeFile:                       testInstaller + "rules:\n  start-if: [internet]\n",
-		"actions/internet/action.yaml": "title: Internet\nrules:\n  on-failure: wlan\nerror: " + long + "\n",
+		"actions/internet/action.yaml": "title: Internet\nrules:\n  on-failure: [wlan]\nerror: " + long + "\n",
 		"actions/internet/action.sh":   "exit 1\n",
 		"actions/wlan/action.yaml":     "title: Wireless network\ndescription: Join a wireless network.\n",
 		"actions/wlan/action.sh":       "true\n",
@@ -2203,7 +2279,7 @@ func TestAFailureReportFitsTheSmallestTerminal(t *testing.T) {
 // point, a task that asks first — is a page that simply does not appear.
 func TestTheSmallestTreeStillWorks(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		treeFile:                       "title: Test Installer\nstages: [go]\nvariables:\n  - name: USER\n    title: User name\n    required: true\n",
+		treeFile:                       "title: Test Installer\nstages: [go]\nvariables:\n  - name: USER\n    type: text\n    title: User name\n    required: true\n",
 		"tasks/@go/a-first/task.yaml":  "title: Do it\n",
 		"tasks/@go/b-second/task.yaml": "",
 		"tasks/@go/b-second/task.sh":   "",
@@ -3027,11 +3103,12 @@ variables:`, 1)
 		treeFile: declared,
 		"actions/fetch/action.yaml": `title: Online
 error: Nothing is shared under that code.
-variable:
-  name: SOURCE
-  title: Configuration code
-  description: The code of a configuration somebody shared.
-  required: true
+variables:
+  - name: SOURCE
+    type: text
+    title: Configuration code
+    description: The code of a configuration somebody shared.
+    required: true
 `,
 		"actions/fetch/action.sh": script + "\n",
 	}

@@ -15,32 +15,28 @@ import (
 //
 // The yaml says how it behaves and the script only does the work: it says yes
 // by exiting 0 and no by anything else. Where it runs is not the action's
-// business but the rule that names it: the module's `rules:` — offer-if,
-// start-if, on-settings, on-leave, on-failure, on-success — a preset, and another
-// action's own `rules:`, offer-if and on-failure.
+// business but the rule that names it: the module's `rules:`, a preset, and
+// another action's own `rules:`.
 //
-// An action has at most one page: a question before its script, the report
-// after it, or the terminal handed to it. A flow of several pages is several
-// actions, each opened on the failure of the one before.
+// An action has one kind of page at most: its questions before its script, the
+// report after it, or the terminal handed to it. A flow of several kinds is
+// several actions, each opened on the failure of the one before.
 type Action struct {
 	Title       string
 	Description string
 
-	// OfferIf is the actions that must say yes before this one is offered at
-	// all: a wireless network is not one on a machine with no card.
-	OfferIf []string
-
-	// OnFailure is the action opened where this one says no: no internet, and a
-	// wireless network to join.
-	OnFailure string
+	// Rules is its own: offer-if, the actions that must say yes before this
+	// one is offered at all, and on-failure, what is opened where it says no -
+	// the first of them this machine offers.
+	Rules Rules
 
 	// Error is what a no from this one means, in words: the page in front of
 	// the work, the reason a module is not offered, the headline over a failure.
 	Error string
 
-	// Var is its one page before it runs: a question like the module's own,
-	// whose answer is handed to its script and kept for this session only.
-	Var *Variable
+	// Vars is its questions before it runs, a page each, like the module's own:
+	// their answers are handed to its script and kept for this session only.
+	Vars []*Variable
 
 	// Report is its one page after it has run, and Shows the answer drawn
 	// there as a code. The script writes that answer into the answer file, and
@@ -61,29 +57,25 @@ type Action struct {
 	dir   string
 }
 
-// actionDeclaration is action.yaml as it is written.
+// actionDeclaration is action.yaml as it is written: the same keys a module
+// writes them in, wherever they mean the same.
 type actionDeclaration struct {
 	Title       string      `yaml:"title"`
 	Description string      `yaml:"description"`
-	Rules       actionRules `yaml:"rules"`
+	Rules       Rules       `yaml:"rules"`
 	Error       string      `yaml:"error"`
-	Variable    *Variable   `yaml:"variable"`
+	Variables   []*Variable `yaml:"variables"`
 	Report      string      `yaml:"report"`
 	Shows       string      `yaml:"shows"`
 	TTY         bool        `yaml:"tty"`
 	Simulates   bool        `yaml:"simulates"`
 }
 
-// actionRules is an action's own rules: when it is offered at all, and what
-// is opened where it says no — the same two words a module's rules use.
-type actionRules struct {
-	OfferIf   []string `yaml:"offer-if"`
-	OnFailure string   `yaml:"on-failure"`
-}
-
-// Rules is where a module runs its actions, under `rules:`, each a list of
-// their names in the order they are run or stand as rows. An -if runs by
-// itself and answers yes or no; an on- is a row offered at that place.
+// Rules is where actions run, under `rules:` in module.yaml and action.yaml
+// alike, each a list of their names in the order they are run or stand as
+// rows. An -if runs by itself and answers yes or no; an on- is a row offered at
+// that place. An action's own are offer-if and on-failure: the rest place rows
+// and gates of a module.
 type Rules struct {
 	// OfferIf is what a machine has to say yes to for this module to be offered
 	// on it at all — the only thing run before a module is opened.
@@ -136,14 +128,12 @@ func (a *Action) ReportText(get func(string) string) (headline, body string) {
 	return headline, strings.TrimSpace(body)
 }
 
-// vars is every value this action has: its page, and the answer its report
-// shows.
+// vars is every value this action has: its questions, and the answer its
+// report shows.
 func (a *Action) vars() []*Variable {
-	var out []*Variable
-	for _, v := range []*Variable{a.Var, a.shown} {
-		if v != nil {
-			out = append(out, v)
-		}
+	out := append([]*Variable{}, a.Vars...)
+	if a.shown != nil {
+		out = append(out, a.shown)
 	}
 	return out
 }
@@ -214,7 +204,7 @@ func loadAction(where string) (*Action, error) {
 	}
 	return &Action{
 		Title: d.Title, Description: d.Description,
-		OfferIf: d.Rules.OfferIf, OnFailure: d.Rules.OnFailure, Error: d.Error, Var: d.Variable,
+		Rules: d.Rules, Error: d.Error, Vars: d.Variables,
 		Report: d.Report, Shows: d.Shows, TTY: d.TTY, Simulates: d.Simulates,
 		work: work, id: filepath.Base(where), dir: where,
 	}, nil
@@ -287,13 +277,11 @@ func (s *Module) gather(own []*Action) (map[string]int, error) {
 		a := queue[0]
 		queue = queue[1:]
 		where := fmt.Sprintf("%s/%s", DirActions, a.id)
-		if err := place(where, "rules: offer-if", a.OfferIf, unasked); err != nil {
+		if err := place(where, "rules: offer-if", a.Rules.OfferIf, unasked); err != nil {
 			return nil, err
 		}
-		if a.OnFailure != "" {
-			if err := place(where, "rules: on-failure", []string{a.OnFailure}, opened); err != nil {
-				return nil, err
-			}
+		if err := place(where, "rules: on-failure", a.Rules.OnFailure, opened); err != nil {
+			return nil, err
 		}
 	}
 
@@ -315,7 +303,7 @@ func (s *Module) checkActions(runs map[string]int) error {
 			return fmt.Errorf("%s: %w", where(a), err)
 		}
 	}
-	if slices.ContainsFunc(s.Named(s.Rules.OnLeave), func(a *Action) bool { return a.Var != nil }) {
+	if slices.ContainsFunc(s.Named(s.Rules.OnLeave), func(a *Action) bool { return len(a.Vars) > 0 }) {
 		return fmt.Errorf("%s: rules: on-leave: a way out asks nothing, it only goes", FileModule)
 	}
 	if ring := s.circle(); ring != "" {
@@ -324,14 +312,13 @@ func (s *Module) checkActions(runs map[string]int) error {
 	// Conditions once every page is known, so one may be guarded by a page of
 	// another action.
 	for _, a := range s.Actions {
-		if a.Var == nil {
-			continue
+		for _, v := range a.Vars {
+			cond, err := s.conditions(v.Conditions)
+			if err != nil {
+				return fmt.Errorf("%s: %s: %w", where(a), v.Name, err)
+			}
+			v.cond = cond
 		}
-		cond, err := s.conditions(a.Var.Conditions)
-		if err != nil {
-			return fmt.Errorf("%s: %s: %w", where(a), a.Var.Name, err)
-		}
-		a.Var.cond = cond
 	}
 	return nil
 }
@@ -339,24 +326,27 @@ func (s *Module) checkActions(runs map[string]int) error {
 // checkAction refuses what an action cannot mean, given how it is run.
 func (s *Module) checkAction(a *Action, how int) error {
 	pages := 0
-	for _, has := range []bool{a.Var != nil, a.Reports(), a.TTY} {
+	for _, has := range []bool{len(a.Vars) > 0, a.Reports(), a.TTY} {
 		if has {
 			pages++
 		}
 	}
+	r := a.Rules
 	switch {
 	case a.Title == "":
 		return fmt.Errorf("title is required")
 	case pages > 1:
-		return fmt.Errorf("an action has one page: variable, report or tty — a second one is a second action, named under rules: on-failure")
+		return fmt.Errorf("an action has one kind of page: variables, report or tty — a second kind is a second action, named under rules: on-failure")
 	case how != opened && pages > 0:
 		return fmt.Errorf("it runs by itself where it is named, so it has no page")
 	case how == gating && a.Error == "":
 		return fmt.Errorf("error: it runs by itself in front of the work, and a no there is read as this sentence")
-	case a.OnFailure == a.id:
+	case slices.Contains(r.OnFailure, a.id):
 		return fmt.Errorf("rules: on-failure: an action cannot put itself right")
+	case len(r.StartIf)+len(r.OnSettings)+len(r.OnLeave)+len(r.OnSuccess) > 0:
+		return fmt.Errorf("rules: an action's own are offer-if and on-failure - start-if, on-settings, on-leave and on-success place a module's gates and rows, in %s", FileModule)
 	}
-	if v := a.Var; v != nil {
+	for _, v := range a.Vars {
 		switch {
 		case v.First:
 			return fmt.Errorf("%s: first: a page is asked when its action is opened", v.Name)
@@ -391,7 +381,7 @@ func (s *Module) checkShown(a *Action) error {
 		return fmt.Errorf("shows: there is no report for it to appear on")
 	}
 	if a.shown == nil {
-		a.shown = &Variable{Name: a.Shows, Title: a.Shows}
+		a.shown = &Variable{Name: a.Shows, Title: a.Shows, Type: TypeText}
 	}
 	if err := s.checkVar(a.shown, a.dir); err != nil {
 		return fmt.Errorf("shows: %w", err)
@@ -422,10 +412,7 @@ func (s *Module) circle() string {
 		state[name] = open
 		path = append(path, name)
 		a := s.Action(name)
-		next := append([]string{}, a.OfferIf...)
-		if a.OnFailure != "" {
-			next = append(next, a.OnFailure)
-		}
+		next := append(append([]string{}, a.Rules.OfferIf...), a.Rules.OnFailure...)
 		for _, n := range next {
 			if ring := walk(n); ring != "" {
 				return ring

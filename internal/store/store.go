@@ -195,7 +195,7 @@ func (s *Store) Invalid(v *spec.Variable, value string) string {
 		return v.WhyUnoffered()
 	}
 	switch {
-	case v.Shape() == spec.TypeBool:
+	case v.Type == spec.TypeBool:
 		if value != spec.BoolTrue && value != spec.BoolFalse {
 			return v.Why()
 		}

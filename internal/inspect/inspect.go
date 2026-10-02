@@ -82,13 +82,13 @@ func reportRuntime(w io.Writer, rt *spec.Runtime) {
 
 // report is what one module holds, printed.
 func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
-	required, secret, deferred, derived := 0, 0, 0, 0
+	required, passwords, deferred, derived := 0, 0, 0, 0
 	for _, v := range mod.Vars {
 		switch {
 		case v.Derived():
 			derived++
 		case v.Secret():
-			secret++
+			passwords++
 		case v.Deferred():
 			deferred++
 		}
@@ -119,7 +119,7 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 			fmt.Fprintf(w, "  %-11s %s\n", at.key, strings.Join(at.names, " "))
 		}
 	}
-	fmt.Fprintf(w, "  variables   %d (%d required, %d secret, %d deferred, %d derived)\n", len(mod.Vars), required, secret, deferred, derived)
+	fmt.Fprintf(w, "  variables   %d (%d required, %d password, %d deferred, %d derived)\n", len(mod.Vars), required, passwords, deferred, derived)
 	fmt.Fprintf(w, "  presets     %d\n", len(mod.Presets))
 	fmt.Fprintf(w, "  stages      %s\n", strings.Join(mod.Stages, " "))
 	fmt.Fprintf(w, "  tasks       %d (%d checked)\n", len(mod.Tasks), checks(mod))
@@ -226,11 +226,11 @@ func actions(mod *spec.Module) []string {
 	var out []string
 	for _, a := range mod.Actions {
 		var says []string
-		if len(a.OfferIf) > 0 {
-			says = append(says, "offer-if "+strings.Join(a.OfferIf, " "))
+		if len(a.Rules.OfferIf) > 0 {
+			says = append(says, "offer-if "+strings.Join(a.Rules.OfferIf, " "))
 		}
-		if a.OnFailure != "" {
-			says = append(says, "on-failure "+a.OnFailure)
+		if len(a.Rules.OnFailure) > 0 {
+			says = append(says, "on-failure "+strings.Join(a.Rules.OnFailure, " "))
 		}
 		if len(says) == 0 {
 			out = append(out, a.ID())

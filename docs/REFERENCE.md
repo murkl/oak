@@ -21,7 +21,7 @@ title: Tux Linux
 version: 1.0.0
 accent: "#8fbcbb"
 status:
-  check: is_online()
+  check: check_online()
   pass: Online
   fail: Offline
 logo: |
@@ -61,11 +61,13 @@ A key that runs shell names it, in one of two forms:
 
 Shell written into the yaml itself is refused: every line lives where a linter reads it and a failure can point at it. The keys are `check` of a status, and `options-from`, `value-from`, `prefill`, `apply` and `check` of a question.
 
+- A function is named after the key that calls it: `options_disks()`, `prefill_hostname()`, `apply_keymap()`, `value_desktop()`, `check_online()`
+
 ### Status
 
 ```yaml
 status:
-  check: is_online()   # exit 0 is yes
+  check: check_online()   # exit 0 is yes
   every: 10            # seconds between two checks, default 10
   pass: Online
   fail: Offline
@@ -139,21 +141,17 @@ rules:
 
 ### Rules
 
-Each rule names actions by their folder. An `-if` runs by itself and answers yes or no. An `on-` is a row offered at that place.
+Each rule names actions by their folder. An `-if` runs by itself and answers yes or no. An `on-` is a row offered at that place. A module and an action write their rules the same way, under `rules:`.
 
-| Rule in `module.yaml` | Where |
-| --- | --- |
-| `offer-if` | Before the module is offered at all |
-| `start-if` | Before the work. The first no stands a page in front of everything and is asked again every few seconds |
-| `on-settings` | Rows at the top of the settings page |
-| `on-leave` | Rows on the page every way out arrives at, above Oak's own **Exit** |
-| `on-failure` | Rows under a run that failed |
-| `on-success` | Rows under a run that finished |
-
-| Rule in `action.yaml` | Where |
-| --- | --- |
-| `offer-if` | Before this action is offered anywhere |
-| `on-failure` | One action, opened where this one says no |
+| Rule | In | Where |
+| --- | --- | --- |
+| `offer-if` | module, action | Before it is offered at all |
+| `start-if` | module | Before the work. The first no stands a page in front of everything and is asked again every few seconds |
+| `on-settings` | module | Rows at the top of the settings page |
+| `on-leave` | module | Rows on the page every way out arrives at, above Oak's own **Exit** |
+| `on-failure` | module | Rows under a run that failed |
+| `on-failure` | action | The first of them this machine offers, opened where this action says no |
+| `on-success` | module | Rows under a run that finished |
 
 - A row list opens on **Continue**: an action is chosen on purpose
 - A module with `on-leave` says the machine booted to run it, so leaving becomes a choice. `--kiosk` puts **Reset** where **Exit** is
@@ -161,33 +159,37 @@ Each rule names actions by their folder. An `-if` runs by itself and answers yes
 
 ## Questions
 
-One entry under `variables:` is one question and one environment variable.
+One entry under `variables:` is one question and one environment variable, in `module.yaml` and `action.yaml` alike.
 
 ```yaml
 variables:
   - name: TUX_DISK
+    type: list
     title: Disk
     description: Everything on it is erased.
     group: Storage
     required: true
-    options-from: list_disks()
+    options-from: options_disks()
     pattern: '^/dev/'
     error: Choose a disk that exists.
 ```
 
-| Declaration | Drawn as |
-| --- | --- |
-| nothing further | A text box |
-| `options: [a, b]` | A list |
-| `options-from: name()` | A list of what it printed, one per line |
-| `type: bool` | Yes or No |
-| `type: secret` | A password, typed twice, never stored |
-| `type: secret` and `existing: true` | A password, typed once |
-| `type: deferred` | A list, asked mid-run by the task that names it under `asks` |
+Every question names its type, and the type decides how it is drawn and which keys mean anything for it:
+
+| `type` | Drawn as | Takes |
+| --- | --- | --- |
+| `text` | A text box | `default`, `prefill`, `pattern`, `value-from` |
+| `bool` | Yes or No | `default`, `value-from` |
+| `list` | A list | `options` or `options-from`, `default`, `prefill`, `pattern`, `filter` |
+| `open-list` | A list, and a row for an answer of one's own | `options` or `options-from`, `default`, `prefill`, `pattern`, `filter` |
+| `password` | A password that exists already, typed once | `check` |
+| `new-password` | A password being chosen, typed twice | |
+| `deferred` | A list, asked mid-run by the task that names it under `asks` | `options` or `options-from`, `filter` |
 
 | Key | Description |
 | --- | --- |
 | `name` | **Required.** The variable a script reads |
+| `type` | **Required.** One of the types above |
 | `title` | **Required.** The question |
 | `description` | What the value is for |
 | `group` | Its heading on the settings page |
@@ -198,22 +200,20 @@ variables:
 | `value-from` | Shell that prints the value instead of asking. Never asked, never on the settings page, never stored |
 | `prefill` | Shell that prints a suggestion. Still asked |
 | `apply` | Shell run as the answer takes effect on this machine, such as a keymap |
-| `check` | On a secret: shell that tries it before it is taken |
-| `existing` | On a secret: it exists already, so it is typed once |
+| `check` | Shell that tries a `password` before it is taken |
 | `first` | Asked before everything else, `start-if` included |
-| `free` | Label of a text box under a list, for an answer the list only suggests |
 | `filter` | The list's narrowing box: `collapsed`, behind `/`, or `open` |
 | `pattern` | A regular expression the answer must match |
 | `error` | What a wrong answer is told |
 | `conditions` | When it is asked, see [Conditions](#conditions) |
 
-- `true` and `false` read as Yes and No, so `options: [auto, true, false]` is a bool with a third answer
-- A secret is asked right before the run, used and forgotten
+- `true` and `false` read as Yes and No, so a `list` of `[auto, true, false]` is a bool with a third answer
+- A password is asked right before the run, used and forgotten
 - `value-from` is read when the module opens and whenever an answer changes
 - An answer from `options-from` is held to its list again when the work is started, before any password. One the list no longer prints is asked again
 - `apply` failing on an answer just given is a warning. At startup the answer is dropped and asked again
 
-**Note:** _`value-from` is refused on a secret, and together with `prefill` or `first`. A deferred question needs `options` or `options-from`, and takes no `first`, `group` or `value-from`._
+**Note:** _A key its type does not take is refused at startup, and so is `value-from` together with `prefill` or `first`. A deferred question takes no `first` or `group`, a password no `first`._
 
 ### Conditions
 
@@ -292,11 +292,12 @@ title: Wireless network
 description: Join a wireless network.
 rules:
   offer-if: [wifi-card]
-  on-failure: wifi-passphrase
-variable:
-  name: WIFI_SSID
-  title: Network
-  options-from: list_networks()
+  on-failure: [wifi-passphrase]
+variables:
+  - name: WIFI_SSID
+    type: list
+    title: Network
+    options-from: options_networks()
 ```
 
 | Key | Description |
@@ -304,18 +305,18 @@ variable:
 | `title` | **Required.** Its row, and the heading over its page |
 | `description` | The sentence under its row. Choosing the row is the consent, so it says what leaves the machine |
 | `error` | What a no means. **Required** under `offer-if` and `start-if` |
-| `rules` | `offer-if` and `on-failure`, see [Rules](#rules) |
-| `variable` | Its one page before it runs: a question without `first`, `group` or `value-from` |
+| `rules` | `offer-if` and `on-failure`, the same keys as a module's, see [Rules](#rules) |
+| `variables` | Its questions before it runs, a page each: questions without `first`, `group` or `value-from` |
 | `report`, `shows` | Its one page after it ran, and an answer drawn there as a code |
 | `tty` | Its one page is the terminal itself |
 | `simulates` | Run under `--debug` too |
 
-- **One page at most.** A flow of several pages is several actions, chained by `on-failure`
+- **One kind of page at most:** its questions, a report or the terminal. A flow of several kinds is several actions, chained by `on-failure`
 - Run by itself, under an `-if`, an action is a question and has no page
 - Its answer belongs to the session: never stored, never on the settings page
 - `tty: true` hands the script the terminal outright, with a process group of its own
 
-**Note:** _Refused at startup: an unknown name, an action nothing names, an action opened on its own failure, a ring of actions, a second page, a page on an action run by itself, a check without `error`, and a question under `on-leave`._
+**Note:** _Refused at startup: an unknown name, an action nothing names, an action opened on its own failure, a ring of actions, a second kind of page, a page on an action run by itself, a check without `error`, a question under `on-leave`, and a rule only a module places: `start-if`, `on-settings`, `on-leave`, `on-success`._
 
 ## What a Script Receives
 
@@ -346,7 +347,7 @@ Beside wherever the program was started, never inside a module:
 | File | Description |
 | --- | --- |
 | `oak.conf` | Oak's own: `OAK_LANG` and `OAK_VALIDATE` |
-| `<module>.conf` | Every answer as `KEY='value'`, editable by hand. No secret, no derived answer, no action's answer |
+| `<module>.conf` | Every answer as `KEY='value'`, editable by hand. No password, no derived answer, no action's answer |
 | `<module>.log` | Oak's progress and everything every script printed |
 
 The last row of the settings page deletes the answer file, after a question that opens on No. The log stays.

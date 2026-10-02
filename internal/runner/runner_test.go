@@ -84,7 +84,7 @@ func TestABoolOffersItsTwoAnswersInWords(t *testing.T) {
 }
 
 func TestAWrittenOutSetIsItsOwnLabel(t *testing.T) {
-	sp, _, r := setup(t, "variables:\n  - name: FS\n    title: FS\n    options: [btrfs, ext4]\n", nil)
+	sp, _, r := setup(t, "variables:\n  - name: FS\n    type: list\n    title: FS\n    options: [btrfs, ext4]\n", nil)
 	got, err := r.Options(sp.Var("FS"))
 	if err != nil {
 		t.Fatal(err)
@@ -99,6 +99,7 @@ func TestATabSeparatesTheValueStoredFromTheTextRead(t *testing.T) {
 	sp, _, r := setupWith(t, `
 variables:
   - name: DISK
+    type: list
     title: Disk
     options-from: disks()
 `, `disks() { printf '/dev/sda\t/dev/sda  1TB Samsung\n\tNone of these\nplain\n'; }`, nil)
@@ -128,9 +129,11 @@ func TestAPrefillThatFailsIsSimplyNoSuggestion(t *testing.T) {
 	sp, _, r := setupWith(t, `
 variables:
   - name: A
+    type: text
     title: A
     prefill: zone()
   - name: B
+    type: text
     title: B
     prefill: nothing()
 `, "zone() { echo Europe/Berlin; }\nnothing() { return 1; }\n", nil)
@@ -240,7 +243,7 @@ func TestAnActionIsOfferedWhereWhatItRequiresSaysYes(t *testing.T) {
 func TestAnActionIsHandedItsPage(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "said")
 	sp, st, r := acting(t, "rules:\n  on-settings: [greet]\n", "", map[string][2]string{
-		"greet": {"title: Greet\nvariable:\n  name: GREETING\n  title: Greeting\n", "printf '%s' \"$GREETING\" > '" + out + "'\n"},
+		"greet": {"title: Greet\nvariables:\n  - name: GREETING\n    type: text\n    title: Greeting\n", "printf '%s' \"$GREETING\" > '" + out + "'\n"},
 	}, false)
 	st.Set("GREETING", "hello")
 	if err := opened(t, r, sp.Action("greet")); err != nil {
@@ -346,9 +349,11 @@ func TestApplyPutsAnAnswerInForce(t *testing.T) {
 	sp, st, r := setupWith(t, `
 variables:
   - name: KEYMAP
+    type: text
     title: Keymap
     apply: load_keymap()
   - name: PLAIN
+    type: text
     title: Plain
 `, `load_keymap() { echo "$KEYMAP" > "${DIR}/loaded"; }`, nil)
 	st.Set("KEYMAP", "de-latin1")
@@ -369,7 +374,7 @@ variables:
 // installer that stops because a keymap would not load is worse than one
 // carrying on.
 func TestAnApplyThatFailsIsOnlyAWarning(t *testing.T) {
-	sp, st, r := setupWith(t, "variables:\n  - name: X\n    title: X\n    apply: refuse()\n", "refuse() { return 1; }\n", nil)
+	sp, st, r := setupWith(t, "variables:\n  - name: X\n    type: text\n    title: X\n    apply: refuse()\n", "refuse() { return 1; }\n", nil)
 	st.Set("X", "value")
 	if err := r.Apply(sp.Var("X")); err == nil {
 		t.Error("an apply that failed was reported as done")
@@ -386,10 +391,12 @@ func TestSettleAsksAgainForAnAnswerItCannotPutInForce(t *testing.T) {
 	_, st, r := setupWith(t, `
 variables:
   - name: KEYMAP
+    type: text
     title: Keymap
     required: true
     apply: refuse()
   - name: FONT
+    type: text
     title: Font
     default: auto
     apply: only_auto()
@@ -415,9 +422,11 @@ func TestSettleAppliesOnlyTheAnswersThatWereGiven(t *testing.T) {
 	_, st, r := setupWith(t, `
 variables:
   - name: GIVEN
+    type: text
     title: Given
     apply: give()
   - name: OPEN
+    type: text
     title: Open
     apply: open_up()
 `, "give() { touch \"${DIR}/given\"; }\nopen_up() { touch \"${DIR}/open\"; }\n", nil)
@@ -437,7 +446,7 @@ func TestAListHoldingTrueAndFalseStillReadsInWords(t *testing.T) {
 	i18n.Use("de", &i18n.Catalog{Messages: map[string]string{"Yes": "Ja", "No": "Nein"}})
 	defer i18n.Use(i18n.SourceLang)
 
-	sp, _, r := setup(t, "variables:\n  - name: X\n    title: X\n    options: [auto, true, false]\n", nil)
+	sp, _, r := setup(t, "variables:\n  - name: X\n    type: list\n    title: X\n    options: [auto, true, false]\n", nil)
 	got, err := r.Options(sp.Var("X"))
 	if err != nil {
 		t.Fatal(err)
@@ -461,8 +470,8 @@ func TestAFetchedConfigurationBecomesTheAnswers(t *testing.T) {
 	applied := filepath.Join(t.TempDir(), "applied")
 	t.Setenv("APPLIED", applied)
 	sp, st, r := acting(t, "variables:\n"+
-		"  - name: DISK\n    title: Disk\n"+
-		"  - name: KEYMAP\n    title: Keymap\n    apply: mark_applied()\n"+
+		"  - name: DISK\n    type: text\n    title: Disk\n"+
+		"  - name: KEYMAP\n    type: text\n    title: Keymap\n    apply: mark_applied()\n"+
 		"presets:\n  - title: Online\n    action: fetch\n",
 		"mark_applied() { touch \"$APPLIED\"; }\n",
 		map[string][2]string{
@@ -488,7 +497,7 @@ func TestAFetchedConfigurationBecomesTheAnswers(t *testing.T) {
 // worked out again whenever the answer it follows from changes.
 func TestADerivedAnswerIsReadOffTheMachine(t *testing.T) {
 	_, st, r := setupWith(t, "variables:\n"+
-		"  - name: DISK\n    title: Disk\n"+
+		"  - name: DISK\n    type: text\n    title: Disk\n"+
 		"  - name: ENCRYPTED\n    title: Encrypted\n    type: bool\n    value-from: encrypted()\n",
 		"encrypted() { if [ \"$DISK\" = /dev/sdz ]; then echo true; else echo false; fi; }\n", nil)
 
@@ -508,7 +517,7 @@ func TestADerivedAnswerIsReadOffTheMachine(t *testing.T) {
 // held before: there is no question to fall back on, and a guard on an empty
 // name is simply false.
 func TestADerivedAnswerThatCannotBeReadIsEmpty(t *testing.T) {
-	_, st, r := setupWith(t, "variables:\n  - name: X\n    title: X\n    value-from: broken()\n", "broken() { return 7; }\n", nil)
+	_, st, r := setupWith(t, "variables:\n  - name: X\n    type: text\n    title: X\n    value-from: broken()\n", "broken() { return 7; }\n", nil)
 	st.Set("X", "stale")
 
 	r.Resolve()
@@ -524,19 +533,23 @@ func TestADerivedAnswerThatCannotBeReadIsEmpty(t *testing.T) {
 func TestUnofferedNamesTheAnswersTheirListsNoLongerPrint(t *testing.T) {
 	_, st, r := setupWith(t, `variables:
   - name: DISK
+    type: list
     title: Disk
     options-from: disks()
   - name: GONE
+    type: list
     title: Gone
     options-from: numbers()
   - name: FONT
+    type: open-list
     title: Font
-    free: Type a font name
     options-from: fonts()
   - name: BROKEN
+    type: list
     title: Broken
     options-from: broken()
   - name: OFF
+    type: list
     title: Off
     options-from: switches()
     conditions: DISK == nothing
@@ -562,9 +575,11 @@ switches() { echo on; }
 func TestUnofferedReadsTheListsAgainstTheAnswersWhenItWasMade(t *testing.T) {
 	_, st, r := setupWith(t, `variables:
   - name: LAYOUT
+    type: list
     title: Layout
     options-from: layouts()
   - name: VARIANT
+    type: list
     title: Variant
     options-from: variants()
 `, `layouts() { echo de; }

@@ -31,7 +31,7 @@ type offeredMsg struct {
 func (a *app) lookFor() tea.Cmd {
 	var cmds []tea.Cmd
 	for _, act := range a.module.Actions {
-		if len(act.OfferIf) == 0 {
+		if len(act.Rules.OfferIf) == 0 {
 			continue
 		}
 		ask := a.runner.Offered(act)
@@ -43,7 +43,18 @@ func (a *app) lookFor() tea.Cmd {
 // has reports whether this machine has an action, as what it requires last
 // said. Until that has said, the row is not shown: a row that would be taken
 // away again is worse than one that lands a moment late.
-func (a *app) has(act *spec.Action) bool { return len(act.OfferIf) == 0 || a.offered[act] }
+func (a *app) has(act *spec.Action) bool { return len(act.Rules.OfferIf) == 0 || a.offered[act] }
+
+// fallback is the first action an action names on failure that this machine
+// has, or nil.
+func (a *app) fallback(act *spec.Action) *spec.Action {
+	for _, fb := range a.module.Named(act.Rules.OnFailure) {
+		if a.has(fb) {
+			return fb
+		}
+	}
+	return nil
+}
 
 // rows is the actions a place names that this machine has, in its order.
 func (a *app) rows(names []string) []*spec.Action {
@@ -78,7 +89,16 @@ func (a *app) action(key string) *spec.Action {
 
 // asks reports whether an action, opened, puts a question before its work —
 // rather than running the moment it is opened.
-func (a *app) asks(act *spec.Action) bool { return act.Var != nil && act.Var.Applies(a.store.Get) }
+func (a *app) asks(act *spec.Action) bool { return a.question(act, 0) < len(act.Vars) }
+
+// question is the first of an action's questions from the i-th on that applies
+// to the answers, or how many it has where none does.
+func (a *app) question(act *spec.Action, i int) int {
+	for i < len(act.Vars) && !act.Vars[i].Applies(a.store.Get) {
+		i++
+	}
+	return i
+}
 
 // openAction is an action opened by somebody: its page where it asks one, then
 // its work.
@@ -95,14 +115,18 @@ func (a *app) openFrom(act *spec.Action, then func() tea.Cmd) tea.Cmd {
 // is pushed onto the one before it, so esc goes back a page, and the work knows
 // how many to take away again once it is done.
 func (a *app) firstPage(act *spec.Action, depth int, then func() tea.Cmd) screen {
-	work := func(depth int) screen {
+	return a.page(act, 0, depth, then)
+}
+
+// page is the action's question from the i-th on, each pushed onto the one
+// before, and its work once none is left.
+func (a *app) page(act *spec.Action, i, depth int, then func() tea.Cmd) screen {
+	i = a.question(act, i)
+	if i == len(act.Vars) {
 		return &actionScreen{app: a, act: act, depth: depth + 1, then: then}
 	}
-	if !a.asks(act) {
-		return work(depth)
-	}
-	v := act.Var
-	after := func() tea.Cmd { return push(work(depth + 1)) }
+	v := act.Vars[i]
+	after := func() tea.Cmd { return push(a.page(act, i+1, depth+1, then)) }
 	if v.Secret() {
 		return newSecret(a, v, after)
 	}
@@ -164,7 +188,7 @@ func (s *actionScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	s.app.store.Forget()
 	if ran.err != nil {
 		logging.Error("%s", ran.err)
-		if fb := s.app.module.Action(s.act.OnFailure); fb != nil && s.app.has(fb) {
+		if fb := s.app.fallback(s.act); fb != nil {
 			return s, replace(s.app.firstPage(fb, s.depth-1, s.then))
 		}
 		return s, replace(newFailure(s.act.Label(), ran.err, pop).saying(s.act.Refusal(s.app.store.Get)))
@@ -239,7 +263,10 @@ type gateScreen struct {
 
 	checked bool
 	why     string
-	offered bool
+
+	// fallback is what the action standing now opens on failure on this
+	// machine, as its last look found it, or nil.
+	fallback *spec.Action
 
 	// opened is whether the action standing now has had what it falls back on
 	// opened by itself already. Once is help; every time the page comes back
@@ -262,17 +289,14 @@ func newGate(a *app, all []*spec.Action, next func() screen) *gateScreen {
 
 type (
 	gateMsg struct {
-		refused bool
-		offered bool
-		round   int
+		refused  bool
+		fallback *spec.Action
+		round    int
 	}
 	gateDueMsg struct{ round int }
 )
 
 func (s *gateScreen) action() *spec.Action { return s.all[s.at] }
-
-// onFailure is the action the one standing now opens on failure, or nil.
-func (s *gateScreen) onFailure() *spec.Action { return s.app.module.Action(s.action().OnFailure) }
 
 func (s *gateScreen) Title() string { return s.action().Label() }
 
@@ -284,7 +308,7 @@ func (s *gateScreen) Hint() string {
 	switch {
 	case !s.checked:
 		return labelHintRunning()
-	case s.offered:
+	case s.fallback != nil:
 		return labelHintOpen()
 	}
 	return labelHintRetry()
@@ -303,15 +327,21 @@ func (s *gateScreen) check() tea.Cmd {
 	s.round++
 	round := s.round
 	says := s.app.runner.Says(s.action())
-	offered := func() bool { return false }
-	if fb := s.onFailure(); fb != nil {
-		offered = s.app.runner.Offered(fb)
+	fallbacks := s.app.module.Named(s.action().Rules.OnFailure)
+	offers := make([]func() bool, len(fallbacks))
+	for i, fb := range fallbacks {
+		offers[i] = s.app.runner.Offered(fb)
 	}
 	return func() tea.Msg {
 		if says() {
 			return gateMsg{round: round}
 		}
-		return gateMsg{refused: true, offered: offered(), round: round}
+		for i, offered := range offers {
+			if offered() {
+				return gateMsg{refused: true, fallback: fallbacks[i], round: round}
+			}
+		}
+		return gateMsg{refused: true, round: round}
 	}
 }
 
@@ -336,10 +366,10 @@ func (s *gateScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			}
 			return s, reset(s.next())
 		}
-		s.checked, s.why, s.offered = true, s.action().Refusal(s.app.store.Get), msg.offered
-		if s.offered && !s.opened && s.app.asks(s.onFailure()) {
+		s.checked, s.why, s.fallback = true, s.action().Refusal(s.app.store.Get), msg.fallback
+		if s.fallback != nil && !s.opened && s.app.asks(s.fallback) {
 			s.opened = true
-			return s, s.app.openAction(s.onFailure())
+			return s, s.app.openAction(s.fallback)
 		}
 		return s, s.wait()
 
@@ -354,8 +384,8 @@ func (s *gateScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			return s, nil
 		}
 		switch {
-		case confirms(msg) && s.offered:
-			return s, s.app.openAction(s.onFailure())
+		case confirms(msg) && s.fallback != nil:
+			return s, s.app.openAction(s.fallback)
 		case msg.String() == "r":
 			return s, s.check()
 		case backs(msg):
@@ -378,8 +408,8 @@ func (s *gateScreen) View(width, height int) string {
 		lines = []string{""}
 	}
 	var help []string
-	if s.offered {
-		help = wrap(s.onFailure().Help(), bodyWidth(width))
+	if s.fallback != nil {
+		help = wrap(s.fallback.Help(), bodyWidth(width))
 	}
 	if len(lines)+1+len(help) > height {
 		help = nil

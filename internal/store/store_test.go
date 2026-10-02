@@ -45,11 +45,13 @@ func load(t *testing.T, installer string) *spec.Module {
 const twoVars = `
 variables:
   - name: USER
+    type: text
     title: User
     required: true
     pattern: '^[a-z]+$'
     error: Lower case letters only.
   - name: HOST
+    type: text
     title: Host
     default: workstation
 `
@@ -85,7 +87,7 @@ func TestSecretsAreNeverMissingAndNeverWritten(t *testing.T) {
 variables:
   - name: PW
     title: Password
-    type: secret
+    type: new-password
     required: true
 `)
 	// Required, unanswered, and still not what stops the program: a secret is
@@ -112,7 +114,7 @@ variables:
 }
 
 func TestForgetClearsSecrets(t *testing.T) {
-	s := setup(t, "variables:\n  - name: PW\n    title: P\n    type: secret\n")
+	s := setup(t, "variables:\n  - name: PW\n    title: P\n    type: new-password\n")
 	s.Set("PW", "hunter2")
 	s.Forget()
 	if got := s.Get("PW"); got != "" {
@@ -134,7 +136,7 @@ func TestAnswersSurviveTheRoundTrip(t *testing.T) {
 	var decl strings.Builder
 	decl.WriteString("variables:\n")
 	for name := range values {
-		decl.WriteString("  - name: " + name + "\n    title: " + name + "\n")
+		decl.WriteString("  - name: " + name + "\n    type: text\n    title: " + name + "\n")
 	}
 	s := setup(t, decl.String())
 	for name, v := range values {
@@ -253,6 +255,7 @@ variables:
     title: Desktop
     type: bool
   - name: DRIVER
+    type: text
     title: Driver
     required: true
     conditions: DESKTOP == true
@@ -272,10 +275,12 @@ func TestUpfrontIsWhatIsStillOpenAndMarkedFirst(t *testing.T) {
 	s := setup(t, `
 variables:
   - name: LOCALE
+    type: text
     title: Locale
     required: true
     first: true
   - name: USER
+    type: text
     title: User
     required: true
 `)
@@ -298,9 +303,11 @@ func TestDisplayReadsTheTwoBoolWordsOutLoud(t *testing.T) {
 	s := setup(t, `
 variables:
   - name: AUTOLOGIN
+    type: list
     title: Autologin
     options: [auto, true, false]
   - name: HOST
+    type: text
     title: Host
 `)
 	for value, want := range map[string]string{"auto": "auto", "true": "Yes", "false": "No"} {
@@ -330,8 +337,10 @@ func TestTheEnvironmentDoesNotAnswerQuestions(t *testing.T) {
 	s := setup(t, `
 variables:
   - name: USER
+    type: text
     title: User
   - name: HOST
+    type: text
     title: Host
     default: workstation
 `)
@@ -351,11 +360,14 @@ title: T
 stages: [go]
 variables:
   - name: DISK
+    type: text
     title: Disk
   - name: FS
+    type: list
     title: File system
     options: [btrfs, ext4]
   - name: EXTRA
+    type: text
     title: Extra
     conditions: DISK == /dev/sda
 `)
@@ -419,8 +431,8 @@ func TestLoadingAgainPicksUpWhatAScriptWroteIntoTheAnswerFile(t *testing.T) {
 // with what the next run reads.
 func TestADerivedAnswerIsNeitherAskedNorShownNorWritten(t *testing.T) {
 	s := setup(t, "variables:\n"+
-		"  - name: DISK\n    title: Disk\n    required: true\n"+
-		"  - name: ENCRYPTED\n    title: Encrypted\n    required: true\n    value-from: encrypted()\n")
+		"  - name: DISK\n    type: text\n    title: Disk\n    required: true\n"+
+		"  - name: ENCRYPTED\n    type: text\n    title: Encrypted\n    required: true\n    value-from: encrypted()\n")
 
 	if names := names(s.Missing()); strings.Join(names, ",") != "DISK" {
 		t.Errorf("missing = %v, want just DISK", names)
@@ -450,11 +462,13 @@ func TestAnAnswerAListNoLongerOffersIsMissingAgain(t *testing.T) {
 	s := setup(t, `
 variables:
   - name: DISK
+    type: list
     title: Disk
     required: true
     options-from: disks()
     error: Choose a disk that exists.
   - name: KEYMAP
+    type: list
     title: Keyboard
     options-from: keymaps()
 `)

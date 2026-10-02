@@ -350,19 +350,37 @@ func (t *Task) ReportText(get func(string) string) (headline, body string) {
 	return headline, strings.TrimSpace(body)
 }
 
-// The shapes a variable takes. The type is what the frame draws; a set of
-// values or a command turns the default text box into a list without anything
-// having to say so.
+// The types a variable is declared as, one of which every variable names. The
+// type is what the frame draws and which keys mean anything for it.
 //
-// Two of them also say when a question is asked, because that is not when the
-// rest are: a secret immediately before the run, and a deferred one in the
+// Three of them also say when a question is asked, because that is not when the
+// rest are: a password immediately before the run, and a deferred one in the
 // middle of it, by the task that names it under `asks:`.
 const (
-	TypeText     = "text"
-	TypeBool     = "bool"
-	TypeSecret   = "secret"
-	TypeDeferred = "deferred"
+	TypeText        = "text"
+	TypeBool        = "bool"
+	TypeList        = "list"
+	TypeOpenList    = "open-list"
+	TypePassword    = "password"
+	TypeNewPassword = "new-password"
+	TypeDeferred    = "deferred"
 )
+
+// Types is every type there is, in the order the reference lists them.
+var Types = []string{TypeText, TypeBool, TypeList, TypeOpenList, TypePassword, TypeNewPassword, TypeDeferred}
+
+// TypeKeys are the keys only some types take, by type. A key set on a type
+// that does not take it is refused, since nothing would read it. Every other
+// key means the same on each type.
+var TypeKeys = map[string][]string{
+	TypeText:        {"default", "prefill", "value-from", "pattern"},
+	TypeBool:        {"default", "value-from"},
+	TypeList:        {"options", "options-from", "filter", "default", "prefill", "pattern"},
+	TypeOpenList:    {"options", "options-from", "filter", "default", "prefill", "pattern"},
+	TypePassword:    {"check"},
+	TypeNewPassword: {},
+	TypeDeferred:    {"options", "options-from", "filter"},
+}
 
 // The two answers a bool variable has. They are written into the answer file
 // and read by scripts as plain shell truth, so they are these words and not
@@ -395,25 +413,20 @@ type Variable struct {
 	// that named it — there is nothing to declare up front.
 	Group string `yaml:"group"`
 
+	// Type is one of Types, and required: what is drawn, and which of the keys
+	// below mean anything.
+	//
+	// A password exists already, on the disk it opens, and is typed once. A
+	// new-password is being chosen and is typed twice: nothing checks it, and a
+	// typo in it is found at the first boot of a system that took twenty
+	// minutes to build.
 	Type     string `yaml:"type"`
 	Default  Scalar `yaml:"default"`
 	Required bool   `yaml:"required"`
 
-	// Existing marks a secret that is not chosen here but entered: the disk
-	// already has this password, and whatever it is handed to refuses it within
-	// seconds. That one is asked once.
-	//
-	// The repeat everywhere else is not a setting either, and this is not a way
-	// to turn it off. A password being chosen is checked by nothing — a typo in
-	// it is found at the first boot of a system that took twenty minutes to
-	// build — and four seconds against that is no trade. Typing a password
-	// twice to open something that would have said no is.
-	Existing bool `yaml:"existing"`
-
-	// Check tries a secret before it is taken, with the value under its own
-	// name: an existing password, on the thing it opens. A non-zero exit refuses
-	// it on the page it was typed on. Only a secret has one; every other answer
-	// is held to its pattern.
+	// Check tries a password before it is taken, with the value under its own
+	// name, on the thing it opens. A non-zero exit refuses it on the page it was
+	// typed on. Every other answer is held to its pattern.
 	Check string `yaml:"check"`
 
 	// First puts this question before everything else the program does — before
@@ -433,8 +446,8 @@ type Variable struct {
 	// declaration.
 	First bool `yaml:"first"`
 
-	// Where the answers come from, when there is a set of them: written out, or
-	// printed one per line by shell. A variable with neither is free text.
+	// Where a list's answers come from: written out, or printed one per line by
+	// shell.
 	Options     []string `yaml:"options"`
 	OptionsFrom string   `yaml:"options-from"`
 
@@ -445,12 +458,6 @@ type Variable struct {
 	// pages nobody can be told apart in advance. It is declared here, once, and
 	// holds wherever the module runs.
 	Filter string `yaml:"filter"`
-
-	// Free is the row that opens a text box under a list of answers, for the
-	// variable whose list is a suggestion rather than the whole set. Its text is
-	// the row's own label; empty offers no such row, which is what a closed set
-	// wants.
-	Free string `yaml:"free"`
 
 	// Prefill prints a suggested answer — a timezone guessed from the network,
 	// a keymap read off the live system. Only ever a suggestion: it fills the
@@ -481,11 +488,29 @@ type Variable struct {
 	cond []*condition
 }
 
+// typedKeys are the keys of TypeKeys this question sets.
+func (v *Variable) typedKeys() []string {
+	var keys []string
+	for _, k := range []struct {
+		key string
+		set bool
+	}{
+		{"options", len(v.Options) > 0}, {"options-from", v.OptionsFrom != ""}, {"filter", v.Filter != ""},
+		{"default", v.Default != ""}, {"prefill", v.Prefill != ""}, {"value-from", v.ValueFrom != ""},
+		{"pattern", v.Pattern != ""}, {"check", v.Check != ""},
+	} {
+		if k.set {
+			keys = append(keys, k.key)
+		}
+	}
+	return keys
+}
+
 // Deferred reports whether this value is one the opening run of questions has
 // no business asking: a task asks it mid-run, under `asks:`. A snapshot to go
 // back to cannot be chosen, or shown on a settings page, while the disk holding
 // it is still locked.
-func (v *Variable) Deferred() bool { return v.Shape() == TypeDeferred }
+func (v *Variable) Deferred() bool { return v.Type == TypeDeferred }
 
 // Derived reports whether this value is read off the machine rather than asked
 // for. Like a deferred one it is not a question, and for the mirror reason:
@@ -495,8 +520,14 @@ func (v *Variable) Derived() bool { return v.ValueFrom != "" }
 func (v *Variable) Label() string { return i18n.T(v.Title) }
 func (v *Variable) Help() string  { return i18n.T(v.Description) }
 
-// FreeLabel is the row that opens a text box under a list of answers.
-func (v *Variable) FreeLabel() string { return i18n.T(v.Free) }
+// Open reports whether this list also takes an answer typed in: the list only
+// suggests.
+func (v *Variable) Open() bool { return v.Type == TypeOpenList }
+
+// Listed reports whether the answer is chosen from a list.
+func (v *Variable) Listed() bool {
+	return v.Type == TypeList || v.Type == TypeOpenList || v.Type == TypeDeferred
+}
 func (v *Variable) GroupLabel() string {
 	if v.Group == "" {
 		return ""
@@ -537,25 +568,15 @@ func (v *Variable) WhyRefused() string {
 	return i18n.T("This password was not accepted.")
 }
 
-// Shape is the type with the empty default filled in, so everything else can
-// switch on exactly four values.
-func (v *Variable) Shape() string {
-	if v.Type == "" {
-		return TypeText
-	}
-	return v.Type
-}
+// Secret reports whether this answer is never written down: either kind of
+// password. It is asked for immediately before the run that needs it, kept in
+// memory for that run, and forgotten — so it is also the one required variable
+// that does not stop the program from being ready.
+func (v *Variable) Secret() bool { return v.Type == TypePassword || v.Type == TypeNewPassword }
 
-// Secret reports whether this answer is never written down. It is asked for
-// immediately before the run that needs it, kept in memory for that run, and
-// forgotten — so it is also the one required variable that does not stop the
-// program from being ready.
-func (v *Variable) Secret() bool { return v.Shape() == TypeSecret }
-
-// Repeats reports whether this secret is typed twice to catch a typo in it.
-// Every one that is being chosen; none that already exists somewhere and is
-// only being handed over.
-func (v *Variable) Repeats() bool { return v.Secret() && !v.Existing }
+// Repeats reports whether this password is typed twice to catch a typo in it:
+// one being chosen, never one that already exists and is only handed over.
+func (v *Variable) Repeats() bool { return v.Type == TypeNewPassword }
 
 // FilterMode is what this question's list does with its narrowing box, with the
 // default filled in. A question asked first is open whatever it says: the key
@@ -581,7 +602,7 @@ func (v *Variable) domain() []string {
 	switch {
 	case len(v.Options) > 0:
 		return v.Options
-	case v.Shape() == TypeBool:
+	case v.Type == TypeBool:
 		return []string{BoolTrue, BoolFalse}
 	}
 	return nil
@@ -648,7 +669,6 @@ func (s *Module) Messages() []Message {
 		add(decl, v.Name+": the question", v.Title)
 		add(decl, v.Name+": what it means", v.Description)
 		add(decl, v.Name+": the heading its row sits under", v.Group)
-		add(decl, v.Name+": the row that opens a box for an answer of one's own", v.Free)
 		add(decl, v.Name+": what a wrong answer is told", v.Error)
 	}
 	if st := s.Status; st != nil {
@@ -667,10 +687,9 @@ func (s *Module) Messages() []Message {
 		add(file, "an action: what it does, under its row", a.Description)
 		add(file, "an action: what a no from it means", a.Error)
 		add(file, "read once the action is done, and held on until somebody has", a.Report)
-		if v := a.Var; v != nil {
-			add(file, v.Name+": the page of the action", v.Title)
+		for _, v := range a.Vars {
+			add(file, v.Name+": a page of the action", v.Title)
 			add(file, v.Name+": what it means", v.Description)
-			add(file, v.Name+": the row that opens a box for an answer of one's own", v.Free)
 			add(file, v.Name+": what a wrong answer is told", v.Error)
 		}
 	}

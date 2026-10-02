@@ -81,6 +81,7 @@ title: Installer
 stages: [go]
 variables:
   - name: HOST
+    type: text
     title: Host name
     description: |
       The name this machine has.
@@ -118,11 +119,12 @@ rules:
   start-if: [root]
 variables:
   - name: HOST
+    type: text
     title: Host name
     required: true
   - name: PASSWORD
     title: Password
-    type: secret
+    type: new-password
     required: true
 `, map[string]string{
 		"actions/root/action.yaml": "title: Root\nerror: Log in as root.\n",
@@ -140,7 +142,7 @@ variables:
 	for _, want := range []string{
 		"modules     installer",
 		"title       Installer",
-		"variables   2 (2 required, 1 secret, 0 deferred, 0 derived)",
+		"variables   2 (2 required, 1 password, 0 deferred, 0 derived)",
 		"tasks       1",
 		"start-if    root",
 		"actions     root",
@@ -177,6 +179,7 @@ title: Installer
 stages: [go]
 variables:
   - name: SPARE
+    type: text
     title: Spare
 `, nil)
 	if _, err := spec.Load(mod); err != nil {
@@ -201,6 +204,7 @@ title: Installer
 stages: [go]
 variables:
   - name: DISK
+    type: text
     title: Disk
     required: true
 `, map[string]string{
@@ -229,7 +233,7 @@ func TestEveryActionIsListedWithWhatItNames(t *testing.T) {
 	mod, err := spec.Load(writeModule(t, "title: T\nstages: [go]\nrules:\n  start-if: [internet]\n  on-leave: [reboot]\n", map[string]string{
 		"actions/card/action.yaml":     "title: Card\n",
 		"actions/card/action.sh":       "true\n",
-		"actions/internet/action.yaml": "title: Internet\nerror: There is no internet.\nrules:\n  on-failure: wlan\n",
+		"actions/internet/action.yaml": "title: Internet\nerror: There is no internet.\nrules:\n  on-failure: [wlan]\n",
 		"actions/internet/action.sh":   "true\n",
 		"actions/reboot/action.yaml":   "title: Reboot\n",
 		"actions/reboot/action.sh":     "true\n",

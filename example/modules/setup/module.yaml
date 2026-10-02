@@ -25,15 +25,17 @@ rules:
 variables:
   # prefill suggests and Oak still asks; a default would answer.
   - name: TUX_HOST
+    type: text
     title: Hostname
     description: What the machine calls itself on the network.
     group: System
     required: true
-    prefill: suggest_hostname()
+    prefill: prefill_hostname()
     pattern: '^[a-z][a-z0-9-]*$'
     error: Lower case letters, digits and - only.
 
   - name: TUX_USER
+    type: text
     title: User name
     description: The account you log in with.
     group: System
@@ -42,6 +44,7 @@ variables:
     error: Lower case letters, digits and - only.
 
   - name: TUX_DESKTOP
+    type: list
     title: Desktop
     description: Which desktop to install. Without one the system boots to a console.
     group: System
@@ -50,6 +53,7 @@ variables:
 
   # Answered by its default, so it is never asked, only changed in the settings.
   - name: TUX_TARGET
+    type: text
     title: Target folder
     description: Where the system tree is built. A real installer names a disk here.
     group: Storage

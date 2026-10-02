@@ -1,10 +1,11 @@
-# Under on-settings: its one page, then action.sh with the answer. Kept for this
-# session only.
+# Under on-settings: its one question, then action.sh with the answer. Kept for
+# this session only.
 title: Leave a note
 description: Write a line for whoever logs in to the tree first.
 
-variable:
-  name: TUX_NOTE
-  title: Note
-  description: What the tree greets its first login with.
-  default: Welcome to Tux.
+variables:
+  - name: TUX_NOTE
+    type: text
+    title: Note
+    description: What the tree greets its first login with.
+    default: Welcome to Tux.

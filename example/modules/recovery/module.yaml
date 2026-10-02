@@ -10,6 +10,7 @@ rules:
 
 variables:
   - name: TUX_TARGET
+    type: text
     title: System folder
     description: The tree to check.
     group: Storage
@@ -18,7 +19,8 @@ variables:
 
   # Read off the tree rather than asked, never stored.
   - name: TUX_DESKTOP
+    type: text
     title: Desktop
     description: Which desktop the tree was built with.
     group: Storage
-    value-from: tux_desktop()
+    value-from: value_desktop()
