@@ -23,6 +23,7 @@ flowchart LR
 
 - The commits inside the branch are yours to shape. Only the title reaches `main`
 - A draft never passes `Ready`, so nothing is merged before the full run
+- A pull request that changes nothing but `CHANGELOG.md` or the release manifest starts no run and is never merged: both are the release pull request's
 
 ## The Title
 
@@ -66,7 +67,7 @@ Nothing is typed and nothing is tagged by hand.
 
 **Note:** _What each number promises a product is written down once, in the **[README](README.md#1-get-oak)**._
 
-## What CI runs
+## What CI Runs
 
 | Job | When | Does |
 | --- | --- | --- |
@@ -83,16 +84,16 @@ Nothing is typed and nothing is tagged by hand.
 
 ```
 make check                     # the whole gate, as CI runs it
+make fmt                       # format the Go and the shell
 make run                       # Oak against the example product
 make run MODULE=setup          # opens one module directly
 make run ARGS=--debug          # ...without touching anything
 make inspect                   # loads the example the way a run does
-make locales                   # the template, and every catalog brought up to it
-make fmt                       # format the Go and the shell
 make build                     # bin/oak-linux-amd64, the file a release publishes
 make test-race                 # the tests under the race detector
 make vuln                      # known vulnerabilities in what this imports
 make version-check TAG=v0.5.0  # would that tag be allowed to release this?
+make locales                   # the template, and every catalog brought up to it
 ```
 
 ```
@@ -101,7 +102,7 @@ sudo pacman -S --needed go gcc make shellcheck shfmt staticcheck yamllint action
 
 **Note:** _CI installs the same packages and runs the same commands in an Arch container. There is no second definition of green._
 
-## The Boundary
+### The Boundary
 
 Oak draws, asks, keeps and runs. It knows nothing about what is being installed.
 
@@ -109,7 +110,7 @@ If a change would put the word `pacman`, `btrfs`, `GNOME` or `LUKS` anywhere in 
 
 **Note:** _Oak must not know a module by name either. `installer` and `recovery` are folder names in somebody's product, not words in this code._
 
-## Words on Screen
+## Translating
 
 Every sentence Oak shows is translatable, and the English sentence is its own key. Reword one and the old translation is marked fuzzy rather than dropped; delete it and the translation goes with it.
 
