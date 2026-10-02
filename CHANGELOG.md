@@ -2,6 +2,19 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.18.0](https://github.com/murkl/oak/compare/v0.17.1...v0.18.0) (2026-10-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* every question names its type, and an action asks a list of variables under the same rules as a module ([#41](https://github.com/murkl/oak/issues/41))
+* the words of a module's pages under text:, the last page after every password in the module's own words, and every confirm opening on No ([#40](https://github.com/murkl/oak/issues/40))
+
+### Features
+
+* every question names its type, and an action asks a list of variables under the same rules as a module ([#41](https://github.com/murkl/oak/issues/41)) ([40c3ca2](https://github.com/murkl/oak/commit/40c3ca23747258e7841b1b86992c51b2db80f04b))
+* the words of a module's pages under text:, the last page after every password in the module's own words, and every confirm opening on No ([#40](https://github.com/murkl/oak/issues/40)) ([eafd411](https://github.com/murkl/oak/commit/eafd411b875547f02457b53804398bbf7be7aadd))
+
 ## [0.17.1](https://github.com/murkl/oak/compare/v0.17.0...v0.17.1) (2026-10-02)
 
 
