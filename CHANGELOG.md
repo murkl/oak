@@ -2,6 +2,13 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.17.1](https://github.com/murkl/oak/compare/v0.17.0...v0.17.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* no script inherits a descriptor the interface opened ([57cc18f](https://github.com/murkl/oak/commit/57cc18f58f995c40a81e21693d79fc5b187a2278))
+
 ## [0.17.0](https://github.com/murkl/oak/compare/v0.16.0...v0.17.0) (2026-10-02)
 
 
