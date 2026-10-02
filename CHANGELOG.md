@@ -2,6 +2,17 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.17.0](https://github.com/murkl/oak/compare/v0.16.0...v0.17.0) (2026-10-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* test results on a row of their own, shell named as name() or ./file.sh, keys named after what they hold, and a last warning that says it cannot be undone ([#36](https://github.com/murkl/oak/issues/36))
+
+### Features
+
+* test results on a row of their own, shell named as name() or ./file.sh, keys named after what they hold, and a last warning that says it cannot be undone ([#36](https://github.com/murkl/oak/issues/36)) ([75b1313](https://github.com/murkl/oak/commit/75b131348de9dab9f177352cf44d92bb90f94eef))
+
 ## [0.16.0](https://github.com/murkl/oak/compare/v0.15.0...v0.16.0) (2026-10-02)
 
 
