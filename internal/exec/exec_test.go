@@ -1,11 +1,14 @@
 package exec
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 var sh = Runner{Module: "Test Module"}
@@ -344,6 +347,22 @@ func TestAScriptSeesTheEnvironmentItWasGiven(t *testing.T) {
 	}
 	if strings.TrimSpace(string(got)) != "disk=/dev/sda" {
 		t.Errorf("the script saw %q", got)
+	}
+}
+
+// A descriptor opened without close-on-exec, as bubbletea's input reader opens
+// its epoll, reaches no script: lvm warns about every one it inherits.
+func TestAScriptInheritsNoStrayDescriptor(t *testing.T) {
+	fd, err := unix.EpollCreate1(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+
+	s := run(t, fmt.Sprintf("[ ! -e /proc/$$/fd/%d ]\n", fd))
+
+	if err := s.Err(); err != nil {
+		t.Errorf("the script inherited descriptor %d: %v", fd, err)
 	}
 }
 

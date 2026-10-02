@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/murkl/oak/internal/logging"
 
 	"github.com/charmbracelet/x/ansi"
+	"golang.org/x/sys/unix"
 )
 
 // Env is the variable set handed to every script, as KEY=value entries.
@@ -191,6 +193,15 @@ func (r Runner) args(wrapper, payload string) []string {
 	return []string{"-c", wrapper, "--", payload, r.Shell}
 }
 
+// bash is the one way this package starts a process. Every descriptor above
+// stderr is marked close-on-exec first: bubbletea's input reader opens its
+// epoll without the flag, and every script would inherit it. A kernel older
+// than 5.11 lacks the call and leaves them as they are.
+func bash(args []string) *exec.Cmd {
+	_ = unix.CloseRange(3, math.MaxUint32, unix.CLOSE_RANGE_CLOEXEC)
+	return exec.Command("bash", args...)
+}
+
 // Run executes a one-liner and returns its trimmed stdout. Used for the small
 // reads: an option list, a suggested value.
 func (r Runner) Run(s string, env Env) (string, error) {
@@ -247,7 +258,7 @@ func (r Runner) say(s string, env Env) (out, said string, err error) {
 
 // ask is that, under whichever wrapper the caller's shell is written to.
 func (r Runner) ask(wrapper, s string, env Env) (out, said string, err error) {
-	cmd := exec.Command("bash", r.args(wrapper, s)...)
+	cmd := bash(r.args(wrapper, s))
 	cmd.Env = env
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -333,7 +344,7 @@ func (r Runner) Start(step Step, env Env) (*Session, error) {
 // closes the write end right after starting (see drain).
 func (r Runner) command(step Step, env Env) (*exec.Cmd, *os.File, error) {
 	wrapper, payload := wrap(step)
-	cmd := exec.Command("bash", r.args(wrapper, payload)...)
+	cmd := bash(r.args(wrapper, payload))
 	cmd.Env = env
 	// A process group of its own, so that stopping a stage stops everything it
 	// started. A stage is one line of shell that runs a package manager that
@@ -355,7 +366,7 @@ func (r Runner) command(step Step, env Env) (*exec.Cmd, *os.File, error) {
 // there is no process group to kill — the user is at the keyboard, and what
 // they see is what the script prints. All that comes back is the exit code.
 func (r Runner) Terminal(script Script, env Env) *Handover {
-	cmd := exec.Command("bash", r.args(handover, script.shell())...)
+	cmd := bash(r.args(handover, script.shell()))
 	cmd.Env = env
 	return &Handover{cmd: cmd, tty: controllingTerminal}
 }
