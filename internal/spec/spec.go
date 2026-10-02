@@ -170,10 +170,14 @@ type UI struct {
 	Description string
 
 	// StartTitle is what starting the work is called — "Install", "Repair" — on
-	// the first row of the menu and on the button of the page before the run. A
-	// verb rather than a second name: the title already stands over both. Empty
-	// leaves the runtime's own word.
+	// the first row of the menu. A verb rather than a second name: the title
+	// already stands over it. Empty leaves the runtime's own word.
 	StartTitle string
+
+	// SettingsTitle is what the page of every answer is called — "Configuration"
+	// — on its row of the menu and over the page itself. Empty leaves the
+	// runtime's own word.
+	SettingsTitle string
 }
 
 // Help is what this module is, in one sentence: the line under the row that
@@ -183,6 +187,10 @@ func (s *Module) Help() string { return i18n.T(s.UI.Description) }
 // Start is what starting the work is called, translated. Empty where the
 // module leaves it to the runtime.
 func (s *Module) Start() string { return i18n.T(s.UI.StartTitle) }
+
+// Settings is what the page of every answer is called, translated. Empty where
+// the module leaves it to the runtime.
+func (s *Module) Settings() string { return i18n.T(s.UI.SettingsTitle) }
 
 // Checks reports whether anything in this module says how to tell that it
 // worked. A module with nothing to check is never offered the setting that
@@ -321,10 +329,15 @@ func (t *Task) ReportText(get func(string) string) (headline, body string) {
 // The shapes a variable takes. The type is what the frame draws; a set of
 // values or a command turns the default text box into a list without anything
 // having to say so.
+//
+// Two of them also say when a question is asked, because that is not when the
+// rest are: a secret immediately before the run, and a deferred one in the
+// middle of it, by the task that names it under `asks:`.
 const (
-	TypeText   = "text"
-	TypeBool   = "bool"
-	TypeSecret = "secret"
+	TypeText     = "text"
+	TypeBool     = "bool"
+	TypeSecret   = "secret"
+	TypeDeferred = "deferred"
 )
 
 // The two answers a bool variable has. They are written into the answer file
@@ -450,16 +463,15 @@ type Variable struct {
 	Error      string     `yaml:"error"`
 	Conditions Conditions `yaml:"conditions"`
 
-	re       *regexp.Regexp
-	cond     []*condition
-	deferred bool
+	re   *regexp.Regexp
+	cond []*condition
 }
 
 // Deferred reports whether this value is one the opening run of questions has
-// no business asking. Nothing declares it: being named by a task's `asks:` is
-// the declaration. A snapshot to go back to cannot be chosen, or shown on a
-// settings page, while the disk holding it is still locked.
-func (v *Variable) Deferred() bool { return v.deferred }
+// no business asking: a task asks it mid-run, under `asks:`. A snapshot to go
+// back to cannot be chosen, or shown on a settings page, while the disk holding
+// it is still locked.
+func (v *Variable) Deferred() bool { return v.Shape() == TypeDeferred }
 
 // Derived reports whether this value is read off the machine rather than asked
 // for. Like a deferred one it is not a question, and for the mirror reason:
@@ -512,7 +524,7 @@ func (v *Variable) WhyRefused() string {
 }
 
 // Shape is the type with the empty default filled in, so everything else can
-// switch on exactly three values.
+// switch on exactly four values.
 func (v *Variable) Shape() string {
 	if v.Type == "" {
 		return TypeText
@@ -611,7 +623,8 @@ func (s *Module) Messages() []Message {
 	decl := FileModule
 	add(decl, "what this module is called, wherever the interface names it", s.UI.Title)
 	add(decl, "what it is, in one sentence, under the row that starts the work", s.UI.Description)
-	add(decl, "the row that starts the work, and the button on the page before it", s.UI.StartTitle)
+	add(decl, "the row that starts the work", s.UI.StartTitle)
+	add(decl, "the row that opens every answer, and the heading over that page", s.UI.SettingsTitle)
 	for _, o := range s.Presets {
 		add(decl, "a starting point: its row", o.Title)
 		add(decl, "starting point "+o.Title+": what choosing it does", o.Description)

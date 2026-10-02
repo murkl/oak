@@ -289,7 +289,7 @@ func TestAModuleNamesWhatItIsOfferedOn(t *testing.T) {
 // the rule that names it, in the order it names them.
 func TestActionsAreNamedWhereTheyRun(t *testing.T) {
 	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("rules:\n  start-if: [root, internet]\n  menu: [wlan]\n  on-leave: [restart]\n")},
+		map[string]string{FileModule: head("rules:\n  start-if: [root, internet]\n  settings: [wlan]\n  on-leave: [restart]\n")},
 		action("root", "title: Running as root\nfail: Log in as root.\n"),
 		action("internet", "title: Internet\nfail: There is no internet.\nrules:\n  on-failure: wlan\n"),
 		action("wlan", "title: Wireless network\nrules:\n  offer-if: [card]\n"),
@@ -339,7 +339,7 @@ func TestAModuleWithoutActionsHasNone(t *testing.T) {
 // shows is declared by being named there.
 func TestAnActionsPageIsDeclaredBesideTheModulesOwn(t *testing.T) {
 	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("rules:\n  menu: [wlan, share]\nvariables:\n  - name: DISK\n    title: Disk\n")},
+		map[string]string{FileModule: head("rules:\n  settings: [wlan, share]\nvariables:\n  - name: DISK\n    title: Disk\n")},
 		action("wlan", `
 title: Wireless network
 variable:
@@ -372,8 +372,8 @@ variable:
 // run, and every name has to be an action. Each of these loads into something
 // that never runs, or asks where nobody is asked.
 func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
-	menu := func(yaml string) map[string]string {
-		return units(map[string]string{FileModule: head("rules:\n  menu: [o]\n")}, action("o", yaml))
+	row := func(yaml string) map[string]string {
+		return units(map[string]string{FileModule: head("rules:\n  settings: [o]\n")}, action("o", yaml))
 	}
 	required := func(yaml string) map[string]string {
 		return units(map[string]string{FileModule: head("rules:\n  start-if: [o]\n")}, action("o", "fail: No.\n"+yaml))
@@ -383,40 +383,41 @@ func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 		files map[string]string
 		want  string
 	}{
-		{"no title", menu("description: O\n"), "title is required"},
-		{"nothing that runs", map[string]string{FileModule: head("rules:\n  menu: [o]\n"), "actions/o/action.yaml": "title: O\n"}, "no " + FileActionScript},
+		{"no title", row("description: O\n"), "title is required"},
+		{"nothing that runs", map[string]string{FileModule: head("rules:\n  settings: [o]\n"), "actions/o/action.yaml": "title: O\n"}, "no " + FileActionScript},
 		{"a name that is no action", map[string]string{FileModule: head("rules:\n  start-if: [ghost]\n")}, "rules: start-if: no such action: ghost"},
-		{"a failure opening no action", menu("title: O\nrules:\n  on-failure: ghost\n"), "rules: on-failure: no such action: ghost"},
+		{"a failure opening no action", row("title: O\nrules:\n  on-failure: ghost\n"), "rules: on-failure: no such action: ghost"},
 		{"an action nothing names", action("o", "title: O\n"), "nothing names it, so it never runs"},
 		{"a required action that asks", required("title: O\nvariable:\n  name: X\n  title: X\n"), "it runs by itself where it is named, so it has no page"},
 		{"a required action that reports", required("title: O\nreport: Done\n"), "it runs by itself where it is named, so it has no page"},
 		{"a required action that does not say why", units(map[string]string{FileModule: head("rules:\n  start-if: [o]\n")}, action("o", "title: O\n")), "fail: it runs by itself in front of the work"},
 		{"a way out that asks", units(map[string]string{FileModule: head("rules:\n  on-leave: [o]\n")}, action("o", "title: O\nvariable:\n  name: X\n  title: X\n")), "a way out asks nothing"},
-		{"a failure opening itself", menu("title: O\nrules:\n  on-failure: o\n"), "cannot put itself right"},
+		{"a failure opening itself", row("title: O\nrules:\n  on-failure: o\n"), "cannot put itself right"},
 		{"actions that wait on each other", units(
-			map[string]string{FileModule: head("rules:\n  menu: [a]\n")},
+			map[string]string{FileModule: head("rules:\n  settings: [a]\n")},
 			action("a", "title: A\nrules:\n  offer-if: [b]\n"),
 			action("b", "title: B\nrules:\n  on-failure: a\n"),
 		), "actions that wait on each other: a → b → a"},
-		{"a page asked first", menu("title: O\nvariable:\n  name: X\n  title: X\n  first: true\n"), "a page is asked when its action is opened"},
-		{"a page in a group", menu("title: O\nvariable:\n  name: X\n  title: X\n  group: G\n"), "a page is never on the settings page"},
-		{"a page worked out", menu("title: O\nvariable:\n  name: X\n  title: X\n  answer: echo x\n"), "an answer worked out is not"},
+		{"a page asked first", row("title: O\nvariable:\n  name: X\n  title: X\n  first: true\n"), "a page is asked when its action is opened"},
+		{"a page in a group", row("title: O\nvariable:\n  name: X\n  title: X\n  group: G\n"), "a page is never on the settings page"},
+		{"a page worked out", row("title: O\nvariable:\n  name: X\n  title: X\n  answer: echo x\n"), "an answer worked out is not"},
+		{"a page asked mid-run", row("title: O\nvariable:\n  name: X\n  title: X\n  type: deferred\n  values: [a]\n"), "type: deferred is asked by a task mid-run"},
 		{"a page named like a question", units(
-			map[string]string{FileModule: head("rules:\n  menu: [o]\nvariables:\n  - name: X\n    title: X\n")},
+			map[string]string{FileModule: head("rules:\n  settings: [o]\nvariables:\n  - name: X\n    title: X\n")},
 			action("o", "title: O\nvariable:\n  name: X\n  title: X\n"),
 		), "X is declared twice"},
 		{"a code named like a question", units(
-			map[string]string{FileModule: head("rules:\n  menu: [o]\nvariables:\n  - name: X\n    title: X\n")},
+			map[string]string{FileModule: head("rules:\n  settings: [o]\nvariables:\n  - name: X\n    title: X\n")},
 			action("o", "title: O\nreport: Done\nshows: X\n"),
 		), "X is declared twice"},
-		{"a page guarded by nothing", menu("title: O\nvariable:\n  name: X\n  title: X\n  conditions: NOPE == y\n"), "no such variable: NOPE"},
-		{"two pages", menu("title: O\nreport: Done\ntty: true\n"), "an action has one page"},
-		{"a question and a report", menu("title: O\nreport: Done\nvariable:\n  name: X\n  title: X\n"), "an action has one page"},
-		{"several questions", menu("title: O\nvariables:\n  - name: X\n    title: X\n"), "a second question is a second action named under its rules: on-failure"},
-		{"a code with no report to stand on", menu("title: O\nshows: X\n"), "there is no report for it to appear on"},
-		{"a script written into the yaml", menu("title: O\nscript: echo hi\n"), "an action in the action.sh beside it"},
-		{"a yes or no before it runs", menu("title: O\nconfirm: Sure?\n"), "an action is agreed to by choosing its row"},
-		{"a fail naming no answer", menu("title: O\nfail: Nothing on {{NOPE}}.\n"), "{{NOPE}} is not a variable of this module"},
+		{"a page guarded by nothing", row("title: O\nvariable:\n  name: X\n  title: X\n  conditions: NOPE == y\n"), "no such variable: NOPE"},
+		{"two pages", row("title: O\nreport: Done\ntty: true\n"), "an action has one page"},
+		{"a question and a report", row("title: O\nreport: Done\nvariable:\n  name: X\n  title: X\n"), "an action has one page"},
+		{"several questions", row("title: O\nvariables:\n  - name: X\n    title: X\n"), "a second question is a second action named under its rules: on-failure"},
+		{"a code with no report to stand on", row("title: O\nshows: X\n"), "there is no report for it to appear on"},
+		{"a script written into the yaml", row("title: O\nscript: echo hi\n"), "an action in the action.sh beside it"},
+		{"a yes or no before it runs", row("title: O\nconfirm: Sure?\n"), "an action is agreed to by choosing its row"},
+		{"a fail naming no answer", row("title: O\nfail: Nothing on {{NOPE}}.\n"), "{{NOPE}} is not a variable of this module"},
 		{"an options folder from an older Oak", map[string]string{"options/wlan/option.yaml": "title: W\n"}, "an option is an action now"},
 	}
 	for _, tc := range cases {
@@ -497,6 +498,23 @@ func TestTheWordForStartingIsTranslatable(t *testing.T) {
 	}
 	if got := sp.Start(); got != "Install" {
 		t.Errorf("Start() = %q, want %q", got, "Install")
+	}
+}
+
+// So is the word for its settings, the same way.
+func TestTheWordForTheSettingsIsTranslatable(t *testing.T) {
+	sp, err := Load(module(t, map[string]string{
+		FileModule: head("settings-title: |\n  Configuration\n"),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Test Installer", "Configuration", "Do it"}
+	if got := texts(sp); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("Messages() = %v\nwant %v", got, want)
+	}
+	if got := sp.Settings(); got != "Configuration" {
+		t.Errorf("Settings() = %q, want %q", got, "Configuration")
 	}
 }
 
@@ -713,17 +731,51 @@ func TestLoadRefuses(t *testing.T) {
 			want:  "no such variable",
 		},
 		{
-			name:  "asks on a free text value, which is not a question the frame can put mid-run",
+			name:  "asks on a question asked on the way in, which says nothing of being deferred",
 			files: unit("go", "do", "title: Do\nasks: DISK\n"),
-			want:  "no answers to choose from",
+			want:  "asks: DISK is asked on the way in — a question asked mid-run says type: deferred",
 		},
 		{
-			name: "asks on a secret, which is already asked at the only safe moment",
+			name: "a deferred question that is free text, which is not one the frame can put mid-run",
 			files: units(
-				map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n")},
-				unit("go", "do", "title: Do\nasks: PW\n"),
+				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n")},
+				unit("go", "do", "title: Do\nasks: PICK\n"),
 			),
-			want: "is a secret",
+			want: "a question asked mid-run is a list",
+		},
+		{
+			name:  "a deferred question no task asks, which would be asked nowhere",
+			files: map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    values: [a, b]\n")},
+			want:  "PICK: type deferred is asked by a task under asks:, and no task asks it",
+		},
+		{
+			name: "a deferred question asked first",
+			files: units(
+				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    first: true\n    values: [a, b]\n")},
+				unit("go", "do", "title: Do\nasks: PICK\n"),
+			),
+			want: "first: a deferred question is asked by its task, mid-run",
+		},
+		{
+			name: "a deferred question in a group, which no settings page ever shows",
+			files: units(
+				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    group: G\n    values: [a, b]\n")},
+				unit("go", "do", "title: Do\nasks: PICK\n"),
+			),
+			want: "group: a deferred question is never on the settings page",
+		},
+		{
+			name: "a deferred question worked out",
+			files: units(
+				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    values: [a, b]\n    answer: echo a\n")},
+				unit("go", "do", "title: Do\nasks: PICK\n"),
+			),
+			want: "answer: a deferred question is asked",
+		},
+		{
+			name:  "a menu of rows, the way an older Oak placed them",
+			files: map[string]string{FileModule: head("rules:\n  menu: [o]\n")},
+			want:  "menu is not a key here — its rows stand on the settings page: under rules:, as settings",
 		},
 		{
 			name:  "a task showing a code, the way an older Oak drew one",
@@ -974,9 +1026,10 @@ func TestConditionsRefuseAnythingButAConditionOrAListOfThem(t *testing.T) {
 }
 
 // A value a task asks for mid-run is one the opening run of questions has no
-// business asking: it does not exist yet. Nothing declares that — being named
-// is the declaration.
-func TestBeingNamedIsWhatDefersAValue(t *testing.T) {
+// business asking: it does not exist yet. The variable says so itself, so the
+// declaration read from the top tells it from the questions asked on the way
+// in.
+func TestADeferredQuestionIsLeftForItsTask(t *testing.T) {
 	dir := module(t, units(
 		map[string]string{
 			FileModule: head(`variables:
@@ -985,6 +1038,7 @@ func TestBeingNamedIsWhatDefersAValue(t *testing.T) {
     required: true
   - name: SNAPSHOT
     title: Snapshot
+    type: deferred
     values: [a, b]
 `),
 		},

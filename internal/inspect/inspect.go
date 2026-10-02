@@ -82,13 +82,15 @@ func reportRuntime(w io.Writer, rt *spec.Runtime) {
 
 // report is what one module holds, printed.
 func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
-	required, secret, derived := 0, 0, 0
+	required, secret, deferred, derived := 0, 0, 0, 0
 	for _, v := range mod.Vars {
 		switch {
 		case v.Derived():
 			derived++
 		case v.Secret():
 			secret++
+		case v.Deferred():
+			deferred++
 		}
 		if v.Required {
 			required++
@@ -110,14 +112,14 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 		key   string
 		names []string
 	}{
-		{"offer-if", r.OfferIf}, {"start-if", r.StartIf}, {"menu", r.Menu},
+		{"offer-if", r.OfferIf}, {"start-if", r.StartIf}, {"settings", r.Settings},
 		{"on-leave", r.OnLeave}, {"on-failure", r.OnFailure}, {"on-success", r.OnSuccess},
 	} {
 		if len(at.names) > 0 {
 			fmt.Fprintf(w, "  %-10s %s\n", at.key, strings.Join(at.names, " "))
 		}
 	}
-	fmt.Fprintf(w, "  variables  %d (%d required, %d secret, %d derived)\n", len(mod.Vars), required, secret, derived)
+	fmt.Fprintf(w, "  variables  %d (%d required, %d secret, %d deferred, %d derived)\n", len(mod.Vars), required, secret, deferred, derived)
 	fmt.Fprintf(w, "  presets    %d\n", len(mod.Presets))
 	fmt.Fprintf(w, "  stages     %s\n", strings.Join(mod.Stages, " "))
 	fmt.Fprintf(w, "  tasks      %d (%d checked)\n", len(mod.Tasks), checks(mod))

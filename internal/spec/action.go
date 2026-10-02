@@ -16,7 +16,7 @@ import (
 // The yaml says how it behaves and the script only does the work: it says yes
 // by exiting 0 and no by anything else. Where it runs is not the action's
 // business but the rule that names it: the module's `rules:` — offer-if,
-// start-if, menu, on-leave, on-failure, on-success — a preset, and another
+// start-if, settings, on-leave, on-failure, on-success — a preset, and another
 // action's own `rules:`, offer-if and on-failure.
 //
 // An action has at most one page: a question before its script, the report
@@ -94,8 +94,10 @@ type Rules struct {
 	// failure where it has that.
 	StartIf []string `yaml:"start-if"`
 
-	// Menu is rows on the menu, between the work and the settings.
-	Menu []string `yaml:"menu"`
+	// Settings is rows on the settings page, under the language the interface
+	// is read in: what is changed about this machine for the session rather
+	// than answered for the work.
+	Settings []string `yaml:"settings"`
 
 	// OnLeave, OnFailure and OnSuccess are rows too: on the page every way out
 	// arrives at, under a run that failed, and under a run that finished.
@@ -264,7 +266,7 @@ func (s *Module) gather(own []*Action) (map[string]int, error) {
 	}{
 		{"rules: offer-if", r.OfferIf, gating},
 		{"rules: start-if", r.StartIf, gating},
-		{"rules: menu", r.Menu, opened},
+		{"rules: settings", r.Settings, opened},
 		{"rules: on-leave", r.OnLeave, opened},
 		{"rules: on-failure", r.OnFailure, opened},
 		{"rules: on-success", r.OnSuccess, opened},
@@ -362,6 +364,8 @@ func (s *Module) checkAction(a *Action, how int) error {
 			return fmt.Errorf("%s: group: a page is never on the settings page", v.Name)
 		case v.Derived():
 			return fmt.Errorf("%s: answer: a page is asked, and an answer worked out is not", v.Name)
+		case v.Deferred():
+			return fmt.Errorf("%s: type: %s is asked by a task mid-run, and a page when its action is opened", v.Name, TypeDeferred)
 		}
 		if err := s.checkVar(v, a.dir); err != nil {
 			return err

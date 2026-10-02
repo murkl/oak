@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -109,6 +110,21 @@ func TestTheFrameHoldsEverySide(t *testing.T) {
 	for _, line := range strings.Split(out, "\n") {
 		if lipgloss.Width(line) != 100 {
 			t.Fatalf("a line is %d wide, want 100:\n%s", lipgloss.Width(line), out)
+		}
+	}
+}
+
+// What a page holds starts a line under the rule, whether or not a breadcrumb
+// stands over it, and the frame is as tall either way.
+func TestTheBodyStartsALineUnderTheRule(t *testing.T) {
+	for _, crumb := range []string{"", "Settings"} {
+		out := strings.Split(renderFrame(100, 30, chrome{brand: "T", crumb: crumb, body: "the body", hint: "h"}), "\n")
+		at := slices.IndexFunc(out, func(line string) bool { return strings.Contains(line, "the body") })
+		if at < 1 || strings.Trim(out[at-1], "│ ") != "" {
+			t.Errorf("crumb %q: the line over the body is not blank:\n%s", crumb, strings.Join(out, "\n"))
+		}
+		if len(out) != 30 {
+			t.Errorf("crumb %q: the frame is %d rows tall, want 30", crumb, len(out))
 		}
 	}
 }
