@@ -1,7 +1,6 @@
 title: Create the user
 
-# The run stops here, once, on a page of its own. The first paragraph is the
-# headline, and the braces are filled in from the answers.
+# The run stops here on a page of its own. The first paragraph is the headline.
 report: |
   {{TUX_HOST}} is ready for {{TUX_USER}}.
 

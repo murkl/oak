@@ -125,7 +125,7 @@ variables:
     type: secret
     required: true
 `, map[string]string{
-		"actions/root/action.yaml": "title: Root\nfail: Log in as root.\n",
+		"actions/root/action.yaml": "title: Root\nerror: Log in as root.\n",
 		"actions/root/action.sh":   "true\n",
 		// The one task reads both answers, so the report is about what the
 		// module holds rather than about a guard that disagrees — see
@@ -138,12 +138,12 @@ variables:
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"modules    installer",
-		"title      Installer",
-		"variables  2 (2 required, 1 secret, 0 deferred, 0 derived)",
-		"tasks      1",
-		"start-if   root",
-		"actions    root",
+		"modules     installer",
+		"title       Installer",
+		"variables   2 (2 required, 1 secret, 0 deferred, 0 derived)",
+		"tasks       1",
+		"start-if    root",
+		"actions     root",
 		"1. go         first",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -164,7 +164,7 @@ func TestTheReportNamesTheVersionTheProductDeclares(t *testing.T) {
 	if err := Report(&out, rt, mods, locales.FS); err != nil {
 		t.Fatal(err)
 	}
-	if want := "version    1.4.0"; !strings.Contains(out.String(), want) {
+	if want := "version     1.4.0"; !strings.Contains(out.String(), want) {
 		t.Errorf("the report does not say %q:\n%s", want, out.String())
 	}
 }
@@ -218,7 +218,7 @@ variables:
 	if !strings.Contains(err.Error(), "other {{VAR}} than the source") {
 		t.Errorf("Report() = %v, want it to name the drifted translations", err)
 	}
-	if want := "de         translation drops {{DISK}}"; !strings.Contains(out.String(), want) {
+	if want := "de          translation drops {{DISK}}"; !strings.Contains(out.String(), want) {
 		t.Errorf("the report does not say %q:\n%s", want, out.String())
 	}
 }
@@ -229,7 +229,7 @@ func TestEveryActionIsListedWithWhatItNames(t *testing.T) {
 	mod, err := spec.Load(writeModule(t, "title: T\nstages: [go]\nrules:\n  start-if: [internet]\n  on-leave: [reboot]\n", map[string]string{
 		"actions/card/action.yaml":     "title: Card\n",
 		"actions/card/action.sh":       "true\n",
-		"actions/internet/action.yaml": "title: Internet\nfail: There is no internet.\nrules:\n  on-failure: wlan\n",
+		"actions/internet/action.yaml": "title: Internet\nerror: There is no internet.\nrules:\n  on-failure: wlan\n",
 		"actions/internet/action.sh":   "true\n",
 		"actions/reboot/action.yaml":   "title: Reboot\n",
 		"actions/reboot/action.sh":     "true\n",
@@ -259,7 +259,7 @@ func TestANeedReachingIntoAnotherStageIsReported(t *testing.T) {
 	if err := Report(&out, rt, mods, locales.FS); err != nil {
 		t.Fatal(err)
 	}
-	if want := "needs      tasks/after: needs first, which is in go"; !strings.Contains(out.String(), want) {
+	if want := "needs       tasks/after: needs first, which is in go"; !strings.Contains(out.String(), want) {
 		t.Errorf("the report does not say %q:\n%s", want, out.String())
 	}
 }

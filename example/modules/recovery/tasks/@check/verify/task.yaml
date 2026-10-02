@@ -1,7 +1,6 @@
 title: Check the system tree
 
-# It only reads, so there is nothing a simulated run has to keep it from
-# doing: --debug runs it like any other run does.
+# It only reads, so --debug runs it too.
 simulates: true
 
 report: |

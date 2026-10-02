@@ -65,7 +65,7 @@ func reportUnread(w io.Writer, mod *spec.Module) (int, error) {
 		return 0, err
 	}
 	for _, u := range unread {
-		fmt.Fprintf(w, "  %-10s %s\n", "unread", u)
+		fmt.Fprintf(w, "  %-11s %s\n", "unread", u)
 	}
 	return len(unread), nil
 }
@@ -73,11 +73,11 @@ func reportUnread(w io.Writer, mod *spec.Module) (int, error) {
 // reportRuntime is what the product says about itself, printed.
 func reportRuntime(w io.Writer, rt *spec.Runtime) {
 	fmt.Fprintf(w, "%s\n", rt.File)
-	fmt.Fprintf(w, "  title      %s\n", rt.Title)
-	fmt.Fprintf(w, "  version    %s\n", rt.Version)
-	fmt.Fprintf(w, "  accent     %s\n", rt.Accent)
-	fmt.Fprintf(w, "  logo       %d lines\n", len(strings.Split(strings.TrimRight(rt.Logo, "\n"), "\n")))
-	fmt.Fprintf(w, "  modules    %s\n", strings.Join(rt.Modules, " "))
+	fmt.Fprintf(w, "  title       %s\n", rt.Title)
+	fmt.Fprintf(w, "  version     %s\n", rt.Version)
+	fmt.Fprintf(w, "  accent      %s\n", rt.Accent)
+	fmt.Fprintf(w, "  logo        %d lines\n", len(strings.Split(strings.TrimRight(rt.Logo, "\n"), "\n")))
+	fmt.Fprintf(w, "  modules     %s\n", strings.Join(rt.Modules, " "))
 }
 
 // report is what one module holds, printed.
@@ -103,7 +103,7 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 		names[i] = l.Code
 	}
 	fmt.Fprintf(w, "%s\n", filepath.Join(mod.Dir, spec.FileModule))
-	fmt.Fprintf(w, "  title      %s\n", mod.UI.Title)
+	fmt.Fprintf(w, "  title       %s\n", mod.UI.Title)
 	// Its rules, each only where it names any: a module on offer everywhere is
 	// the ordinary case, and a line saying so on every one of them would drown
 	// the one that does not.
@@ -112,21 +112,21 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 		key   string
 		names []string
 	}{
-		{"offer-if", r.OfferIf}, {"start-if", r.StartIf}, {"settings", r.Settings},
+		{"offer-if", r.OfferIf}, {"start-if", r.StartIf}, {"on-settings", r.OnSettings},
 		{"on-leave", r.OnLeave}, {"on-failure", r.OnFailure}, {"on-success", r.OnSuccess},
 	} {
 		if len(at.names) > 0 {
-			fmt.Fprintf(w, "  %-10s %s\n", at.key, strings.Join(at.names, " "))
+			fmt.Fprintf(w, "  %-11s %s\n", at.key, strings.Join(at.names, " "))
 		}
 	}
-	fmt.Fprintf(w, "  variables  %d (%d required, %d secret, %d deferred, %d derived)\n", len(mod.Vars), required, secret, deferred, derived)
-	fmt.Fprintf(w, "  presets    %d\n", len(mod.Presets))
-	fmt.Fprintf(w, "  stages     %s\n", strings.Join(mod.Stages, " "))
-	fmt.Fprintf(w, "  tasks      %d (%d checked)\n", len(mod.Tasks), checks(mod))
+	fmt.Fprintf(w, "  variables   %d (%d required, %d secret, %d deferred, %d derived)\n", len(mod.Vars), required, secret, deferred, derived)
+	fmt.Fprintf(w, "  presets     %d\n", len(mod.Presets))
+	fmt.Fprintf(w, "  stages      %s\n", strings.Join(mod.Stages, " "))
+	fmt.Fprintf(w, "  tasks       %d (%d checked)\n", len(mod.Tasks), checks(mod))
 	if len(mod.Actions) > 0 {
-		fmt.Fprintf(w, "  actions    %s\n", strings.Join(actions(mod), " "))
+		fmt.Fprintf(w, "  actions     %s\n", strings.Join(actions(mod), " "))
 	}
-	fmt.Fprintf(w, "  languages  %s\n", strings.Join(names, " "))
+	fmt.Fprintf(w, "  languages   %s\n", strings.Join(names, " "))
 
 	// What the module's shell reaches for and nothing here answers. Not a
 	// verdict — $HOME belongs on this line — but the only place a name that
@@ -137,13 +137,13 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 		return 0, err
 	}
 	if len(unset) > 0 {
-		fmt.Fprintf(w, "  unset      %s\n", strings.Join(unset, " "))
+		fmt.Fprintf(w, "  unset       %s\n", strings.Join(unset, " "))
 	}
 
 	// What loaded and still says something that can never take effect. A
 	// description rather than a verdict, so it is reported and the run goes on.
 	for _, warning := range mod.Warnings {
-		fmt.Fprintf(w, "  %-10s %s\n", "needs", warning)
+		fmt.Fprintf(w, "  %-11s %s\n", "needs", warning)
 	}
 
 	// The order they run in is worked out rather than written down anywhere.
@@ -173,11 +173,11 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 			}
 			done++
 			for _, said := range drift(m.Text, i18n.T(m.Text)) {
-				fmt.Fprintf(w, "  %-10s %s: %s\n", l.Code, said, oneSentence(m.Text))
+				fmt.Fprintf(w, "  %-11s %s: %s\n", l.Code, said, oneSentence(m.Text))
 				drifted++
 			}
 		}
-		fmt.Fprintf(w, "  %-10s %d of %d strings translated\n", l.Code, done, len(msgs))
+		fmt.Fprintf(w, "  %-11s %d of %d strings translated\n", l.Code, done, len(msgs))
 	}
 	return drifted, nil
 }

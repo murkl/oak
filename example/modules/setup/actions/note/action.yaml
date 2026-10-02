@@ -1,7 +1,5 @@
-# Named under rules: settings, a row at the top of the settings page. Opening it
-# asks its one page and hands the answer to action.sh beside this file. The
-# answer is kept for this session only: never a row of its own, never in
-# setup.conf.
+# Under on-settings: its one page, then action.sh with the answer. Kept for this
+# session only.
 title: Leave a note
 description: Write a line for whoever logs in to the tree first.
 

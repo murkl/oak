@@ -224,7 +224,8 @@ func TestANameTheProductsShellReadsForAnotherModuleIsNotUnset(t *testing.T) {
 // its own, and its words are in that module's template — a module's catalog is
 // what the line is read through while the module is open.
 func TestAModuleWithoutAStatusOfItsOwnTakesTheProducts(t *testing.T) {
-	dir := writeRuntime(t, testRuntime+"status:\n  script: is_online\n  every: 5\n  pass: Online\n  fail: Offline\n", "installer")
+	dir := writeRuntime(t, testRuntime+"status:\n  check: is_online()\n  every: 5\n  pass: Online\n  fail: Offline\n", "installer")
+	writeShell(t, dir, "is_online() { return 0; }\n")
 	rt, err := LoadRuntime(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -234,7 +235,7 @@ func TestAModuleWithoutAStatusOfItsOwnTakesTheProducts(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := mods[0].Status
-	if st == nil || st.Script != "is_online" || st.Words(true) != "Online" || st.Interval().Seconds() != 5 {
+	if st == nil || st.Check != "is_online" || st.Words(true) != "Online" || st.Interval().Seconds() != 5 {
 		t.Fatalf("status = %+v, want the product's", st)
 	}
 	var files []string
@@ -250,9 +251,10 @@ func TestAModuleWithoutAStatusOfItsOwnTakesTheProducts(t *testing.T) {
 
 // A module that declares one has that one, and none of the product's.
 func TestAModulesOwnStatusReplacesTheProducts(t *testing.T) {
-	dir := writeRuntime(t, testRuntime+"status:\n  script: is_online\n  pass: Online\n", "installer")
+	dir := writeRuntime(t, testRuntime+"status:\n  check: is_online()\n  pass: Online\n", "installer")
+	writeShell(t, dir, "is_online() { return 0; }\nis_up() { return 0; }\n")
 	decl := filepath.Join(dir, DirModules, "installer", FileModule)
-	if err := os.WriteFile(decl, []byte("title: The installer\nstages: [go]\nstatus:\n  script: exit 0\n  fail: Down\n"), 0o600); err != nil {
+	if err := os.WriteFile(decl, []byte("title: The installer\nstages: [go]\nstatus:\n  check: is_up()\n  fail: Down\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	rt, err := LoadRuntime(dir)
@@ -264,17 +266,84 @@ func TestAModulesOwnStatusReplacesTheProducts(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := mods[0].Status
-	if st.Script != "exit 0" || st.Words(true) != "" || st.Words(false) != "Down" || st.Interval().Seconds() != statusEvery {
+	if st.Check != "is_up" || st.Words(true) != "" || st.Words(false) != "Down" || st.Interval().Seconds() != statusEvery {
 		t.Errorf("status = %+v, want the module's own and nothing of the product's", st)
 	}
 }
 
-// A status is read with its script, so one without is refused where it was
+// A status is read with its check, so one without is refused where it was
 // written rather than showing nothing and saying nothing about why.
-func TestAStatusWithoutAScriptIsRefused(t *testing.T) {
+func TestAStatusWithoutACheckIsRefused(t *testing.T) {
 	_, err := LoadRuntime(writeRuntime(t, testRuntime+"status:\n  pass: Online\n", "installer"))
-	if err == nil || !strings.Contains(err.Error(), "script is what the status is read with") {
-		t.Errorf("err = %v, want a status without a script refused", err)
+	if err == nil || !strings.Contains(err.Error(), "check is what the status is read with") {
+		t.Errorf("err = %v, want a status without a check refused", err)
+	}
+}
+
+// writeShell puts the product's oak.sh beside its declaration.
+func writeShell(t *testing.T, dir, body string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, FileRuntimeShell), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A function the yaml calls is held to the oak.sh it would be called out of,
+// so a typo is refused at startup, naming the line that made it, rather than
+// being a command not found in the middle of a run.
+func TestAFunctionTheYamlCallsIsHeldToTheProductsShell(t *testing.T) {
+	dir := writeRuntime(t, testRuntime, "installer")
+	decl := filepath.Join(dir, DirModules, "installer", FileModule)
+	body := "title: The installer\nstages: [go]\nvariables:\n  - name: DISK\n    title: Disk\n    options-from: list_disk()\n"
+	if err := os.WriteFile(decl, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeShell(t, dir, "list_disks() {\n    lsblk\n}\n")
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = rt.LoadModules()
+	want := "installer: module.yaml: DISK: options-from: list_disk() is not a function in oak.sh"
+	if err == nil || err.Error() != want {
+		t.Errorf("err = %v, want %q", err, want)
+	}
+}
+
+// Either way bash opens a function is one, and the call runs it by name.
+func TestAFunctionOfTheProductsShellIsCalledByName(t *testing.T) {
+	dir := writeRuntime(t, testRuntime, "installer")
+	decl := filepath.Join(dir, DirModules, "installer", FileModule)
+	body := "title: The installer\nstages: [go]\nvariables:\n" +
+		"  - name: DISK\n    title: Disk\n    options-from: list_disks()\n" +
+		"  - name: ZONE\n    title: Zone\n    prefill: guess_zone()\n"
+	if err := os.WriteFile(decl, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeShell(t, dir, "list_disks() { lsblk; }\nfunction guess_zone {\n    echo UTC\n}\n")
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mods[0].Var("DISK").OptionsFrom; got != "list_disks" {
+		t.Errorf("options-from = %q, want the function called by name", got)
+	}
+	if got := mods[0].Var("ZONE").Prefill; got != "guess_zone" {
+		t.Errorf("prefill = %q, want the function called by name", got)
+	}
+}
+
+// The product's own status is held to the same shell, before any module loads.
+func TestTheProductsStatusIsHeldToItsShell(t *testing.T) {
+	dir := writeRuntime(t, testRuntime+"status:\n  check: is_online()\n", "installer")
+	_, err := LoadRuntime(dir)
+	want := "oak.yaml: status: check: is_online() is not a function in oak.sh"
+	if err == nil || err.Error() != want {
+		t.Errorf("err = %v, want %q", err, want)
 	}
 }
 

@@ -438,7 +438,7 @@ func TestDebugOnTheCommandLineReachesEveryScript(t *testing.T) {
 func offeredBy(t *testing.T, title, fail, script string, files map[string]string) string {
 	t.Helper()
 	all := map[string]string{
-		"actions/machine/action.yaml": "title: This machine\nfail: " + fail + "\n",
+		"actions/machine/action.yaml": "title: This machine\nerror: " + fail + "\n",
 		"actions/machine/action.sh":   script,
 	}
 	maps.Copy(all, files)

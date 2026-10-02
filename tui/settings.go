@@ -105,7 +105,7 @@ func (s *settingsScreen) collect() []settingRow {
 	// The actions the module names here stand with it, in the module's own
 	// words: like the language, each changes something about this session
 	// rather than an answer the work is done with.
-	for _, act := range s.app.rows(s.app.module.Rules.Settings) {
+	for _, act := range s.app.rows(s.app.module.Rules.OnSettings) {
 		rows = append(rows, settingRow{item: item{title: act.Label(), key: keyAction + act.ID()}, group: groupSession})
 	}
 	for _, v := range s.app.store.Visible() {

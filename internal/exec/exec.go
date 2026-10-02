@@ -94,7 +94,7 @@ const strictTrace = `set -Eo pipefail -T
 // The arguments every invocation is given: the script to run, and the shell to
 // put in front of it. Sourcing that here is what lets a script be plain shell
 // with no preamble at all, and what puts the product's functions within reach
-// of everything — its tasks, its actions, and the shell its yaml wrote.
+// of everything — its tasks, its actions, and what its yaml calls.
 //
 // It is **loaded, not run**, and that is why the trap is installed after it
 // rather than before. A lookup that tries one thing and falls back to another
@@ -161,9 +161,9 @@ func wrap(step Step) (wrapper, payload string) {
 	return shellWrapper, step.Script.Shell
 }
 
-// snippet runs a short piece of shell the yaml wrote inline — an option list, a
-// prefill. No ERR trap: the caller wants the exit code or the output, and a
-// non-zero status is an answer rather than a failure.
+// snippet runs what the yaml names — an option list, a prefill. No ERR trap:
+// the caller wants the exit code or the output, and a non-zero status is an
+// answer rather than a failure.
 const snippet = preamble + `eval "$1"`
 
 // guard runs a module's shell as a question with a yes or no for an answer.

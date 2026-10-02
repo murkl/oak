@@ -1,19 +1,11 @@
-# What this product is, in the few things no module can answer for its
-# neighbours: the name over the pages drawn before one has been opened, the one
-# colour the interface is built from, the wordmark it comes up out of, and what
-# this build of it is called.
-#
-# Which modules there are is not written down here. They are the folders in
-# modules/ beside this file, each holding its own declaration.
+# The product: what no module can answer for its neighbours. Which modules there
+# are is the folders in modules/.
 
 title: Oak
 version: 1.0.0
-
-# Every colour on screen is derived from this one.
 accent: "#8fbcbb"
 
-# Above the blank line is the eyebrow, dimmed; below it the wordmark, in the
-# accent colour. Underneath, Oak signs the splash off with its own version.
+# Above the blank line the eyebrow, below it the wordmark.
 logo: |
   The installer runtime
 

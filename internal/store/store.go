@@ -199,7 +199,7 @@ func (s *Store) Invalid(v *spec.Variable, value string) string {
 		if value != spec.BoolTrue && value != spec.BoolFalse {
 			return v.Why()
 		}
-	case len(v.Values) > 0 && !slices.Contains(v.Values, value):
+	case len(v.Options) > 0 && !slices.Contains(v.Options, value):
 		return v.Why()
 	}
 	if !v.Matches(value) {

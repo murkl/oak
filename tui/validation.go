@@ -7,58 +7,29 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// resultsScreen is what a run went on past, read once it stops for something.
-//
-// A task says what it does and, where it can, how to tell that it took: a
-// second script that reads the machine the work was done to and changes nothing
-// on it. Those run as the work goes, and none of them can stop it — a check
-// that disagrees with a task that succeeded is a thing to look at, not a reason
-// to abandon an installation that is already on the disk. The same goes for a
-// task that declared the result stands without it: its failure is gone past
-// rather than stopped at.
-//
-// So this is where they are read: the count, and under it the tasks that
-// failed or that the machine disagreed with. Open one and the failure is laid
-// out exactly as a failed run's is, because it is the same thing — a module, a
-// task, a script, a line, a command and what it said.
-//
-// The page only exists where there is something on it to open. A run that
-// agreed with itself has already said so in one line, under the words of
-// whatever page it stopped on.
+// resultsScreen is what a finished run went on past: the optional tasks that
+// failed and the tests the machine disagreed with. It is opened from the row of
+// the same name under the run, as often as somebody wants, and each row opens
+// the failure the way a failed run lays its own out.
 type resultsScreen struct {
-	// verdict is the count the run worked out, and failed what is worth
-	// opening. The count rather than the rows alone, because the page is a
-	// proportion: three failures mean something different out of four than
-	// out of forty.
+	// verdict is the count, because the page is a proportion: three failures
+	// mean something else out of four than out of forty.
 	verdict string
 	failed  []outcome
-
-	picker *picker
-	done   func() tea.Cmd
+	picker  *picker
 }
 
-// The row that leaves this page. It is a row rather than a key because leaving
-// is the one thing here that cannot be taken back — nothing reopens this page,
-// and what is on it is the only place the failures are laid out. The NUL prefix
-// cannot collide with the numbers the other rows are keyed by.
-const keyReviewed = "\x00reviewed"
-
-func newResults(verdict string, failed []outcome, done func() tea.Cmd) *resultsScreen {
-	s := &resultsScreen{verdict: verdict, failed: failed, done: done}
-	items := make([]item, 0, len(failed)+1)
+func newResults(verdict string, failed []outcome) *resultsScreen {
+	items := make([]item, 0, len(failed))
 	for i, r := range failed {
 		items = append(items, item{title: r.task.Label(), key: strconv.Itoa(i)})
 	}
-	items = append(items, item{title: labelReviewed(), detail: labelReviewedHelp(), key: keyReviewed})
-	s.picker = newPicker(items)
-	return s
+	return &resultsScreen{verdict: verdict, failed: failed, picker: newPicker(items)}
 }
 
 func (s *resultsScreen) Title() string { return labelResults() }
 
-// Hint: enter opens the failure under the cursor, and the last row is the way
-// on. Esc is not offered and does nothing here — see keyReviewed.
-func (s *resultsScreen) Hint() string { return labelHintChecks() }
+func (s *resultsScreen) Hint() string { return labelHintList() }
 
 func (s *resultsScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	s.picker.Update(msg)
@@ -66,18 +37,13 @@ func (s *resultsScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	if !ok {
 		return s, nil
 	}
-	// Only the row that says so leaves. A key that means back everywhere else
-	// would carry off the one page these failures are ever shown on, and the
-	// reflex to press it is exactly what somebody who has just been told
-	// something went wrong does.
-	if !confirms(key) {
-		return s, nil
-	}
-	if s.picker.selected() == keyReviewed {
-		return s, s.done()
-	}
-	if r, found := s.at(s.picker.selected()); found {
-		return s, push(newFailure(r.task.Label(), r.err, pop))
+	switch {
+	case backs(key):
+		return s, pop()
+	case confirms(key):
+		if r, found := s.at(s.picker.selected()); found {
+			return s, push(newFailure(r.task.Label(), r.err, pop))
+		}
 	}
 	return s, nil
 }
@@ -91,12 +57,8 @@ func (s *resultsScreen) at(key string) (outcome, bool) {
 	return s.failed[i], true
 }
 
-// With the sentence under the rows, because the last of them is the one row
-// here that cannot be taken back and has to say so. The others carry none, and
-// the space for it is held either way — a cursor moving must not shift the list
-// above it.
 func (s *resultsScreen) View(width, height int) string {
-	return s.headline() + "\n\n" + withDetail(s.picker, width, height-2)
+	return s.headline() + "\n\n" + s.picker.View(width, height-2)
 }
 
 // headline is the whole verdict in one line: the mark, and how many of how
@@ -160,23 +122,28 @@ func (s *failureScreen) offering(a *app) *failureScreen {
 	return s
 }
 
-// offers is the rows a place names that this machine has, above the one that
-// leaves the page, or nil where there are none. It opens on that last row: an
-// action is chosen on purpose, never by an enter meant for the page before.
-func (a *app) offers(names []string) *picker {
+// offers is the rows a place names that this machine has, after the runtime's
+// own lead rows and above the one that goes on, or nil where there are none. It
+// opens on that last row: an action is chosen on purpose, never by an enter
+// meant for the page before.
+func (a *app) offers(names []string, lead ...item) *picker {
 	rows := a.rows(names)
-	if len(rows) == 0 {
+	if len(lead)+len(rows) == 0 {
 		return nil
 	}
-	items := make([]item, 0, len(rows)+1)
+	items := append([]item{}, lead...)
 	for _, act := range rows {
 		items = append(items, actionRow(act))
 	}
-	items = append(items, item{title: labelReviewed(), key: keyReviewed})
+	items = append(items, item{title: labelGoOn(), key: keyGoOn})
 	p := newPicker(items)
-	p.focus(keyReviewed)
+	p.focus(keyGoOn)
 	return p
 }
+
+// keyGoOn is the row that goes on from a list of actions. The NUL prefix
+// cannot collide with anything a module names.
+const keyGoOn = "\x00on"
 
 func (s *failureScreen) Title() string { return s.title }
 
@@ -211,7 +178,7 @@ func (s *failureScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	if act := s.app.action(s.picker.selected()); act != nil {
 		return s, s.app.openAction(act)
 	}
-	if s.picker.selected() == keyReviewed {
+	if s.picker.selected() == keyGoOn {
 		return s, s.done()
 	}
 	return s, nil

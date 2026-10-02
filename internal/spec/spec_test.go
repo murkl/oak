@@ -266,7 +266,7 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 func TestAModuleNamesWhatItIsOfferedOn(t *testing.T) {
 	sp, err := Load(module(t, units(
 		map[string]string{FileModule: head("rules:\n  offer-if: [live]\n")},
-		action("live", "title: A live image\nfail: This runs from a live image.\n"),
+		action("live", "title: A live image\nerror: This runs from a live image.\n"),
 	)))
 	if err != nil {
 		t.Fatal(err)
@@ -289,9 +289,9 @@ func TestAModuleNamesWhatItIsOfferedOn(t *testing.T) {
 // the rule that names it, in the order it names them.
 func TestActionsAreNamedWhereTheyRun(t *testing.T) {
 	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("rules:\n  start-if: [root, internet]\n  settings: [wlan]\n  on-leave: [restart]\n")},
-		action("root", "title: Running as root\nfail: Log in as root.\n"),
-		action("internet", "title: Internet\nfail: There is no internet.\nrules:\n  on-failure: wlan\n"),
+		map[string]string{FileModule: head("rules:\n  start-if: [root, internet]\n  on-settings: [wlan]\n  on-leave: [restart]\n")},
+		action("root", "title: Running as root\nerror: Log in as root.\n"),
+		action("internet", "title: Internet\nerror: There is no internet.\nrules:\n  on-failure: wlan\n"),
 		action("wlan", "title: Wireless network\nrules:\n  offer-if: [card]\n"),
 		action("card", "title: A wireless card\n"),
 		action("restart", "title: Restart\n"),
@@ -339,13 +339,13 @@ func TestAModuleWithoutActionsHasNone(t *testing.T) {
 // shows is declared by being named there.
 func TestAnActionsPageIsDeclaredBesideTheModulesOwn(t *testing.T) {
 	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("rules:\n  settings: [wlan, share]\nvariables:\n  - name: DISK\n    title: Disk\n")},
+		map[string]string{FileModule: head("rules:\n  on-settings: [wlan, share]\nvariables:\n  - name: DISK\n    title: Disk\n")},
 		action("wlan", `
 title: Wireless network
 variable:
   name: WLAN_SSID
   title: Network
-  command: ./networks.sh
+  options-from: ./networks.sh
 `),
 		map[string]string{"actions/wlan/networks.sh": "echo Home\n"},
 		action("share", "title: Share\nreport: Shared\nshows: LINK\n"),
@@ -363,7 +363,7 @@ variable:
 		t.Error("LINK is not a variable, want it declared by the report that shows it")
 	}
 	ssid := sp.Var("WLAN_SSID")
-	if ssid == nil || !strings.Contains(ssid.Command, filepath.Join("wlan", "networks.sh")) {
+	if ssid == nil || !strings.Contains(ssid.OptionsFrom, filepath.Join("wlan", "networks.sh")) {
 		t.Errorf("WLAN_SSID = %+v, want its list read from beside the action's yaml", ssid)
 	}
 }
@@ -373,10 +373,10 @@ variable:
 // that never runs, or asks where nobody is asked.
 func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 	row := func(yaml string) map[string]string {
-		return units(map[string]string{FileModule: head("rules:\n  settings: [o]\n")}, action("o", yaml))
+		return units(map[string]string{FileModule: head("rules:\n  on-settings: [o]\n")}, action("o", yaml))
 	}
 	required := func(yaml string) map[string]string {
-		return units(map[string]string{FileModule: head("rules:\n  start-if: [o]\n")}, action("o", "fail: No.\n"+yaml))
+		return units(map[string]string{FileModule: head("rules:\n  start-if: [o]\n")}, action("o", "error: No.\n"+yaml))
 	}
 	cases := []struct {
 		name  string
@@ -384,30 +384,30 @@ func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 		want  string
 	}{
 		{"no title", row("description: O\n"), "title is required"},
-		{"nothing that runs", map[string]string{FileModule: head("rules:\n  settings: [o]\n"), "actions/o/action.yaml": "title: O\n"}, "no " + FileActionScript},
+		{"nothing that runs", map[string]string{FileModule: head("rules:\n  on-settings: [o]\n"), "actions/o/action.yaml": "title: O\n"}, "no " + FileActionScript},
 		{"a name that is no action", map[string]string{FileModule: head("rules:\n  start-if: [ghost]\n")}, "rules: start-if: no such action: ghost"},
 		{"a failure opening no action", row("title: O\nrules:\n  on-failure: ghost\n"), "rules: on-failure: no such action: ghost"},
 		{"an action nothing names", action("o", "title: O\n"), "nothing names it, so it never runs"},
 		{"a required action that asks", required("title: O\nvariable:\n  name: X\n  title: X\n"), "it runs by itself where it is named, so it has no page"},
 		{"a required action that reports", required("title: O\nreport: Done\n"), "it runs by itself where it is named, so it has no page"},
-		{"a required action that does not say why", units(map[string]string{FileModule: head("rules:\n  start-if: [o]\n")}, action("o", "title: O\n")), "fail: it runs by itself in front of the work"},
+		{"a required action that does not say why", units(map[string]string{FileModule: head("rules:\n  start-if: [o]\n")}, action("o", "title: O\n")), "error: it runs by itself in front of the work"},
 		{"a way out that asks", units(map[string]string{FileModule: head("rules:\n  on-leave: [o]\n")}, action("o", "title: O\nvariable:\n  name: X\n  title: X\n")), "a way out asks nothing"},
 		{"a failure opening itself", row("title: O\nrules:\n  on-failure: o\n"), "cannot put itself right"},
 		{"actions that wait on each other", units(
-			map[string]string{FileModule: head("rules:\n  settings: [a]\n")},
+			map[string]string{FileModule: head("rules:\n  on-settings: [a]\n")},
 			action("a", "title: A\nrules:\n  offer-if: [b]\n"),
 			action("b", "title: B\nrules:\n  on-failure: a\n"),
 		), "actions that wait on each other: a → b → a"},
 		{"a page asked first", row("title: O\nvariable:\n  name: X\n  title: X\n  first: true\n"), "a page is asked when its action is opened"},
 		{"a page in a group", row("title: O\nvariable:\n  name: X\n  title: X\n  group: G\n"), "a page is never on the settings page"},
-		{"a page worked out", row("title: O\nvariable:\n  name: X\n  title: X\n  answer: echo x\n"), "an answer worked out is not"},
-		{"a page asked mid-run", row("title: O\nvariable:\n  name: X\n  title: X\n  type: deferred\n  values: [a]\n"), "type: deferred is asked by a task mid-run"},
+		{"a page worked out", row("title: O\nvariable:\n  name: X\n  title: X\n  value-from: x()\n"), "a value worked out is not"},
+		{"a page asked mid-run", row("title: O\nvariable:\n  name: X\n  title: X\n  type: deferred\n  options: [a]\n"), "type: deferred is asked by a task mid-run"},
 		{"a page named like a question", units(
-			map[string]string{FileModule: head("rules:\n  settings: [o]\nvariables:\n  - name: X\n    title: X\n")},
+			map[string]string{FileModule: head("rules:\n  on-settings: [o]\nvariables:\n  - name: X\n    title: X\n")},
 			action("o", "title: O\nvariable:\n  name: X\n  title: X\n"),
 		), "X is declared twice"},
 		{"a code named like a question", units(
-			map[string]string{FileModule: head("rules:\n  settings: [o]\nvariables:\n  - name: X\n    title: X\n")},
+			map[string]string{FileModule: head("rules:\n  on-settings: [o]\nvariables:\n  - name: X\n    title: X\n")},
 			action("o", "title: O\nreport: Done\nshows: X\n"),
 		), "X is declared twice"},
 		{"a page guarded by nothing", row("title: O\nvariable:\n  name: X\n  title: X\n  conditions: NOPE == y\n"), "no such variable: NOPE"},
@@ -417,7 +417,7 @@ func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 		{"a code with no report to stand on", row("title: O\nshows: X\n"), "there is no report for it to appear on"},
 		{"a script written into the yaml", row("title: O\nscript: echo hi\n"), "an action in the action.sh beside it"},
 		{"a yes or no before it runs", row("title: O\nconfirm: Sure?\n"), "an action is agreed to by choosing its row"},
-		{"a fail naming no answer", row("title: O\nfail: Nothing on {{NOPE}}.\n"), "{{NOPE}} is not a variable of this module"},
+		{"a fail naming no answer", row("title: O\nerror: Nothing on {{NOPE}}.\n"), "{{NOPE}} is not a variable of this module"},
 		{"an options folder from an older Oak", map[string]string{"options/wlan/option.yaml": "title: W\n"}, "an option is an action now"},
 	}
 	for _, tc := range cases {
@@ -580,12 +580,12 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "a bool with values of its own",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    type: bool\n    values: [a, b]\n")},
-			want:  "has no values of its own",
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    type: bool\n    options: [a, b]\n")},
+			want:  "has no options of its own",
 		},
 		{
 			name:  "a filter setting nobody has heard of",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    values: [a, b]\n    filter: hidden\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    options: [a, b]\n    filter: hidden\n")},
 			want:  "unknown filter",
 		},
 		{
@@ -595,7 +595,7 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "a filter on a question asked first, which carries its box either way",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    values: [a, b]\n    first: true\n    filter: open\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    options: [a, b]\n    first: true\n    filter: open\n")},
 			want:  "says nothing here",
 		},
 		{
@@ -610,7 +610,7 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "a secret worked out rather than typed",
-			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    answer: echo x\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    value-from: x()\n")},
 			want:  "never worked out",
 		},
 		{
@@ -620,7 +620,7 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "a check on an answer the settings page shows and its pattern holds",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    check: exit 1\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    check: x()\n")},
 			want:  "any other answer is held to its pattern",
 		},
 		{
@@ -647,17 +647,17 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "a question both worked out and suggested, which is asked and not asked at once",
-			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    answer: echo a\n    prefill: echo b\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    value-from: a()\n    prefill: b()\n")},
 			want:  "a question is asked or it is not",
 		},
 		{
 			name:  "a derived answer asked first, which is a question that is never asked",
-			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    answer: echo a\n    first: true\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    value-from: a()\n    first: true\n")},
 			want:  "cannot be asked first",
 		},
 		{
-			name:  "both a list and a command for the same question",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    values: [a]\n    command: ls\n")},
+			name:  "both a list and a function for the same question",
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    options: [a]\n    options-from: ls()\n")},
 			want:  "two answers to the same question",
 		},
 		{
@@ -745,13 +745,13 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "a deferred question no task asks, which would be asked nowhere",
-			files: map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    values: [a, b]\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    options: [a, b]\n")},
 			want:  "PICK: type deferred is asked by a task under asks:, and no task asks it",
 		},
 		{
 			name: "a deferred question asked first",
 			files: units(
-				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    first: true\n    values: [a, b]\n")},
+				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    first: true\n    options: [a, b]\n")},
 				unit("go", "do", "title: Do\nasks: PICK\n"),
 			),
 			want: "first: a deferred question is asked by its task, mid-run",
@@ -759,7 +759,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name: "a deferred question in a group, which no settings page ever shows",
 			files: units(
-				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    group: G\n    values: [a, b]\n")},
+				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    group: G\n    options: [a, b]\n")},
 				unit("go", "do", "title: Do\nasks: PICK\n"),
 			),
 			want: "group: a deferred question is never on the settings page",
@@ -767,15 +767,50 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name: "a deferred question worked out",
 			files: units(
-				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    values: [a, b]\n    answer: echo a\n")},
+				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    options: [a, b]\n    value-from: a()\n")},
 				unit("go", "do", "title: Do\nasks: PICK\n"),
 			),
-			want: "answer: a deferred question is asked",
+			want: "value-from: a deferred question is asked",
+		},
+		{
+			name:  "a question's list the way an older Oak named it",
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    values: [a]\n")},
+			want:  "values is not a key here — a question's list is options",
+		},
+		{
+			name:  "what prints a list the way an older Oak named it",
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    command: x()\n")},
+			want:  "command is not a key here — what prints a question's list is options-from",
+		},
+		{
+			name:  "a value worked out the way an older Oak named it",
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    answer: x()\n")},
+			want:  "answer is not a key here — a value worked out instead of asked is value-from",
+		},
+		{
+			name:  "a task the run goes on past, the way an older Oak named it",
+			files: unit("go", "do", "title: Do\noptional: true\n"),
+			want:  "optional is not a key here — a task the run goes on past when it fails says allow-failure",
+		},
+		{
+			name:  "an action's no the way an older Oak named it",
+			files: units(map[string]string{FileModule: head("rules:\n  start-if: [o]\n")}, action("o", "title: O\nfail: No.\n")),
+			want:  "fail is not a key here — what a no from an action means is its error",
+		},
+		{
+			name:  "a row on the settings page the way an older Oak named it",
+			files: map[string]string{FileModule: head("rules:\n  settings: [o]\n")},
+			want:  "settings is not a key here — it is a row on the settings page: under rules:, as on-settings",
+		},
+		{
+			name:  "the header's status read the way an older Oak named it",
+			files: map[string]string{FileModule: head("status:\n  script: x()\n")},
+			want:  "script is not a key here — a task does its work in the task.sh beside it, an action in the action.sh beside it, and the header's status reads check",
 		},
 		{
 			name:  "a menu of rows, the way an older Oak placed them",
 			files: map[string]string{FileModule: head("rules:\n  menu: [o]\n")},
-			want:  "menu is not a key here — its rows stand on the settings page: under rules:, as settings",
+			want:  "menu is not a key here — its rows stand on the settings page: under rules:, as on-settings",
 		},
 		{
 			name:  "a task showing a code, the way an older Oak drew one",
@@ -858,17 +893,16 @@ func TestConditionsDecideWhatBelongs(t *testing.T) {
 	}
 }
 
-// A shell field takes either the shell itself or the file it lives in, and the
-// whole rule is the ./ in front. Getting this wrong either way is silent: a
-// path run as a command, or a command looked for as a file.
-func TestShellFieldsTellCodeFromFiles(t *testing.T) {
+// A shell field names a function of oak.sh or a file beside the yaml, and the
+// two are told apart by how they are written: name() is a call, ./ a path.
+func TestShellFieldsNameAFunctionOrAFile(t *testing.T) {
 	dir := module(t, map[string]string{
 		FileModule: head(`
 variables:
   - name: DISK
     title: Disk
-    command: ./data/disks.sh
-    prefill: lsblk -dno PATH | head -n1
+    options-from: ./data/disks.sh
+    prefill: first_disk()
 `),
 		"data/disks.sh": "lsblk\n",
 	})
@@ -877,11 +911,30 @@ variables:
 		t.Fatal(err)
 	}
 	v := sp.Var("DISK")
-	if !strings.HasPrefix(v.Command, "source ") || !strings.Contains(v.Command, "disks.sh") {
-		t.Errorf("command = %q, want it to source the file", v.Command)
+	if !strings.HasPrefix(v.OptionsFrom, "source ") || !strings.Contains(v.OptionsFrom, "disks.sh") {
+		t.Errorf("options-from = %q, want it to source the file", v.OptionsFrom)
 	}
-	if v.Prefill != "lsblk -dno PATH | head -n1" {
-		t.Errorf("prefill = %q, want it left as written", v.Prefill)
+	if v.Prefill != "first_disk" {
+		t.Errorf("prefill = %q, want the function called by name", v.Prefill)
+	}
+}
+
+// Shell written into the yaml itself is read by no linter and has no line to
+// point at, so every field that names shell refuses it.
+func TestShellWrittenIntoTheYamlIsRefused(t *testing.T) {
+	for _, field := range []string{"options-from", "prefill", "apply", "value-from"} {
+		for _, expr := range []string{"echo a", "first_disk", "first_disk ()", "./disks", "./missing.sh", "'./two words.sh'"} {
+			t.Run(field+" "+expr, func(t *testing.T) {
+				dir := module(t, map[string]string{
+					FileModule: head("variables:\n  - name: X\n    title: X\n    " + field + ": " + expr + "\n"),
+					"disks":    "lsblk\n",
+				})
+				_, err := Load(dir)
+				if err == nil || !strings.Contains(err.Error(), "X: "+field+": ") {
+					t.Errorf("err = %v, want %s refused", err, expr)
+				}
+			})
+		}
 	}
 }
 
@@ -1039,7 +1092,7 @@ func TestADeferredQuestionIsLeftForItsTask(t *testing.T) {
   - name: SNAPSHOT
     title: Snapshot
     type: deferred
-    values: [a, b]
+    options: [a, b]
 `),
 		},
 		unit("go", "do", "title: Do\nasks: SNAPSHOT\n"),
@@ -1110,14 +1163,14 @@ func TestATaskMayDeclareItsOutputItsProgress(t *testing.T) {
 
 // A task may say the result stands without it, and the load keeps that on that
 // task alone.
-func TestATaskMayDeclareItselfOptional(t *testing.T) {
-	sp, err := Load(module(t, unit("go", "theme", "title: Theme\noptional: true\n")))
+func TestATaskMayAllowItsOwnFailure(t *testing.T) {
+	sp, err := Load(module(t, unit("go", "theme", "title: Theme\nallow-failure: true\n")))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, task := range sp.Tasks {
-		if task.Optional != (task.ID() == "theme") {
-			t.Errorf("%s: Optional = %v, want it only where it was declared", task.ID(), task.Optional)
+		if task.AllowFailure != (task.ID() == "theme") {
+			t.Errorf("%s: AllowFailure = %v, want it only where it was declared", task.ID(), task.AllowFailure)
 		}
 	}
 }

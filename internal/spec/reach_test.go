@@ -15,7 +15,7 @@ stages: [go]
 variables:
   - name: DESKTOP
     title: Desktop
-    values: [gnome, none]
+    options: [gnome, none]
     required: true
   - name: EXTRAS
     title: Extras
@@ -88,7 +88,7 @@ func TestAWrittenOutSetOfValuesSettlesTheGuard(t *testing.T) {
 	// `!= none` over [gnome, none] is `== gnome`, so the task guarded on gnome
 	// runs wherever the question is asked. Take the values away and the same
 	// two guards no longer say the same thing.
-	open := strings.Replace(guarded, "    values: [gnome, none]\n", "", 1)
+	open := strings.Replace(guarded, "    options: [gnome, none]\n", "", 1)
 	got := unread(t, consistent(map[string]string{FileModule: open}))
 	if len(got) != 1 || !strings.Contains(got[0], "EXTRAS") {
 		t.Errorf("Unread() = %v, want EXTRAS reported once the domain is open", got)
@@ -151,7 +151,7 @@ func TestAValueATaskAsksForIsReadByThatTask(t *testing.T) {
 	declared := guarded + `  - name: PICK
     title: Pick
     type: deferred
-    values: [a, b]
+    options: [a, b]
     required: true
 `
 	files := consistent(map[string]string{FileModule: declared})

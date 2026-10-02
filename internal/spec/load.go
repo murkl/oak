@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -60,7 +61,7 @@ type declaration struct {
 // A module that loads is a module that runs: an authoring mistake is a message
 // at startup, never a task that silently never fires.
 func Load(dir string) (*Module, error) {
-	s := &Module{Dir: dir, byName: map[string]*Variable{}}
+	s := &Module{Dir: dir, byName: map[string]*Variable{}, calls: map[string]string{}}
 
 	var head declaration
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
@@ -71,6 +72,9 @@ func Load(dir string) (*Module, error) {
 	s.Stages, s.Rules = head.Stages, head.Rules
 	if err := head.Status.settle(dir, FileModule); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
+	}
+	if head.Status != nil && head.Status.calls != "" {
+		s.calls[head.Status.calls] = FileModule + ": status: check"
 	}
 	s.Status = head.Status
 	if err := checkStages(s.Stages); err != nil {
@@ -261,7 +265,7 @@ var retired = map[string]string{
 	"id":        "a starting point is named by its title, and nothing anywhere points at one",
 	"name":      "a title is what a person reads; a name only ever names a variable",
 	"execute":   "a task does its work in the task.sh beside it, and is tested by the test.sh beside it",
-	"script":    "a task does its work in the task.sh beside it, and an action in the action.sh beside it",
+	"script":    "a task does its work in the task.sh beside it, an action in the action.sh beside it, and the header's status reads check",
 	"test":      "a task is tested by the test.sh beside it",
 	"stage":     "a task lies in the folder of its stage, and that is the whole of where it runs",
 	"network":   "a wireless network is an action under actions/, and the internet the work waits for is one named under rules: start-if",
@@ -279,7 +283,13 @@ var retired = map[string]string{
 	"options":   "a starting point stands under presets: itself, and the page they are offered on is the runtime's own",
 	"offered":   "it is a rule now: under rules:, as offer-if",
 	"requires":  "it is a rule now: under rules:, as start-if in module.yaml and as offer-if in action.yaml",
-	"menu":      "its rows stand on the settings page: under rules:, as settings",
+	"menu":      "its rows stand on the settings page: under rules:, as on-settings",
+	"settings":  "it is a row on the settings page: under rules:, as on-settings",
+	"values":    "a question's list is options, and what prints one is options-from",
+	"command":   "what prints a question's list is options-from",
+	"answer":    "a value worked out instead of asked is value-from",
+	"optional":  "a task the run goes on past when it fails says allow-failure",
+	"fail":      "what a no from an action means is its error",
 	"leave":     "it is a rule now: under rules:, as on-leave",
 	"failure":   "it is a rule now: under rules:, as on-failure",
 	"success":   "it is a rule now: under rules:, as on-success",
@@ -469,14 +479,14 @@ func (s *Module) checkAsks(t *Task) error {
 // page reads is refused, since neither ever shows it.
 func checkDeferred(v *Variable) error {
 	switch {
-	case len(v.Values) == 0 && v.Command == "":
-		return fmt.Errorf("a question asked mid-run is a list, and this one has no values or command")
+	case len(v.Options) == 0 && v.OptionsFrom == "":
+		return fmt.Errorf("a question asked mid-run is a list, and this one has no options or options-from")
 	case v.First:
 		return fmt.Errorf("first: a deferred question is asked by its task, mid-run")
 	case v.Group != "":
 		return fmt.Errorf("group: a deferred question is never on the settings page")
 	case v.Derived():
-		return fmt.Errorf("answer: a deferred question is asked, and an answer worked out is not")
+		return fmt.Errorf("value-from: a deferred question is asked, and a value worked out is not")
 	}
 	return nil
 }
@@ -514,7 +524,7 @@ func (s *Module) normalize(tasks []*Task) {
 		fields = append(fields, &o.Title, &o.Description)
 	}
 	for _, a := range s.Actions {
-		fields = append(fields, &a.Title, &a.Description, &a.Fail, &a.Report)
+		fields = append(fields, &a.Title, &a.Description, &a.Error, &a.Report)
 	}
 	for _, v := range s.Declared() {
 		fields = append(fields, &v.Title, &v.Description, &v.Group, &v.Free, &v.Error)
@@ -583,8 +593,8 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 	switch v.Shape() {
 	case TypeText:
 	case TypeBool, TypeSecret:
-		if len(v.Values) > 0 || v.Command != "" {
-			return fmt.Errorf("%s: a %s variable has no values of its own", v.Name, v.Shape())
+		if len(v.Options) > 0 || v.OptionsFrom != "" {
+			return fmt.Errorf("%s: a %s variable has no options of its own", v.Name, v.Shape())
 		}
 	case TypeDeferred:
 		if err := checkDeferred(v); err != nil {
@@ -605,8 +615,8 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 	if v.Check != "" && !v.Secret() {
 		return fmt.Errorf("%s: check looks at a secret as it is typed, and any other answer is held to its pattern", v.Name)
 	}
-	if len(v.Values) > 0 && v.Command != "" {
-		return fmt.Errorf("%s: values and command are two answers to the same question", v.Name)
+	if len(v.Options) > 0 && v.OptionsFrom != "" {
+		return fmt.Errorf("%s: options and options-from are two answers to the same question", v.Name)
 	}
 	switch v.Filter {
 	case "", FilterOpen, FilterCollapsed:
@@ -616,7 +626,7 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 	if v.Filter != "" && v.First {
 		return fmt.Errorf("%s: a question asked first carries its box open by itself, so filter says nothing here", v.Name)
 	}
-	if v.Filter != "" && len(v.Values) == 0 && v.Command == "" {
+	if v.Filter != "" && len(v.Options) == 0 && v.OptionsFrom == "" {
 		return fmt.Errorf("%s: filter narrows a list of answers, and this question is a box to type in", v.Name)
 	}
 	if v.Derived() {
@@ -624,7 +634,7 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 		case v.Secret():
 			return fmt.Errorf("%s: a secret is typed by a person, never worked out", v.Name)
 		case v.Prefill != "":
-			return fmt.Errorf("%s: answer settles the value, prefill only suggests one - a question is asked or it is not", v.Name)
+			return fmt.Errorf("%s: value-from settles the value, prefill only suggests one - a question is asked or it is not", v.Name)
 		case v.First:
 			return fmt.Errorf("%s: a derived answer is never asked, so it cannot be asked first", v.Name)
 		}
@@ -636,12 +646,25 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 		}
 		v.re = re
 	}
-	for _, expr := range []*string{&v.Command, &v.Prefill, &v.Apply, &v.Answer, &v.Check} {
-		resolved, err := shell(dir, *expr)
+	file := FileModule
+	if dir != s.Dir {
+		file = path.Join(DirActions, filepath.Base(dir), FileAction)
+	}
+	for _, f := range []struct {
+		key  string
+		expr *string
+	}{
+		{"options-from", &v.OptionsFrom}, {"prefill", &v.Prefill}, {"apply", &v.Apply},
+		{"value-from", &v.ValueFrom}, {"check", &v.Check},
+	} {
+		run, fn, err := shell(dir, *f.expr)
 		if err != nil {
-			return fmt.Errorf("%s: %w", v.Name, err)
+			return fmt.Errorf("%s: %s: %w", v.Name, f.key, err)
 		}
-		*expr = resolved
+		*f.expr = run
+		if fn != "" {
+			s.calls[fn] = fmt.Sprintf("%s: %s: %s", file, v.Name, f.key)
+		}
 	}
 	s.byName[v.Name] = v
 	return nil
@@ -687,39 +710,64 @@ func (s *Module) conditions(exprs Conditions) ([]*condition, error) {
 	return out, nil
 }
 
-// scriptFile is the file a field names rather than holds: a single line
-// beginning with ./ or ../ names one, anything else is the shell itself. So a
-// one-line option list stays in the yaml where it is read together with the
-// variable, and a long one moves into a file beside it — without a second
-// notation to learn.
-//
-// A path is relative to the folder of the yaml it was written in, which is the
-// only place somebody reading that line can be looking.
-func scriptFile(dir, expr string) (string, error) {
-	trimmed := strings.TrimSpace(expr)
-	if trimmed == "" || strings.Contains(trimmed, "\n") {
-		return "", nil
+// call is how a field names a function of oak.sh: its name and a pair of
+// parentheses, so it reads as a call and never as the shell it stands for.
+var call = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\(\)$`)
+
+// shell settles a field that names shell, against dir - the folder of the yaml
+// it was written in. It names either a function of oak.sh, written name(), or a
+// file beside the yaml, written ./file.sh, so the shell is always somewhere a
+// linter reads and a failure has a line. Shell written into the yaml itself is
+// refused. Handed back are what to run and the function it calls, if it does.
+func shell(dir, expr string) (run, fn string, err error) {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return "", "", nil
 	}
-	if !strings.HasPrefix(trimmed, "./") && !strings.HasPrefix(trimmed, "../") {
-		return "", nil
+	if m := call.FindStringSubmatch(expr); m != nil {
+		return m[1], m[1], nil
 	}
-	path := filepath.Join(dir, trimmed)
-	if _, err := os.Stat(path); err != nil {
-		return "", fmt.Errorf("no such script: %s", trimmed)
+	relative := strings.HasPrefix(expr, "./") || strings.HasPrefix(expr, "../")
+	if !relative || !strings.HasSuffix(expr, ScriptExt) || strings.ContainsAny(expr, " \t\n") {
+		return "", "", fmt.Errorf("%q is neither a function of %s, written name(), nor a file beside this yaml, written ./name%s", expr, FileRuntimeShell, ScriptExt)
 	}
-	return path, nil
+	file := filepath.Join(dir, expr)
+	if _, err := os.Stat(file); err != nil {
+		return "", "", fmt.Errorf("no such script: %s", expr)
+	}
+	return source(file), "", nil
 }
 
-// shell settles a field that may hold either shell or the file it lives in.
-func shell(dir, expr string) (string, error) {
-	path, err := scriptFile(dir, expr)
-	switch {
-	case err != nil:
-		return "", err
-	case path == "":
-		return expr, nil
+// definition is the line that opens a function in bash, either way bash
+// writes one.
+var definition = regexp.MustCompile(`(?m)^[ \t]*(?:function[ \t]+([A-Za-z_][A-Za-z0-9_]*)|([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(\))`)
+
+// functions is every function a shell file defines. Read rather than run: the
+// library is loaded in front of every script, not at startup.
+func functions(file string) (names, error) {
+	out := names{}
+	if file == "" {
+		return out, nil
 	}
-	return source(path), nil
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range definition.FindAllStringSubmatch(string(raw), -1) {
+		out[m[1]+m[2]] = true // one alternative matched, the other is empty
+	}
+	return out, nil
+}
+
+// checkCalls refuses a function the yaml calls that oak.sh does not define: a
+// typo there would otherwise be a command not found in the middle of a run.
+func checkCalls(calls map[string]string, defined names) error {
+	for _, fn := range slices.Sorted(maps.Keys(calls)) {
+		if !defined[fn] {
+			return fmt.Errorf("%s: %s() is not a function in %s", calls[fn], fn, FileRuntimeShell)
+		}
+	}
+	return nil
 }
 
 // quote wraps a path for the shell, so a module whose name holds a space or a
