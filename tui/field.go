@@ -220,8 +220,8 @@ func (s *fieldScreen) list() []item {
 	if len(items) == 0 && s.filter.query() != "" {
 		items = append(items, item{title: labelNoMatch(), disabled: true})
 	}
-	if s.v.Free != "" {
-		items = append(items, item{title: glyphs.add + " " + s.v.FreeLabel(), key: keyFieldFree})
+	if s.v.Open() {
+		items = append(items, item{title: glyphs.add + " " + labelOwnAnswer(), key: keyFieldFree})
 	}
 	return items
 }

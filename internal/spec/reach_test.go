@@ -14,6 +14,7 @@ const guarded = `title: Test Installer
 stages: [go]
 variables:
   - name: DESKTOP
+    type: list
     title: Desktop
     options: [gnome, none]
     required: true
@@ -88,7 +89,8 @@ func TestAWrittenOutSetOfValuesSettlesTheGuard(t *testing.T) {
 	// `!= none` over [gnome, none] is `== gnome`, so the task guarded on gnome
 	// runs wherever the question is asked. Take the values away and the same
 	// two guards no longer say the same thing.
-	open := strings.Replace(guarded, "    options: [gnome, none]\n", "", 1)
+	open := strings.Replace(strings.Replace(guarded, "    options: [gnome, none]\n", "", 1),
+		"  - name: DESKTOP\n    type: list\n", "  - name: DESKTOP\n    type: text\n", 1)
 	got := unread(t, consistent(map[string]string{FileModule: open}))
 	if len(got) != 1 || !strings.Contains(got[0], "EXTRAS") {
 		t.Errorf("Unread() = %v, want EXTRAS reported once the domain is open", got)

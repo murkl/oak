@@ -62,7 +62,7 @@ type Option struct {
 // language rather than anything a folder should have to translate.
 func (r *Runner) Options(v *spec.Variable) ([]Option, error) {
 	switch {
-	case v.Shape() == spec.TypeBool:
+	case v.Type == spec.TypeBool:
 		return []Option{
 			{Value: spec.BoolTrue, Label: store.Label(spec.BoolTrue)},
 			{Value: spec.BoolFalse, Label: store.Label(spec.BoolFalse)},
@@ -122,7 +122,7 @@ func (r *Runner) Unoffered() func() []string {
 	}
 	var lists []held
 	for _, v := range r.mod.Vars {
-		if v.OptionsFrom == "" || v.Free != "" || v.Secret() || v.Deferred() || v.Derived() || !v.Applies(r.store.Get) {
+		if v.OptionsFrom == "" || v.Open() || v.Secret() || v.Deferred() || v.Derived() || !v.Applies(r.store.Get) {
 			continue
 		}
 		if value := r.store.Get(v.Name); value != "" {
@@ -348,10 +348,10 @@ func (r *Runner) Fail(a *spec.Action, err error) error {
 // goroutine that owns the answers, and the shell — which may wait for a card to
 // show up — runs off the frame.
 func (r *Runner) Offered(a *spec.Action) func() bool {
-	if len(a.OfferIf) == 0 || r.store.Debug() {
+	if len(a.Rules.OfferIf) == 0 || r.store.Debug() {
 		return func() bool { return true }
 	}
-	env, required := r.store.Env(), r.mod.Named(a.OfferIf)
+	env, required := r.store.Env(), r.mod.Named(a.Rules.OfferIf)
 	return func() bool {
 		for _, c := range required {
 			if err := r.sh.Guard(c.Work().Shell(), env); err != nil {

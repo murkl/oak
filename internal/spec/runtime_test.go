@@ -197,7 +197,7 @@ func TestANameTheProductsShellReadsForAnotherModuleIsNotUnset(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, FileRuntimeShell), []byte("disk() { echo \"$DISK $GONE\"; }\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	declare := "title: The installer\nstages: [go]\nvariables:\n  - name: DISK\n    title: Disk\n"
+	declare := "title: The installer\nstages: [go]\nvariables:\n  - name: DISK\n    type: text\n    title: Disk\n"
 	if err := os.WriteFile(filepath.Join(dir, DirModules, "installer", FileModule), []byte(declare), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +294,7 @@ func writeShell(t *testing.T, dir, body string) {
 func TestAFunctionTheYamlCallsIsHeldToTheProductsShell(t *testing.T) {
 	dir := writeRuntime(t, testRuntime, "installer")
 	decl := filepath.Join(dir, DirModules, "installer", FileModule)
-	body := "title: The installer\nstages: [go]\nvariables:\n  - name: DISK\n    title: Disk\n    options-from: list_disk()\n"
+	body := "title: The installer\nstages: [go]\nvariables:\n  - name: DISK\n    type: list\n    title: Disk\n    options-from: list_disk()\n"
 	if err := os.WriteFile(decl, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -315,8 +315,8 @@ func TestAFunctionOfTheProductsShellIsCalledByName(t *testing.T) {
 	dir := writeRuntime(t, testRuntime, "installer")
 	decl := filepath.Join(dir, DirModules, "installer", FileModule)
 	body := "title: The installer\nstages: [go]\nvariables:\n" +
-		"  - name: DISK\n    title: Disk\n    options-from: list_disks()\n" +
-		"  - name: ZONE\n    title: Zone\n    prefill: guess_zone()\n"
+		"  - name: DISK\n    type: list\n    title: Disk\n    options-from: list_disks()\n" +
+		"  - name: ZONE\n    type: text\n    title: Zone\n    prefill: guess_zone()\n"
 	if err := os.WriteFile(decl, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}

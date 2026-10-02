@@ -114,6 +114,33 @@ var retiredParts = map[string]string{
 	"module.sh": "a module has no shell of its own — what its scripts share with each other and with the modules beside it is a function in oak.sh beside oak.yaml",
 }
 
+// checkType settles a variable's type, which every one names, and the keys
+// that belong to a list against it.
+func checkType(v *Variable) error {
+	switch v.Type {
+	case "":
+		return fmt.Errorf("type is required, one of %s", strings.Join(Types, ", "))
+	case "secret":
+		return fmt.Errorf("type secret is %s, typed once where it exists already, or %s, typed twice where it is being chosen", TypePassword, TypeNewPassword)
+	case TypeList, TypeOpenList:
+		if len(v.Options) == 0 && v.OptionsFrom == "" {
+			return fmt.Errorf("a %s takes its answers from options or options-from", v.Type)
+		}
+	case TypeDeferred:
+		return checkDeferred(v)
+	case TypeText, TypeBool, TypePassword, TypeNewPassword:
+		switch {
+		case len(v.Options) > 0 || v.OptionsFrom != "":
+			return fmt.Errorf("a %s has no options of its own - a set of answers is type %s", v.Type, TypeList)
+		case v.Filter != "":
+			return fmt.Errorf("filter narrows a list of answers, and a %s is none", v.Type)
+		}
+	default:
+		return fmt.Errorf("unknown type %q, which is one of %s", v.Type, strings.Join(Types, ", "))
+	}
+	return nil
+}
+
 // checkStages settles the phases the work happens in: at least one, each named
 // once, and none of them carrying the mark that says the runtime runs it.
 func checkStages(stages []string) error {
@@ -295,6 +322,9 @@ var retired = map[string]string{
 	"failure":        "it is a rule now: under rules:, as on-failure",
 	"success":        "it is a rule now: under rules:, as on-success",
 	"fallback":       "it is a rule now: under rules:, as on-failure",
+	"existing":       "a password that exists already is type: password, one being chosen type: new-password",
+	"free":           "a list that also takes an answer typed in is type: open-list",
+	"variable":       "an action's questions are variables:, a list like the module's",
 }
 
 // unknownField is how the decoder says a key is not one of them. It names the
@@ -531,7 +561,7 @@ func (s *Module) normalize(tasks []*Task) {
 		fields = append(fields, &a.Title, &a.Description, &a.Error, &a.Report)
 	}
 	for _, v := range s.Declared() {
-		fields = append(fields, &v.Title, &v.Description, &v.Group, &v.Free, &v.Error)
+		fields = append(fields, &v.Title, &v.Description, &v.Group, &v.Error)
 	}
 	for _, t := range tasks {
 		fields = append(fields, &t.Title, &t.Confirm, &t.Report)
@@ -594,30 +624,17 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 	case v.Title == "":
 		return fmt.Errorf("%s: title is required", v.Name)
 	}
-	switch v.Shape() {
-	case TypeText:
-	case TypeBool, TypeSecret:
-		if len(v.Options) > 0 || v.OptionsFrom != "" {
-			return fmt.Errorf("%s: a %s variable has no options of its own", v.Name, v.Shape())
-		}
-	case TypeDeferred:
-		if err := checkDeferred(v); err != nil {
-			return fmt.Errorf("%s: %w", v.Name, err)
-		}
-	default:
-		return fmt.Errorf("%s: unknown type %q", v.Name, v.Type)
+	if err := checkType(v); err != nil {
+		return fmt.Errorf("%s: %w", v.Name, err)
 	}
 	if v.Secret() && v.Default != "" {
-		return fmt.Errorf("%s: a secret is never stored, so it cannot have a default", v.Name)
+		return fmt.Errorf("%s: a password is never stored, so it cannot have a default", v.Name)
 	}
 	if v.Secret() && v.First {
-		return fmt.Errorf("%s: a secret is asked for immediately before the run that needs it, so it cannot also be asked first", v.Name)
+		return fmt.Errorf("%s: a password is asked for immediately before the run that needs it, so it cannot also be asked first", v.Name)
 	}
-	if v.Existing && !v.Secret() {
-		return fmt.Errorf("%s: existing says a password is entered rather than chosen, and only a secret is either", v.Name)
-	}
-	if v.Check != "" && !v.Secret() {
-		return fmt.Errorf("%s: check looks at a secret as it is typed, and any other answer is held to its pattern", v.Name)
+	if v.Check != "" && v.Type != TypePassword {
+		return fmt.Errorf("%s: check tries a password that already exists, so it is type %s, and any other answer is held to its pattern", v.Name, TypePassword)
 	}
 	if len(v.Options) > 0 && v.OptionsFrom != "" {
 		return fmt.Errorf("%s: options and options-from are two answers to the same question", v.Name)
@@ -629,9 +646,6 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 	}
 	if v.Filter != "" && v.First {
 		return fmt.Errorf("%s: a question asked first carries its box open by itself, so filter says nothing here", v.Name)
-	}
-	if v.Filter != "" && len(v.Options) == 0 && v.OptionsFrom == "" {
-		return fmt.Errorf("%s: filter narrows a list of answers, and this question is a box to type in", v.Name)
 	}
 	if v.Derived() {
 		switch {

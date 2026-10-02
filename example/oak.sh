@@ -13,6 +13,6 @@ tux_shell() {
 
 # ─── The YAML ───────────────────────────────────────────────────────────────
 
-suggest_hostname() { echo tuxbox; }
+prefill_hostname() { echo tuxbox; }
 
-tux_desktop() { cat "${TUX_TARGET}/etc/desktop" 2>/dev/null || echo none; }
+value_desktop() { cat "${TUX_TARGET}/etc/desktop" 2>/dev/null || echo none; }

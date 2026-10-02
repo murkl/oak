@@ -18,7 +18,7 @@ func module(t *testing.T, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
 	base := map[string]string{
-		FileModule:               head("variables:\n  - name: DISK\n    title: Disk\n    required: true\n"),
+		FileModule:               head("variables:\n  - name: DISK\n    type: text\n    title: Disk\n    required: true\n"),
 		"tasks/@go/do/task.yaml": "title: Do it\n",
 		"tasks/@go/do/task.sh":   "echo hi\n",
 	}
@@ -81,6 +81,7 @@ title: Test Installer
 stages: [go, done]
 variables:
   - name: DISK
+    type: text
     title: Disk
     required: true
 presets:
@@ -292,7 +293,7 @@ func TestActionsAreNamedWhereTheyRun(t *testing.T) {
 	sp, err := Load(module(t, units(
 		map[string]string{FileModule: head("rules:\n  start-if: [root, internet]\n  on-settings: [wlan]\n  on-leave: [restart]\n")},
 		action("root", "title: Running as root\nerror: Log in as root.\n"),
-		action("internet", "title: Internet\nerror: There is no internet.\nrules:\n  on-failure: wlan\n"),
+		action("internet", "title: Internet\nerror: There is no internet.\nrules:\n  on-failure: [wlan]\n"),
 		action("wlan", "title: Wireless network\nrules:\n  offer-if: [card]\n"),
 		action("card", "title: A wireless card\n"),
 		action("restart", "title: Restart\n"),
@@ -307,11 +308,11 @@ func TestActionsAreNamedWhereTheyRun(t *testing.T) {
 	if strings.Join(ids, " ") != "root internet" {
 		t.Errorf("start-if = %v, want them in the order the module named them", ids)
 	}
-	if a := sp.Action("internet"); a.OnFailure != "wlan" {
-		t.Errorf("internet on failure opens %q, want wlan", a.OnFailure)
+	if a := sp.Action("internet"); strings.Join(a.Rules.OnFailure, " ") != "wlan" {
+		t.Errorf("internet on failure opens %v, want wlan", a.Rules.OnFailure)
 	}
-	if a := sp.Action("wlan"); len(a.OfferIf) != 1 || a.OfferIf[0] != "card" {
-		t.Errorf("wlan is offered if %v, want the card", a.OfferIf)
+	if a := sp.Action("wlan"); strings.Join(a.Rules.OfferIf, " ") != "card" {
+		t.Errorf("wlan is offered if %v, want the card", a.Rules.OfferIf)
 	}
 	if !strings.HasSuffix(string(sp.Action("restart").Work()), filepath.Join("restart", FileActionScript)) {
 		t.Errorf("restart runs %q, want the %s beside its yaml", sp.Action("restart").Work(), FileActionScript)
@@ -340,13 +341,14 @@ func TestAModuleWithoutActionsHasNone(t *testing.T) {
 // shows is declared by being named there.
 func TestAnActionsPageIsDeclaredBesideTheModulesOwn(t *testing.T) {
 	sp, err := Load(module(t, units(
-		map[string]string{FileModule: head("rules:\n  on-settings: [wlan, share]\nvariables:\n  - name: DISK\n    title: Disk\n")},
+		map[string]string{FileModule: head("rules:\n  on-settings: [wlan, share]\nvariables:\n  - name: DISK\n    type: text\n    title: Disk\n")},
 		action("wlan", `
 title: Wireless network
-variable:
-  name: WLAN_SSID
-  title: Network
-  options-from: ./networks.sh
+variables:
+  - name: WLAN_SSID
+    type: list
+    title: Network
+    options-from: ./networks.sh
 `),
 		map[string]string{"actions/wlan/networks.sh": "echo Home\n"},
 		action("share", "title: Share\nreport: Shared\nshows: LINK\n"),
@@ -387,34 +389,36 @@ func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 		{"no title", row("description: O\n"), "title is required"},
 		{"nothing that runs", map[string]string{FileModule: head("rules:\n  on-settings: [o]\n"), "actions/o/action.yaml": "title: O\n"}, "no " + FileActionScript},
 		{"a name that is no action", map[string]string{FileModule: head("rules:\n  start-if: [ghost]\n")}, "rules: start-if: no such action: ghost"},
-		{"a failure opening no action", row("title: O\nrules:\n  on-failure: ghost\n"), "rules: on-failure: no such action: ghost"},
+		{"a failure opening no action", row("title: O\nrules:\n  on-failure: [ghost]\n"), "rules: on-failure: no such action: ghost"},
 		{"an action nothing names", action("o", "title: O\n"), "nothing names it, so it never runs"},
-		{"a required action that asks", required("title: O\nvariable:\n  name: X\n  title: X\n"), "it runs by itself where it is named, so it has no page"},
+		{"a required action that asks", required("title: O\nvariables:\n  - name: X\n    type: text\n    title: X\n"), "it runs by itself where it is named, so it has no page"},
 		{"a required action that reports", required("title: O\nreport: Done\n"), "it runs by itself where it is named, so it has no page"},
 		{"a required action that does not say why", units(map[string]string{FileModule: head("rules:\n  start-if: [o]\n")}, action("o", "title: O\n")), "error: it runs by itself in front of the work"},
-		{"a way out that asks", units(map[string]string{FileModule: head("rules:\n  on-leave: [o]\n")}, action("o", "title: O\nvariable:\n  name: X\n  title: X\n")), "a way out asks nothing"},
-		{"a failure opening itself", row("title: O\nrules:\n  on-failure: o\n"), "cannot put itself right"},
+		{"a way out that asks", units(map[string]string{FileModule: head("rules:\n  on-leave: [o]\n")}, action("o", "title: O\nvariables:\n  - name: X\n    type: text\n    title: X\n")), "a way out asks nothing"},
+		{"a failure opening itself", row("title: O\nrules:\n  on-failure: [o]\n"), "cannot put itself right"},
 		{"actions that wait on each other", units(
 			map[string]string{FileModule: head("rules:\n  on-settings: [a]\n")},
 			action("a", "title: A\nrules:\n  offer-if: [b]\n"),
-			action("b", "title: B\nrules:\n  on-failure: a\n"),
+			action("b", "title: B\nrules:\n  on-failure: [a]\n"),
 		), "actions that wait on each other: a → b → a"},
-		{"a page asked first", row("title: O\nvariable:\n  name: X\n  title: X\n  first: true\n"), "a page is asked when its action is opened"},
-		{"a page in a group", row("title: O\nvariable:\n  name: X\n  title: X\n  group: G\n"), "a page is never on the settings page"},
-		{"a page worked out", row("title: O\nvariable:\n  name: X\n  title: X\n  value-from: x()\n"), "a value worked out is not"},
-		{"a page asked mid-run", row("title: O\nvariable:\n  name: X\n  title: X\n  type: deferred\n  options: [a]\n"), "type: deferred is asked by a task mid-run"},
+		{"a page asked first", row("title: O\nvariables:\n  - name: X\n    type: text\n    title: X\n    first: true\n"), "a page is asked when its action is opened"},
+		{"a page in a group", row("title: O\nvariables:\n  - name: X\n    type: text\n    title: X\n    group: G\n"), "a page is never on the settings page"},
+		{"a page worked out", row("title: O\nvariables:\n  - name: X\n    type: text\n    title: X\n    value-from: x()\n"), "a value worked out is not"},
+		{"a page asked mid-run", row("title: O\nvariables:\n  - name: X\n    title: X\n    type: deferred\n    options: [a]\n"), "type: deferred is asked by a task mid-run"},
 		{"a page named like a question", units(
-			map[string]string{FileModule: head("rules:\n  on-settings: [o]\nvariables:\n  - name: X\n    title: X\n")},
-			action("o", "title: O\nvariable:\n  name: X\n  title: X\n"),
+			map[string]string{FileModule: head("rules:\n  on-settings: [o]\nvariables:\n  - name: X\n    type: text\n    title: X\n")},
+			action("o", "title: O\nvariables:\n  - name: X\n    type: text\n    title: X\n"),
 		), "X is declared twice"},
 		{"a code named like a question", units(
-			map[string]string{FileModule: head("rules:\n  on-settings: [o]\nvariables:\n  - name: X\n    title: X\n")},
+			map[string]string{FileModule: head("rules:\n  on-settings: [o]\nvariables:\n  - name: X\n    type: text\n    title: X\n")},
 			action("o", "title: O\nreport: Done\nshows: X\n"),
 		), "X is declared twice"},
-		{"a page guarded by nothing", row("title: O\nvariable:\n  name: X\n  title: X\n  conditions: NOPE == y\n"), "no such variable: NOPE"},
-		{"two pages", row("title: O\nreport: Done\ntty: true\n"), "an action has one page"},
-		{"a question and a report", row("title: O\nreport: Done\nvariable:\n  name: X\n  title: X\n"), "an action has one page"},
-		{"several questions", row("title: O\nvariables:\n  - name: X\n    title: X\n"), "a second question is a second action named under its rules: on-failure"},
+		{"a page guarded by nothing", row("title: O\nvariables:\n  - name: X\n    type: text\n    title: X\n    conditions: NOPE == y\n"), "no such variable: NOPE"},
+		{"two pages", row("title: O\nreport: Done\ntty: true\n"), "an action has one kind of page"},
+		{"a question and a report", row("title: O\nreport: Done\nvariables:\n  - name: X\n    type: text\n    title: X\n"), "an action has one kind of page"},
+		{"a gate of the module's", row("title: O\nrules:\n  start-if: [o]\n"), "an action's own are offer-if and on-failure"},
+		{"a row of the module's", row("title: O\nrules:\n  on-success: [o]\n"), "an action's own are offer-if and on-failure"},
+		{"an action still saying variable", row("title: O\nvariable:\n  name: X\n  type: text\n  title: X\n"), "variable is not a key here — an action's questions are variables:"},
 		{"a code with no report to stand on", row("title: O\nshows: X\n"), "there is no report for it to appear on"},
 		{"a script written into the yaml", row("title: O\nscript: echo hi\n"), "an action in the action.sh beside it"},
 		{"a yes or no before it runs", row("title: O\nconfirm: Sure?\n"), "an action is agreed to by choosing its row"},
@@ -506,7 +510,7 @@ func TestTheWordForStartingIsTranslatable(t *testing.T) {
 // answers it names filled in.
 func TestTheLastPageIsTheModulesOwnAndTranslatable(t *testing.T) {
 	sp, err := Load(module(t, map[string]string{
-		FileModule: head("text:\n  confirm: |\n    Erase {{DISK}}?\n\n    Everything on it\n    is lost.\nvariables:\n  - name: DISK\n    title: Disk\n"),
+		FileModule: head("text:\n  confirm: |\n    Erase {{DISK}}?\n\n    Everything on it\n    is lost.\nvariables:\n  - name: DISK\n    type: text\n    title: Disk\n"),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -584,12 +588,12 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "two variables of the same name",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: A\n  - name: DISK\n    title: B\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: A\n  - name: DISK\n    type: text\n    title: B\n")},
 			want:  "declared twice",
 		},
 		{
 			name:  "a variable with no title",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n")},
 			want:  "title is required",
 		},
 		{
@@ -604,42 +608,72 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "a filter setting nobody has heard of",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    options: [a, b]\n    filter: hidden\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: list\n    title: D\n    options: [a, b]\n    filter: hidden\n")},
 			want:  "unknown filter",
 		},
 		{
 			name:  "a filter on a question with no list to narrow",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    filter: open\n")},
-			want:  "box to type in",
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: D\n    filter: open\n")},
+			want:  "filter narrows a list of answers, and a text is none",
 		},
 		{
 			name:  "a filter on a question asked first, which carries its box either way",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    options: [a, b]\n    first: true\n    filter: open\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: list\n    title: D\n    options: [a, b]\n    first: true\n    filter: open\n")},
 			want:  "says nothing here",
 		},
 		{
 			name:  "a secret asked first, which is a question that would never be asked",
-			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    first: true\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: new-password\n    first: true\n")},
 			want:  "cannot also be asked first",
 		},
 		{
 			name:  "a secret with a default, which would be a stored password",
-			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    default: hunter2\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: new-password\n    default: hunter2\n")},
 			want:  "cannot have a default",
 		},
 		{
 			name:  "a secret worked out rather than typed",
-			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: secret\n    value-from: x()\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: new-password\n    value-from: x()\n")},
 			want:  "never worked out",
 		},
 		{
-			name:  "existing on a question that is not a password at all",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    existing: true\n")},
-			want:  "only a secret is either",
+			name:  "existing, which a type says now",
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    type: new-password\n    title: P\n    existing: true\n")},
+			want:  "existing is not a key here — a password that exists already is type: password",
+		},
+		{
+			name:  "a variable that names no type",
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n")},
+			want:  "DISK: type is required, one of text, bool, list, open-list, password, new-password, deferred",
+		},
+		{
+			name:  "a secret the way Oak 0.17 wrote it",
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    type: secret\n    title: P\n")},
+			want:  "type secret is password, typed once where it exists already, or new-password",
+		},
+		{
+			name:  "a list with nothing to choose from",
+			files: map[string]string{FileModule: head("variables:\n  - name: FS\n    type: list\n    title: F\n")},
+			want:  "a list takes its answers from options or options-from",
+		},
+		{
+			name:  "answers on a box to type in",
+			files: map[string]string{FileModule: head("variables:\n  - name: FS\n    type: text\n    title: F\n    options: [a, b]\n")},
+			want:  "a text has no options of its own - a set of answers is type list",
+		},
+		{
+			name:  "a check on a password being chosen, which nothing can check",
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    type: new-password\n    title: P\n    check: try()\n")},
+			want:  "check tries a password that already exists",
+		},
+		{
+			name:  "a row for an answer of one's own, which a type says now",
+			files: map[string]string{FileModule: head("variables:\n  - name: FS\n    type: list\n    title: F\n    options: [a]\n    free: Other\n")},
+			want:  "free is not a key here — a list that also takes an answer typed in is type: open-list",
 		},
 		{
 			name:  "a check on an answer the settings page shows and its pattern holds",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    check: x()\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: D\n    check: x()\n")},
 			want:  "any other answer is held to its pattern",
 		},
 		{
@@ -664,44 +698,44 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "the last page naming a variable nothing declares",
-			files: map[string]string{FileModule: head("text:\n  confirm: Erase {{DSIK}}?\nvariables:\n  - name: DISK\n    title: D\n")},
+			files: map[string]string{FileModule: head("text:\n  confirm: Erase {{DSIK}}?\nvariables:\n  - name: DISK\n    type: text\n    title: D\n")},
 			want:  "text: confirm: {{DSIK}} is not a variable of this module",
 		},
 		{
 			name: "a task's offer naming a variable nothing declares",
-			files: units(map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n")},
+			files: units(map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: D\n")},
 				unit("go", "a", "title: A\nconfirm: Erase {{DSIK}}?\n")),
 			want: "{{DSIK}} is not a variable of this module",
 		},
 		{
 			name: "a task's report naming a variable nothing declares",
-			files: units(map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n")},
+			files: units(map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: D\n")},
 				unit("go", "a", "title: A\nreport: It went to {{DSIK}}.\n")),
 			want: "{{DSIK}} is not a variable of this module",
 		},
 		{
 			name:  "a question both worked out and suggested, which is asked and not asked at once",
-			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    value-from: a()\n    prefill: b()\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    type: text\n    title: X\n    value-from: a()\n    prefill: b()\n")},
 			want:  "a question is asked or it is not",
 		},
 		{
 			name:  "a derived answer asked first, which is a question that is never asked",
-			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    value-from: a()\n    first: true\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    type: text\n    title: X\n    value-from: a()\n    first: true\n")},
 			want:  "cannot be asked first",
 		},
 		{
 			name:  "both a list and a function for the same question",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    options: [a]\n    options-from: ls()\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: list\n    title: D\n    options: [a]\n    options-from: ls()\n")},
 			want:  "two answers to the same question",
 		},
 		{
 			name:  "a pattern that is not a pattern",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    pattern: '['\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: D\n    pattern: '['\n")},
 			want:  "pattern",
 		},
 		{
 			name:  "a key that is a typo, silently ignored by a lesser reader",
-			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    requird: true\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: D\n    requird: true\n")},
 			want:  "requird is not a key here",
 		},
 		{
@@ -731,7 +765,7 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "a language tied to a variable nobody declared",
-			files: map[string]string{FileModule: head("language: NOPE\nvariables:\n  - name: DISK\n    title: D\n")},
+			files: map[string]string{FileModule: head("language: NOPE\nvariables:\n  - name: DISK\n    type: text\n    title: D\n")},
 			want:  "no such variable",
 		},
 		{
@@ -808,17 +842,17 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "a question's list the way an older Oak named it",
-			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    values: [a]\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    type: text\n    title: X\n    values: [a]\n")},
 			want:  "values is not a key here — a question's list is options",
 		},
 		{
 			name:  "what prints a list the way an older Oak named it",
-			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    command: x()\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    type: text\n    title: X\n    command: x()\n")},
 			want:  "command is not a key here — what prints a question's list is options-from",
 		},
 		{
 			name:  "a value worked out the way an older Oak named it",
-			files: map[string]string{FileModule: head("variables:\n  - name: X\n    title: X\n    answer: x()\n")},
+			files: map[string]string{FileModule: head("variables:\n  - name: X\n    type: text\n    title: X\n    answer: x()\n")},
 			want:  "answer is not a key here — a value worked out instead of asked is value-from",
 		},
 		{
@@ -864,7 +898,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name: "a starting point both written out and fetched",
 			files: units(
-				map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: Disk\npresets:\n  - title: P\n    action: fetch\n    values:\n      DISK: /dev/sda\n")},
+				map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: Disk\npresets:\n  - title: P\n    action: fetch\n    values:\n      DISK: /dev/sda\n")},
 				action("fetch", "title: Fetch\n"),
 			),
 			want: "written out in values or fetched by an action, not both",
@@ -934,6 +968,7 @@ func TestShellFieldsNameAFunctionOrAFile(t *testing.T) {
 		FileModule: head(`
 variables:
   - name: DISK
+    type: list
     title: Disk
     options-from: ./data/disks.sh
     prefill: first_disk()
@@ -953,6 +988,14 @@ variables:
 	}
 }
 
+// typeFor is the type a field means something for.
+func typeFor(field string) string {
+	if field == "options-from" {
+		return TypeList
+	}
+	return TypeText
+}
+
 // Shell written into the yaml itself is read by no linter and has no line to
 // point at, so every field that names shell refuses it.
 func TestShellWrittenIntoTheYamlIsRefused(t *testing.T) {
@@ -960,7 +1003,7 @@ func TestShellWrittenIntoTheYamlIsRefused(t *testing.T) {
 		for _, expr := range []string{"echo a", "first_disk", "first_disk ()", "./disks", "./missing.sh", "'./two words.sh'"} {
 			t.Run(field+" "+expr, func(t *testing.T) {
 				dir := module(t, map[string]string{
-					FileModule: head("variables:\n  - name: X\n    title: X\n    " + field + ": " + expr + "\n"),
+					FileModule: head("variables:\n  - name: X\n    type: " + typeFor(field) + "\n    title: X\n    " + field + ": " + expr + "\n"),
 					"disks":    "lsblk\n",
 				})
 				_, err := Load(dir)
@@ -974,7 +1017,7 @@ func TestShellWrittenIntoTheYamlIsRefused(t *testing.T) {
 
 func TestReflowKeepsOnlyTheBreaksThatWereMeant(t *testing.T) {
 	dir := module(t, map[string]string{
-		FileModule: head("variables:\n  - name: DISK\n    title: Disk\n    description: |\n      One sentence\n      wrapped by an editor.\n\n      A second paragraph.\n"),
+		FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: Disk\n    description: |\n      One sentence\n      wrapped by an editor.\n\n      A second paragraph.\n"),
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -1009,7 +1052,7 @@ func TestExpandFillsInAnswers(t *testing.T) {
 // Every answer is a string in the end, but nobody writes `default: "true"`.
 func TestScalarReadsWhateverShapeItWasWrittenIn(t *testing.T) {
 	dir := module(t, map[string]string{
-		FileModule: head("variables:\n  - name: A\n    title: A\n    default: true\n  - name: B\n    title: B\n    default: 8\n  - name: C\n    title: C\n    default: pc105\n"),
+		FileModule: head("variables:\n  - name: A\n    type: text\n    title: A\n    default: true\n  - name: B\n    type: text\n    title: B\n    default: 8\n  - name: C\n    type: text\n    title: C\n    default: pc105\n"),
 	})
 	sp, err := Load(dir)
 	if err != nil {
@@ -1030,6 +1073,7 @@ presets:
     description: Everything.
 variables:
   - name: DISK
+    type: text
     title: Disk
     description: Where it goes.
     group: Storage
@@ -1080,7 +1124,7 @@ func TestAModuleWithoutADeclarationIsRefused(t *testing.T) {
 // hold: a row that belongs under two unrelated circumstances is two rows.
 func TestSeveralConditionsAllHaveToHold(t *testing.T) {
 	dir := module(t, map[string]string{
-		FileModule:               head("variables:\n  - name: DESKTOP\n    title: D\n    type: bool\n  - name: DRIVER\n    title: G\n"),
+		FileModule:               head("variables:\n  - name: DESKTOP\n    title: D\n    type: bool\n  - name: DRIVER\n    type: text\n    title: G\n"),
 		"tasks/@go/do/task.yaml": "title: Driver\nconditions:\n  - DESKTOP == true\n  - DRIVER != none\n",
 	})
 	sp, err := Load(dir)
@@ -1121,6 +1165,7 @@ func TestADeferredQuestionIsLeftForItsTask(t *testing.T) {
 		map[string]string{
 			FileModule: head(`variables:
   - name: DISK
+    type: text
     title: Disk
     required: true
   - name: SNAPSHOT
@@ -1148,7 +1193,7 @@ func TestADeferredQuestionIsLeftForItsTask(t *testing.T) {
 func TestAStartingPointMayBeFetchedByAnAction(t *testing.T) {
 	sp, err := Load(module(t, units(
 		map[string]string{FileModule: head("presets:\n  - title: Online\n    action: fetch\n")},
-		action("fetch", "title: Fetch\nvariable:\n  name: SOURCE\n  title: Code\n"),
+		action("fetch", "title: Fetch\nvariables:\n  - name: SOURCE\n    type: text\n    title: Code\n"),
 	)))
 	if err != nil {
 		t.Fatal(err)

@@ -55,6 +55,7 @@ func labelHintFilterPermanent() string {
 
 func labelFilterPlaceholder() string { return say("Filter …") }
 func labelNoMatch() string           { return say("No matches") }
+func labelOwnAnswer() string         { return say("An answer of your own") }
 
 // The sign-off under the wordmark on the splash, and the one place Oak names
 // itself: which program drew this product, and which build of it.
