@@ -1,5 +1,3 @@
-# Named under rules: start-if, it runs by itself before the questions, and
-# again every few seconds for as long as it says no. The script only answers;
-# what somebody reads while it says no is fail.
+# Under start-if: asked again every few seconds while it says no.
 title: Check the working folder
-fail: This folder cannot be written to. Start Tux Setup somewhere you own.
+error: This folder cannot be written to. Start Tux Setup somewhere you own.

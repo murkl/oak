@@ -1,78 +1,49 @@
-# One module: what it is, what it asks, and the order its work happens in.
-#
-# The folder name is the module's identity. `oak --module=setup` opens it
-# outright, and its answers and its log are called setup.conf and setup.log.
-# Everything else in the folder has the name Oak knows it by — tasks/,
-# actions/, locales/. The one thing this file points at is an action, by its
-# folder, under the rule it runs by.
-#
-# This one is an installer in miniature. It asks what an installer asks and
-# builds a small system tree out of the answers — in a folder, so the whole
-# thing can be run on the machine you are reading this on.
+# An installer in miniature: it asks what an installer asks and builds a small
+# system tree in a folder, so it runs on the machine you read this on.
 
-# The module's one name: the row that opens it, the trail across the top of
-# every page once it is open, and every sentence the interface writes about it.
-# The rows inside it are named after what they do, so nothing repeats this.
 title: Tux Setup
 description: Build a small Linux system tree, the way an installer would.
-
-# What starting the work is called: the menu's first row. A verb, since the
-# title stands over it. Left out, as the recovery beside this one does, it is
-# Start. settings-title names the row under it the same way.
 start-title: Install
 
-# The phases the work happens in, in the order they happen. Every task names one
-# of them, and naming it is the whole of what puts it in the run and where.
+# Each a folder under tasks/, marked: tasks/@install/.
 stages: [prepare, install, finish]
 
-# When its actions run, each a folder under actions/: what has to say yes before
-# the work can start, what stands as a row on the settings page, and what is
-# offered once the run has finished.
+# Each a folder under actions/.
 rules:
   start-if: [writable]
-  settings: [note]
+  on-settings: [note]
   on-success: [shell]
 
 variables:
-  # A suggestion rather than an answer: the box opens on it, and Oak still asks.
-  # A default: would settle the question outright and never show this page.
+  # prefill suggests and Oak still asks; a default would answer.
   - name: TUX_HOST
     title: Hostname
-    description: |
-      What the machine calls itself on the network.
+    description: What the machine calls itself on the network.
     group: System
     required: true
-    prefill: echo tuxbox
+    prefill: suggest_hostname()
     pattern: '^[a-z][a-z0-9-]*$'
     error: Lower case letters, digits and - only.
 
   - name: TUX_USER
     title: User name
-    description: |
-      The account you log in with.
+    description: The account you log in with.
     group: System
     required: true
-    prefill: echo tux
     pattern: '^[a-z][a-z0-9-]*$'
     error: Lower case letters, digits and - only.
 
-  # A list, because the answers are written down. Without them this would be a
-  # text box, and with a command: it would be a list built from what that
-  # command printed.
   - name: TUX_DESKTOP
     title: Desktop
-    description: |
-      Which desktop to install. Without one the system boots to a console.
+    description: Which desktop to install. Without one the system boots to a console.
     group: System
     required: true
-    values: [gnome, plasma, none]
+    options: [gnome, plasma, none]
 
-  # Answered before it is asked, so this one never gets a page of its own. It is
-  # still on the settings page, where anything already answered can be changed.
+  # Answered by its default, so it is never asked, only changed in the settings.
   - name: TUX_TARGET
     title: Target folder
-    description: |
-      Where the system tree is built. A real installer names a disk here.
+    description: Where the system tree is built. A real installer names a disk here.
     group: Storage
     required: true
     default: ./tux

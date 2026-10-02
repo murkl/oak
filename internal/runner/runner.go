@@ -67,14 +67,14 @@ func (r *Runner) Options(v *spec.Variable) ([]Option, error) {
 			{Value: spec.BoolTrue, Label: store.Label(spec.BoolTrue)},
 			{Value: spec.BoolFalse, Label: store.Label(spec.BoolFalse)},
 		}, nil
-	case len(v.Values) > 0:
-		out := make([]Option, len(v.Values))
-		for i, value := range v.Values {
+	case len(v.Options) > 0:
+		out := make([]Option, len(v.Options))
+		for i, value := range v.Options {
 			out[i] = Option{Value: value, Label: store.Label(value)}
 		}
 		return out, nil
-	case v.Command != "":
-		lines, err := r.sh.Lines(v.Command, r.store.Env())
+	case v.OptionsFrom != "":
+		lines, err := r.sh.Lines(v.OptionsFrom, r.store.Env())
 		if err != nil {
 			logging.Warn("options for %s: %s", v.Name, err)
 			return nil, err
@@ -122,7 +122,7 @@ func (r *Runner) Unoffered() func() []string {
 	}
 	var lists []held
 	for _, v := range r.mod.Vars {
-		if v.Command == "" || v.Free != "" || v.Secret() || v.Deferred() || v.Derived() || !v.Applies(r.store.Get) {
+		if v.OptionsFrom == "" || v.Free != "" || v.Secret() || v.Deferred() || v.Derived() || !v.Applies(r.store.Get) {
 			continue
 		}
 		if value := r.store.Get(v.Name); value != "" {
@@ -132,7 +132,7 @@ func (r *Runner) Unoffered() func() []string {
 	return func() []string {
 		var out []string
 		for _, h := range lists {
-			lines, err := r.sh.Lines(h.v.Command, env)
+			lines, err := r.sh.Lines(h.v.OptionsFrom, env)
 			if err != nil {
 				logging.Warn("options for %s: %s", h.v.Name, err)
 				continue
@@ -233,9 +233,9 @@ func (r *Runner) Resolve() {
 		if !v.Derived() {
 			continue
 		}
-		out, err := r.sh.Run(v.Answer, env)
+		out, err := r.sh.Run(v.ValueFrom, env)
 		if err != nil {
-			logging.Warn("answer for %s: %s", v.Name, err)
+			logging.Warn("value-from for %s: %s", v.Name, err)
 			out = ""
 		}
 		r.store.Set(v.Name, out)
@@ -279,7 +279,7 @@ func (r *Runner) Status() func() bool {
 	}
 	env := r.store.Env()
 	return func() bool {
-		_, err := r.sh.Run(st.Script, env)
+		_, err := r.sh.Run(st.Check, env)
 		return err == nil
 	}
 }

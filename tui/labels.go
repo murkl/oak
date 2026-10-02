@@ -125,13 +125,13 @@ func labelOptionalFailed(failed, ran int) string {
 	return say("%d of %d optional tasks failed", failed, ran)
 }
 
-func labelResults() string    { return say("Results") }
+// The row under a finished run where something failed, and the page behind it:
+// the failed optional tasks and the tests the machine disagreed with.
+func labelResults() string    { return say("Test results") }
 func labelHintChecks() string { return say("↑↓ move · ⏎ select") }
 
-// The row that closes the page a run's failures are laid out on. It says what
-// pressing it costs, because nothing brings the page back.
-func labelReviewed() string     { return say("Continue") }
-func labelReviewedHelp() string { return say("Leave this page. These results are not shown again.") }
+// The row under a list of actions that goes on from there.
+func labelGoOn() string { return say("Continue") }
 
 // The switch in the settings. It is the runtime's own answer and holds for every
 // module: what a task tests is the module's business, whether anything is tested
@@ -174,12 +174,9 @@ func labelResetHelp() string {
 func labelPasswordRepeat() string   { return say("Repeat") }
 func labelPasswordMismatch() string { return say("The entries do not match.") }
 
-// The last page before the work: whether to go on, in the warning colour, and
-// under it the one thing that is true of every module at this point.
-func labelContinue() string { return say("Do you want to continue?") }
-func labelNothingChanged() string {
-	return say("Nothing has been changed so far. Only Yes changes anything.")
-}
+// The last page before the work: whether to go on, and why that matters.
+func labelContinue() string     { return say("Do you want to continue?") }
+func labelIrreversible() string { return say("This step cannot be undone.") }
 
 // What a run says about itself. None of it names the module: the frame says
 // which one this is above every page, and a headline repeating it would be the

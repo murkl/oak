@@ -134,6 +134,10 @@ type Module struct {
 	// of them answers it.
 	answered names
 
+	// calls is every function of oak.sh the yaml names, and where it names it,
+	// held to what oak.sh defines once the product is known.
+	calls map[string]string
+
 	// Status is what the header keeps an eye on while this module is open: its
 	// own, or the product's where it declares none. Nil where neither does.
 	Status *Status
@@ -272,10 +276,10 @@ type Task struct {
 	// one that only reads, say. Every other task is only shown as run.
 	Simulates bool `yaml:"simulates"`
 
-	// Optional marks a task the result stands without. Its failure does not
+	// AllowFailure marks a task the result stands without. Its failure does not
 	// stop the run: the row keeps a cross, and what went wrong is counted and
 	// read the way a failed test is.
-	Optional bool `yaml:"optional"`
+	AllowFailure bool `yaml:"allow-failure"`
 
 	id    string
 	stage string
@@ -386,15 +390,10 @@ type Variable struct {
 	// twice to open something that would have said no is.
 	Existing bool `yaml:"existing"`
 
-	// Check looks at a secret before it is taken, with the value under its own
-	// name like every answer a script is handed: an existing password, tried on
-	// the thing it opens. A non-zero exit refuses it on the page it was typed
-	// on, in the words the shell said on stderr — so a typo costs a second go at
-	// the box rather than a run that stops halfway on the step that needed it.
-	//
-	// Only a secret has one. Every other answer is on the settings page to be
-	// read again and held to its pattern, while a secret is typed once, right
-	// before the run, and gone afterwards.
+	// Check tries a secret before it is taken, with the value under its own
+	// name: an existing password, on the thing it opens. A non-zero exit refuses
+	// it on the page it was typed on. Only a secret has one; every other answer
+	// is held to its pattern.
 	Check string `yaml:"check"`
 
 	// First puts this question before everything else the program does — before
@@ -415,9 +414,9 @@ type Variable struct {
 	First bool `yaml:"first"`
 
 	// Where the answers come from, when there is a set of them: written out, or
-	// printed by a command one per line. A variable with neither is free text.
-	Values  []string `yaml:"values"`
-	Command string   `yaml:"command"`
+	// printed one per line by shell. A variable with neither is free text.
+	Options     []string `yaml:"options"`
+	OptionsFrom string   `yaml:"options-from"`
 
 	// Filter is what this question's list does with the narrowing box — see
 	// FilterMode. Nothing counts rows for it: a list is thirty long on one
@@ -438,17 +437,12 @@ type Variable struct {
 	// box, it does not answer the question.
 	Prefill string `yaml:"prefill"`
 
-	// Answer is shell that works the value out instead of asking for it, for
-	// the question a machine can see the answer to: whether the disk in front
-	// of it is encrypted is a fact, not an opinion. It prints the answer, and
-	// printing nothing leaves the value empty.
-	//
-	// It is read when the module opens and again whenever an answer changes, so
-	// a value worked out from another answer follows it. Such a variable is
-	// never asked, never on the settings page and never written to the answer
-	// file: it is read off the machine every run, and a stored copy could only
-	// disagree with it.
-	Answer string `yaml:"answer"`
+	// ValueFrom is shell that prints the value instead of asking for it, for
+	// the question a machine can see the answer to. It is read when the module
+	// opens and whenever an answer changes. Such a variable is never asked,
+	// never on the settings page and never in the answer file: a stored copy
+	// could only disagree with the machine.
+	ValueFrom string `yaml:"value-from"`
 
 	// Apply puts this answer into effect on the machine the runtime is running
 	// on, rather than on the one being installed. Almost nothing needs it — an
@@ -476,7 +470,7 @@ func (v *Variable) Deferred() bool { return v.Shape() == TypeDeferred }
 // Derived reports whether this value is read off the machine rather than asked
 // for. Like a deferred one it is not a question, and for the mirror reason:
 // there is nothing here for anybody to decide.
-func (v *Variable) Derived() bool { return v.Answer != "" }
+func (v *Variable) Derived() bool { return v.ValueFrom != "" }
 
 func (v *Variable) Label() string { return i18n.T(v.Title) }
 func (v *Variable) Help() string  { return i18n.T(v.Description) }
@@ -565,8 +559,8 @@ func (v *Variable) Matches(s string) bool { return v.re == nil || v.re.MatchStri
 // guard something that can be reasoned about rather than only evaluated.
 func (v *Variable) domain() []string {
 	switch {
-	case len(v.Values) > 0:
-		return v.Values
+	case len(v.Options) > 0:
+		return v.Options
 	case v.Shape() == TypeBool:
 		return []string{BoolTrue, BoolFalse}
 	}
@@ -650,7 +644,7 @@ func (s *Module) Messages() []Message {
 		file := path.Join(DirActions, a.ID(), FileAction)
 		add(file, "an action: its row, and the heading over its page", a.Title)
 		add(file, "an action: what it does, under its row", a.Description)
-		add(file, "an action: what a no from it means", a.Fail)
+		add(file, "an action: what a no from it means", a.Error)
 		add(file, "read once the action is done, and held on until somebody has", a.Report)
 		if v := a.Var; v != nil {
 			add(file, v.Name+": the page of the action", v.Title)

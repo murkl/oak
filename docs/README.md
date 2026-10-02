@@ -10,85 +10,55 @@
 
 </div>
 
-<p align="center"><b>Build your own Arch Linux distribution — the installer is already written.</b></p>
+<p align="center"><b>Build your own Arch Linux distribution. The installer is already written.</b></p>
 
-A distribution is mostly its installer, and the installer is where the time goes: menus, questions, keeping the answers, running the steps in order, and saying clearly which one broke. **Oak is all of that, ready to use.** You write only what makes your distribution yours: the questions in YAML and the steps in shell. Oak turns them into a finished installer on the terminal, with languages, starting points, a settings page, progress and error reports.
+You write the questions in YAML and the steps in shell. Oak turns them into an installer on the terminal: languages, starting points, a settings page, progress and error reports. It knows nothing about your system: no disk, no package, no boot loader.
 
-Oak itself has no opinion about your system: no disk, no package and no boot loader is built in. That part stays in your shell scripts, where you can read it.
+**[Arch OS](https://github.com/murkl/arch-os)** is a complete distribution built this way. The **[example](../example)** is a small one you can run in a minute, and every screenshot below comes out of it.
 
-**[Arch OS](https://github.com/murkl/arch-os)** is a complete Arch Linux distribution built this way, and a good place to see a real one. The **[example](../example)** in this repository is a small one you can run in a minute: every screenshot below comes out of it.
+## Features
 
-## What you get
+- **One YAML per module.** Questions, stages, rules
+- **A task pipeline.** A task is a folder. Its stage and its `needs` are the order
+- **Error reports you did not write.** Module, task, file, line, command, exit code
+- **Tests beside the steps.** Read the machine after each task, counted at the end and listed under **Test results**
+- **Answers that survive.** Written down as plain shell as they are given
+- **Modular.** An installer and a recovery from one binary, a third is a folder
+- **One file to ship.** A static binary. Bash is all it expects of the machine
 
-- **One config file per installer.** Questions, stages, the last warning before anything changes — all in one YAML file next to your scripts
-- **A task pipeline.** A task is a folder holding a `task.yaml` and the shell it runs. The order comes out of the stage each task names and what it declares it needs, so there is no list of steps to keep in step
-- **Error handling you did not write.** A script that fails is caught, and the frame names the module, the task, the file, the line, the command and the exit code
-- **Tests that come with the steps.** A task may say how to tell that it took. Those run on the machine as the work goes, read and change nothing, and the run ends by saying how many of them passed
-- **Answers that survive.** Every answer is written down the moment it is given, as plain shell. An interrupted run picks up where it left off; copy the file to the next machine and every question it answers is skipped
-- **Modular.** A module is one whole program. Ship an installer and a recovery from the same binary, or add a third by adding a folder
-- **One file to ship.** A static binary, your YAML and your scripts beside it. Bash is the only thing it expects of the machine
-
-## How it works
-
-Oak looks next to itself, and nowhere else:
+## How It Works
 
 ```
 oak                       the binary
 oak.yaml                  the product: name, colour, version, wordmark
-oak.sh                    optional: the library every script of every module gets
-modules/setup/            one module — everything below belongs to it
-  module.yaml             what it asks, what order it works in, and its rules
-  tasks/@prepare/format/  one task, in the folder of the phase it runs in
-  actions/wlan/           optional: one action — a script run where a rule names it
-modules/recovery/         another module, another program
+oak.sh                    optional: the library every script gets
+modules/setup/            one module
+  module.yaml             what it asks, the order it works in, its rules
+  tasks/@prepare/format/  one task, in the folder of its stage
+  actions/wifi/           optional: one action, run where a rule names it
+modules/recovery/         another module
 ```
-
-A **module** is one whole program. A **product** is the modules a binary ships with, under one name and one colour. One folder under `modules/` is opened on the way in; a second is what turns that into a page.
 
 <p align="center">
   <img src="screenshots/choice.png" width="640" alt="Two modules under modules/, offered under the wordmark">
 </p>
 
 ```mermaid
-flowchart LR
-    subgraph Y["What you write"]
-        direction TB
-        C["oak.yaml<br/>module.yaml"]
-        S["oak.sh<br/>task.sh"]
-    end
-    subgraph O["What Oak does"]
-        direction TB
-        A["Ask"] --> K["Keep"] --> R["Run"] --> F["Report"]
-    end
-    C --> O
-    S --> O
-    O --> U["Terminal interface"]
-
-    style Y fill:#eceff4,stroke:#8fbcbb,color:#2e3440
-    style O fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
-```
-
-### A run, in order
-
-Every page appears only when it has something to show. A module with no presets never shows a page offering none.
-
-```mermaid
 flowchart TD
     L["Welcome<br/>the language"] --> W["Which module"] --> Q1["Questions marked first"]
-    Q1 --> N["What the work starts if<br/>actions, and what each opens on failure"] --> PR["Presets"]
-    PR --> Q["The questions<br/>one per page"]
+    Q1 --> N["start-if"] --> PR["Presets"]
+    PR --> Q["The questions"]
     Q --> H["Menu"]
     H --> SE["Settings"] --> H
-    SE --> OP["An action<br/>one page, its script"] --> SE
-    H --> CF["Last warning<br/>yes or no"] --> R["The run<br/>tasks, top to bottom"]
-    R --> OK["Done<br/>and the actions for it"]
-    R --> ER["Failure<br/>script · line · command<br/>and the actions for it"]
+    H --> CF["Last warning"] --> R["The run"]
+    R --> OK["Done<br/>Test results · on-success"]
+    R --> ER["Failure<br/>on-failure"]
 
     style ER fill:#bf616a,stroke:#bf616a,color:#eceff4
     style R fill:#8fbcbb,stroke:#8fbcbb,color:#2e3440
 ```
 
-## Build one
+## Build One
 
 ### 1. Get Oak
 
@@ -98,13 +68,9 @@ gh attestation verify oak-linux-amd64 --repo murkl/oak
 install -m755 oak-linux-amd64 oak
 ```
 
-The middle line reads the provenance CI signed the release with: which repository the file came out of, and which run built it. Without `gh`, GitHub prints the download's SHA-256 beside it on the release page, which says only that the file arrived whole.
+**Note:** _A product pins the Oak it was built against: `releases/download/vX.Y.Z/oak-linux-amd64`. A new key is a minor version, anything that stops a product loading a major one. Below 1.0.0 a break moves the minor._
 
-`latest` is whatever is newest. A product that releases versions of its own pins the Oak it was built against instead — `releases/download/vX.Y.Z/oak-linux-amd64` — so the same tag builds the same thing twice. Which one drove it is under the wordmark on the way in: `powered by oak X.Y.Z`.
-
-Oak is versioned by what a product may declare: a new key is a minor version, and anything that stops a product loading that used to load is a major one. Below 1.0.0 that major is a decision rather than a count, so a break moves the minor until the first one is chosen. An upgrade inside a major is safe to take, so pinning is for building the same thing twice, not for surviving the next release.
-
-### 2. Say what the product is — `oak.yaml`
+### 2. The Product: `oak.yaml`
 
 ```yaml
 title: Tux Linux
@@ -112,7 +78,7 @@ version: 1.0.0
 accent: "#8fbcbb"
 ```
 
-### 3. Write a module — `modules/setup/module.yaml`
+### 3. A Module: `modules/setup/module.yaml`
 
 ```yaml
 title: Tux Setup
@@ -122,123 +88,80 @@ stages: [install]
 variables:
   - name: TUX_HOST
     title: Hostname
-    description: What the machine calls itself on the network.
     required: true
 ```
 
-### 4. Add a task — `modules/setup/tasks/@install/hostname/`
+### 4. A Task: `modules/setup/tasks/@install/hostname/`
 
-The folder over it is the phase it runs in, one of the `stages:` above, marked with `@`. `task.yaml` says what the step is:
+`task.yaml` says what it is:
 
 ```yaml
 title: Write the hostname
 ```
 
-`task.sh` beside it does the work. No shebang, no `set -e`, no error handling — Oak wraps it:
+`task.sh` does it. No shebang, no `set -e`, no error handling:
 
 ```bash
 mkdir -p ./tux/etc
 echo "$TUX_HOST" >./tux/etc/hostname
 ```
 
-Optional, `test.sh` beside both says how to tell that it took. It reads the machine and changes nothing:
+`test.sh`, optional, reads whether it took:
 
 ```bash
 grep -q "^$TUX_HOST$" ./tux/etc/hostname
 ```
 
-### 5. Run it
+### 5. Run It
 
 ```
 ./oak
 ```
 
-Oak opens on its welcome page, asks the one question that is required and still unanswered, then runs the task. The answers land in `setup.conf`, everything the script printed in `setup.log`.
-
-The **[example](../example)** is the same shape, filled out: two modules, three stages, a task that only runs under a condition, tests beside the work, a page the run stops on when it is done, and an action both modules offer once it is.
+The answers land in `setup.conf`, everything the scripts printed in `setup.log`.
 
 <p align="center">
   <img src="screenshots/welcome.png" width="49%" alt="The page every run opens on">
   <img src="screenshots/question.png" width="49%" alt="One question, on a page of its own">
 </p>
 
-## The pipeline
+## The Pipeline
 
-Nothing lists the tasks anywhere. The folder is the list, and the order follows two rules:
-
-- A task runs after every task of an **earlier stage**, which is the folder it lies in
-- Inside its stage, it runs after whatever it named in **`needs:`**
-
-```mermaid
-flowchart LR
-    subgraph S1["tasks/@prepare"]
-        direction TB
-        P1["partition"] --> P2["format"]
-    end
-    subgraph S2["tasks/@install"]
-        direction TB
-        B["base"] --> D["desktop"]
-        B --> G["graphics"]
-    end
-    subgraph S3["tasks/@finish"]
-        direction TB
-        U["users"]
-    end
-    S1 --> S2 --> S3
-```
+- A task runs after every task of an earlier stage
+- Within its stage, after what it names in `needs`
+- A task whose `conditions` do not hold is left out of the run
 
 <p align="center">
   <img src="screenshots/run.png" width="49%" alt="The run, working down the tasks in order">
   <img src="screenshots/report.png" width="49%" alt="The page a run stops on when it is done">
 </p>
 
-A task with `conditions:` that do not hold is left out of the run entirely. Everything is checked when the module loads, so a renamed variable or a cycle is an error at startup — never a step that silently never fires.
+## When a Step Breaks
 
-## When a step breaks
-
-The run stops there and says so, on the page a finished run stops on with the mark the other way round. Behind it: which module, which task, which file and line, which command, and what the tool said. The rest is in the log.
+The run stops and says where: module, task, file, line, command, what the tool said.
 
 <p align="center">
   <img src="screenshots/failure.png" width="640" alt="A failed task: the module, the task, the script, the line, the command and the exit code">
 </p>
 
-A test that disagrees is not that. The work said it worked, so the run carries on and says how many of how many passed — on every page it stops to report something, and again when it is over. Where any of them disagreed, the next page lists them once and opens each on the same report. One switch in the settings turns the whole of it off.
+A failed test and a failed `allow-failure` task do not stop the run. They are counted, and the finished run lists them under **Test results**.
 
-Neither is a task marked `optional: true` that fails: the result stands without it, so its row keeps a cross, the run goes on, and it is counted and listed beside the tests.
-
-## The command line
-
-Eight options, and nothing else. Five are about a run:
+## The Command Line
 
 ```
-oak --module=setup     # open that module outright, instead of asking which
-oak --language=de      # read it in that language, and skip the welcome page that asks
-oak --debug            # show the run and start nothing that has not said it simulates itself
-oak --kiosk            # the program is all this machine is for: leaving starts it over
-oak --version          # print the Oak release this binary is — `0.1.0` — and exit
+oak --module=setup     # open that module outright
+oak --language=de      # read it in German, without the welcome page
+oak --debug            # show the run, start nothing
+oak --kiosk            # the machine is only this: leaving starts it over
+oak --version          # Oak's own release
+oak --inspect          # load the product as a run does, and report
+oak --strings          # a module's translation template
+oak --glyphs           # every character the interface draws on a console
 ```
 
-Three are for whoever is writing a product. They print and draw nothing:
+## More
 
-```
-oak --inspect          # load the product the way a run does, and report what it holds
-oak --strings          # write a module's translation template
-oak --glyphs           # every character the interface can put on a console
-```
-
-Nothing on the command line answers a module's question. Those are answered in the interface.
-
-## Built with Oak
-
-**[Arch OS](https://github.com/murkl/arch-os)** — Arch Linux installed with ease, as a desktop or a TTY system: an installer and a recovery, both modules, on one bootable image.
-
-## Everything else
-
-**[➜ Reference](REFERENCE.md)** — the whole of what a product may declare: questions, presets, tasks, tests, conditions, actions, the script contract and translations.
-
-**[➜ Changelog](../CHANGELOG.md)** — what each release changed.
-
-**[➜ Contributing](CONTRIBUTING.md)** — how to work on Oak itself.
+**[➜ Reference](REFERENCE.md)** · **[➜ Changelog](../CHANGELOG.md)** · **[➜ Contributing](CONTRIBUTING.md)**
 
 ## License
 

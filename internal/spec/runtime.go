@@ -78,8 +78,9 @@ type Runtime struct {
 	Dir  string `yaml:"-"`
 
 	// Shell is FileRuntimeShell where the product has one, and empty where it
-	// has not.
-	Shell string `yaml:"-"`
+	// has not, and defined the functions it holds.
+	Shell   string `yaml:"-"`
+	defined names
 }
 
 // LoadRuntime reads the declaration beside the binary, or in the folder named
@@ -113,6 +114,14 @@ func LoadRuntime(explicit string) (*Runtime, error) {
 	}
 	if err := r.Status.settle(dir, FileRuntime); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileRuntime, err)
+	}
+	if r.defined, err = functions(r.Shell); err != nil {
+		return nil, err
+	}
+	if r.Status != nil && r.Status.calls != "" {
+		if err := checkCalls(map[string]string{r.Status.calls: FileRuntime + ": status: check"}, r.defined); err != nil {
+			return nil, err
+		}
 	}
 	if r.Modules, err = discover(filepath.Join(dir, DirModules)); err != nil {
 		return nil, err
@@ -169,6 +178,9 @@ func (r *Runtime) LoadModules() ([]*Module, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", id, err)
 		}
+		if err := checkCalls(mod.calls, r.defined); err != nil {
+			return nil, fmt.Errorf("%s: %w", id, err)
+		}
 		mod.Shell = r.Shell
 		if mod.Status == nil && r.Status != nil {
 			// Named from the module's folder, the way a translator's template
@@ -217,10 +229,10 @@ func root(explicit string) (string, error) {
 // Declared once in oak.yaml for every module of the product, and in a module's
 // own declaration for that module alone, which replaces the product's outright.
 type Status struct {
-	// Script is shell, or the file it lives in, whose exit status is the answer:
-	// zero for yes. Run with the product's shell loaded and its answers in the
-	// environment, like everything else a module runs.
-	Script string `yaml:"script"`
+	// Check is a function of oak.sh, or a file, whose exit status is the
+	// answer: zero for yes. Run with the product's shell loaded and the answers
+	// in the environment, like everything else a module runs.
+	Check string `yaml:"check"`
 
 	// Every is how many seconds lie between two runs of it. Left out, ten.
 	Every int `yaml:"every"`
@@ -230,8 +242,10 @@ type Status struct {
 	Pass string `yaml:"pass"`
 	Fail string `yaml:"fail"`
 
-	// file is where it was declared, as the module's folder names it.
-	file string
+	// file is where it was declared, as the module's folder names it, and
+	// calls the function of oak.sh its check names, if it names one.
+	file  string
+	calls string
 }
 
 // statusEvery is how often a status is read where its declaration says nothing:
@@ -246,16 +260,16 @@ func (st *Status) settle(dir, file string) error {
 		return nil
 	}
 	switch {
-	case strings.TrimSpace(st.Script) == "":
-		return fmt.Errorf("status: script is what the status is read with, and it is missing")
+	case strings.TrimSpace(st.Check) == "":
+		return fmt.Errorf("status: check is what the status is read with, and it is missing")
 	case st.Every < 0:
 		return fmt.Errorf("status: every is a number of seconds, and %d is not one", st.Every)
 	}
-	script, err := shell(dir, st.Script)
+	run, fn, err := shell(dir, st.Check)
 	if err != nil {
-		return fmt.Errorf("status: %w", err)
+		return fmt.Errorf("status: check: %w", err)
 	}
-	st.Script, st.file = script, file
+	st.Check, st.calls, st.file = run, fn, file
 	return nil
 }
 

@@ -1,5 +1,4 @@
-# Named under rules: on-success, once the run has finished. Its one page is the
-# terminal itself.
+# Under on-success. Its one page is the terminal.
 title: Open a shell
 description: In the system tree, until you type exit.
 tty: true

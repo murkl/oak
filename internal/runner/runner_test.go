@@ -13,9 +13,16 @@ import (
 	"github.com/murkl/oak/internal/store"
 )
 
-// setup writes a module: its declaration from the given variables, its tasks in
-// the one stage there is, plus whatever extra files a test asked for.
+// setup writes a module: its declaration from the given variables, and its
+// tasks in the one stage there is.
 func setup(t *testing.T, variables string, tasks map[string]string) (*spec.Module, *store.Store, *Runner) {
+	t.Helper()
+	return setupWith(t, variables, "", tasks)
+}
+
+// setupWith is setup with lib as the product's oak.sh, which holds what the
+// declaration calls.
+func setupWith(t *testing.T, variables, lib string, tasks map[string]string) (*spec.Module, *store.Store, *Runner) {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{spec.FileModule: "title: T\nstages: [go]\n" + variables}
@@ -35,12 +42,26 @@ func setup(t *testing.T, variables string, tasks map[string]string) (*spec.Modul
 			t.Fatal(err)
 		}
 	}
+	sp := load(t, dir, lib)
+	st := store.New(sp, filepath.Join(t.TempDir(), "installer.conf"), false)
+	return sp, st, New(sp, st)
+}
+
+// load reads the module in dir, with lib written out as the product's oak.sh
+// where it is not empty.
+func load(t *testing.T, dir, lib string) *spec.Module {
+	t.Helper()
 	sp, err := spec.Load(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	st := store.New(sp, filepath.Join(t.TempDir(), "installer.conf"), false)
-	return sp, st, New(sp, st)
+	if lib != "" {
+		sp.Shell = filepath.Join(t.TempDir(), spec.FileRuntimeShell)
+		if err := os.WriteFile(sp.Shell, []byte(lib), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return sp
 }
 
 var oneTask = map[string]string{"go": "title: Go\n"}
@@ -63,7 +84,7 @@ func TestABoolOffersItsTwoAnswersInWords(t *testing.T) {
 }
 
 func TestAWrittenOutSetIsItsOwnLabel(t *testing.T) {
-	sp, _, r := setup(t, "variables:\n  - name: FS\n    title: FS\n    values: [btrfs, ext4]\n", nil)
+	sp, _, r := setup(t, "variables:\n  - name: FS\n    title: FS\n    options: [btrfs, ext4]\n", nil)
 	got, err := r.Options(sp.Var("FS"))
 	if err != nil {
 		t.Fatal(err)
@@ -75,12 +96,12 @@ func TestAWrittenOutSetIsItsOwnLabel(t *testing.T) {
 
 // The one rule that lets a disk be stored as /dev/sda and chosen by its size.
 func TestATabSeparatesTheValueStoredFromTheTextRead(t *testing.T) {
-	sp, _, r := setup(t, `
+	sp, _, r := setupWith(t, `
 variables:
   - name: DISK
     title: Disk
-    command: printf '/dev/sda\t/dev/sda  1TB Samsung\n\tNone of these\nplain\n'
-`, nil)
+    options-from: disks()
+`, `disks() { printf '/dev/sda\t/dev/sda  1TB Samsung\n\tNone of these\nplain\n'; }`, nil)
 	got, err := r.Options(sp.Var("DISK"))
 	if err != nil {
 		t.Fatal(err)
@@ -104,15 +125,15 @@ variables:
 
 // A suggestion is never worth stopping for.
 func TestAPrefillThatFailsIsSimplyNoSuggestion(t *testing.T) {
-	sp, _, r := setup(t, `
+	sp, _, r := setupWith(t, `
 variables:
   - name: A
     title: A
-    prefill: echo Europe/Berlin
+    prefill: zone()
   - name: B
     title: B
-    prefill: exit 1
-`, nil)
+    prefill: nothing()
+`, "zone() { echo Europe/Berlin; }\nnothing() { return 1; }\n", nil)
 	if got := r.Prefill(sp.Var("A")); got != "Europe/Berlin" {
 		t.Errorf("prefill = %q", got)
 	}
@@ -140,7 +161,7 @@ func TestTasksAreOnlyTheOnesThatWillRun(t *testing.T) {
 // acting is a module that names its actions the way head says, each action
 // declared by its yaml and doing what its script does, loaded for a run started
 // with or without --debug.
-func acting(t *testing.T, head string, actions map[string][2]string, debug bool) (*spec.Module, *store.Store, *Runner) {
+func acting(t *testing.T, head, lib string, actions map[string][2]string, debug bool) (*spec.Module, *store.Store, *Runner) {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
@@ -161,10 +182,7 @@ func acting(t *testing.T, head string, actions map[string][2]string, debug bool)
 			t.Fatal(err)
 		}
 	}
-	sp, err := spec.Load(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	sp := load(t, dir, lib)
 	st := store.New(sp, filepath.Join(t.TempDir(), "c"), debug)
 	return sp, st, New(sp, st)
 }
@@ -185,8 +203,8 @@ func opened(t *testing.T, r *Runner, a *spec.Action) error {
 func TestARequiredActionAnswersWithItsExitStatus(t *testing.T) {
 	says := func(script string) bool {
 		t.Helper()
-		sp, _, r := acting(t, "rules:\n  start-if: [uefi]\n", map[string][2]string{
-			"uefi": {"title: UEFI\nfail: Set the boot mode to UEFI.\n", script},
+		sp, _, r := acting(t, "rules:\n  start-if: [uefi]\n", "", map[string][2]string{
+			"uefi": {"title: UEFI\nerror: Set the boot mode to UEFI.\n", script},
 		}, false)
 		return r.Says(sp.Action("uefi"))()
 	}
@@ -203,7 +221,7 @@ func TestARequiredActionAnswersWithItsExitStatus(t *testing.T) {
 func TestAnActionIsOfferedWhereWhatItRequiresSaysYes(t *testing.T) {
 	offered := func(card string) bool {
 		t.Helper()
-		sp, _, r := acting(t, "rules:\n  settings: [wlan]\n", map[string][2]string{
+		sp, _, r := acting(t, "rules:\n  on-settings: [wlan]\n", "", map[string][2]string{
 			"wlan": {"title: Wireless\nrules:\n  offer-if: [card]\n", "true\n"},
 			"card": {"title: Card\n", card},
 		}, false)
@@ -221,7 +239,7 @@ func TestAnActionIsOfferedWhereWhatItRequiresSaysYes(t *testing.T) {
 // name the page declared.
 func TestAnActionIsHandedItsPage(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "said")
-	sp, st, r := acting(t, "rules:\n  settings: [greet]\n", map[string][2]string{
+	sp, st, r := acting(t, "rules:\n  on-settings: [greet]\n", "", map[string][2]string{
 		"greet": {"title: Greet\nvariable:\n  name: GREETING\n  title: Greeting\n", "printf '%s' \"$GREETING\" > '" + out + "'\n"},
 	}, false)
 	st.Set("GREETING", "hello")
@@ -236,7 +254,7 @@ func TestAnActionIsHandedItsPage(t *testing.T) {
 // A script that breaks is reported the way a task that breaks is, and says it
 // was an action.
 func TestAFailingActionIsReportedAsOne(t *testing.T) {
-	sp, _, r := acting(t, "rules:\n  settings: [greet]\n", map[string][2]string{
+	sp, _, r := acting(t, "rules:\n  on-settings: [greet]\n", "", map[string][2]string{
 		"greet": {"title: Greet\n", "echo no network >&2\nexit 1\n"},
 	}, false)
 	err := opened(t, r, sp.Action("greet"))
@@ -255,8 +273,8 @@ func TestAFailingActionIsReportedAsOne(t *testing.T) {
 func TestASimulatedRunNeitherAsksNorRunsAnAction(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "ran")
 	script := "touch '" + marker + "'\n"
-	sp, _, r := acting(t, "rules:\n  start-if: [check]\n  settings: [restart]\n", map[string][2]string{
-		"check":   {"title: Check\nfail: No.\n", "exit 1\n"},
+	sp, _, r := acting(t, "rules:\n  start-if: [check]\n  on-settings: [restart]\n", "", map[string][2]string{
+		"check":   {"title: Check\nerror: No.\n", "exit 1\n"},
 		"restart": {"title: Restart\nrules:\n  offer-if: [check]\n", script},
 	}, true)
 	if !r.Offered(sp.Action("restart"))() || !r.Says(sp.Action("check"))() {
@@ -269,7 +287,7 @@ func TestASimulatedRunNeitherAsksNorRunsAnAction(t *testing.T) {
 		t.Error("the action ran in a simulated run")
 	}
 
-	sp, _, r = acting(t, "rules:\n  settings: [restart]\n", map[string][2]string{
+	sp, _, r = acting(t, "rules:\n  on-settings: [restart]\n", "", map[string][2]string{
 		"restart": {"title: Restart\nsimulates: true\n", script},
 	}, true)
 	if err := opened(t, r, sp.Action("restart")); err != nil {
@@ -325,14 +343,14 @@ func names(units []*spec.Task) []string {
 func TestApplyPutsAnAnswerInForce(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("DIR", dir)
-	sp, st, r := setup(t, `
+	sp, st, r := setupWith(t, `
 variables:
   - name: KEYMAP
     title: Keymap
-    apply: echo "$KEYMAP" > "${DIR}/loaded"
+    apply: load_keymap()
   - name: PLAIN
     title: Plain
-`, nil)
+`, `load_keymap() { echo "$KEYMAP" > "${DIR}/loaded"; }`, nil)
 	st.Set("KEYMAP", "de-latin1")
 	r.Apply(sp.Var("KEYMAP"))
 	loaded, err := os.ReadFile(filepath.Join(dir, "loaded"))
@@ -351,7 +369,7 @@ variables:
 // installer that stops because a keymap would not load is worse than one
 // carrying on.
 func TestAnApplyThatFailsIsOnlyAWarning(t *testing.T) {
-	sp, st, r := setup(t, "variables:\n  - name: X\n    title: X\n    apply: exit 1\n", nil)
+	sp, st, r := setupWith(t, "variables:\n  - name: X\n    title: X\n    apply: refuse()\n", "refuse() { return 1; }\n", nil)
 	st.Set("X", "value")
 	if err := r.Apply(sp.Var("X")); err == nil {
 		t.Error("an apply that failed was reported as done")
@@ -365,17 +383,17 @@ func TestAnApplyThatFailsIsOnlyAWarning(t *testing.T) {
 // in force, and a password typed next on a keymap that never loaded is refused
 // without a word about why.
 func TestSettleAsksAgainForAnAnswerItCannotPutInForce(t *testing.T) {
-	_, st, r := setup(t, `
+	_, st, r := setupWith(t, `
 variables:
   - name: KEYMAP
     title: Keymap
     required: true
-    apply: exit 1
+    apply: refuse()
   - name: FONT
     title: Font
     default: auto
-    apply: '[ "$FONT" = auto ]'
-`, nil)
+    apply: only_auto()
+`, "refuse() { return 1; }\nonly_auto() { [ \"$FONT\" = auto ]; }\n", nil)
 	st.Set("KEYMAP", "de-latin1")
 	st.Set("FONT", "ter-v32n")
 	r.Settle()
@@ -394,15 +412,15 @@ variables:
 func TestSettleAppliesOnlyTheAnswersThatWereGiven(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("DIR", dir)
-	_, st, r := setup(t, `
+	_, st, r := setupWith(t, `
 variables:
   - name: GIVEN
     title: Given
-    apply: touch "${DIR}/given"
+    apply: give()
   - name: OPEN
     title: Open
-    apply: touch "${DIR}/open"
-`, nil)
+    apply: open_up()
+`, "give() { touch \"${DIR}/given\"; }\nopen_up() { touch \"${DIR}/open\"; }\n", nil)
 	st.Set("GIVEN", "de-latin1")
 	r.Settle()
 	if _, err := os.Stat(filepath.Join(dir, "given")); err != nil {
@@ -419,7 +437,7 @@ func TestAListHoldingTrueAndFalseStillReadsInWords(t *testing.T) {
 	i18n.Use("de", &i18n.Catalog{Messages: map[string]string{"Yes": "Ja", "No": "Nein"}})
 	defer i18n.Use(i18n.SourceLang)
 
-	sp, _, r := setup(t, "variables:\n  - name: X\n    title: X\n    values: [auto, true, false]\n", nil)
+	sp, _, r := setup(t, "variables:\n  - name: X\n    title: X\n    options: [auto, true, false]\n", nil)
 	got, err := r.Options(sp.Var("X"))
 	if err != nil {
 		t.Fatal(err)
@@ -444,8 +462,9 @@ func TestAFetchedConfigurationBecomesTheAnswers(t *testing.T) {
 	t.Setenv("APPLIED", applied)
 	sp, st, r := acting(t, "variables:\n"+
 		"  - name: DISK\n    title: Disk\n"+
-		"  - name: KEYMAP\n    title: Keymap\n    apply: touch \"$APPLIED\"\n"+
+		"  - name: KEYMAP\n    title: Keymap\n    apply: mark_applied()\n"+
 		"presets:\n  - title: Online\n    action: fetch\n",
+		"mark_applied() { touch \"$APPLIED\"; }\n",
 		map[string][2]string{
 			"fetch": {"title: Fetch\n", "printf \"DISK='/dev/sdz'\\nKEYMAP='de'\\n\" >>\"$MODULE_CONF\"\n"},
 		}, false)
@@ -468,10 +487,10 @@ func TestAFetchedConfigurationBecomesTheAnswers(t *testing.T) {
 // A question a machine can see the answer to is not asked but worked out, and
 // worked out again whenever the answer it follows from changes.
 func TestADerivedAnswerIsReadOffTheMachine(t *testing.T) {
-	_, st, r := setup(t, "variables:\n"+
+	_, st, r := setupWith(t, "variables:\n"+
 		"  - name: DISK\n    title: Disk\n"+
-		"  - name: ENCRYPTED\n    title: Encrypted\n    type: bool\n"+
-		"    answer: '[ \"$DISK\" = /dev/sdz ] && echo true || echo false'\n", nil)
+		"  - name: ENCRYPTED\n    title: Encrypted\n    type: bool\n    value-from: encrypted()\n",
+		"encrypted() { if [ \"$DISK\" = /dev/sdz ]; then echo true; else echo false; fi; }\n", nil)
 
 	r.Resolve()
 	if got := st.Get("ENCRYPTED"); got != "false" {
@@ -489,7 +508,7 @@ func TestADerivedAnswerIsReadOffTheMachine(t *testing.T) {
 // held before: there is no question to fall back on, and a guard on an empty
 // name is simply false.
 func TestADerivedAnswerThatCannotBeReadIsEmpty(t *testing.T) {
-	_, st, r := setup(t, "variables:\n  - name: X\n    title: X\n    answer: exit 7\n", nil)
+	_, st, r := setupWith(t, "variables:\n  - name: X\n    title: X\n    value-from: broken()\n", "broken() { return 7; }\n", nil)
 	st.Set("X", "stale")
 
 	r.Resolve()
@@ -503,24 +522,29 @@ func TestADerivedAnswerThatCannotBeReadIsEmpty(t *testing.T) {
 // the box a list carries for exactly that, one whose list cannot be read and
 // one whose question does not apply are all let be.
 func TestUnofferedNamesTheAnswersTheirListsNoLongerPrint(t *testing.T) {
-	_, st, r := setup(t, `variables:
+	_, st, r := setupWith(t, `variables:
   - name: DISK
     title: Disk
-    command: printf '/dev/sda\t/dev/sda  1TB\n'
+    options-from: disks()
   - name: GONE
     title: Gone
-    command: printf 'one\ntwo\n'
+    options-from: numbers()
   - name: FONT
     title: Font
     free: Type a font name
-    command: echo ter-v16n
+    options-from: fonts()
   - name: BROKEN
     title: Broken
-    command: exit 1
+    options-from: broken()
   - name: OFF
     title: Off
-    command: echo on
+    options-from: switches()
     conditions: DISK == nothing
+`, `disks() { printf '/dev/sda\t/dev/sda  1TB\n'; }
+numbers() { printf 'one\ntwo\n'; }
+fonts() { echo ter-v16n; }
+broken() { return 1; }
+switches() { echo on; }
 `, nil)
 	st.Set("DISK", "/dev/sda")
 	st.Set("GONE", "three")
@@ -536,13 +560,15 @@ func TestUnofferedNamesTheAnswersTheirListsNoLongerPrint(t *testing.T) {
 // The environment is taken when the check is made, on the side that owns the
 // answers, and the lists are read against it wherever the check then runs.
 func TestUnofferedReadsTheListsAgainstTheAnswersWhenItWasMade(t *testing.T) {
-	_, st, r := setup(t, `variables:
+	_, st, r := setupWith(t, `variables:
   - name: LAYOUT
     title: Layout
-    command: echo de
+    options-from: layouts()
   - name: VARIANT
     title: Variant
-    command: 'if [ "$LAYOUT" = de ]; then echo nodeadkeys; else echo intl; fi'
+    options-from: variants()
+`, `layouts() { echo de; }
+variants() { if [ "$LAYOUT" = de ]; then echo nodeadkeys; else echo intl; fi; }
 `, nil)
 	st.Set("LAYOUT", "de")
 	st.Set("VARIANT", "nodeadkeys")

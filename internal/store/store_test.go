@@ -299,7 +299,7 @@ func TestDisplayReadsTheTwoBoolWordsOutLoud(t *testing.T) {
 variables:
   - name: AUTOLOGIN
     title: Autologin
-    values: [auto, true, false]
+    options: [auto, true, false]
   - name: HOST
     title: Host
 `)
@@ -354,7 +354,7 @@ variables:
     title: Disk
   - name: FS
     title: File system
-    values: [btrfs, ext4]
+    options: [btrfs, ext4]
   - name: EXTRA
     title: Extra
     conditions: DISK == /dev/sda
@@ -420,7 +420,7 @@ func TestLoadingAgainPicksUpWhatAScriptWroteIntoTheAnswerFile(t *testing.T) {
 func TestADerivedAnswerIsNeitherAskedNorShownNorWritten(t *testing.T) {
 	s := setup(t, "variables:\n"+
 		"  - name: DISK\n    title: Disk\n    required: true\n"+
-		"  - name: ENCRYPTED\n    title: Encrypted\n    required: true\n    answer: echo true\n")
+		"  - name: ENCRYPTED\n    title: Encrypted\n    required: true\n    value-from: encrypted()\n")
 
 	if names := names(s.Missing()); strings.Join(names, ",") != "DISK" {
 		t.Errorf("missing = %v, want just DISK", names)
@@ -452,11 +452,11 @@ variables:
   - name: DISK
     title: Disk
     required: true
-    command: echo /dev/sda
+    options-from: disks()
     error: Choose a disk that exists.
   - name: KEYMAP
     title: Keyboard
-    command: echo us
+    options-from: keymaps()
 `)
 	s.Set("DISK", "/dev/sdz")
 	s.Set("KEYMAP", "xx")

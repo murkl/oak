@@ -51,25 +51,15 @@ type runScreen struct {
 	err     error
 	done    bool
 
-	// after is the rows a finished run ends on — what the module offers once
-	// the work is done — and nil where it offers nothing.
+	// after is the rows a finished run ends on - its test results where
+	// something failed, and what the module offers once the work is done - and
+	// nil where there are none.
 	after *picker
-
-	// reviewed is whether the tests the machine disagreed with have been put in
-	// front of somebody yet. They are worth reading once, at the first moment
-	// the run stops for anything at all — which on a run whose last offer is a
-	// restart is a page in the middle of it rather than the end.
-	reviewed bool
-
-	// reviewing is whether that page is up. Nothing of the run is running
-	// behind it, so the header must not say there is.
-	reviewing bool
 
 	// tests is what the run proved about itself as it went: one entry per task
 	// that declared a test and got as far as running it. A failed one does not
-	// stop anything — the work itself said it worked — so they are collected
-	// here, counted under the line that says the run is over, and read in full
-	// on the page after it.
+	// stop anything - the work itself said it worked - so they are counted
+	// under the run and read behind its test results row.
 	tests []outcome
 
 	// optional is every task that declared the result stands without it, and
@@ -166,7 +156,7 @@ func (s *runScreen) crumbRoot() bool { return true }
 // running like any other.
 func (s *runScreen) working() bool {
 	switch {
-	case s.done, s.told != nil, s.reviewing:
+	case s.done, s.told != nil:
 		return false
 	case s.ask != nil:
 		return s.ask.loading
@@ -191,7 +181,7 @@ func (s *runScreen) takesText() bool { return s.ask != nil && s.ask.filter.activ
 // thing is finished, and a number beside it saying how much is left would take
 // it straight back.
 func (s *runScreen) status() string {
-	if s.done || s.told != nil || s.reviewing {
+	if s.done || s.told != nil {
 		return ""
 	}
 	return labelCounter(min(s.at+1, len(s.steps)), len(s.steps))
@@ -209,9 +199,6 @@ func (s *runScreen) Hint() string {
 		return s.told.Hint()
 	case s.after != nil:
 		return labelHintChecks()
-	case len(s.tests) > 0 || len(s.optional) > 0:
-		// Enter opens what the run went on past, so this is not the last page.
-		return labelHintContinue()
 	}
 	return s.app.hintEnd(labelHintClose())
 }
@@ -395,7 +382,7 @@ func waitFor(session *exec.Session) tea.Cmd {
 // anything to say about work that did not happen. Any other ends the run.
 func (s *runScreen) fell(err error) tea.Cmd {
 	e := s.steps[s.at]
-	if !e.Optional {
+	if !e.AllowFailure {
 		return s.finish(err)
 	}
 	logging.Warn("%s: %s", e.Title, err)
@@ -418,7 +405,7 @@ func (s *runScreen) finish(err error) tea.Cmd {
 		s.told = newReport(s.failed(), labelRunStopped(s.stoppedAt()), "").stop()
 	} else {
 		logging.Info("run: ok")
-		s.after = s.app.offers(s.app.module.Rules.OnSuccess)
+		s.after = s.app.offers(s.app.module.Rules.OnSuccess, s.resultsRow()...)
 	}
 	// Whatever a run was given is gone the moment it is over, whether it worked
 	// or not: a failed installation is one that gets looked at, and nothing
@@ -454,7 +441,7 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			return s, s.fell(msg.err)
 		}
 		s.state[s.at] = ran
-		if s.steps[s.at].Optional {
+		if s.steps[s.at].AllowFailure {
 			s.optional = append(s.optional, outcome{task: s.steps[s.at]})
 		}
 		s.stage = phaseCheck
@@ -522,12 +509,6 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 					return s, push(newFailure(s.stoppedAt(), s.err, s.back).offering(s.app))
 				}
 				s.told = nil
-				// The one page in a run that stops for something to be read is
-				// the place to put what the machine disagreed with, because it
-				// is the page somebody is actually looking at.
-				if cmd := s.review(func() tea.Cmd { return tea.Batch(pop(), s.advance()) }); cmd != nil {
-					return s, cmd
-				}
 				return s, s.advance()
 			}
 			return s, nil
@@ -539,32 +520,42 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		// nothing else. Every other key — and every scroll, which arrives here
 		// as an arrow — leaves the report on screen.
 		if answers(msg) {
-			if cmd := s.review(s.then); cmd != nil {
-				return s, cmd
-			}
 			return s, s.then()
 		}
 	}
 	return s, nil
 }
 
-// choose is a row under a finished run being chosen: an action the module
-// offers once the work is done, or the last row, which goes where the run
-// leads. Whatever the run went on past is read first, the one time it is.
+// choose is a row under a finished run being chosen: its test results, an
+// action the module offers once the work is done, or the last row, which goes
+// where the run leads.
 func (s *runScreen) choose(key tea.KeyMsg) tea.Cmd {
 	s.after.Update(key)
 	if !confirms(key) {
 		return nil
 	}
-	next := s.then
-	if act := s.app.action(s.after.selected()); act != nil {
-		next = func() tea.Cmd { return s.app.openAction(act) }
+	selected := s.after.selected()
+	if selected == keyResults {
+		note, _ := s.tally()
+		return push(newResults(note, s.failures()))
 	}
-	reviewed := func() tea.Cmd { return back(1, next()) }
-	if cmd := s.review(reviewed); cmd != nil {
-		return cmd
+	if act := s.app.action(selected); act != nil {
+		return s.app.openAction(act)
 	}
-	return next()
+	return s.then()
+}
+
+// keyResults is the row that opens the test results. The NUL prefix cannot
+// collide with anything a module names.
+const keyResults = "\x00results"
+
+// resultsRow is that row where the run went on past something, and nothing
+// where it did not: a run that agreed with itself has said so in one line.
+func (s *runScreen) resultsRow() []item {
+	if len(s.failures()) == 0 {
+		return nil
+	}
+	return []item{{title: labelResults(), key: keyResults}}
 }
 
 // answerAsk takes the value a task asked for and carries on into whatever else
@@ -633,13 +624,9 @@ func (s *runScreen) View(width, height int) string {
 
 // verdict is what the tests came to, under the line that says the run is over.
 //
-// One number, because that is the whole of what somebody wants at this moment:
-// a run that checked itself and agreed with itself needs no page. Where the two
-// numbers differ it is inked as the exception it is, and the page behind enter
-// is where the ones that disagreed are read.
-//
-// It is on the success page and nowhere else. A run that failed is not a run
-// whose tests are worth counting.
+// One number, inked as the exception it is where the two differ - the ones that
+// disagreed are behind the test results row. On the success page only: a run
+// that failed is not a run whose tests are worth counting.
 func (s *runScreen) verdict(width int) string {
 	note, alarm := s.tally()
 	if !s.done || s.err != nil || note == "" {
@@ -650,27 +637,6 @@ func (s *runScreen) verdict(width int) string {
 		ink = alertStyle
 	}
 	return field(glyphBlank) + ink.Render(truncate(note, width-markW))
-}
-
-// review is the page listing what the run went on past — the optional tasks
-// that failed and the tests the machine disagreed with — and nil where there is
-// nothing to put on it.
-//
-// Offered once. A failure is a fact about the run rather than about the moment,
-// so reading it a second time at the next stop would be the same page again.
-// Where nothing failed there is no page at all: the count is already under the
-// words, and nothing on it could be opened.
-func (s *runScreen) review(then func() tea.Cmd) tea.Cmd {
-	failed := s.failures()
-	if s.reviewed || len(failed) == 0 {
-		return nil
-	}
-	s.reviewed, s.reviewing = true, true
-	note, _ := s.tally()
-	return push(newResults(note, failed, func() tea.Cmd {
-		s.reviewing = false
-		return then()
-	}))
 }
 
 // failures is everything the run went on past, in the order it is read: the

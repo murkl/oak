@@ -4,23 +4,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// confirmScreen is the last page before anything is changed: a yes or no, and
-// in the warning colour over it the question whether to go on.
+// confirmScreen is the last page before anything is changed: a yes or no, the
+// question in the warning colour over it. What is about to happen is every
+// answer on the settings page, one esc away, so the page names none of them.
 //
-// It says the same thing in every module: nothing has happened yet, and Yes is
-// what starts it. What is about to happen in detail is every answer on the
-// settings page, one esc away — a sentence here repeating a few of them would
-// be a second, shorter copy of that page able to disagree with it. It carries
-// no heading either: the frame already names the module, and the row that led
-// here named what it does.
-//
-// It opens on No. The row that led here was chosen with enter, and an enter
-// pressed once too often must not be the one that starts the work.
+// It opens on No: the row that led here was chosen with enter, and an enter
+// pressed once too often must not start the work.
 //
 // It is also the last moment an answer can still be put again, so every answer
-// a list vouches for is read against that list once more on the way in — see
-// Runner.Unoffered. One the list no longer offers sends the run of questions
-// back to it rather than on into the work.
+// a list vouches for is read against that list once more on the way in - see
+// Runner.Unoffered.
 type confirmScreen struct {
 	app    *app
 	picker *picker
@@ -37,7 +30,7 @@ func newConfirm(a *app) *confirmScreen {
 		{title: labelYes(), key: keyYes},
 		{title: labelNo(), key: keyNo},
 	})
-	s.picker.describe(labelNothingChanged())
+	s.picker.describe(labelIrreversible())
 	s.picker.focus(keyNo)
 	return s
 }
