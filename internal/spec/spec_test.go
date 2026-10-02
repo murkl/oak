@@ -604,7 +604,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a bool with values of its own",
 			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    title: D\n    type: bool\n    options: [a, b]\n")},
-			want:  "has no options of its own",
+			want:  "a bool takes no options",
 		},
 		{
 			name:  "a filter setting nobody has heard of",
@@ -614,7 +614,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a filter on a question with no list to narrow",
 			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: D\n    filter: open\n")},
-			want:  "filter narrows a list of answers, and a text is none",
+			want:  "a text takes no filter",
 		},
 		{
 			name:  "a filter on a question asked first, which carries its box either way",
@@ -629,12 +629,27 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a secret with a default, which would be a stored password",
 			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: new-password\n    default: hunter2\n")},
-			want:  "cannot have a default",
+			want:  "a new-password takes no default",
 		},
 		{
 			name:  "a secret worked out rather than typed",
 			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: new-password\n    value-from: x()\n")},
-			want:  "never worked out",
+			want:  "a new-password takes no value-from",
+		},
+		{
+			name:  "a pattern on a password, whose page never holds it to one",
+			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    title: P\n    type: password\n    pattern: '^.{8,}$'\n")},
+			want:  "a password takes no pattern",
+		},
+		{
+			name:  "a pattern on a bool, whose two answers are fixed",
+			files: map[string]string{FileModule: head("variables:\n  - name: B\n    title: B\n    type: bool\n    pattern: '^true$'\n")},
+			want:  "a bool takes no pattern",
+		},
+		{
+			name:  "a list worked out, whose answers would never be offered",
+			files: map[string]string{FileModule: head("variables:\n  - name: L\n    title: L\n    type: list\n    options: [a, b]\n    value-from: x()\n")},
+			want:  "a list takes no value-from",
 		},
 		{
 			name:  "existing, which a type says now",
@@ -659,12 +674,12 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "answers on a box to type in",
 			files: map[string]string{FileModule: head("variables:\n  - name: FS\n    type: text\n    title: F\n    options: [a, b]\n")},
-			want:  "a text has no options of its own - a set of answers is type list",
+			want:  "a text takes no options, of the keys a type decides only default, prefill, value-from, pattern",
 		},
 		{
 			name:  "a check on a password being chosen, which nothing can check",
 			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    type: new-password\n    title: P\n    check: try()\n")},
-			want:  "check tries a password that already exists",
+			want:  "a new-password takes no check, nor any other key a type decides",
 		},
 		{
 			name:  "a row for an answer of one's own, which a type says now",
@@ -674,7 +689,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a check on an answer the settings page shows and its pattern holds",
 			files: map[string]string{FileModule: head("variables:\n  - name: DISK\n    type: text\n    title: D\n    check: x()\n")},
-			want:  "any other answer is held to its pattern",
+			want:  "a text takes no check",
 		},
 		{
 			name:  "the keys the runtime now says for itself",
@@ -809,7 +824,7 @@ func TestLoadRefuses(t *testing.T) {
 				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n")},
 				unit("go", "do", "title: Do\nasks: PICK\n"),
 			),
-			want: "a question asked mid-run is a list",
+			want: "a deferred takes its answers from options or options-from",
 		},
 		{
 			name:  "a deferred question no task asks, which would be asked nowhere",
@@ -838,7 +853,7 @@ func TestLoadRefuses(t *testing.T) {
 				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    options: [a, b]\n    value-from: a()\n")},
 				unit("go", "do", "title: Do\nasks: PICK\n"),
 			),
-			want: "value-from: a deferred question is asked",
+			want: "a deferred takes no value-from",
 		},
 		{
 			name:  "a question's list the way an older Oak named it",
@@ -1250,6 +1265,44 @@ func TestATaskMayAllowItsOwnFailure(t *testing.T) {
 	for _, task := range sp.Tasks {
 		if task.AllowFailure != (task.ID() == "theme") {
 			t.Errorf("%s: AllowFailure = %v, want it only where it was declared", task.ID(), task.AllowFailure)
+		}
+	}
+}
+
+// The reference's table of types is what a module is written from, so it names
+// the keys each type takes exactly as the loader holds them.
+func TestTheReferenceNamesTheKeysEachTypeTakes(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("..", "..", "docs", "REFERENCE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	documented := map[string][]string{}
+	for _, line := range strings.Split(string(body), "\n") {
+		cells := strings.Split(strings.Trim(line, "|"), "|")
+		if !strings.HasPrefix(line, "|") || len(cells) != 3 {
+			continue
+		}
+		typ := strings.Trim(strings.TrimSpace(cells[0]), "`")
+		if !slices.Contains(Types, typ) {
+			continue
+		}
+		var keys []string
+		for _, field := range strings.Fields(cells[2]) {
+			if key := strings.Trim(field, "`,"); key != field {
+				keys = append(keys, key)
+			}
+		}
+		documented[typ] = keys
+	}
+
+	for _, typ := range Types {
+		keys, ok := documented[typ]
+		if !ok {
+			t.Errorf("docs/REFERENCE.md has no row for type %s", typ)
+			continue
+		}
+		if got, want := slices.Sorted(slices.Values(keys)), slices.Sorted(slices.Values(TypeKeys[typ])); !slices.Equal(got, want) {
+			t.Errorf("type %s: the reference names %v, the loader takes %v", typ, got, want)
 		}
 	}
 }

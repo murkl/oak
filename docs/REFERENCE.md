@@ -181,7 +181,7 @@ Every question names its type, and the type decides how it is drawn and which ke
 | `text` | A text box | `default`, `prefill`, `pattern`, `value-from` |
 | `bool` | Yes or No | `default`, `value-from` |
 | `list` | A list | `options` or `options-from`, `default`, `prefill`, `pattern`, `filter` |
-| `open-list` | A list, and a row for an answer of one's own | the same as `list` |
+| `open-list` | A list, and a row for an answer of one's own | `options` or `options-from`, `default`, `prefill`, `pattern`, `filter` |
 | `password` | A password that exists already, typed once | `check` |
 | `new-password` | A password being chosen, typed twice | |
 | `deferred` | A list, asked mid-run by the task that names it under `asks` | `options` or `options-from`, `filter` |
@@ -213,7 +213,7 @@ Every question names its type, and the type decides how it is drawn and which ke
 - An answer from `options-from` is held to its list again when the work is started, before any password. One the list no longer prints is asked again
 - `apply` failing on an answer just given is a warning. At startup the answer is dropped and asked again
 
-**Note:** _A key its type does not take is refused at startup, and so is `value-from` together with `prefill` or `first`. A deferred question takes no `first`, `group` or `value-from`._
+**Note:** _A key its type does not take is refused at startup, and so is `value-from` together with `prefill` or `first`. A deferred question takes no `first` or `group`, a password no `first`._
 
 ### Conditions
 

@@ -369,6 +369,19 @@ const (
 // Types is every type there is, in the order the reference lists them.
 var Types = []string{TypeText, TypeBool, TypeList, TypeOpenList, TypePassword, TypeNewPassword, TypeDeferred}
 
+// TypeKeys are the keys only some types take, by type. A key set on a type
+// that does not take it is refused, since nothing would read it. Every other
+// key means the same on each type.
+var TypeKeys = map[string][]string{
+	TypeText:        {"default", "prefill", "value-from", "pattern"},
+	TypeBool:        {"default", "value-from"},
+	TypeList:        {"options", "options-from", "filter", "default", "prefill", "pattern"},
+	TypeOpenList:    {"options", "options-from", "filter", "default", "prefill", "pattern"},
+	TypePassword:    {"check"},
+	TypeNewPassword: {},
+	TypeDeferred:    {"options", "options-from", "filter"},
+}
+
 // The two answers a bool variable has. They are written into the answer file
 // and read by scripts as plain shell truth, so they are these words and not
 // yes/no — a script tests `[ "$X" = true ]`.
@@ -473,6 +486,24 @@ type Variable struct {
 
 	re   *regexp.Regexp
 	cond []*condition
+}
+
+// typedKeys are the keys of TypeKeys this question sets.
+func (v *Variable) typedKeys() []string {
+	var keys []string
+	for _, k := range []struct {
+		key string
+		set bool
+	}{
+		{"options", len(v.Options) > 0}, {"options-from", v.OptionsFrom != ""}, {"filter", v.Filter != ""},
+		{"default", v.Default != ""}, {"prefill", v.Prefill != ""}, {"value-from", v.ValueFrom != ""},
+		{"pattern", v.Pattern != ""}, {"check", v.Check != ""},
+	} {
+		if k.set {
+			keys = append(keys, k.key)
+		}
+	}
+	return keys
 }
 
 // Deferred reports whether this value is one the opening run of questions has

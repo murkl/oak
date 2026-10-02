@@ -117,26 +117,29 @@ var retiredParts = map[string]string{
 // checkType settles a variable's type, which every one names, and the keys
 // that belong to a list against it.
 func checkType(v *Variable) error {
-	switch v.Type {
-	case "":
+	takes, known := TypeKeys[v.Type]
+	switch {
+	case v.Type == "":
 		return fmt.Errorf("type is required, one of %s", strings.Join(Types, ", "))
-	case "secret":
+	case v.Type == "secret":
 		return fmt.Errorf("type secret is %s, typed once where it exists already, or %s, typed twice where it is being chosen", TypePassword, TypeNewPassword)
-	case TypeList, TypeOpenList:
-		if len(v.Options) == 0 && v.OptionsFrom == "" {
-			return fmt.Errorf("a %s takes its answers from options or options-from", v.Type)
-		}
-	case TypeDeferred:
-		return checkDeferred(v)
-	case TypeText, TypeBool, TypePassword, TypeNewPassword:
-		switch {
-		case len(v.Options) > 0 || v.OptionsFrom != "":
-			return fmt.Errorf("a %s has no options of its own - a set of answers is type %s", v.Type, TypeList)
-		case v.Filter != "":
-			return fmt.Errorf("filter narrows a list of answers, and a %s is none", v.Type)
-		}
-	default:
+	case !known:
 		return fmt.Errorf("unknown type %q, which is one of %s", v.Type, strings.Join(Types, ", "))
+	}
+	for _, key := range v.typedKeys() {
+		switch {
+		case slices.Contains(takes, key):
+		case len(takes) == 0:
+			return fmt.Errorf("a %s takes no %s, nor any other key a type decides", v.Type, key)
+		default:
+			return fmt.Errorf("a %s takes no %s, of the keys a type decides only %s", v.Type, key, strings.Join(takes, ", "))
+		}
+	}
+	if v.Listed() && len(v.Options) == 0 && v.OptionsFrom == "" {
+		return fmt.Errorf("a %s takes its answers from options or options-from", v.Type)
+	}
+	if v.Deferred() {
+		return checkDeferred(v)
 	}
 	return nil
 }
@@ -513,14 +516,10 @@ func (s *Module) checkAsks(t *Task) error {
 // page reads is refused, since neither ever shows it.
 func checkDeferred(v *Variable) error {
 	switch {
-	case len(v.Options) == 0 && v.OptionsFrom == "":
-		return fmt.Errorf("a question asked mid-run is a list, and this one has no options or options-from")
 	case v.First:
 		return fmt.Errorf("first: a deferred question is asked by its task, mid-run")
 	case v.Group != "":
 		return fmt.Errorf("group: a deferred question is never on the settings page")
-	case v.Derived():
-		return fmt.Errorf("value-from: a deferred question is asked, and a value worked out is not")
 	}
 	return nil
 }
@@ -627,14 +626,8 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 	if err := checkType(v); err != nil {
 		return fmt.Errorf("%s: %w", v.Name, err)
 	}
-	if v.Secret() && v.Default != "" {
-		return fmt.Errorf("%s: a password is never stored, so it cannot have a default", v.Name)
-	}
 	if v.Secret() && v.First {
 		return fmt.Errorf("%s: a password is asked for immediately before the run that needs it, so it cannot also be asked first", v.Name)
-	}
-	if v.Check != "" && v.Type != TypePassword {
-		return fmt.Errorf("%s: check tries a password that already exists, so it is type %s, and any other answer is held to its pattern", v.Name, TypePassword)
 	}
 	if len(v.Options) > 0 && v.OptionsFrom != "" {
 		return fmt.Errorf("%s: options and options-from are two answers to the same question", v.Name)
@@ -649,8 +642,6 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 	}
 	if v.Derived() {
 		switch {
-		case v.Secret():
-			return fmt.Errorf("%s: a secret is typed by a person, never worked out", v.Name)
 		case v.Prefill != "":
 			return fmt.Errorf("%s: value-from settles the value, prefill only suggests one - a question is asked or it is not", v.Name)
 		case v.First:
