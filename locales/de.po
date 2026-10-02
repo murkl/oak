@@ -101,7 +101,7 @@ msgstr "Sprache der Oberfläche"
 
 #: internal/store/prefs.go:79
 msgid "Check every step on the machine it was done to"
-msgstr "Jeden Schritt auf der Maschine prüfen, auf der er ausgeführt wurde"
+msgstr "Jeden Schritt auf dem Rechner prüfen, auf dem er ausgeführt wurde"
 
 #: internal/store/store.go:231 tui/labels.go:233
 msgid "Yes"
