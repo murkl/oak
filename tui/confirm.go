@@ -1,39 +1,50 @@
 package tui
 
 import (
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// confirmScreen is the last page before anything is changed.
+// confirmScreen is the last page before anything is changed: a yes or no, and
+// in the warning colour over it the question whether to go on.
 //
-// It says the same thing in every module: nothing has happened yet, and the
-// button under it is what starts it. What is about to happen in detail is every
-// answer on the settings page, one esc away — a sentence here repeating a few
-// of them would be a second, shorter copy of that page able to disagree with it.
+// It says the same thing in every module: nothing has happened yet, and Yes is
+// what starts it. What is about to happen in detail is every answer on the
+// settings page, one esc away — a sentence here repeating a few of them would
+// be a second, shorter copy of that page able to disagree with it. It carries
+// no heading either: the frame already names the module, and the row that led
+// here named what it does.
 //
-// It answers to enter and nothing else. Every other key, and every scroll — a
-// wheel arrives here as an arrow — leaves the page exactly where it is.
+// It opens on No. The row that led here was chosen with enter, and an enter
+// pressed once too often must not be the one that starts the work.
 //
 // It is also the last moment an answer can still be put again, so every answer
 // a list vouches for is read against that list once more on the way in — see
 // Runner.Unoffered. One the list no longer offers sends the run of questions
 // back to it rather than on into the work.
 type confirmScreen struct {
-	app *app
+	app    *app
+	picker *picker
 
 	// checking is whether the lists are still being read; pressed, whether
-	// enter came while they were. Enter is the cheapest key, and it starts the
-	// run the moment they are through rather than being lost.
+	// Yes came while they were. It starts the run the moment they are through
+	// rather than being lost.
 	checking, pressed bool
 }
 
-func newConfirm(a *app) *confirmScreen { return &confirmScreen{app: a, checking: true} }
+func newConfirm(a *app) *confirmScreen {
+	s := &confirmScreen{app: a, checking: true}
+	s.picker = newPicker([]item{
+		{title: labelYes(), key: keyYes},
+		{title: labelNo(), key: keyNo},
+	})
+	s.picker.describe(labelNothingChanged())
+	s.picker.focus(keyNo)
+	return s
+}
 
-func (s *confirmScreen) Title() string { return s.app.module.Name() }
+func (s *confirmScreen) Title() string { return "" }
 
-func (s *confirmScreen) Hint() string { return labelHintStart() }
+func (s *confirmScreen) Hint() string { return labelHintChoose() }
 
 // working puts the turning mark in the header while the lists are read.
 func (s *confirmScreen) working() bool { return s.checking }
@@ -64,7 +75,10 @@ func (s *confirmScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			return s, push(startInstall(s.app, 0))
 		}
 	case tea.KeyMsg:
+		s.picker.Update(msg)
 		switch {
+		case confirms(msg) && s.picker.selected() != keyYes:
+			return s, pop()
 		case confirms(msg) && s.checking:
 			s.pressed = true
 		case confirms(msg):
@@ -77,10 +91,7 @@ func (s *confirmScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 }
 
 func (s *confirmScreen) View(width, height int) string {
-	var b strings.Builder
-	b.WriteString(alertStyle.Render(labelReadyToStart()) + "\n\n")
-	b.WriteString(paragraph(labelNothingChanged(), width) + "\n")
-	return b.String() + "\n" + accentBold.Render(glyphs.cursor+s.app.verb())
+	return alertStyle.Render(labelContinue()) + "\n\n" + s.picker.View(width, max(height-2, 1))
 }
 
 // startInstall is the way into an installation: the secrets that have to be

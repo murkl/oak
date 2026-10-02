@@ -36,10 +36,12 @@ type declaration struct {
 	Language string `yaml:"language"`
 
 	// What this module is and what it does: one sentence about the program, the
-	// word for starting it, and the phases its work happens in.
-	Description string   `yaml:"description"`
-	StartTitle  string   `yaml:"start-title"`
-	Stages      []string `yaml:"stages"`
+	// words for starting it and for its settings, and the phases its work
+	// happens in.
+	Description   string   `yaml:"description"`
+	StartTitle    string   `yaml:"start-title"`
+	SettingsTitle string   `yaml:"settings-title"`
+	Stages        []string `yaml:"stages"`
 
 	// Where it runs its actions, each a list of their names — see Rules.
 	Rules Rules `yaml:"rules"`
@@ -64,7 +66,7 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Description: head.Description, StartTitle: head.StartTitle}
+	s.UI = UI{Title: head.Title, Description: head.Description, StartTitle: head.StartTitle, SettingsTitle: head.SettingsTitle}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Stages, s.Rules = head.Stages, head.Rules
 	if err := head.Status.settle(dir, FileModule); err != nil {
@@ -271,13 +273,13 @@ var retired = map[string]string{
 	"variables": "an action has one page: its variable, and a second question is a second action named under its rules: on-failure",
 	"shows":     "a code is drawn by an action, beside its report",
 	"quits":     "a way out is an action, named under rules: on-success or on-leave",
-	"tty":       "a shell handed the terminal is an action with tty, named under rules: on-success or menu",
+	"tty":       "a shell handed the terminal is an action with tty, named under rules: on-success or settings",
 	"asks":      "a starting point that is fetched names the action that fetches it",
 	"apply":     "a starting point that is fetched names the action that fetches it",
 	"options":   "a starting point stands under presets: itself, and the page they are offered on is the runtime's own",
 	"offered":   "it is a rule now: under rules:, as offer-if",
 	"requires":  "it is a rule now: under rules:, as start-if in module.yaml and as offer-if in action.yaml",
-	"menu":      "it is a rule now: under rules:",
+	"menu":      "its rows stand on the settings page: under rules:, as settings",
 	"leave":     "it is a rule now: under rules:, as on-leave",
 	"failure":   "it is a rule now: under rules:, as on-failure",
 	"success":   "it is a rule now: under rules:, as on-success",
@@ -325,7 +327,10 @@ func (s *Module) check(tasks []*Task, runs map[string]int) error {
 	if err := s.checkActions(runs); err != nil {
 		return err
 	}
-	return s.checkTasks(tasks)
+	if err := s.checkTasks(tasks); err != nil {
+		return err
+	}
+	return s.checkDeferredAsked(tasks)
 }
 
 // checkText holds a sentence to the answers this module has. A {{VAR}} naming
@@ -439,13 +444,9 @@ func checkNeeds(groups map[string][]*Task) ([]string, error) {
 // where is the folder a task was read from, as a module's author knows it.
 func (t *Task) where() string { return fmt.Sprintf("%s/%s", DirTasks, t.id) }
 
-// checkAsks settles a task's `asks:`, which is a question put in the middle of
-// a run and therefore has to be one the frame can put there.
-//
-// Only a list qualifies. A text box mid-run would be a second way of answering
-// with nothing to check it against on a page nobody navigated to, and a secret
-// is already asked for at the one moment it is safe to — immediately before the
-// run that needs it.
+// checkAsks settles a task's `asks:`, which names a question put in the middle
+// of a run. The variable says so itself, with `type: deferred`, so a module read
+// from the top tells it from the questions asked on the way in.
 func (s *Module) checkAsks(t *Task) error {
 	if t.Asks == "" {
 		return nil
@@ -454,12 +455,45 @@ func (s *Module) checkAsks(t *Task) error {
 	switch {
 	case v == nil:
 		return fmt.Errorf("asks: no such variable: %s", t.Asks)
-	case v.Secret():
-		return fmt.Errorf("asks: %s is a secret, which is asked for immediately before the run", t.Asks)
-	case len(v.Values) == 0 && v.Command == "" && v.Shape() != TypeBool:
-		return fmt.Errorf("asks: %s has no answers to choose from, and a question asked mid-run is a list", t.Asks)
+	case !v.Deferred():
+		return fmt.Errorf("asks: %s is asked on the way in — a question asked mid-run says type: %s", t.Asks, TypeDeferred)
 	}
-	v.deferred = true
+	return nil
+}
+
+// checkDeferred holds a question asked mid-run to what the frame can put there.
+//
+// Only a list qualifies. A text box mid-run would be a second way of answering
+// with nothing to check it against on a page nobody navigated to, and a yes or
+// no in front of a task is its `confirm:`. What only the way in or the settings
+// page reads is refused, since neither ever shows it.
+func checkDeferred(v *Variable) error {
+	switch {
+	case len(v.Values) == 0 && v.Command == "":
+		return fmt.Errorf("a question asked mid-run is a list, and this one has no values or command")
+	case v.First:
+		return fmt.Errorf("first: a deferred question is asked by its task, mid-run")
+	case v.Group != "":
+		return fmt.Errorf("group: a deferred question is never on the settings page")
+	case v.Derived():
+		return fmt.Errorf("answer: a deferred question is asked, and an answer worked out is not")
+	}
+	return nil
+}
+
+// checkDeferredAsked refuses a deferred question no task asks, which would be
+// asked nowhere at all: not on the way in, not on the settings page, not in
+// the run.
+func (s *Module) checkDeferredAsked(tasks []*Task) error {
+	asked := map[string]bool{}
+	for _, t := range tasks {
+		asked[t.Asks] = true
+	}
+	for _, v := range s.Vars {
+		if v.Deferred() && !asked[v.Name] {
+			return fmt.Errorf("%s: %s: type %s is asked by a task under asks:, and no task asks it", FileModule, v.Name, TypeDeferred)
+		}
+	}
 	return nil
 }
 
@@ -475,7 +509,7 @@ func (s *Module) checkAsks(t *Task) error {
 //
 // A blank line survives, because that is the one break that was meant.
 func (s *Module) normalize(tasks []*Task) {
-	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.StartTitle}
+	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.StartTitle, &s.UI.SettingsTitle}
 	for _, o := range s.Presets {
 		fields = append(fields, &o.Title, &o.Description)
 	}
@@ -551,6 +585,10 @@ func (s *Module) checkVar(v *Variable, dir string) error {
 	case TypeBool, TypeSecret:
 		if len(v.Values) > 0 || v.Command != "" {
 			return fmt.Errorf("%s: a %s variable has no values of its own", v.Name, v.Shape())
+		}
+	case TypeDeferred:
+		if err := checkDeferred(v); err != nil {
+			return fmt.Errorf("%s: %w", v.Name, err)
 		}
 	default:
 		return fmt.Errorf("%s: unknown type %q", v.Name, v.Type)

@@ -42,8 +42,8 @@ type settingsScreen struct {
 //
 // Neither carries a heading. The rows say what they are, and the blank line is
 // what sets them apart from the module's own: over them, the words this
-// session is read in; under them, the two rows about the run itself, which
-// stand together.
+// session is read in and the actions the module names under `settings`; under
+// them, the two rows about the run itself, which stand together.
 const (
 	groupSession = "\x00session"
 	groupRun     = "\x00run"
@@ -67,6 +67,12 @@ func newSettings(a *app) *settingsScreen {
 	s.build()
 	return s
 }
+
+// Init asks again which actions this machine has, every time the page comes
+// up: what an action is offered on — a card, a network — changes while the
+// page is away. It stands at once with what the last look found, and a row
+// lands or goes when this one answers.
+func (s *settingsScreen) Init() tea.Cmd { return s.app.lookFor() }
 
 // Refresh rebuilds on the way back from a value that was just changed: the row
 // shows the new value, and a group whose condition that answer just flipped
@@ -95,6 +101,12 @@ func (s *settingsScreen) collect() []settingRow {
 			value: s.languageName(),
 			key:   store.LangVar,
 		}, group: groupSession})
+	}
+	// The actions the module names here stand with it, in the module's own
+	// words: like the language, each changes something about this session
+	// rather than an answer the work is done with.
+	for _, act := range s.app.rows(s.app.module.Rules.Settings) {
+		rows = append(rows, settingRow{item: item{title: act.Label(), key: keyAction + act.ID()}, group: groupSession})
 	}
 	for _, v := range s.app.store.Visible() {
 		rows = append(rows, settingRow{
@@ -195,7 +207,7 @@ func (s *settingsScreen) languageName() string {
 // being typed into it rather than a key of this page's.
 func (s *settingsScreen) takesText() bool { return s.filter.active() }
 
-func (s *settingsScreen) Title() string { return labelSettings() }
+func (s *settingsScreen) Title() string { return s.app.settingsTitle() }
 func (s *settingsScreen) Hint() string  { return filterHint(labelHintList(), s.filter) }
 
 func (s *settingsScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
@@ -235,6 +247,9 @@ func (s *settingsScreen) leave() tea.Cmd {
 // open is the page behind a row. Every row on this page has one, which is what
 // keeps it a page of answers rather than a list of facts.
 func (s *settingsScreen) open(name string) tea.Cmd {
+	if act := s.app.action(name); act != nil {
+		return s.app.openAction(act)
+	}
 	switch {
 	case name == "":
 		return nil

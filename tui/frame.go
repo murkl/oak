@@ -181,13 +181,15 @@ func renderFrame(width, height int, c chrome) string {
 	head := row(accentBold.Render(c.brand), c.right(), w)
 	foot := row(mutedStyle.Render(c.hint), mutedStyle.Render(c.version), w)
 
+	// A blank line under the rule on every page, with the breadcrumb over it
+	// where there is one: what the page holds never sits on the line that
+	// closes the header.
 	parts := []string{head, rule(w)}
-	inner := h - 2 // the two rule lines
 	if c.crumb != "" {
-		parts = append(parts, c.crumb, "")
-		inner -= 2
+		parts = append(parts, c.crumb)
 	}
-	parts = append(parts, pad(c.body, inner-2), rule(w), foot)
+	parts = append(parts, "")
+	parts = append(parts, pad(c.body, h-len(parts)-2), rule(w), foot)
 
 	box := frameStyle.Width(w + 2*padH).Render(strings.Join(parts, "\n"))
 	return placeOnField(width, height, box)

@@ -85,6 +85,7 @@ The folder name is the module's identity: what `oak --module=<name>` opens, and 
 title: Tux Setup                         # the module's one name, wherever it is named
 description: Set a machine up for Tux.   # shown under the row that starts the work
 start-title: Install                     # optional: what starting the work is called
+settings-title: Configuration            # optional: what the settings are called
 stages: [prepare, install]               # the phases the work happens in, in order
                                          # — each a folder under tasks/
 
@@ -93,7 +94,7 @@ language: TUX_LOCALE                     # optional: ties the interface language
 rules:                                   # optional: when its actions run
   offer-if: [live-image]                 # offered on a machine these say yes on
   start-if: [root, internet]             # the work starts once these say yes
-  menu: [wlan]                           # rows on the menu
+  settings: [wlan]                       # rows on the settings page
   on-leave: [restart, shutdown]          # rows on the way out
   on-failure: [share-log]                # rows under a run that failed
   on-success: [shell]                    # rows under a run that finished
@@ -104,14 +105,15 @@ rules:                                   # optional: when its actions run
 | `title` | **Required.** What the module is called, everywhere: the row that opens it, the trail across the top of every page once it is open, and every sentence the interface writes about it |
 | `stages` | **Required.** The phases the work happens in, in order. Each is a folder under `tasks/`, marked — `tasks/@install/` — and the name written here carries no `@` of its own |
 | `description` | One sentence, read on the menu under the row that starts the work |
-| `start-title` | What starting the work is called: the first row of the menu, and the button on the last page before the run. Left out, `Start` |
+| `start-title` | What starting the work is called: the first row of the menu. Left out, `Start` |
+| `settings-title` | What the page of every answer is called: its row on the menu, and the heading over the page. Left out, `Settings` |
 | `language` | Names a variable whose answer also settles the interface language. `de_DE` is matched to German |
 | `rules` | When its actions run, each rule a list of them — see [Actions](#actions), and for `offer-if` [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `status` | This module's own line in the header, in place of the product's — see [The header's status](#the-headers-status) |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
 
-**One name, and a verb for pressing it.** The frame carries the title on every page, so the rows inside a module are named after what they do — `Start`, `Settings` — and the lines a run writes about itself say `Failed` rather than the module's name over again. A name read twice on one screen is a line that says nothing. `start-title:` is what the first of those rows does in the module's own word — `Install`, `Repair` — where `Start` says too little. It is a verb and not a second name: a module whose title already says what it does — `Write an image` — would only repeat it, and names a shorter verb, `Write`, or none.
+**One name, and a verb for pressing it.** The frame carries the title on every page, so the rows inside a module are named after what they do — `Start`, `Settings` — and the lines a run writes about itself say `Failed` rather than the module's name over again. A name read twice on one screen is a line that says nothing. `start-title:` is what the first of those rows does in the module's own word — `Install`, `Repair` — where `Start` says too little. It is a verb and not a second name: a module whose title already says what it does — `Write an image` — would only repeat it, and names a shorter verb, `Write`, or none. `settings-title:` is the same for the second row, where the answers are something more particular than settings — `Configuration`.
 
 ### Placeholders
 
@@ -182,6 +184,7 @@ What is drawn follows from the declaration — there is no switch for it:
 | `type: bool` | Yes / No, in the interface's language |
 | `type: secret` | A password field, asked twice, never written to disk |
 | `type: secret` with `existing: true` | The same field, asked once |
+| `type: deferred` with `values:` or `command:` | A list, asked in the middle of the run by the task that names it — see below |
 
 | Field | Description |
 | --- | --- |
@@ -242,6 +245,17 @@ It is read when the module opens and again whenever an answer changes, so a valu
 
 **Note:** _Where there is something to decide, there is a question. `answer:` is refused on a secret, alongside `prefill:` and together with `first:`._
 
+**`type: deferred`** is for the question nobody can answer before some of the work is done: which snapshot to go back to, once the disk holding them is open. The task that needs it names it under `asks:` and the run stops there to put it — see [Tasks](#tasks). So the declaration says when it is asked, the way a secret's does, and a module read from the top tells it from the questions asked on the way in. It is never asked before the run and never on the settings page.
+
+```yaml
+  - name: TUX_SNAPSHOT
+    title: Snapshot
+    type: deferred                     # asked by the task that names it
+    command: ./tasks/@repair/rollback/snapshots.sh
+```
+
+It is a list, since there is nothing on a page in the middle of a run to check a typed answer against: `values:` or `command:` is required, and a yes or no in front of a task is that task's `confirm:`. Both sides are held to each other when the module loads: a task's `asks:` naming any other question is refused, and so is a deferred question no task asks, along with `first:`, `group:` and `answer:` on one.
+
 **`apply:`** is for an answer that changes the machine the program is running on rather than the one being worked on — `apply: loadkeys "$TUX_KEYMAP"`. It runs the moment the answer is given, and again at startup for an answer this run already had. Where the answer was just given, a failure is logged as a warning and the answer still stands: whoever chose it is looking at what it did. At startup — and after a preset filled it in — the answer goes back to what it was before anybody answered, and is asked again: nobody watched it being put in force, and a password typed next on a keymap that never loaded is refused without a word about why.
 
 **`first: true`** puts a question before everything the work waits for and before the presets, so a password can be typed on a keyboard layout that has already been settled. Use it sparingly: it is asked before the checks that decide whether this machine can be worked on at all.
@@ -301,7 +315,7 @@ Six more keys change what a task **is** rather than what it does:
 
 | Key | Description |
 | --- | --- |
-| `asks: VAR` | The run pauses to ask for that value first, for something not knowable before the work started. The variable must have a fixed set of answers and must not be a secret. A list that comes back **empty** is a task with nothing to do, and the **whole task** is skipped, so work that has to happen either way sits in a task of its own ahead of the question; a command that **fails** stops the run |
+| `asks: VAR` | The run pauses to ask for that value first, for something not knowable before the work started. The variable says `type: deferred` — see [Questions](#questions). A list that comes back **empty** is a task with nothing to do, and the **whole task** is skipped, so work that has to happen either way sits in a task of its own ahead of the question; a command that **fails** stops the run |
 | `confirm:` | Asked as a yes/no before it runs, opening on Yes. Declining skips it and the run carries on |
 | `report:` | The run stops on a page of its own once this task has finished. The first paragraph is the headline; `{{VAR}}` is filled in — see [Placeholders](#placeholders). Where anything has been tested, the page also says how many passed, and where an optional task failed, how many did |
 | `progress: true` | The last line the script drew is shown, dimmed, under its name while it runs — see below |
@@ -407,7 +421,7 @@ An action does not say where it runs. A rule names it, by its folder — every r
 | --- | --- |
 | `offer-if` in `module.yaml` | Run by itself before the module is opened: whether it is on offer on this machine — see [Which modules a machine is offered](#which-modules-a-machine-is-offered) |
 | `start-if` in `module.yaml` | Run by itself before the work begins, in order. The first that says no stands a page in front of everything — see below |
-| `menu` in `module.yaml` | A row on the menu, between the row that starts the work and Settings |
+| `settings` in `module.yaml` | A row on the settings page, at its top under the interface language and under no heading: like the language, it changes something about the session rather than an answer |
 | `on-leave` in `module.yaml` | A row on the page every way out arrives at |
 | `on-failure` in `module.yaml` | A row under the report of a run that failed |
 | `on-success` in `module.yaml` | A row under a run that finished — what is offered once the work is done |
@@ -434,7 +448,7 @@ is_online
 ```
 
 ```yaml
-# actions/wlan/action.yaml — named under menu, and on the failure above
+# actions/wlan/action.yaml — named under settings, and on the failure above
 title: Wireless network
 description: Join a wireless network.
 rules:
@@ -474,7 +488,9 @@ The terminal is handed over **outright**: all three channels are the terminal it
 
 **What the work starts if** is asked after the questions marked `first` and before the presets. The first that says no stands a page in front of everything: its `fail:` is that page, and what the script printed goes to the log. It asks again by itself every few seconds and carries on the moment it says yes, so a cable plugged in needs no key, and `r` asks at once. Where its `on-failure` is an action this machine has, enter opens that, and the page asks again once it has worked. One with nothing to open is a check of the machine, and the page is the whole of it.
 
-**What an action is offered if** is asked when the module opens and again every time the menu comes up, since what it asks about is a thing that gets plugged in. Until it has answered, the row is not shown: a row that would be taken away again is worse than one that lands a moment late.
+An `on-failure` that asks something first is opened straight away, once, on top of that page: its question is the next thing to do — no internet, and the network to join is already on screen. Esc from it shows the page, which does not open it again by itself; enter does. One that would run the moment it is opened waits for enter, since choosing it is the consent.
+
+**What an action is offered if** is asked when the module opens and again every time the menu or the settings page comes up, since what it asks about is a thing that gets plugged in. Until it has answered, the row is not shown: a row that would be taken away again is worse than one that lands a moment late.
 
 What cannot take effect is refused when the module loads: a name that is no action, an action nothing names, an action opened on its own failure, actions whose `offer-if` and `on-failure` go round in a ring, more than one page, a page on an action run by itself, a check under `offer-if` or `start-if` without a `fail:`, a page asked `first`, in a `group` or worked out with `answer:`, and an action under `on-leave` with a question, since a way out asks nothing. A page shares the module's names, so it may not be called what one of its questions is.
 

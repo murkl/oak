@@ -79,8 +79,8 @@ flowchart TD
     PR --> Q["The questions<br/>one per page"]
     Q --> H["Menu"]
     H --> SE["Settings"] --> H
-    H --> OP["An action<br/>one page, its script"] --> H
-    H --> CF["Last warning"] --> R["The run<br/>tasks, top to bottom"]
+    SE --> OP["An action<br/>one page, its script"] --> SE
+    H --> CF["Last warning<br/>yes or no"] --> R["The run<br/>tasks, top to bottom"]
     R --> OK["Done<br/>and the actions for it"]
     R --> ER["Failure<br/>script · line · command<br/>and the actions for it"]
 

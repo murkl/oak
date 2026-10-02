@@ -195,14 +195,23 @@ func (a *app) heading() string {
 	return a.brand() + " " + glyphs.crumb + " " + a.module.Name()
 }
 
-// verb is what starting the work is called: the menu's first row and the
-// button on the page before the run. The module's own word where it names one,
-// and the runtime's otherwise.
+// verb is what starting the work is called: the menu's first row. The
+// module's own word where it names one, and the runtime's otherwise.
 func (a *app) verb() string {
 	if word := a.module.Start(); word != "" {
 		return word
 	}
 	return labelStart()
+}
+
+// settingsTitle is what the page of every answer is called: its row on the
+// menu, and the heading over it. The module's own word where it names one, and
+// the runtime's otherwise.
+func (a *app) settingsTitle() string {
+	if word := a.module.Settings(); word != "" {
+		return word
+	}
+	return labelSettings()
 }
 
 // leaves reports whether this machine has to be asked about on the way out. A

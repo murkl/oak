@@ -352,22 +352,20 @@ stages: [go]
 variables:
   - name: DISK
     title: Disk
-  - name: SNAPSHOT
-    title: Snapshot
-    values: [a, b]
+  - name: FS
+    title: File system
+    values: [btrfs, ext4]
   - name: EXTRA
     title: Extra
     conditions: DISK == /dev/sda
 `)
-	// Being named by a task's `asks:` is what defers a variable; the module above
-	// has no such task, so it is deferred here the way the loader would.
 	s := New(sp, filepath.Join(t.TempDir(), "installer.conf"), false)
 
-	if got := names(s.Visible()); strings.Join(got, ",") != "DISK,SNAPSHOT" {
-		t.Errorf("visible = %v, want DISK and SNAPSHOT — EXTRA's condition does not hold", got)
+	if got := names(s.Visible()); strings.Join(got, ",") != "DISK,FS" {
+		t.Errorf("visible = %v, want DISK and FS — EXTRA's condition does not hold", got)
 	}
 	s.Set("DISK", "/dev/sda")
-	if got := names(s.Visible()); strings.Join(got, ",") != "DISK,SNAPSHOT,EXTRA" {
+	if got := names(s.Visible()); strings.Join(got, ",") != "DISK,FS,EXTRA" {
 		t.Errorf("visible = %v, want EXTRA once its condition holds", got)
 	}
 }

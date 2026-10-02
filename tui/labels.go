@@ -28,7 +28,6 @@ func labelHintContinue() string { return say("⏎ continue") }
 func labelHintBack() string     { return say("⏎ back") }
 func labelHintClose() string    { return say("⏎ close") }
 func labelHintQuit() string     { return say("⏎ quit") }
-func labelHintStart() string    { return say("⏎ start · esc back") }
 
 // labelHintAnswer is the hint for a question a run stopped to ask. It is the
 // one list in the program with nothing behind it — the task waiting on the
@@ -70,7 +69,7 @@ func labelPoweredBy(version string) string { return say("powered by oak %s", ver
 func labelOpening() string { return say("Start") }
 
 // What starting the work is called where a module names no word of its own:
-// the menu's first row, and the button on the page before the run.
+// the menu's first row.
 func labelStart() string { return say("Start") }
 
 func labelLanguage() string { return say("Interface language") }
@@ -95,6 +94,8 @@ func labelChoice() string { return say("What would you like to do?") }
 // what the page already says.
 func labelCounter(at, of int) string { return say("%d of %d", at, of) }
 
+// What the page of every answer is called where a module names no word of its
+// own: its row on the menu, and the heading over it.
 func labelSettings() string { return say("Settings") }
 
 // The page a fresh machine's starting points stand on. The runtime's own words,
@@ -173,6 +174,13 @@ func labelResetHelp() string {
 func labelPasswordRepeat() string   { return say("Repeat") }
 func labelPasswordMismatch() string { return say("The entries do not match.") }
 
+// The last page before the work: whether to go on, in the warning colour, and
+// under it the one thing that is true of every module at this point.
+func labelContinue() string { return say("Do you want to continue?") }
+func labelNothingChanged() string {
+	return say("Nothing has been changed so far. Only Yes changes anything.")
+}
+
 // What a run says about itself. None of it names the module: the frame says
 // which one this is above every page, and a headline repeating it would be the
 // same word twice on one screen — which is also why the runtime needs no word
@@ -181,13 +189,6 @@ func labelPasswordMismatch() string { return say("The entries do not match.") }
 // The clock is on two of them. How long a run has been going is the one thing
 // somebody watching a list of tasks actually wants to know and cannot work out
 // for themselves, and how long it took is the same answer once it is over.
-func labelReadyToStart() string { return say("Ready to start") }
-
-// Under it, on the last page before the work: the one thing that is true of
-// every module at this point.
-func labelNothingChanged() string {
-	return say("Nothing has been changed so far. Starting is the step that changes it.")
-}
 func labelRunFailed() string { return say("Failed") }
 func labelRunningFor(elapsed string) string {
 	return say("Working · %s", elapsed)

@@ -9,7 +9,7 @@ oak.yaml                                    the product: name, colour, version, 
 oak.sh                                      the library: what the two modules agree about
 modules/setup/module.yaml                   what it asks, the order its work happens in, its rules
 modules/setup/actions/writable/             what the work starts if: can this folder be written to
-modules/setup/actions/note/                 a row on the menu, with a page and a script
+modules/setup/actions/note/                 a row on the settings page, with a page and a script
 modules/setup/actions/shell/                what it offers once the run has finished: a shell
 modules/setup/tasks/@prepare/target/        make the folder, and a test.sh beside it
 modules/setup/tasks/@install/base/          hostname and os-release, and its test

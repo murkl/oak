@@ -150,6 +150,7 @@ func TestAValueATaskAsksForIsReadByThatTask(t *testing.T) {
 	// Being named in task.yaml is the whole of how it is read.
 	declared := guarded + `  - name: PICK
     title: Pick
+    type: deferred
     values: [a, b]
     required: true
 `

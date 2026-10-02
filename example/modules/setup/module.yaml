@@ -16,9 +16,9 @@
 title: Tux Setup
 description: Build a small Linux system tree, the way an installer would.
 
-# What starting the work is called: the menu's first row, and the button on the
-# last page before the run. A verb, since the title stands over both. Left out,
-# as the recovery beside this one does, it is Start.
+# What starting the work is called: the menu's first row. A verb, since the
+# title stands over it. Left out, as the recovery beside this one does, it is
+# Start. settings-title names the row under it the same way.
 start-title: Install
 
 # The phases the work happens in, in the order they happen. Every task names one
@@ -26,11 +26,11 @@ start-title: Install
 stages: [prepare, install, finish]
 
 # When its actions run, each a folder under actions/: what has to say yes before
-# the work can start, what stands as a row on the menu, and what is offered once
-# the run has finished.
+# the work can start, what stands as a row on the settings page, and what is
+# offered once the run has finished.
 rules:
   start-if: [writable]
-  menu: [note]
+  settings: [note]
   on-success: [shell]
 
 variables:

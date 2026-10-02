@@ -153,9 +153,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // look asks the module once, as soon as it is open, which of its actions this
-// machine has, so the menu stands with their rows from its first frame rather
-// than growing them over somebody's cursor. The menu asks again itself every
-// time it comes up — see hub.Init.
+// machine has, so a page stands with their rows from its first frame rather
+// than growing them over somebody's cursor. The menu and the settings ask
+// again themselves every time they come up — see hub.Init.
 func (m *Model) look() tea.Cmd {
 	a := m.app
 	if a.module == nil || a.looked {
@@ -258,8 +258,8 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// time the answer lands: the answer is the machine's, not the page's.
 	case offeredMsg:
 		m.app.offered[msg.a] = msg.yes
-		if h, ok := m.top().(*hub); ok {
-			h.Refresh()
+		if r, ok := m.top().(refresher); ok {
+			r.Refresh()
 		}
 		return m, nil
 
@@ -518,9 +518,9 @@ func (m *Model) state() (mark, words string) {
 // headerRows is how much of the frame the chrome takes, so a screen is told the
 // height it actually has.
 func headerRows(crumbs int) int {
-	rows := 4 // brand, rule, rule, footer
+	rows := 5 // brand, rule, the blank line under it, rule, footer
 	if crumbs > 0 {
-		rows += 2 // breadcrumb and the blank line under it
+		rows++ // the breadcrumb, over that blank line
 	}
 	return rows
 }

@@ -76,6 +76,10 @@ func (a *app) action(key string) *spec.Action {
 	return a.module.Action(name)
 }
 
+// asks reports whether an action, opened, puts a question before its work —
+// rather than running the moment it is opened.
+func (a *app) asks(act *spec.Action) bool { return act.Var != nil && act.Var.Applies(a.store.Get) }
+
 // openAction is an action opened by somebody: its page where it asks one, then
 // its work.
 func (a *app) openAction(act *spec.Action) tea.Cmd { return a.openFrom(act, nil) }
@@ -94,10 +98,10 @@ func (a *app) firstPage(act *spec.Action, depth int, then func() tea.Cmd) screen
 	work := func(depth int) screen {
 		return &actionScreen{app: a, act: act, depth: depth + 1, then: then}
 	}
-	v := act.Var
-	if v == nil || !v.Applies(a.store.Get) {
+	if !a.asks(act) {
 		return work(depth)
 	}
+	v := act.Var
 	after := func() tea.Cmd { return push(work(depth + 1)) }
 	if v.Secret() {
 		return newSecret(a, v, after)
@@ -222,6 +226,10 @@ func (s *toldScreen) View(width, height int) string { return s.page.View(width, 
 // as it says no: its fail is the page, it asks again by itself every few
 // seconds, and enter opens the action it falls back on where this machine has
 // that. Once every one says yes, the opening goes on.
+//
+// An action to fall back on that asks something first is opened straight away,
+// once: its question is the next thing to do, and esc from it shows this page.
+// One that would run at once waits for enter, since choosing it is the consent.
 type gateScreen struct {
 	opening
 	app  *app
@@ -232,6 +240,11 @@ type gateScreen struct {
 	checked bool
 	why     string
 	offered bool
+
+	// opened is whether the action standing now has had what it falls back on
+	// opened by itself already. Once is help; every time the page comes back
+	// would be a page nobody can get to.
+	opened bool
 
 	// round is which look still counts. Every new one starts a round, so a clock
 	// set before the page moved on is ignored rather than answered twice.
@@ -318,11 +331,16 @@ func (s *gateScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		if !msg.refused {
 			if s.at+1 < len(s.all) {
 				s.at++
+				s.opened = false
 				return s, s.Init()
 			}
 			return s, reset(s.next())
 		}
 		s.checked, s.why, s.offered = true, s.action().Refusal(s.app.store.Get), msg.offered
+		if s.offered && !s.opened && s.app.asks(s.onFailure()) {
+			s.opened = true
+			return s, s.app.openAction(s.onFailure())
+		}
 		return s, s.wait()
 
 	case gateDueMsg:
