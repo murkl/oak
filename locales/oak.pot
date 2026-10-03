@@ -248,7 +248,7 @@ msgid "The language %s is read in. It changes the words on screen and nothing el
 msgstr ""
 
 #: tui/labels.go:90
-msgid "What would you like to do?"
+msgid "What would you like to start?"
 msgstr ""
 
 #: tui/labels.go:96
