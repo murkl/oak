@@ -636,7 +636,7 @@ func TestTheOtherProgramsQuestionsAreNotAsked(t *testing.T) {
 
 // What the fork asks, and a catalog answering it in German: the question is
 // read in the language the welcome page settled.
-const forkQuestion = "What would you like to do?"
+const forkQuestion = "What would you like to start?"
 
 func forkCatalog(t *testing.T) string {
 	t.Helper()

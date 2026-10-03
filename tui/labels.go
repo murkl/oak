@@ -87,7 +87,7 @@ func labelLanguageHelp(name string) string {
 // The fork after it, where a runtime offers more than one module. Only the
 // question is the runtime's: what is on offer is named in each module's own
 // words.
-func labelChoice() string { return say("What would you like to do?") }
+func labelChoice() string { return say("What would you like to start?") }
 
 // labelCounter is where something sits in a run of things: which question of
 // how many, which task of how many. Bare numbers, because it is read in the

@@ -12,7 +12,7 @@
       - page: Please choose your language
         shot: welcome
         press: enter
-      - page: What would you like to do?
+      - page: What would you like to start?
         shot: choice
 
 # One question, on a page of its own.

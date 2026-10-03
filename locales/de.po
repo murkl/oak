@@ -245,8 +245,8 @@ msgid "The language %s is read in. It changes the words on screen and nothing el
 msgstr "Die Sprache, in der %s gelesen wird. Sie ändert nur die Anzeige, sonst nichts."
 
 #: tui/labels.go:90
-msgid "What would you like to do?"
-msgstr "Was möchtest du tun?"
+msgid "What would you like to start?"
+msgstr "Was möchtest du starten?"
 
 #: tui/labels.go:96
 #, c-format
