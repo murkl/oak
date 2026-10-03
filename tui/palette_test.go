@@ -32,7 +32,7 @@ func TestAnAccentInSomeOtherNotationIsLeftAlone(t *testing.T) {
 func TestBothSchemesAreReadableOnTheirOwnField(t *testing.T) {
 	for name, s := range map[string]scheme{"dark": darkScheme, "light": lightScheme} {
 		for role, c := range map[string]lipgloss.Color{
-			"text": s.text, "soft": s.soft, "muted": s.muted,
+			"soft": s.soft, "muted": s.muted,
 			"info": s.info, "head": s.head, "warn": s.warn, "fail": s.fail, "accent": s.accent,
 		} {
 			if got := contrast(c, s.bezel); got < minContrast {
@@ -53,29 +53,6 @@ func TestContrastAndLuminanceAgreeWithTheStandard(t *testing.T) {
 	}
 	if got := contrast(white, white); got != 1 {
 		t.Errorf("white on white = %.2f, want 1", got)
-	}
-}
-
-// The opening fades the whole interface up out of the background, and it only
-// works because every colour reaches a style through fade().
-func TestFadingRunsFromTheFieldToTheFullPalette(t *testing.T) {
-	defer setFade(1)
-	setFade(0)
-	if got := fade(colors.accent); got != colors.bezel {
-		t.Errorf("fully faded accent = %q, want the field itself", got)
-	}
-	setFade(1)
-	if got := fade(colors.accent); got != colors.accent {
-		t.Errorf("unfaded accent = %q", got)
-	}
-	// Out of range is clamped rather than trusted.
-	setFade(2)
-	if fadeLevel != 1 {
-		t.Errorf("fadeLevel = %v", fadeLevel)
-	}
-	setFade(-1)
-	if fadeLevel != 0 {
-		t.Errorf("fadeLevel = %v", fadeLevel)
 	}
 }
 

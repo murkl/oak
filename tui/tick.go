@@ -3,8 +3,6 @@ package tui
 import (
 	"time"
 
-	"github.com/charmbracelet/bubbles/cursor"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -14,12 +12,6 @@ import (
 // behaviour and is tested, how long it waited first is not, and a suite that
 // waits those out spends its run waiting.
 var after = tea.Tick
-
-// cursorMode is how a text cursor behaves. It is the other clock in the
-// interface and the only one bubbles owns rather than this package, so it is
-// switched here rather than through after — and it is switched at the one place
-// every text input in the program is made, styleInput.
-var cursorMode = cursor.CursorBlink
 
 // pollEvery is how often a page with something running asks to be redrawn.
 // Fast enough for the mark to look alive, slow enough that a long install does

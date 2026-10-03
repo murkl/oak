@@ -12,7 +12,8 @@
 // different set of modules.
 //
 // The command line is eight options and nothing else. Five are about a run:
-// --version says which release this binary is, --module opens one of the
+// --version says which release this binary is and which build of the product
+// beside it, --module opens one of the
 // folders outright, --language settles the words it is read in, --debug shows
 // the run without starting anything that has not said it simulates itself, and
 // --kiosk says the program is all its machine is for. Two are about the folder
@@ -100,7 +101,11 @@ func start(args []string) error {
 	// Answered before anything is loaded: a version is what this binary is,
 	// which is true of a binary standing on its own with no product beside it.
 	if cmd.version {
-		fmt.Println(version)
+		out, err := versions("")
+		if err != nil {
+			return err
+		}
+		fmt.Print(out)
 		return nil
 	}
 	// The same: what this binary can draw is true of it with nothing beside it.
@@ -297,11 +302,26 @@ func run(rt *spec.Runtime, mods []*spec.Module, cmd command) error {
 
 	opening := &tui.Opening{
 		Runtime: rt, Modules: mods, Prefs: prefs, Langs: langs, Sources: sources,
-		Oak: version, Settled: named != "", Kiosk: cmd.kiosk,
+		Settled: named != "", Kiosk: cmd.kiosk,
 	}
 	return tui.Run(opening, func(mod *spec.Module) (*tui.Program, error) {
 		return open(mod, cmd.debug)
 	})
+}
+
+// versions is what --version answers: the release this binary is and, where a
+// product stands beside it, the build of that. Two lines with their names in
+// front, since either may be what a script is asking for.
+func versions(dir string) (string, error) {
+	product, err := spec.ProductVersion(dir)
+	if err != nil {
+		return "", err
+	}
+	out := "runtime: " + version + "\n"
+	if product != "" {
+		out += "product: " + product + "\n"
+	}
+	return out, nil
 }
 
 // chosen is the language the command line named, matched the way the

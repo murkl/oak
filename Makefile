@@ -8,8 +8,8 @@ PKG     := .
 BIN_DIR := bin
 
 # The version: the tag on this commit, or the last one before it, without its
-# `v`. It is the whole of what `oak --version` answers; `make run` appends
-# "-dev".
+# `v`. It is what `oak --version` answers on its `runtime:` line; `make run`
+# appends "-dev".
 VERSION := $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),dev)
 
 # What a release is called. CI hands in the tag its release run wrote.
@@ -151,7 +151,7 @@ tag-check:
 #   make version-check                                against what build wrote
 #   make version-check TAG=v0.1.0 BIN=dist/oak-...    a published tag against what ships under it
 version-check: tag-check
-	@said="$$(./$(BIN) --version)"; \
+	@said="$$(./$(BIN) --version | sed -n 's/^runtime: //p')"; \
 	[ "$$said" = "$(TAG:v%=%)" ] \
 		|| { echo "$(BIN) answers '$$said' — the tag says '$(TAG)'" >&2; exit 1; }
 	@echo "$(BIN) is $(TAG)"

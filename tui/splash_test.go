@@ -3,8 +3,6 @@ package tui
 import (
 	"strings"
 	"testing"
-
-	"github.com/murkl/oak/internal/i18n"
 )
 
 // run takes a splash all the way to its last frame, which is where everything
@@ -14,72 +12,70 @@ func run(m *splashModel) {
 	}
 }
 
-// The one version on the splash is Oak's own: the product's build is in the
-// corner of every page behind it, and the wordmark above already says the name.
-func TestTheSplashSignsOffWithOaksOwnVersion(t *testing.T) {
-	i18n.Use(i18n.SourceLang)
-
+// The one version on the splash is the product's: the wordmark above already
+// says whose it is, and the corner of every page behind it says the same number.
+func TestTheSplashShowsTheProductsVersionUnderTheWordmark(t *testing.T) {
 	m := newSplash("OAK", "1.2.3")
-	run(m)
-
-	if want := "powered by oak 1.2.3"; !strings.Contains(m.View(60, 20), want) {
-		t.Errorf("the splash does not say %q:\n%s", want, m.View(60, 20))
-	}
-}
-
-// And only the release of it. A build between two tags carries the commits and
-// the hash that say which one it is, and none of that is what the sign-off is
-// for.
-func TestTheSignOffNamesTheReleaseAndNothingAfterIt(t *testing.T) {
-	i18n.Use(i18n.SourceLang)
-
-	m := newSplash("OAK", "1.2.3-4-gdeadbee-dev")
 	run(m)
 
 	view := m.View(60, 20)
-	if want := "powered by oak 1.2.3"; !strings.Contains(view, want) {
-		t.Errorf("the splash does not say %q:\n%s", want, view)
+	if !strings.Contains(view, "1.2.3") {
+		t.Errorf("the splash does not say its version:\n%s", view)
 	}
-	if strings.Contains(view, "gdeadbee") {
-		t.Errorf("the splash carries the build it was made from:\n%s", view)
+	if strings.Contains(view, "powered by") {
+		t.Errorf("the splash says who drew it:\n%s", view)
 	}
 }
 
-// The sign-off is the last thing to arrive, so it never sweeps in alongside the
-// wordmark it belongs under.
-func TestTheSignOffArrivesAfterTheWordmark(t *testing.T) {
-	m := newSplash("OAK", "1.2.3")
-
-	if got := m.signShown(); got != 0 {
-		t.Errorf("signShown at the start = %v, want 0", got)
-	}
-	m.elapsed = fadeFor
-	if got := m.signShown(); got != 0 {
-		t.Errorf("signShown with the wordmark just settled = %v, want 0", got)
-	}
+// A product that names no version has nothing to put there.
+func TestTheSplashOfAProductWithNoVersionSaysNothingUnderTheWordmark(t *testing.T) {
+	m := newSplash("OAK", "")
 	run(m)
-	if got := m.signShown(); got != 1 {
-		t.Errorf("signShown at the end = %v, want 1", got)
+
+	if got := strings.TrimSpace(m.signature()); got != "" {
+		t.Errorf("signature = %q, want none", got)
 	}
 }
 
-// Where the welcome page comes next, the wordmark stays up to the last frame
-// and only the sign-off leaves: the page keeps the one and has no room for the
-// other.
-func TestAWordmarkThatStaysIsNeverDimmedAndItsSignOffLeaves(t *testing.T) {
+// The version is the last thing to arrive, so it never sweeps in alongside the
+// wordmark it belongs under.
+func TestTheVersionArrivesAfterTheWordmark(t *testing.T) {
 	m := newSplash("OAK", "1.2.3")
-	m.stays = true
 
-	m.skip()
-	if got := m.signShown(); got != 1 {
-		t.Errorf("signShown as the splash starts to end = %v, want 1", got)
+	if got := m.signature(); got != "" {
+		t.Errorf("signature at the start = %q, want none", got)
 	}
+	m.elapsed = sweepFor - animEvery
+	if got := m.signature(); got != "" {
+		t.Errorf("signature a frame before the wordmark has settled = %q, want none", got)
+	}
+	m.elapsed = sweepFor
+	if got := m.signature(); !strings.Contains(got, "1.2.3") {
+		t.Errorf("signature with the wordmark just settled = %q, want the version", got)
+	}
+}
+
+// Once the wordmark is in, nothing on the splash moves or changes colour until
+// the page replaces it: the version appears and that is all. A fade here is
+// what looks wrong on a console drawn over a framebuffer.
+func TestTheSplashStandsStillOnceTheWordmarkIsIn(t *testing.T) {
+	m := newSplash("OAK", "1.2.3")
+	m.elapsed = sweepFor
+	settled := m.View(60, 20)
+
 	for !m.advance() {
-		if got := m.light(); got != 1 {
-			t.Fatalf("light at %v = %v, want the wordmark at full light", m.elapsed, got)
+		if got := m.View(60, 20); got != settled {
+			t.Fatalf("the splash changed at %v:\n%s\n---\n%s", m.elapsed, settled, got)
 		}
 	}
-	if got := m.signShown(); got != 0 {
-		t.Errorf("signShown at the end = %v, want the sign-off gone", got)
+}
+
+// A key cuts the splash short, and nothing is left to run out.
+func TestSkippingTheSplashEndsItAtOnce(t *testing.T) {
+	m := newSplash("OAK", "1.2.3")
+	m.skip()
+
+	if !m.over() {
+		t.Error("the splash is still running after it was skipped")
 	}
 }
