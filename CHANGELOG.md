@@ -2,6 +2,23 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.19.0](https://github.com/murkl/oak/compare/v0.18.1...v0.19.0) (2026-10-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* no fades or effects but the wordmark's sweep, the product's version under it, and --version for both ([#48](https://github.com/murkl/oak/issues/48))
+
+### Features
+
+* no fades or effects but the wordmark's sweep, the product's version under it, and --version for both ([#48](https://github.com/murkl/oak/issues/48)) ([48316ea](https://github.com/murkl/oak/commit/48316ea29bb467809c8988159d3db8f9bd74b3cf))
+* the question of which module to open reads What would you like to start? ([#46](https://github.com/murkl/oak/issues/46)) ([2aca670](https://github.com/murkl/oak/commit/2aca6705166957082fc13577d9d9e31a77181bbd))
+
+
+### Bug Fixes
+
+* the last row of a list stays on the last line of its window ([#45](https://github.com/murkl/oak/issues/45)) ([a17bb5b](https://github.com/murkl/oak/commit/a17bb5ba109361eb5e7a880cf5a6867b5c9f0438))
+
 ## [0.18.1](https://github.com/murkl/oak/compare/v0.18.0...v0.18.1) (2026-10-03)
 
 
