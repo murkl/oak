@@ -180,3 +180,20 @@ func TestAPreselectedRowLandsInTheMiddleOfTheWindow(t *testing.T) {
 		t.Errorf("the window jumped instead of following the cursor:\n%s", p.View(40, 5))
 	}
 }
+
+// The last row of a list stands on the last line of the window, however the
+// cursor got there. Centring a preselected row near the end would otherwise
+// leave blank lines under it, and the list would read as ending half way down.
+func TestTheLastRowStaysOnTheLastLineOfTheWindow(t *testing.T) {
+	var items []item
+	for _, name := range []string{"a", "b", "c", "d", "e", "f", "g", "h", "i"} {
+		items = append(items, item{title: name, key: name})
+	}
+	p := newPicker(items)
+	p.focus("i")
+
+	lines := strings.Split(p.View(40, 5), "\n")
+	if len(lines) != 5 || !strings.Contains(lines[4], "i") {
+		t.Errorf("the last row is not on the last line:\n%s", strings.Join(lines, "\n"))
+	}
+}

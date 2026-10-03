@@ -298,9 +298,9 @@ func (p *picker) scroll(height, pre int) {
 	if cur >= p.top+height {
 		p.top = cur - height + 1
 	}
-	if p.top < 0 {
-		p.top = 0
-	}
+	// Nothing is scrolled past the end: the last row is the last line of the
+	// window, so a list centred on a row near it does not end half way down.
+	p.top = max(min(p.top, pre+len(p.items)-height), 0)
 	for p.top > 0 && cur-p.top+1 < height {
 		// A list row that is not a heading stops the climb: it is a row to
 		// choose, not one that leads others, so nothing above it is pulled in.
