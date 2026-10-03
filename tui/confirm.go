@@ -41,6 +41,10 @@ func newConfirm(a *app) *confirmScreen {
 
 func (s *confirmScreen) Title() string { return "" }
 
+// crumbRoot: the passwords before this page are done with, and the one just
+// typed is no place this page is inside of.
+func (s *confirmScreen) crumbRoot() bool { return true }
+
 func (s *confirmScreen) Hint() string { return labelHintChoose() }
 
 func (s *confirmScreen) Init() tea.Cmd { return nil }

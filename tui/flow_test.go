@@ -1826,6 +1826,17 @@ func TestTheLastPageBeforeTheWorkOpensOnNo(t *testing.T) {
 	h.wants("Start", "Settings").refuses("Do you want to continue?")
 }
 
+// The last page stands for itself: the password pages before it are done with,
+// and a trail naming one of them over a question about the whole run is wrong.
+func TestTheLastPageHasNoTrail(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter() // Start
+	h.wants("Password")
+	h.typeIn("x").enter().typeIn("x").enter()
+	h.wants("Do you want to continue?").refuses("Password")
+}
+
 // A module says in its own words what is about to happen, with the answers in
 // them, and the runtime's warning gives way to it.
 func TestTheLastPageSaysWhatTheModuleWillDo(t *testing.T) {
