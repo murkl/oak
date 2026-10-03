@@ -2,6 +2,13 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.18.1](https://github.com/murkl/oak/compare/v0.18.0...v0.18.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* the last page has no breadcrumb ([#43](https://github.com/murkl/oak/issues/43)) ([221d128](https://github.com/murkl/oak/commit/221d12850eeaab8f579330e69fff217d2926880d))
+
 ## [0.18.0](https://github.com/murkl/oak/compare/v0.17.1...v0.18.0) (2026-10-02)
 
 
