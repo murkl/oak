@@ -58,7 +58,7 @@ Nothing is typed and nothing is tagged by hand.
 2. **Merging it is the release.** The run on `main` tags `v0.6.0`, builds `oak-linux-amd64` at that tag, hangs it on the release page and publishes it
 
 - Merges collect in the release pull request until it is merged. When to release is a decision, not a schedule
-- The binary answers `--version` with its tag, without the `v`. The last step before the download link refuses one that answers anything else, and `make build && make version-check TAG=v0.5.0` asks the same of a tag already out
+- The binary answers `--version` with its tag, without the `v`, on the `runtime:` line. The last step before the download link refuses one that answers anything else, and `make build && make version-check TAG=v0.5.0` asks the same of a tag already out
 - The changelog is never edited by hand
 
 **Note:** _The page stays a draft until the binary hangs on it, so every link to the latest release points at the one before until then. A run that fails on the way leaves a draft: re-run its failed jobs._

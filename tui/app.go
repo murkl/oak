@@ -53,10 +53,6 @@ type Opening struct {
 	Langs   []i18n.Lang
 	Sources []fs.FS
 
-	// Oak is the binary's own version, the one thing on screen that belongs to
-	// the program rather than to the product it is driving.
-	Oak string
-
 	// Settled is whether the language was named on the command line, which
 	// takes the one question of the welcome page away and the page with it.
 	Settled bool
@@ -92,14 +88,10 @@ type app struct {
 	store  *store.Store
 	runner *runner.Runner
 
-	// version is what the product calls this build of itself, in the corner of
-	// every page. Empty where it names none.
+	// version is what the product calls this build of itself, under the wordmark
+	// on the way in and in the corner of every page after. Empty where it names
+	// none.
 	version string
-
-	// oak is the binary's own version, which the splash signs off with. The two
-	// are never mixed up: a product's own build is in the corner of every page,
-	// and which Oak drove it is said once, on the way in.
-	oak string
 
 	// The languages on offer and where their catalogs come from. Kept because
 	// the language can be changed at any point in the run and every word on
@@ -128,8 +120,8 @@ type app struct {
 }
 
 // Run shows the splash and then the interface, and returns when the user
-// leaves. One program for both, because the splash fades into the first page
-// and a fade cannot cross a program boundary — the terminal would drop out of
+// leaves. One program for both, because the splash hands over to the first page
+// and that cannot cross a program boundary — the terminal would drop out of
 // the alternate screen in between. Choosing which module to open happens inside
 // it for the same reason.
 func Run(o *Opening, open Open) error {
@@ -140,7 +132,7 @@ func Run(o *Opening, open Open) error {
 	a := &app{
 		runtime: o.Runtime, modules: o.Modules, prefs: o.Prefs,
 		langs: o.Langs, sources: o.Sources,
-		open: open, version: o.Runtime.Version, oak: o.Oak,
+		open: open, version: o.Runtime.Version,
 		settled: o.Settled, kiosk: o.Kiosk,
 	}
 	// The frame is dressed before there is a module to dress it with, and stays

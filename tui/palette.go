@@ -93,7 +93,6 @@ type scheme struct {
 	sunk  lipgloss.Color // rules and the border line, far enough off the bezel to read against it
 	muted lipgloss.Color // the footer, the breadcrumb, a row that cannot be chosen
 	soft  lipgloss.Color // supporting text
-	text  lipgloss.Color // body text, and only while the opening fades it in — see buildStyles
 	info  lipgloss.Color // a value the system reports
 	head  lipgloss.Color // a heading inside the body
 	warn  lipgloss.Color
@@ -114,7 +113,6 @@ var darkScheme = scheme{
 	sunk:   darkRule, // nord2 sat too close to the bezel for the frame to read against it
 	muted:  darkDim,
 	soft:   nord4,
-	text:   nord6,
 	info:   nord8,
 	head:   nord9,
 	warn:   darkAmber,
@@ -128,7 +126,6 @@ var lightScheme = scheme{
 	sunk:   lightRule,
 	muted:  lightDim,
 	soft:   nord2,
-	text:   nord0,
 	info:   lightBlue,
 	head:   lightSteel,
 	warn:   lightAmber,
@@ -278,28 +275,6 @@ func readable(c, bezel lipgloss.Color) lipgloss.Color {
 		}
 	}
 	return toward
-}
-
-// fadeLevel is how much of the palette is showing: 1 is the full palette, 0 is
-// the bezel it all sits on. Running it down and back up is what carries the
-// splash into the interface, and it only works because every colour reaches a
-// style through fade() rather than being used directly.
-var fadeLevel = 1.0
-
-// setFade puts the palette at a level and rebuilds everything made from it.
-func setFade(level float64) {
-	fadeLevel = min(max(level, 0), 1)
-	buildStyles()
-}
-
-// fade blends a role towards the bezel. A terminal cannot dissolve one screen
-// into another, so what fades is the ink rather than the picture — at two dozen
-// frames a second the eye takes it for the same thing.
-func fade(c lipgloss.Color) lipgloss.Color {
-	if fadeLevel >= 1 {
-		return c
-	}
-	return blend(c, colors.bezel, 1-fadeLevel)
 }
 
 // blend mixes a into b, t of the way. A pair it cannot read comes back as a —

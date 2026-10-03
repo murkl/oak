@@ -1,14 +1,14 @@
 package tui
 
 import (
+	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // Every style is built here and nowhere else, so a screen renders content and
 // never decides how it looks. That is the whole reason the interface reads as
-// one thing rather than as a dozen — and the reason it can be faded in as one
-// thing too.
+// one thing rather than as a dozen.
 var (
 	// baseStyle is the one field the whole interface sits on: the splash, the
 	// frame's interior, and the page around it. Every other style here is
@@ -30,12 +30,10 @@ var (
 	ruleStyle   lipgloss.Style
 )
 
-// buildStyles reads the palette at whatever level it is currently showing, so
-// every style here comes out faded by the same amount.
 func buildStyles() {
 	baseStyle = lipgloss.NewStyle()
 
-	accentStyle = baseStyle.Foreground(fade(colors.accent))
+	accentStyle = baseStyle.Foreground(colors.accent)
 	accentBold = accentStyle.Bold(true)
 	cursorStyle = accentStyle.Bold(true)
 
@@ -43,39 +41,31 @@ func buildStyles() {
 	// follows whatever theme the terminal is wearing without this program being
 	// told about it. It is the one choice not worth making — every other colour
 	// here carries a meaning, and ink that is merely ink carries none.
-	//
-	// One thing takes that choice back. The opening fades the whole interface up
-	// out of the background, and a colour the terminal keeps to itself cannot be
-	// blended into anything — so the scheme's own ink stands in while that runs.
-	var ink lipgloss.TerminalColor = lipgloss.NoColor{}
-	if fadeLevel < 1 {
-		ink = fade(colors.text)
-	}
-	textStyle = baseStyle.Foreground(ink)
+	textStyle = baseStyle
 	boldStyle = textStyle.Bold(true)
-	softStyle = baseStyle.Foreground(fade(colors.soft))
+	softStyle = baseStyle.Foreground(colors.soft)
 
 	// Also what a row that cannot be chosen is drawn in: dimmed rather than
 	// hidden, because knowing an entry exists and is out of reach beats it
 	// silently not being there.
-	mutedStyle = baseStyle.Foreground(fade(colors.muted))
-	headStyle = baseStyle.Foreground(fade(colors.head)).Bold(true)
-	infoStyle = baseStyle.Foreground(fade(colors.info))
-	goodStyle = baseStyle.Foreground(fade(colors.good)).Bold(true)
-	failStyle = baseStyle.Foreground(fade(colors.fail))
+	mutedStyle = baseStyle.Foreground(colors.muted)
+	headStyle = baseStyle.Foreground(colors.head).Bold(true)
+	infoStyle = baseStyle.Foreground(colors.info)
+	goodStyle = baseStyle.Foreground(colors.good).Bold(true)
+	failStyle = baseStyle.Foreground(colors.fail)
 
 	// The one loud style in the program, for the one moment that has to be
 	// noticed: something is about to be done that needs a password. Bold *and*
 	// the warning colour, because either alone reads as another heading.
-	alertStyle = baseStyle.Foreground(fade(colors.warn)).Bold(true)
+	alertStyle = baseStyle.Foreground(colors.warn).Bold(true)
 
-	ruleStyle = baseStyle.Foreground(fade(colors.sunk))
+	ruleStyle = baseStyle.Foreground(colors.sunk)
 
 	// NormalBorder, not RoundedBorder: the rounded corners are missing from
 	// several monospace fonts and fall back to a box that does not line up.
 	frameStyle = baseStyle.
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(fade(colors.sunk)).
+		BorderForeground(colors.sunk).
 		Padding(padV, padH)
 }
 
@@ -92,8 +82,8 @@ func placeOnField(width, height int, block string) string {
 }
 
 // styleInput dresses a text box in the interface's own styles. bubbles'
-// textinput sets its own otherwise, which would leave one patch of the frame
-// unfaded during the opening and a stranger's grey placeholder in it afterwards.
+// textinput sets its own otherwise, which would leave a stranger's grey
+// placeholder in the frame.
 // The cursor block takes cursorStyle, the same accent a list row's own cursor is
 // drawn in, so the two read as one idea rather than two different cursors.
 func styleInput(m *textinput.Model) {
@@ -106,5 +96,7 @@ func styleInput(m *textinput.Model) {
 	m.PlaceholderStyle = mutedStyle
 	m.Cursor.Style = cursorStyle
 	m.Cursor.TextStyle = textStyle
-	m.Cursor.SetMode(cursorMode)
+	// Static: the one thing moving on screen besides the logo and the progress
+	// mark would be a cursor, and it is a block that stays where it is typing.
+	m.Cursor.SetMode(cursor.CursorStatic)
 }

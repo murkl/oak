@@ -33,7 +33,7 @@ logo: |
 | Key | Description |
 | --- | --- |
 | `title` | The product's name, over every page |
-| `version` | This build of the product, in the corner of every page. Oak's own is what `--version` answers |
+| `version` | This build of the product, under the wordmark on the way in and in the corner of every page. `--version` answers it after Oak's own |
 | `accent` | `#rrggbb`, the one colour the interface is built from |
 | `logo` | The wordmark. Above the first blank line a dim eyebrow |
 | `status` | One line about the machine in the header, see [Status](#status) |

@@ -50,14 +50,13 @@ type Runtime struct {
 	Accent string `yaml:"accent"`
 	Logo   string `yaml:"logo"`
 
-	// Version is what this product calls this build of itself, in the corner of
-	// every page. It is the product's own and not the binary's: a release of the
+	// Version is what this product calls this build of itself, under the
+	// wordmark on the way in and in the corner of every page. It is the product's own and not the binary's: a release of the
 	// modules is what somebody downloads, and which Oak drove it is a dependency
 	// of that rather than its name.
 	//
 	// Left out, no version is shown. Oak's own is what `oak --version` answers
-	// and what the splash signs off with, and it is never put on screen as
-	// though it were the product's.
+	// first, and it is never put on screen as though it were the product's.
 	Version string `yaml:"version"`
 
 	// Status is the line opposite the name in every module's header, unless a
@@ -127,6 +126,25 @@ func LoadRuntime(explicit string) (*Runtime, error) {
 		return nil, err
 	}
 	return &r, nil
+}
+
+// ProductVersion is the version the product beside the binary, or in the folder
+// named outright, calls itself by. Empty where there is no product, or it names
+// none: a binary on its own is a perfectly good thing to ask the version of, so
+// the one file is read and nothing else is loaded.
+func ProductVersion(explicit string) (string, error) {
+	dir, err := root(explicit)
+	if err != nil {
+		return "", err
+	}
+	var r Runtime
+	if err := read(filepath.Join(dir, FileRuntime), &r); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return r.Version, nil
 }
 
 func (r *Runtime) check() error {

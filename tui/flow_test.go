@@ -17,7 +17,6 @@ import (
 	"github.com/murkl/oak/internal/spec"
 	"github.com/murkl/oak/internal/store"
 
-	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -269,9 +268,6 @@ func init() {
 	after = func(_ time.Duration, fire func(time.Time) tea.Msg) tea.Cmd {
 		return func() tea.Msg { return fire(time.Now()) }
 	}
-	// The one clock bubbles owns: a blinking cursor is a command that sits
-	// there for half a second and answers with a redraw nothing asserts on.
-	cursorMode = cursor.CursorStatic
 }
 
 // quiet is how long the loop waits on a command that is still out there while a
@@ -922,22 +918,23 @@ func TestTheWelcomePageStandsUnderTheWordmarkRatherThanInTheFrame(t *testing.T) 
 }
 
 // The splash hands over without the wordmark moving: the page lays it out on the
-// rows it will take, and only the sign-off under it gives way to the question.
+// rows it will take, and only the version under it gives way to the question.
 func TestTheWordmarkStaysWhereTheSplashLeftIt(t *testing.T) {
 	h := newHarness(t, twoLanguageTree())
+	h.a.version = "7.8.9"
 	m := newModel(h.a, testLogo)
 	m.width, m.height = 100, 30
 
-	m.splash.skip() // swept in and signed off, the one stretch left to run
+	m.splash.elapsed = sweepFor // swept in, the one stretch left to run
 	during := strings.Split(m.View(), "\n")
 	run(m.splash)
 	after := strings.Split(m.View(), "\n")
 
-	if !slices.ContainsFunc(during, func(l string) bool { return strings.Contains(l, "powered by oak") }) {
-		t.Fatalf("the splash is not signed off:\n%s", strings.Join(during, "\n"))
+	if !slices.ContainsFunc(during, func(l string) bool { return strings.Contains(l, "7.8.9") }) {
+		t.Fatalf("the splash does not say its version:\n%s", strings.Join(during, "\n"))
 	}
-	if strings.Contains(strings.Join(after, "\n"), "powered by oak") {
-		t.Errorf("the sign-off outstayed the splash:\n%s", strings.Join(after, "\n"))
+	if strings.Contains(strings.Join(after, "\n"), "7.8.9") {
+		t.Errorf("the version outstayed the splash:\n%s", strings.Join(after, "\n"))
 	}
 	for i, line := range during {
 		if !strings.Contains(line, "TEST OS") && !strings.Contains(line, "Made for testing") {
@@ -963,23 +960,6 @@ func TestTheWelcomePageNamesTheModuleOnlyWhereItWasSettledOnTheWayIn(t *testing.
 	h.enter().enter() // English, then the installer
 	h.esc().esc()
 	h.wants(landingChoose).refuses("Test Installer")
-}
-
-// Answering it brings the frame up out of the field, the way the splash hands
-// over to a frame, and leaves the palette whole once it is up.
-func TestTheFrameComesUpOutOfTheFieldOnceTheWelcomePageIsAnswered(t *testing.T) {
-	t.Cleanup(func() { setFade(1) })
-	h := newHarness(t, twoLanguageTree())
-
-	_, cmd := h.m.Update(pushScreenMsg{h.a.chooseModule(false)})
-	if fadeLevel != 0 {
-		t.Errorf("the frame appeared at %v rather than out of the field", fadeLevel)
-	}
-	h.run(cmd)
-	h.drain()
-	if fadeLevel != 1 {
-		t.Errorf("the frame came up to %v and stopped", fadeLevel)
-	}
 }
 
 // On a terminal too short for all of it, the wordmark gives way and the rows do

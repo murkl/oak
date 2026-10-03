@@ -23,10 +23,8 @@ type Model struct {
 	// chosen. Nil while nobody is asking to leave.
 	leaving screen
 
-	// The opening. splash is the logo while it is up and nil once it has gone;
-	// arrived is how far the interface is into coming up behind it.
-	splash  *splashModel
-	arrived time.Duration
+	// The opening. splash is the logo while it is up and nil once it has gone.
+	splash *splashModel
 
 	// wordmark is the same logo, kept once the splash is over: every page of
 	// the way in stands under it, the one pushed after the splash has gone as
@@ -67,17 +65,11 @@ func newModel(a *app, logo string) *Model {
 	m := &Model{app: a, width: defaultWidth, height: defaultHeight}
 	m.stack = []screen{a.start()}
 	if logo == "" {
-		// Nothing to come up out of: the interface is simply there.
-		m.arrived = fadeFor
 		return m
 	}
-	m.splash = newSplash(logo, a.oak)
+	m.splash = newSplash(logo, a.version)
 	m.wordmark = m.splash
-	if framed(m.top()) {
-		return m
-	}
 	m.stage(m.top())
-	m.splash.stays = true
 	return m
 }
 
@@ -119,37 +111,19 @@ func spinTick() tea.Cmd {
 	return after(spinEvery, func(time.Time) tea.Msg { return spinMsg{} })
 }
 
-// animate runs the one clock the opening has: the light going round and the
-// logo dimming out, then the interface rising out of the background it left.
-// It stops asking for frames the moment nothing is moving any more.
-//
-// A page that stands under the wordmark is already all there once the splash
-// is over, so nothing rises behind it: the frame comes up out of the field when
-// that page is answered — see arrive.
+// animate runs the one clock the opening has: the wordmark sweeping in. It
+// stops asking for frames the moment the splash is over.
 func (m *Model) animate() tea.Cmd {
-	if m.splash != nil {
-		if done := m.splash.advance(); !done {
-			setFade(m.splash.light())
-			return animTick()
-		}
+	if m.splash == nil || m.splash.advance() {
 		m.splash = nil
-		if !framed(m.front()) {
-			m.arrived = fadeFor
-		}
-	}
-	if m.arrived >= fadeFor {
-		setFade(1)
 		return nil
 	}
-	m.arrived += animEvery
-	setFade(float64(m.arrived) / float64(fadeFor))
 	return animTick()
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	was := m.front()
 	next, cmd := m.step(msg)
-	return next, tea.Batch(cmd, m.arrive(was), m.poll(), m.look())
+	return next, tea.Batch(cmd, m.poll(), m.look())
 }
 
 // look asks the module once, as soon as it is open, which of its actions this
@@ -198,23 +172,6 @@ func (m *Model) poll() tea.Cmd {
 	m.reading = true
 	round := m.round
 	return func() tea.Msg { return statusMsg{pass: read(), round: round} }
-}
-
-// arrive brings the frame up out of the field the moment it appears over a
-// page that stood on the field without one, the way it comes up after the
-// splash. A fade already under way starts again from nothing rather than
-// being joined by a second clock, which would run it at twice the rate.
-func (m *Model) arrive(was screen) tea.Cmd {
-	if m.splash != nil || framed(was) || !framed(m.front()) {
-		return nil
-	}
-	fading := m.arrived < fadeFor
-	m.arrived = 0
-	setFade(0)
-	if fading {
-		return nil
-	}
-	return animTick()
 }
 
 func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {

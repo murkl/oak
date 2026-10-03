@@ -351,10 +351,68 @@ func TestACommandLineThatCannotBeReadIsRefused(t *testing.T) {
 	}
 }
 
-// --version is the release and nothing beside it: a product pins the Oak it was
-// built against by that number, and anything else on the line is something the
-// build that reads it has to strip back off.
-func TestTheVersionIsTheReleaseAndNothingElse(t *testing.T) {
+// --version names the two things it is asked about, each on a line of its own:
+// a product pins the Oak it was built against by the first, and a script that
+// wants either reads the line by its name.
+func TestTheVersionNamesTheRuntimeAndTheProduct(t *testing.T) {
+	was := version
+	t.Cleanup(func() { version = was })
+	version = "1.2.3"
+
+	dir := runtime(t, "title: Test OS\nversion: 4.5.6\n", "installer")
+	got, err := versions(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "runtime: 1.2.3\nproduct: 4.5.6\n"; got != want {
+		t.Errorf("versions = %q, want %q", got, want)
+	}
+}
+
+// A binary on its own has a release and no product, and it is still asked.
+func TestTheVersionOfABinaryOnItsOwnIsTheRuntimesAlone(t *testing.T) {
+	was := version
+	t.Cleanup(func() { version = was })
+	version = "1.2.3"
+
+	got, err := versions(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "runtime: 1.2.3\n"; got != want {
+		t.Errorf("versions = %q, want %q", got, want)
+	}
+}
+
+// A product that names no version has none to give, which is not the runtime's
+// to stand in for.
+func TestAProductThatNamesNoVersionAnswersWithNone(t *testing.T) {
+	was := version
+	t.Cleanup(func() { version = was })
+	version = "1.2.3"
+
+	got, err := versions(runtime(t, runtimeDecl, "installer"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "product") {
+		t.Errorf("versions = %q, want the runtime's line alone", got)
+	}
+}
+
+// A declaration that cannot be read is said, rather than answered around.
+func TestAProductThatCannotBeReadIsNotAnsweredAround(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, spec.FileRuntime), []byte("version: [\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := versions(dir); err == nil {
+		t.Fatal("a declaration that does not parse was answered with a version")
+	}
+}
+
+// start answers for the binary it is, before anything is loaded.
+func TestTheVersionIsAnsweredOnTheCommandLine(t *testing.T) {
 	// start sets the interface's language from this machine's locale, and it
 	// stays set for every test after this one.
 	t.Setenv("LC_ALL", "C")
@@ -367,8 +425,8 @@ func TestTheVersionIsTheReleaseAndNothingElse(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	if want := "1.2.3\n"; out != want {
-		t.Errorf("--version printed %q, want %q", out, want)
+	if want := "runtime: 1.2.3\n"; !strings.HasPrefix(out, want) {
+		t.Errorf("--version printed %q, want it to open on %q", out, want)
 	}
 }
 
