@@ -279,10 +279,12 @@ func (p *picker) columns(width int) (titleW, valueW int) {
 // cursor's index, so the sentence scrolls off as the cursor moves down.
 //
 // Clamping alone would never bring it back — the cursor cannot climb above the
-// first row. The pull-in below does: while there is room under the cursor, the
-// window keeps reaching up over rows that lead the ones below them. That is a
+// first row. The pull-in below does: once the cursor is the first row to choose
+// in the window, the window reaches up over the rows that lead it. That is a
 // heading, which belongs to the rows under it, and the description, which leads
-// the whole list the same way.
+// the whole list the same way. A heading over some other row stays where it is,
+// or walking up a list would scroll it under a cursor that is nowhere near its
+// top.
 func (p *picker) scroll(height, pre int) {
 	cur := pre + p.cursor
 	// A cursor that was put here rather than moved here gets the middle of the
@@ -301,16 +303,19 @@ func (p *picker) scroll(height, pre int) {
 	// Nothing is scrolled past the end: the last row is the last line of the
 	// window, so a list centred on a row near it does not end half way down.
 	p.top = max(min(p.top, pre+len(p.items)-height), 0)
-	for p.top > 0 && cur-p.top+1 < height {
-		// A list row that is not a heading stops the climb: it is a row to
-		// choose, not one that leads others, so nothing above it is pulled in.
-		// A description row (above pre) always leads, so it never stops it.
-		if above := p.top - 1; above >= pre && !p.items[above-pre].heading {
-			break
-		}
-		p.top--
+	lead := cur
+	for lead > 0 && p.leads(lead-1, pre) {
+		lead--
+	}
+	// As far as the cursor stays on screen.
+	if p.top > lead {
+		p.top = max(lead, cur-height+1)
 	}
 }
+
+// leads reports whether row i of the combined space stands over the rows under
+// it rather than being one to choose: a line of the description, or a heading.
+func (p *picker) leads(i, pre int) bool { return i < pre || p.items[i-pre].heading }
 
 func (p *picker) line(it item, cursor bool, titleW, valueW int) string {
 	if it.heading {

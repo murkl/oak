@@ -125,6 +125,32 @@ func TestScrollingBackBringsTheHeadingWithIt(t *testing.T) {
 	}
 }
 
+// Walking back up a list moves the cursor, not the window: what is on screen
+// stays there until the cursor reaches the top row. A heading above the window
+// belongs to the rows under it, not to the row the cursor is on.
+func TestMovingUpLeavesTheWindowWhereItIs(t *testing.T) {
+	p := newPicker([]item{
+		heading("One"),
+		{title: "a", key: "a"},
+		heading(""),
+		heading("Two"),
+		{title: "b", key: "b"},
+		{title: "c", key: "c"},
+		{title: "d", key: "d"},
+		{title: "e", key: "e"},
+	})
+	for range 4 {
+		p.Update(keyDown)
+		p.View(40, 4)
+	}
+	p.Update(keyUp)
+
+	lines := strings.Split(p.View(40, 4), "\n")
+	if !strings.Contains(lines[0], "b") || !strings.Contains(lines[3], "e") {
+		t.Errorf("the window moved with the cursor:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
 // The description leads the list and scrolls with it.
 func TestTheDescriptionScrollsWithTheRows(t *testing.T) {
 	p := newPicker(rows())
