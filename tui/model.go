@@ -366,8 +366,11 @@ func (m *Model) View() string {
 	// The way out adds its own segment: it is over the page underneath rather
 	// than instead of it, and the line above says which of the two is being
 	// read.
-	if m.leaving != nil {
+	switch {
+	case m.leaving != nil:
 		crumbs = append(crumbs, m.leaving.Title())
+	case isHome(front):
+		crumbs = nil
 	}
 
 	// A flash stands where the page's own status usually is, and how it is inked

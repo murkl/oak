@@ -2,7 +2,9 @@
 # system tree in a folder, so it runs on the machine you read this on.
 
 title: Tux Setup
-description: Build a small Linux system tree, the way an installer would.
+description: |
+  Ready to build a small Linux system tree, the way an installer would. Start
+  the install, or review every setting first.
 
 # The words of its own pages: the row that starts the work, and the last page
 # before it, filled in from the answers.

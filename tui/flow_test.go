@@ -749,13 +749,13 @@ func TestTheLandingPageComesBeforeTheQuestionOfWhichModule(t *testing.T) {
 	h.wants("Was tun", "Test Installer", "Test Recovery")
 }
 
-// The menu is a place of its own: the breadcrumb names it, and the pages it
-// opens stand behind it.
-func TestTheMenuHeadsTheTrailOfThePagesItOpens(t *testing.T) {
+// The menu is home: it draws no trail of its own, and the pages it opens stand
+// behind it.
+func TestTheMenuHeadsTheTrailOfThePagesItOpensAndDrawsNoneItself(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
-	h.wants(labelMenu())
+	h.wants("Start").refuses(labelMenu())
 
 	h.down().enter()
 	h.wants(labelMenu() + " " + glyphs.crumb + " " + labelSettings())
@@ -763,16 +763,28 @@ func TestTheMenuHeadsTheTrailOfThePagesItOpens(t *testing.T) {
 
 // A module has one name, and the frame carries it on every page. So the rows
 // inside it are named after what pressing them does rather than after the
-// module all over again — and the sentence under each row stays nameless too,
-// for the same reason.
+// module all over again.
 func TestTheRowsInsideAModuleAreNamedAfterWhatTheyDo(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
 	h.wants("Start", "Settings").refuses(glyphs.cursor + "Test Installer")
+}
 
-	h.down()
-	h.wants("Every used value.")
+// What the module says about itself stands over the menu's rows beside the
+// small tick, and a module that says nothing gets neither.
+func TestTheMenuSaysWhatTheModuleIsBesideATick(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\ndescription: Ready to set up this machine.", 1),
+	})
+	h.down().enter() // a starting point
+	h.typeIn("moritz").enter().enter()
+	h.wants(glyphTickSmall[0], "Ready to set up this machine.", glyphs.cursor+"Start")
+
+	h = newHarness(t, nil)
+	h.down().enter()
+	h.typeIn("moritz").enter().enter()
+	h.wants(glyphs.cursor + "Start").refuses(glyphTickSmall[0])
 }
 
 // A module may name what starting its work is called, and then the menu's

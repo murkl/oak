@@ -32,7 +32,7 @@
       - page: Hostname
         press: enter
       - page: User name
-        press: enter
+        press: [tux, enter]
       - page: Desktop
         press: enter
       - page: [Install, Settings]

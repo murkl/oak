@@ -38,7 +38,7 @@ logo: |
 | `logo` | The wordmark. Above the first blank line a dim eyebrow |
 | `status` | One line about the machine in the header, see [Status](#status) |
 
-**Note:** _A terminal of sixteen colours, such as the Linux console, shows every colour in the slot of its hue: green, yellow, red, magenta, cyan, white and grey (8). The accent takes the stock colour nearest it. A product that paints the console's palette paints those slots._
+**Note:** _A terminal of sixteen colours, such as the Linux console, shows every colour in the slot of its hue: green, yellow, red, cyan, white and grey (8), and headings in bright cyan (14). The accent takes the stock colour nearest it. A product that paints the console's palette paints those slots._
 
 ### `oak.sh`
 
@@ -97,7 +97,7 @@ The folder name is the module's identity: `oak --module=setup` opens it, and it 
 
 ```yaml
 title: Tux Setup
-description: Set a machine up for Tux.
+description: Ready to set this machine up for Tux. Start the install, or review every value first.
 stages: [prepare, install]
 language: TUX_LOCALE
 
@@ -122,7 +122,7 @@ rules:
 | --- | --- |
 | `title` | **Required.** The module's one name: its row, and the trail over every page |
 | `stages` | **Required.** The phases of the work, in order. Each is a folder `tasks/@<stage>/` |
-| `description` | One sentence under the row that starts the work |
+| `description` | What it is and what its menu offers, beside a tick over the menu's rows |
 | `text` | The words of its own pages, see [Text](#text) |
 | `language` | A variable whose answer also sets the interface language: `de_DE` is German |
 | `rules` | Where its actions run, see [Rules](#rules) |
