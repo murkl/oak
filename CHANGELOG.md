@@ -2,6 +2,19 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.20.0](https://github.com/murkl/oak/compare/v0.19.0...v0.20.0) (2026-10-07)
+
+
+### Features
+
+* headings in a colour of their own, and every colour on the Linux console in the slot of its hue ([69c0ff1](https://github.com/murkl/oak/commit/69c0ff12df8345ba46e866f6e47a149ede30d1fd))
+* the menu names itself in the breadcrumb, and the pages it opens stand behind it ([ffd2c45](https://github.com/murkl/oak/commit/ffd2c457e4342e79ddb102da8b7e6d0340d26fd2))
+
+
+### Bug Fixes
+
+* walking up a list scrolls it only once the cursor reaches the top ([4e87bd6](https://github.com/murkl/oak/commit/4e87bd6d55587c41b3dda2f70b28a4c32fe173bc))
+
 ## [0.19.0](https://github.com/murkl/oak/compare/v0.18.1...v0.19.0) (2026-10-03)
 
 
