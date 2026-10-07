@@ -31,6 +31,10 @@ type secretScreen struct {
 	v    *spec.Variable
 	done func() tea.Cmd
 
+	// head is the heading the password stands under where it is one of several
+	// asked one after another, so none reads as inside the one before it.
+	head string
+
 	input    textinput.Model
 	first    string
 	again    bool
@@ -49,6 +53,15 @@ func newSecret(a *app, v *spec.Variable, done func() tea.Cmd) *secretScreen {
 	s.box()
 	return s
 }
+
+// under stands the password under a heading rather than inside the page before.
+func (s *secretScreen) under(head string) *secretScreen {
+	s.head = head
+	return s
+}
+
+func (s *secretScreen) crumbRoot() bool   { return s.head != "" }
+func (s *secretScreen) crumbHead() string { return s.head }
 
 // box is a fresh, empty entry field. Fresh every time rather than cleared: the
 // repeat has to be typed, never edited from what the first entry left behind.
