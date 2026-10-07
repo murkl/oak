@@ -29,10 +29,15 @@ type fieldScreen struct {
 	at, of int
 
 	// head is the heading this question stands under, for the few asked in
-	// front of the run and for the pages of an option: they come one after
-	// another rather than one inside the other, and a page whose breadcrumb is
-	// only its own title reads as if the whole program were this one question.
+	// front of the run and for the pages of an action: a page whose breadcrumb
+	// is only its own title reads as if the whole program were this one
+	// question.
 	head string
+
+	// root is whether the trail starts over at this question: the few asked
+	// in front of the run come one after another rather than one inside the
+	// other.
+	root bool
 
 	picker *picker
 	input  textinput.Model
@@ -70,10 +75,13 @@ func (s *fieldScreen) counted(at, of int) *fieldScreen {
 
 // opening marks this question as one of the few asked before the run proper,
 // which is where it is put in the breadcrumb rather than how it is asked.
-func (s *fieldScreen) opening() *fieldScreen { return s.under(labelOpening()) }
+func (s *fieldScreen) opening() *fieldScreen {
+	s.root = true
+	return s.under(labelOpening())
+}
 
-// under stands this question under a heading: the opening, or the option whose
-// page it is.
+// under stands this question under a heading: the opening, or the action whose
+// page it is, in the trail of whatever opened it.
 func (s *fieldScreen) under(head string) *fieldScreen {
 	s.head = head
 	return s
@@ -321,8 +329,9 @@ func (s *fieldScreen) problemRows() int {
 // Which questions came before it is what the counter in the header says, or the
 // heading above it, and a growing line of answers already given would say the
 // same thing a third time and worse. A question opened from the settings page
-// is the exception: there it really is one page inside another.
-func (s *fieldScreen) crumbRoot() bool { return s.of > 0 || s.head != "" }
+// is the exception: there it really is one page inside another, and so is an
+// action's question, under the action, in the trail of what opened it.
+func (s *fieldScreen) crumbRoot() bool { return s.of > 0 || s.root }
 
 func (s *fieldScreen) crumbHead() string { return s.head }
 

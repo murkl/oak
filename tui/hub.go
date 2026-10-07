@@ -107,23 +107,34 @@ func (h *hub) View(width, height int) string {
 	return block(intro) + "\n\n" + h.picker.View(width, height-len(intro)-1)
 }
 
-// intro is the module's description at the reading width, the small tick in
-// front of it. Nothing where the module describes nothing: a tick beside no
-// words would be a mark on its own.
+// intro is the module's description at the reading width, its icon in front:
+// the module's, the runtime's, or the tick. Nothing where the module describes
+// nothing, since an icon beside no words would be a mark on its own.
+//
+// The icon starts where the rows' titles do, past the cursor's column, so the
+// page has one left edge.
 func (h *hub) intro(width int) []string {
 	help := h.app.module.Help()
 	if help == "" {
 		return nil
 	}
-	tick := make([]string, len(glyphTickSmall))
-	tickW := 0
-	for i, line := range glyphTickSmall {
-		tick[i] = goodStyle.Render(line)
-		tickW = max(tickW, lipgloss.Width(line))
+	picture, ink := glyphTickSmall, goodStyle
+	if icon := h.app.icon(); icon != "" {
+		picture, ink = logoLines(icon), accentStyle
 	}
-	words := inked(help, bodyWidth(width)-tickW-gapM, textStyle)
-	return beside(tick, tickW, words, gapM)
+	indent := lipgloss.Width(glyphBlank)
+	icon := make([]string, len(picture))
+	iconW := 0
+	for i, line := range picture {
+		icon[i] = field(glyphBlank) + ink.Render(line)
+		iconW = max(iconW, lipgloss.Width(line))
+	}
+	words := inked(help, bodyWidth(width)-indent-iconW-hubGap, textStyle)
+	return beside(icon, indent+iconW, words, hubGap)
 }
+
+// hubGap is the channel between the icon and the words.
+const hubGap = gapXL
 
 // unofferedMsg is the answers the lists no longer offer.
 type unofferedMsg struct{ names []string }

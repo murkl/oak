@@ -175,6 +175,10 @@ type UI struct {
 
 	// Text is the words of its own pages, each in place of the runtime's.
 	Text Text
+
+	// Icon stands beside Description, in place of the runtime's: as written,
+	// or as a function of oak.sh prints it.
+	Icon string
 }
 
 // Text is what a module calls its own pages and what it asks before its work.

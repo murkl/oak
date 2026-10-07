@@ -3,6 +3,7 @@ package spec
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -49,6 +50,10 @@ type Runtime struct {
 	// first blank line a dim eyebrow over it.
 	Accent string `yaml:"accent"`
 	Logo   string `yaml:"logo"`
+
+	// Icon is what stands beside the words over every module's menu, in the
+	// accent, in place of the runtime's tick. A module may say its own.
+	Icon string `yaml:"icon"`
 
 	// Version is what this product calls this build of itself, under the
 	// wordmark on the way in and in the corner of every page. It is the product's own and not the binary's: a release of the
@@ -121,6 +126,12 @@ func LoadRuntime(explicit string) (*Runtime, error) {
 		if err := checkCalls(map[string]string{r.Status.calls: FileRuntime + ": status: check"}, r.defined); err != nil {
 			return nil, err
 		}
+	}
+	if r.Logo, err = r.picture(r.Logo, FileRuntime+": logo"); err != nil {
+		return nil, err
+	}
+	if r.Icon, err = r.picture(r.Icon, FileRuntime+": icon"); err != nil {
+		return nil, err
 	}
 	if r.Modules, err = discover(filepath.Join(dir, DirModules)); err != nil {
 		return nil, err
@@ -197,6 +208,9 @@ func (r *Runtime) LoadModules() ([]*Module, error) {
 			return nil, fmt.Errorf("%s: %w", id, err)
 		}
 		if err := checkCalls(mod.calls, r.defined); err != nil {
+			return nil, fmt.Errorf("%s: %w", id, err)
+		}
+		if mod.UI.Icon, err = r.picture(mod.UI.Icon, FileModule+": icon"); err != nil {
 			return nil, fmt.Errorf("%s: %w", id, err)
 		}
 		mod.Shell = r.Shell
@@ -305,4 +319,25 @@ func (st *Status) Words(pass bool) string {
 		return i18n.T(st.Pass)
 	}
 	return i18n.T(st.Fail)
+}
+
+// picture is a field that draws something: as written, or as the function of
+// oak.sh it names prints it. Run once, here, so a picture that cannot be drawn
+// stops the start rather than a page.
+func (r *Runtime) picture(raw, where string) (string, error) {
+	m := call.FindStringSubmatch(strings.TrimSpace(raw))
+	if m == nil {
+		return raw, nil
+	}
+	if err := checkCalls(map[string]string{m[1]: where}, r.defined); err != nil {
+		return "", err
+	}
+	out, err := exec.Command("bash", "-c", source(r.Shell)+" && "+m[1]).Output()
+	if err != nil {
+		return "", fmt.Errorf("%s: %s() failed: %w", where, m[1], err)
+	}
+	if strings.TrimSpace(string(out)) == "" {
+		return "", fmt.Errorf("%s: %s() printed nothing", where, m[1])
+	}
+	return string(out), nil
 }

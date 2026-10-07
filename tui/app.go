@@ -176,6 +176,15 @@ func (a *app) enter(mod *spec.Module) error {
 // welcome page's greeting among them, read before a module is even on offer.
 func (a *app) brand() string { return a.runtime.Title }
 
+// icon is what stands beside the words over the menu: the module's own, or the
+// runtime's for every module, or nothing for the tick.
+func (a *app) icon() string {
+	if a.module.UI.Icon != "" {
+		return a.module.UI.Icon
+	}
+	return a.runtime.Icon
+}
+
 // heading is what the frame is titled, on every page: the product, and once
 // one of its modules has been opened, which one — joined onto it the way a
 // breadcrumb reads, so the header still says what this run is once the page

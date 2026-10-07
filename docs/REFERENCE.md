@@ -28,6 +28,7 @@ logo: |
   A product driven by
 
   ████████ ██    ██ ██   ██
+icon: icon_tux()
 ```
 
 | Key | Description |
@@ -36,9 +37,13 @@ logo: |
 | `version` | This build of the product, under the wordmark on the way in and in the corner of every page. `--version` answers it after Oak's own |
 | `accent` | `#rrggbb`, the one colour the interface is built from |
 | `logo` | The wordmark. Above the first blank line a dim eyebrow |
+| `icon` | Beside the words over every module's menu, in the accent. Default: a tick |
 | `status` | One line about the machine in the header, see [Status](#status) |
 
-**Note:** _A terminal of sixteen colours, such as the Linux console, shows every colour in the slot of its hue: green, yellow, red, cyan, white and grey (8), and headings in bright cyan (14). The accent takes the stock colour nearest it. A product that paints the console's palette paints those slots._
+- `logo` and `icon` are a picture as written, or `name()`: a function of `oak.sh` that prints it, run once at startup
+- A picture that cannot be drawn stops the start
+
+**Note:** _A terminal of sixteen colours, such as the Linux console, shows every colour in the slot of its hue: green, yellow, red, blue, cyan, white and grey (8). A heading is not bold there, since a console draws bold as the bright slot. The accent takes the stock colour nearest it. A product that paints the console's palette paints those slots._
 
 ### `oak.sh`
 
@@ -48,6 +53,13 @@ The one place scripts share code. Loaded in front of every task, test and action
 export TUX_ROOT=/mnt
 
 tux_release() { printf '%s/etc/os-release' "$TUX_TARGET"; }
+
+icon_tux() {
+    cat <<'EOF'
+ ▄█▄
+▀▀ ▀▀
+EOF
+}
 ```
 
 **Note:** _A `module.sh` in a module and an `actions/` beside `oak.yaml` are refused. What modules share is a function here._
@@ -61,9 +73,9 @@ A key that runs shell names it, in one of two forms:
 | `name()` | That function of `oak.sh`. Refused at startup where `oak.sh` has none by that name |
 | `./file.sh` | That file, relative to the folder of the yaml |
 
-Shell written into the yaml itself is refused: every line lives where a linter reads it and a failure can point at it. The keys are `check` of a status, and `options-from`, `value-from`, `prefill`, `apply` and `check` of a question.
+Shell written into the yaml itself is refused: every line lives where a linter reads it and a failure can point at it. The keys are `check` of a status, and `options-from`, `value-from`, `prefill`, `apply` and `check` of a question. `logo` and `icon` take a function too.
 
-- A function is named after the key that calls it: `options_disks()`, `prefill_hostname()`, `apply_keymap()`, `value_desktop()`, `check_online()`
+- A function is named after the key that calls it: `options_disks()`, `prefill_hostname()`, `apply_keymap()`, `value_desktop()`, `check_online()`, `icon_tux()`
 
 ### Status
 
@@ -122,7 +134,8 @@ rules:
 | --- | --- |
 | `title` | **Required.** The module's one name: its row, and the trail over every page |
 | `stages` | **Required.** The phases of the work, in order. Each is a folder `tasks/@<stage>/` |
-| `description` | What it is and what its menu offers, beside a tick over the menu's rows |
+| `description` | What it is and what its menu offers, beside the icon over the menu's rows |
+| `icon` | Its own icon, in place of the product's, see [`oak.yaml`](#oakyaml) |
 | `text` | The words of its own pages, see [Text](#text) |
 | `language` | A variable whose answer also sets the interface language: `de_DE` is German |
 | `rules` | Where its actions run, see [Rules](#rules) |

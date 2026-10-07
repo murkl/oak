@@ -39,11 +39,13 @@ func newConfirm(a *app) *confirmScreen {
 	return s
 }
 
-func (s *confirmScreen) Title() string { return "" }
+func (s *confirmScreen) Title() string { return labelConfirmation() }
 
 // crumbRoot: the passwords before this page are done with, and the one just
-// typed is no place this page is inside of.
-func (s *confirmScreen) crumbRoot() bool { return true }
+// typed is no place this page is inside of. It stands under the menu, like they
+// do.
+func (s *confirmScreen) crumbRoot() bool   { return true }
+func (s *confirmScreen) crumbHead() string { return labelMenu() }
 
 func (s *confirmScreen) Hint() string { return labelHintChoose() }
 

@@ -88,12 +88,21 @@ func TestOnSixteenColoursEveryRoleTakesTheSlotOfItsHue(t *testing.T) {
 		code  string
 	}{
 		"good": {goodStyle, "32"}, "fail": {failStyle, "31"}, "warn": {alertStyle, "33"},
-		"head": {headStyle, "96"}, "info": {infoStyle, "36"}, "soft": {softStyle, "37"},
+		"head": {headStyle, "34"}, "info": {infoStyle, "36"}, "soft": {softStyle, "37"},
 		"muted": {mutedStyle, "90"}, "rule": {ruleStyle, "90"}, "accent": {accentStyle, "32"},
 	} {
 		if got := c.style.Render("x"); !inSlot(got, c.code) {
 			t.Errorf("%s is drawn as %q, want SGR %s", role, got, c.code)
 		}
+	}
+}
+
+// A console draws bold as the bright slot, so a heading there is its colour
+// alone: bold, it would land where a blue accent sits.
+func TestOnSixteenColoursAHeadingIsNotBold(t *testing.T) {
+	sixteen(t, "#1793d1")
+	if got := headStyle.Render("x"); inSlot(got, "1") {
+		t.Errorf("a heading is drawn as %q, bold", got)
 	}
 }
 

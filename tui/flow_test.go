@@ -787,6 +787,77 @@ func TestTheMenuSaysWhatTheModuleIsBesideATick(t *testing.T) {
 	h.wants(glyphs.cursor + "Start").refuses(glyphTickSmall[0])
 }
 
+// The icon beside the words over the menu is the module's, or else the
+// runtime's, or else the tick, and starts where the rows' titles do.
+func TestTheMenuIconIsTheModulesThenTheRuntimesThenTheTick(t *testing.T) {
+	menu := func(module, product string) *harness {
+		t.Helper()
+		head := "title: Test Installer\ndescription: Ready to set up this machine."
+		if module != "" {
+			head += "\nicon: '" + module + "'"
+		}
+		tree := map[string]string{treeFile: strings.Replace(testInstaller, "title: Test Installer", head, 1)}
+		rt := testRuntime()
+		rt.Icon = product
+		h := startWith(t, rt, openModule(t), "", loadModule(t, writeModule(t, t.TempDir(), tree)))
+		h.down().enter().typeIn("moritz").enter().enter()
+		return h
+	}
+	edge := func(h *harness, mark string) {
+		t.Helper()
+		for _, line := range strings.Split(h.screen(), "\n") {
+			if i := strings.Index(line, mark); i >= 0 {
+				if j := strings.Index(h.screen(), glyphs.cursor+"Start"); j < 0 {
+					t.Fatal("no cursor on Start")
+				}
+				start := strings.Index(line, "│") + len("│") + padH
+				if got := lipgloss.Width(line[start:i]); got != lipgloss.Width(glyphBlank) {
+					t.Errorf("%q starts %d cells in, want where the titles do", mark, got)
+				}
+				return
+			}
+		}
+		t.Errorf("the menu does not show %q", mark)
+	}
+
+	h := menu("", "")
+	h.wants("Ready to set up this machine.")
+	edge(h, strings.TrimSpace(glyphTickSmall[1]))
+
+	h = menu("", "<A>")
+	h.refuses(glyphTickSmall[0])
+	edge(h, "<A>")
+
+	h = menu("[M]", "<A>")
+	h.refuses("<A>")
+	edge(h, "[M]")
+}
+
+// A page opened from the settings stands in the menu's trail, and so does the
+// page of an action opened there.
+func TestThePagesOfTheSettingsStandInTheMenusTrail(t *testing.T) {
+	h := newHarness(t, twoLanguageTree())
+	h.enter().enter()                            // English, Full
+	h.typeIn("moritz").enter().enter()           // the user name, the disk
+	h.enter().enter().wants("Start", "Settings") // the driver, the system language
+	h.down().enter().enter()                     // the settings, the interface language
+	h.wants(labelMenu() + " " + glyphs.crumb + " " + labelSettings() + " " + glyphs.crumb + " " + labelLanguage())
+
+	h = newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 0", false))
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.down().enter().enter() // the settings, the wireless network
+	h.wants(labelMenu() + " " + glyphs.crumb + " " + labelSettings() + " " + glyphs.crumb + " Wireless network " + glyphs.crumb + " Network")
+}
+
+// The last page before the work stands under the menu, like the passwords
+// before it.
+func TestTheConfirmationStandsUnderTheMenu(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter()
+	h.wants(labelMenu()+" "+glyphs.crumb+" "+labelConfirmation(), "Do you want to continue?")
+}
+
 // A module may name what starting its work is called, and then the menu's
 // first row says that instead.
 func TestTheModuleNamesWhatStartingItsWorkIsCalled(t *testing.T) {

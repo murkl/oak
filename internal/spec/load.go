@@ -40,8 +40,10 @@ type declaration struct {
 	Description string   `yaml:"description"`
 	Stages      []string `yaml:"stages"`
 
-	// The words its own pages are drawn with, in place of the runtime's.
-	Text Text `yaml:"text"`
+	// The words its own pages are drawn with, in place of the runtime's, and
+	// the picture beside the words over its menu.
+	Text Text   `yaml:"text"`
+	Icon string `yaml:"icon"`
 
 	// Where it runs its actions, each a list of their names — see Rules.
 	Rules Rules `yaml:"rules"`
@@ -66,7 +68,7 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Description: head.Description, Text: head.Text}
+	s.UI = UI{Title: head.Title, Description: head.Description, Text: head.Text, Icon: head.Icon}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Stages, s.Rules = head.Stages, head.Rules
 	if err := head.Status.settle(dir, FileModule); err != nil {
