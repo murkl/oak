@@ -54,7 +54,7 @@ func (h *hub) build() {
 	})
 }
 
-func (h *hub) Title() string { return "" }
+func (h *hub) Title() string { return labelMenu() }
 func (h *hub) Hint() string  { return labelHintMenu() }
 
 // crumbRoot: the hub is home. Whatever run of pages ended on it is over, and

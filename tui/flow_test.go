@@ -720,6 +720,18 @@ func TestTheLandingPageComesBeforeTheQuestionOfWhichModule(t *testing.T) {
 	h.wants("Was tun", "Test Installer", "Test Recovery")
 }
 
+// The menu is a place of its own: the breadcrumb names it, and the pages it
+// opens stand behind it.
+func TestTheMenuHeadsTheTrailOfThePagesItOpens(t *testing.T) {
+	h := newHarness(t, nil)
+	h.down().enter() // a starting point
+	h.typeIn("moritz").enter().enter()
+	h.wants(labelMenu())
+
+	h.down().enter()
+	h.wants(labelMenu() + " " + glyphs.crumb + " " + labelSettings())
+}
+
 // A module has one name, and the frame carries it on every page. So the rows
 // inside it are named after what pressing them does rather than after the
 // module all over again — and the sentence under each row stays nameless too,
