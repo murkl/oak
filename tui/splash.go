@@ -129,11 +129,11 @@ func (m *splashModel) mark() []string {
 
 	rows := make([]string, len(m.rows))
 	for dy, line := range m.rows {
-		resting, bold := colors.accent, true
+		resting, rest := colors.accent, accentBold
 		if dy < m.titleRows {
-			resting, bold = colors.soft, false
+			resting, rest = colors.soft, softStyle
 		}
-		rows[dy] = sweepLine(line, front, revealed >= 1, resting, bold)
+		rows[dy] = sweepLine(line, front, revealed >= 1, resting, rest)
 	}
 	return rows
 }
@@ -150,8 +150,12 @@ func (m *splashModel) mark() []string {
 // the whole rest of the splash, the trail's tail caught permanently mid-cool.
 // settled pins the progress at 1 outright once that happens, since there is
 // no front left to trail behind.
-func sweepLine(line string, front float64, settled bool, resting lipgloss.Color, bold bool) string {
-	style := baseStyle.Bold(bold)
+//
+// A letter that has arrived is drawn in rest, the style resting belongs to, so
+// it takes the same slot on a terminal of sixteen colours as everything else in
+// that colour. Only the trail is a blend.
+func sweepLine(line string, front float64, settled bool, resting lipgloss.Color, rest lipgloss.Style) string {
+	trail := rest.UnsetForeground()
 	var b strings.Builder
 	for dx, r := range []rune(line) {
 		if r == ' ' || float64(dx) >= front {
@@ -163,7 +167,11 @@ func sweepLine(line string, front float64, settled bool, resting lipgloss.Color,
 			t = trailProgress(dx, front)
 		}
 		glyph := sweepGlyph(r, t)
-		b.WriteString(style.Foreground(sweepColor(t, resting)).Render(glyph))
+		if t >= 1 {
+			b.WriteString(rest.Render(glyph))
+			continue
+		}
+		b.WriteString(trail.Foreground(sweepColor(t, resting)).Render(glyph))
 	}
 	return b.String()
 }
