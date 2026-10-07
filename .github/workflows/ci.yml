@@ -1,32 +1,15 @@
-# One workflow, and a commit is under exactly one run of it.
-#
-# A pull request is checked, and one out of draft is also taken apart further. A
-# push to main — the only branch push triggers on — is checked and handed to
-# release-please, and the merge of its pull request is built and published by
-# that same run. Every job says for itself when it runs.
-#
-# A tag is written here rather than pushed by hand, and the binary published
-# under it is built at that tag - see docs/CONTRIBUTING.md.
+# One workflow, and a commit is under exactly one run of it. Which job runs
+# when is the table in docs/CONTRIBUTING.md.
 
 name: CI
 
 on:
-  # main only: a tag here is written by the release below, out of a commit that
-  # has already been through this file, and every other branch is checked
-  # through its pull request instead — one trigger, one run, no branch left to
-  # exclude by name.
+  # Other branches are checked through their pull request.
   push:
     branches: [main]
-  # `ready_for_review` on top of the three defaults: leaving draft is what turns
-  # the fast gate into the full one.
+  # Not the release pull request, which touches nothing but these two: it
+  # starts no run, and the release job below reports its checks instead.
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    # Not the release pull request, which touches nothing but these two. It is
-    # opened with the workflow's own token, and since June 2026 GitHub holds
-    # every run such a pull request starts until somebody approves it - one
-    # nobody does fails the moment it is merged. The release run reports its
-    # checks instead, and its merge is checked on main.
-    # https://github.com/orgs/community/discussions/199292
     paths-ignore:
       - CHANGELOG.md
       - .release-please-manifest.json
@@ -34,130 +17,65 @@ on:
 
 permissions: {}
 
-# -o pipefail on every step: a failure in the middle of a pipeline is a failure.
+# -o pipefail on every step.
 defaults:
   run:
     shell: bash
 
-# One run per pull request and one per ref for everything else, and a push that
-# arrives while an older one is still going takes its place. main is never cancelled — it is the
-# run that releases — and neither is a run somebody asked for by hand. The pull
-# request's number rather than its branch, so a fork whose branch is called main
-# cannot land in main's group.
+# A newer push replaces the run of the one before, except on main, which
+# releases, and a run started by hand.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.ref_name != 'main' }}
 
-# Every job names its runner rather than leaving it to `ubuntu-latest`, which
-# moves to a new Ubuntu on a date GitHub picks: a toolchain that changes under a
-# branch nobody touched is a change nobody made. It is raised here deliberately,
-# like any other dependency.
-#
-# Every action is named by the commit it is, with its version beside it: a tag
-# is whatever its owner points it at next, and some of these run with the right
-# to write a release. Dependabot raises both together.
-#
-# The container is the one moving name here, on purpose. Every job upgrades it
-# to today's Arch before doing anything else - that is what this is checked
-# against - so a pinned image would only be an older starting point, and one
-# whose keyring stops trusting the packages it is upgrading to.
+# Runners and actions are pinned and raised by Dependabot. The container is
+# not: every job upgrades it to today's Arch first, which is what Oak is
+# checked against.
 jobs:
-  # `make check` and nothing this file adds to it: what is checked lives in the
-  # Makefile, so a rule that holds in CI holds at a desk.
+  # `make check` is the whole gate, so what holds at a desk holds here. The
+  # vulnerability scan asks a server and stays out of it.
   check:
     name: Check
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    container: archlinux:latest # zizmor: ignore[unpinned-images] - see the top of this file
+    timeout-minutes: 10
+    container: archlinux:latest # zizmor: ignore[unpinned-images] - upgraded below
     permissions:
       contents: read
     steps:
-      # Before the checkout: without git, actions/checkout falls back to a
-      # tarball, and then there is no history for a version to come from. A
-      # full upgrade rather than a refresh, because installing against a
-      # database newer than the system is the one thing Arch does not carry.
+      # Without git, actions/checkout falls back to a tarball with no tags to
+      # describe a version from.
       - name: Make the checkout a repository
         run: pacman -Syu --needed --noconfirm git
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # git describe needs the tags to describe anything.
           fetch-depth: 0
           persist-credentials: false
 
+      # gcc for the race detector, which is built on cgo.
       - uses: ./.github/actions/arch
         with:
-          packages: go make shellcheck shfmt staticcheck yamllint actionlint zizmor gettext diffutils gitleaks
+          packages: go gcc make shellcheck shfmt staticcheck yamllint actionlint zizmor gettext diffutils gitleaks govulncheck
 
       - run: make check
 
-      # A binary with nothing beside it can still answer for itself, which is
-      # the whole of what this asks.
+      - run: make vuln
+
       - name: The binary says what it is
         run: bin/oak-linux-amd64 --version
 
-      # Not what a release publishes — that one is built at its tag, under the
-      # version the tag carries. This is the build a change can be tried with.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: binary
-          path: bin/
-          retention-days: 7
-
-  # The two checks that ask something outside the tree: a race the ordinary test
-  # run cannot see, and the vulnerability database. Beside `check` rather than
-  # in it, because neither is a rule about this code that a desk could settle.
-  #
-  # For what is about to be merged or released: a draft says itself that it is
-  # not ready.
-  deep:
-    name: Race and vulnerabilities
-    needs: check
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    container: archlinux:latest # zizmor: ignore[unpinned-images] - see the top of this file
-    permissions:
-      contents: read
-    steps:
-      - name: Make the checkout a repository
-        run: pacman -Syu --needed --noconfirm git
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      # gcc is for the race detector, which is built on cgo.
-      - uses: ./.github/actions/arch
-        with:
-          packages: go gcc make govulncheck
-
-      - run: make test-race
-
-      - run: make vuln
-
-  # The one check of this file a pull request has to pass before it can be
-  # merged - see .github/settings/ruleset.json. One name for all of them, so a
-  # job listed here is required from the moment it is.
-  #
-  # A draft is refused on purpose. Its run skips what a draft does not get, and
-  # leaving draft starts the full run on the same commit - whose Ready is only
-  # written once everything before it is done. Until then GitHub reads the one
-  # it already has, and a draft that passed would open the merge for the length
-  # of that run. The refusal leaves the run itself green: it is the check, not a
-  # failure anybody has to hear about.
+  # The one check main requires of a pull request, so a job added above is
+  # required the moment it is listed here.
   ready:
     name: Ready
-    needs: [check, deep]
+    needs: check
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-    continue-on-error: ${{ github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Every job this pull request needed came out well
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
-          DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           for result in $RESULTS; do
             case "$result" in
@@ -168,21 +86,13 @@ jobs:
               ;;
             esac
           done
-          if [ "$DRAFT" = true ]; then
-            echo "::error::a draft is not ready to merge - mark it ready for review, and the full run decides"
-            exit 1
-          fi
 
-  # The version, out of the commits since the last release: a `fix:` is a patch,
-  # a `feat:` a minor, a `!` a major. Nothing here is typed, and nothing is
-  # pushed to main — this opens a pull request like anybody else.
-  #
-  # Which of its two outcomes this is depends on what just landed: an ordinary
-  # merge updates that pull request, and the merge of that pull request is what
-  # writes the tag, the changelog and the release page the job below fills.
+  # The version out of the commits since the last release. An ordinary merge
+  # updates the release pull request, and merging that one writes the tag and
+  # a draft release page.
   release:
     name: Release
-    needs: [check, deep]
+    needs: check
     if: github.event_name == 'push' && github.ref_name == 'main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -198,18 +108,10 @@ jobs:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: please
 
-      # The release pull request starts no run - see pull_request above - so
-      # nothing would ever report the two checks main asks of a pull request,
-      # and it could never be merged. It needs neither: it holds what a run like
-      # this one wrote out of a main that was checked a moment before, and its
-      # merge is checked again on main before a tag exists. This says so, on
-      # every run, so a run that missed it is made good by the next.
-      #
-      # The commit is read off the branch release-please has just written, not
-      # off the pull request: that one follows a few seconds later, and the
-      # checks would land on the commit before and leave the merge blocked. The
-      # label is filtered here rather than with --label, which asks GitHub's
-      # search - and that lags the label this very run has just set.
+      # The release pull request starts no run, so this reports the two checks
+      # main asks of it; its merge is checked on main. Read off the branch, not
+      # the pull request, which follows a few seconds later, and the label off
+      # the list, since a search lags the label this run has just set.
       - name: The release pull request is cleared to merge
         env:
           GH_TOKEN: ${{ github.token }}
@@ -225,17 +127,15 @@ jobs:
               done
             done
 
-  # The binary a release is downloaded as, built at the tag that names it: the
-  # version is what `git describe` finds, and until the job above wrote that tag
-  # there was nothing to find. Same sources as the run that checked them, one
-  # commit ago and one version further on.
+  # Built at the tag, because the version the binary answers to is that tag.
+  # The draft page is made public last, once the file hangs on it.
   publish:
     name: Publish
     needs: release
     if: needs.release.outputs.created == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    container: archlinux:latest # zizmor: ignore[unpinned-images] - see the top of this file
+    timeout-minutes: 10
+    container: archlinux:latest # zizmor: ignore[unpinned-images] - upgraded below
     permissions:
       contents: write # the asset and the page it hangs on
       id-token: write # the provenance below is signed
@@ -260,30 +160,19 @@ jobs:
 
       - run: make build
 
-      # The last thing between a tag and a download link: the binary about to be
-      # published under it has to answer to exactly that.
       - name: The binary answers to the tag
         run: make version-check TAG="$TAG"
 
-      # Which commit and which run this file came out of, signed where it was
-      # made rather than where it is downloaded - and before anything is on the
-      # page, so a signature that fails leaves nothing unsigned behind.
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: bin/oak-linux-amd64
 
-      # The release was written as a draft, and a draft is what nobody downloads:
-      # it is made public here, last, once the file is on it. A run that fails
-      # before this leaves a draft to be re-run rather than a release without a
-      # binary that every download link already points at.
+      # Written whole rather than appended, so a repeated run leaves the page
+      # saying the same thing.
       - name: Publish the release
         env:
           NOTES: ${{ needs.release.outputs.notes }}
         run: |
-          # What the release changed, as the changelog says it, and under it the
-          # download and the way to check it — a check nobody is handed is a
-          # check nobody runs. Written whole rather than appended, so a run
-          # repeated on the same tag leaves the page saying the same thing.
           [ -n "$NOTES" ] || {
             echo "::error::${TAG} was released with nothing written under it"
             exit 1

@@ -41,6 +41,11 @@ type harness struct {
 	// below could only tell "settled" from "still working" by waiting, and a
 	// keystroke that starts nothing would cost the same as an installation.
 	inflight atomic.Int64
+
+	// wake is told whenever a command ends, with a message or without one: a
+	// loop waiting on the messages alone sits out its whole patience for a
+	// command that answered nothing.
+	wake chan struct{}
 }
 
 // The module every flow test starts from: two starting points, a handful of
@@ -223,7 +228,7 @@ func startAs(t *testing.T, rt *spec.Runtime, open Open, locales string, line Ope
 			t.Fatal(err)
 		}
 	}
-	h := &harness{t: t, a: a, msgs: make(chan tea.Msg, 64)}
+	h := &harness{t: t, a: a, msgs: make(chan tea.Msg, 64), wake: make(chan struct{}, 1)}
 	h.m = newModel(a, "")
 	h.run(h.m.Init())
 	h.drain()
@@ -254,7 +259,13 @@ func (h *harness) run(cmd tea.Cmd) {
 	go func() {
 		// Counted down only after the message is queued, so a loop that sees
 		// nothing out there has already been handed everything there was.
-		defer h.inflight.Add(-1)
+		defer func() {
+			h.inflight.Add(-1)
+			select {
+			case h.wake <- struct{}{}:
+			default:
+			}
+		}()
 		if msg := cmd(); msg != nil {
 			h.msgs <- msg
 		}
@@ -302,11 +313,29 @@ func (h *harness) drain() {
 			}
 			select {
 			case msg = <-h.msgs:
+			case <-h.wake:
+				continue
 			case <-time.After(wait):
 				return
 			}
 		}
 		h.handle(msg)
+	}
+}
+
+// A command that ends without a message wakes the loop waiting on it, rather
+// than leaving it to sit out its patience: on a busy machine that is what a
+// command answering nothing looks like, and the suite spent minutes on it.
+func TestTheLoopWakesWhenACommandAnswersNothing(t *testing.T) {
+	h := newHarness(t, nil)
+	start := time.Now()
+	h.run(func() tea.Msg {
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	})
+	h.drain()
+	if waited := time.Since(start); waited > patience/2 {
+		t.Fatalf("the loop waited %v for a command that answered nothing", waited)
 	}
 }
 

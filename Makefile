@@ -47,7 +47,7 @@ BANNER_CARDS   := docs/screenshots/report.png docs/screenshots/run.png
 BANNER_TAGLINE := Build your own Arch Linux distribution. The installer is already written.
 BANNER_CELL    := 17
 
-.PHONY: all build example run inspect lint tidy tidy-check test test-race vet staticcheck vuln secrets-check fmt fmt-check locales locales-check tag-check version-check check github screenshots banner docs clean
+.PHONY: all build example run inspect lint tidy tidy-check test vet staticcheck vuln secrets-check fmt fmt-check locales locales-check tag-check version-check check github screenshots banner docs clean
 
 all: build
 
@@ -76,12 +76,9 @@ tidy:
 tidy-check:
 	go mod tidy -diff
 
+# Under the race detector, which needs cgo and gcc: the runner and the
+# interface share state across goroutines, and a race shows nowhere else.
 test:
-	go test ./...
-
-# The tests under the race detector, which needs cgo and gcc. CI runs it on
-# every push; `check` does not, since it doubles the time.
-test-race:
 	CGO_ENABLED=1 go test -race ./...
 
 vet:

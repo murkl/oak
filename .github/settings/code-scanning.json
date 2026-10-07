@@ -1,3 +1,4 @@
 {
-  "state": "configured"
+  "state": "configured",
+  "languages": ["go"]
 }
