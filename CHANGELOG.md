@@ -2,6 +2,13 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.21.0](https://github.com/murkl/oak/compare/v0.20.1...v0.21.0) (2026-10-07)
+
+
+### Features
+
+* the menu shows the module's description beside a ready tick instead of a breadcrumb, and headings are Nord teal ([#56](https://github.com/murkl/oak/issues/56)) ([3d94395](https://github.com/murkl/oak/commit/3d94395c6b78644ffb3555fe9812eb854e2d19b9))
+
 ## [0.20.1](https://github.com/murkl/oak/compare/v0.20.0...v0.20.1) (2026-10-07)
 
 
