@@ -33,7 +33,7 @@ var (
 func buildStyles() {
 	baseStyle = lipgloss.NewStyle()
 
-	accentStyle = baseStyle.Foreground(colors.accent)
+	accentStyle = baseStyle.Foreground(ink(colors.accent, accentSlot))
 	accentBold = accentStyle.Bold(true)
 	cursorStyle = accentStyle.Bold(true)
 
@@ -43,29 +43,29 @@ func buildStyles() {
 	// here carries a meaning, and ink that is merely ink carries none.
 	textStyle = baseStyle
 	boldStyle = textStyle.Bold(true)
-	softStyle = baseStyle.Foreground(colors.soft)
+	softStyle = baseStyle.Foreground(ink(colors.soft, slotWhite))
 
 	// Also what a row that cannot be chosen is drawn in: dimmed rather than
 	// hidden, because knowing an entry exists and is out of reach beats it
 	// silently not being there.
-	mutedStyle = baseStyle.Foreground(colors.muted)
-	headStyle = baseStyle.Foreground(colors.head).Bold(true)
-	infoStyle = baseStyle.Foreground(colors.info)
-	goodStyle = baseStyle.Foreground(colors.good).Bold(true)
-	failStyle = baseStyle.Foreground(colors.fail)
+	mutedStyle = baseStyle.Foreground(ink(colors.muted, slotGrey))
+	headStyle = baseStyle.Foreground(ink(colors.head, slotMagenta)).Bold(true)
+	infoStyle = baseStyle.Foreground(ink(colors.info, slotCyan))
+	goodStyle = baseStyle.Foreground(ink(colors.good, slotGreen)).Bold(true)
+	failStyle = baseStyle.Foreground(ink(colors.fail, slotRed))
 
 	// The one loud style in the program, for the one moment that has to be
 	// noticed: something is about to be done that needs a password. Bold *and*
 	// the warning colour, because either alone reads as another heading.
-	alertStyle = baseStyle.Foreground(colors.warn).Bold(true)
+	alertStyle = baseStyle.Foreground(ink(colors.warn, slotYellow)).Bold(true)
 
-	ruleStyle = baseStyle.Foreground(colors.sunk)
+	ruleStyle = baseStyle.Foreground(ink(colors.sunk, slotGrey))
 
 	// NormalBorder, not RoundedBorder: the rounded corners are missing from
 	// several monospace fonts and fall back to a box that does not line up.
 	frameStyle = baseStyle.
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(colors.sunk).
+		BorderForeground(ink(colors.sunk, slotGrey)).
 		Padding(padV, padH)
 }
 

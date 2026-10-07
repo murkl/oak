@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 // A folder names one accent and cannot know which terminal it will be shown in.
@@ -53,6 +55,90 @@ func TestContrastAndLuminanceAgreeWithTheStandard(t *testing.T) {
 	}
 	if got := contrast(white, white); got != 1 {
 		t.Errorf("white on white = %.2f, want 1", got)
+	}
+}
+
+// sixteen puts the interface on a terminal of sixteen colours under the
+// runtime's accent for one test, and back afterwards.
+func sixteen(t *testing.T, accent string) {
+	t.Helper()
+	was := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.ANSI)
+	SetAccent(accent)
+	t.Cleanup(func() {
+		lipgloss.SetColorProfile(was)
+		SetAccent("")
+	})
+}
+
+// inSlot reports whether text is drawn with the SGR parameter code, alone or
+// beside bold.
+func inSlot(text, code string) bool {
+	return regexp.MustCompile(`\x1b\[(\d+;)*` + code + `(;\d+)*m`).MatchString(text)
+}
+
+// On a terminal of sixteen colours every role takes the slot of its own hue,
+// so a console dressed in any theme shows it in that theme's colour. The stock
+// colour nearest Nord's green is yellow, and a check that passed would read as
+// a warning.
+func TestOnSixteenColoursEveryRoleTakesTheSlotOfItsHue(t *testing.T) {
+	sixteen(t, "")
+	for role, c := range map[string]struct {
+		style lipgloss.Style
+		code  string
+	}{
+		"good": {goodStyle, "32"}, "fail": {failStyle, "31"}, "warn": {alertStyle, "33"},
+		"head": {headStyle, "35"}, "info": {infoStyle, "36"}, "soft": {softStyle, "37"},
+		"muted": {mutedStyle, "90"}, "rule": {ruleStyle, "90"}, "accent": {accentStyle, "32"},
+	} {
+		if got := c.style.Render("x"); !inSlot(got, c.code) {
+			t.Errorf("%s is drawn as %q, want SGR %s", role, got, c.code)
+		}
+	}
+}
+
+// The accent is the runtime's, and so is its hue: it goes to the stock colour
+// nearest the one the runtime named, not the one it was lightened to.
+func TestOnSixteenColoursTheAccentKeepsItsOwnHue(t *testing.T) {
+	sixteen(t, "#1793d1")
+	if got := accentStyle.Render("x"); !inSlot(got, "94") {
+		t.Errorf("Arch blue is drawn as %q, want bright blue", got)
+	}
+}
+
+// The wordmark settles in the accent's slot, like everything else drawn in the
+// accent.
+func TestTheSettledWordmarkIsInTheAccentsSlot(t *testing.T) {
+	sixteen(t, "#1793d1")
+	m := newSplash("Oak\n\nOAK", "")
+	run(m)
+	if got := m.mark()[2]; !inSlot(got, "94") {
+		t.Errorf("the wordmark is not in the accent's slot:\n%q", got)
+	}
+}
+
+// A terminal with no font of its own is a console of sixteen slots, whatever
+// its environment claims.
+func TestAConsoleIsHeldToSixteenColours(t *testing.T) {
+	was := lipgloss.ColorProfile()
+	t.Cleanup(func() { lipgloss.SetColorProfile(was) })
+
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	adaptProfile(true)
+	if got := lipgloss.ColorProfile(); got != termenv.ANSI {
+		t.Errorf("a console is drawn in %s, want ANSI", got.Name())
+	}
+
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	adaptProfile(false)
+	if got := lipgloss.ColorProfile(); got != termenv.ANSI256 {
+		t.Errorf("a terminal with a font of its own is drawn in %s, want ANSI256", got.Name())
+	}
+
+	lipgloss.SetColorProfile(termenv.Ascii)
+	adaptProfile(true)
+	if got := lipgloss.ColorProfile(); got != termenv.Ascii {
+		t.Errorf("a terminal without colour is drawn in %s, want Ascii", got.Name())
 	}
 }
 

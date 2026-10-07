@@ -42,7 +42,6 @@ const (
 const (
 	lightGreen = "#4b6237"
 	lightBlue  = "#2b5f6e"
-	lightSteel = "#324c67"
 	lightRed   = "#963c44"
 )
 
@@ -81,6 +80,35 @@ const (
 // which keeps the hue and only stops it being one nobody can read.
 const darkRed = "#f27983" // fail — dark scheme
 
+// head takes the one hue of Nord that means nothing else here: green and red are
+// a status, yellow a warning, the blues the accent and the values. Nord's purple
+// (nord15) sits just short of WCAG AA on Polar Night, so it is lightened as far
+// as the red is, and taken down for Snow Storm like the hues above.
+const (
+	darkPurple  = "#b894b1" // head — dark scheme
+	lightPurple = "#755c70" // head — light scheme
+)
+
+// A terminal of sixteen colours shows slots rather than hex, painted by whoever
+// dressed it. termenv puts a hex into the slot of the nearest stock xterm colour,
+// which for Nord's green is yellow, so every role names the slot of its own hue
+// and a console in any theme shows that theme's green, red or grey.
+const (
+	slotRed     = "1"
+	slotGreen   = "2"
+	slotYellow  = "3"
+	slotMagenta = "5"
+	slotCyan    = "6"
+	slotWhite   = "7"
+	slotGrey    = "8"
+)
+
+// ink is a colour as a style paints it: itself wherever the terminal can show
+// one, and the given slot where it has sixteen.
+func ink(c lipgloss.Color, slot string) lipgloss.TerminalColor {
+	return lipgloss.CompleteColor{TrueColor: string(c), ANSI256: string(c), ANSI: slot}
+}
+
 // scheme is one whole set of roles. There are two, one for each kind of
 // terminal, and nothing outside this file knows which of them is showing —
 // which is what keeps the light interface from being a second design.
@@ -114,7 +142,7 @@ var darkScheme = scheme{
 	muted:  darkDim,
 	soft:   nord4,
 	info:   nord8,
-	head:   nord9,
+	head:   darkPurple,
 	warn:   darkAmber,
 	fail:   darkRed,
 	good:   nord14,
@@ -127,7 +155,7 @@ var lightScheme = scheme{
 	muted:  lightDim,
 	soft:   nord2,
 	info:   lightBlue,
-	head:   lightSteel,
+	head:   lightPurple,
 	warn:   lightAmber,
 	fail:   lightRed,
 	good:   lightGreen,
@@ -145,15 +173,20 @@ var (
 	// again whenever the scheme underneath it changes.
 	accentHex string
 
+	// accentSlot is where the accent goes on a terminal of sixteen colours. Its
+	// hue is the runtime's to know, so it is the stock colour nearest the one the
+	// runtime named, and the scheme's own green where it named none.
+	accentSlot = slotGreen
+
 	// terminalDark is what the terminal answered, kept because the question can
 	// only be put once, before the key reader starts.
 	terminalDark = true
 )
 
 // Adapt dresses the interface for the terminal it is about to draw on: what it
-// is painted, and which glyphs it can actually draw. Anything the terminal will
-// not answer is taken as dark, which is what a terminal is unless somebody
-// changed it.
+// is painted, how many colours it has, and which glyphs it can actually draw.
+// Anything the terminal will not answer is taken as dark, which is what a
+// terminal is unless somebody changed it.
 //
 // It has to be asked before the program takes the terminal over: the answer
 // arrives as an escape sequence on stdin, and once there is a key reader running
@@ -161,7 +194,19 @@ var (
 func Adapt() {
 	terminalDark = terminalIsDark()
 	adapt(terminalDark)
-	adaptGlyphs(terminalIsPlain())
+	plain := terminalIsPlain()
+	adaptProfile(plain)
+	adaptGlyphs(plain)
+}
+
+// adaptProfile holds a terminal with no font of its own to sixteen colours,
+// whatever its environment claims. A shell that exports COLORTERM for every
+// terminal hands the Linux console 256, and the console rounds those into the
+// nearest of its slots: grey comes out white.
+func adaptProfile(plain bool) {
+	if plain && lipgloss.ColorProfile() < termenv.ANSI {
+		lipgloss.SetColorProfile(termenv.ANSI)
+	}
 }
 
 // adapt dresses the interface for a terminal of the given kind. It is separate
@@ -233,9 +278,10 @@ func SetAccent(hex string) {
 // everything made from the two. It starts from base every time rather than from
 // what is showing, so a runtime that drops its accent gets the scheme's own back.
 func apply() {
-	colors = base
+	colors, accentSlot = base, slotGreen
 	if accentHex != "" {
 		colors.accent = readable(lipgloss.Color(accentHex), base.bezel)
+		accentSlot = accentHex
 	}
 	buildStyles()
 }

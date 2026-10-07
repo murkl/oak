@@ -38,6 +38,8 @@ logo: |
 | `logo` | The wordmark. Above the first blank line a dim eyebrow |
 | `status` | One line about the machine in the header, see [Status](#status) |
 
+**Note:** _A terminal of sixteen colours, such as the Linux console, shows every colour in the slot of its hue: green, yellow, red, magenta, cyan, white and grey (8). The accent takes the stock colour nearest it. A product that paints the console's palette paints those slots._
+
 ### `oak.sh`
 
 The one place scripts share code. Loaded in front of every task, test and action, and of every function the yaml calls. It defines functions and exports constants, and works nothing out while it loads.
