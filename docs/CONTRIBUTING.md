@@ -7,9 +7,8 @@ Oak is one binary and nothing else ships. `main` is the only branch that lasts: 
 ```mermaid
 flowchart LR
     M["main"] -->|branch off| B["feat/…"]
-    B -->|draft pull request| C["Check"]
-    C -->|ready for review| D["Check · Race · Vulnerabilities"]
-    D -->|squash merge| M2["main"]
+    B -->|pull request| C["Check"]
+    C -->|squash merge| M2["main"]
     M2 --> P["Release pull request<br/>version · changelog"]
     P -->|merge| R["Release<br/>tag · binary · page"]
 
@@ -17,12 +16,11 @@ flowchart LR
 ```
 
 1. **Branch off `main`.** Name it after what it does: `feat/wireless-settings`, `fix/fuzzy-catalog`. Nothing reads the name
-2. **Open a draft pull request right away.** A branch is checked through its pull request, never on its own
-3. **Mark it ready for review** once it should be merged. That adds the race detector and the vulnerability scan
-4. **Squash merge**, or switch on auto-merge. `main` takes the pull request once `Ready` and `Title` have passed, as one commit under its title, and deletes the branch
+2. **Open a pull request right away**, as a draft while it is not done. A branch is checked through its pull request, never on its own, and a draft gets the same run
+3. **Squash merge**, or switch on auto-merge. `main` takes the pull request once `Ready` and `Title` have passed, as one commit under its title, and deletes the branch
 
 - The commits inside the branch are yours to shape. Only the title reaches `main`
-- A draft never passes `Ready`, so nothing is merged before the full run
+- A draft cannot be merged. Marking it ready starts nothing, since it changes no code
 - A pull request that changes nothing but `CHANGELOG.md` or the release manifest starts no run and is never merged: both are the release pull request's
 
 ## The Title
@@ -72,9 +70,8 @@ Nothing is typed and nothing is tagged by hand.
 | Job | When | Does |
 | --- | --- | --- |
 | `Title` | a pull request opened, pushed to or edited | Reads the title |
-| `Check` | a pull request, `main`, on demand | `make check`, and the binary answering for itself |
-| `Race and vulnerabilities` | a pull request out of draft, `main`, on demand | The two checks that ask something outside the tree |
-| `Ready` | a pull request | Every job it needed has passed, and it is no draft |
+| `Check` | a pull request, `main`, on demand | `make check` with the tests under the race detector, `make vuln`, and the binary answering for itself |
+| `Ready` | a pull request | Every job it needed has passed |
 | `Release` | a push to `main` | The release pull request, or once that is merged, the tag and the draft page |
 | `Publish` | a release | Builds `oak-linux-amd64` at that tag, hangs it on the page and publishes it |
 
@@ -90,7 +87,6 @@ make run MODULE=setup          # opens one module directly
 make run ARGS=--debug          # ...without touching anything
 make inspect                   # loads the example the way a run does
 make build                     # bin/oak-linux-amd64, the file a release publishes
-make test-race                 # the tests under the race detector
 make vuln                      # known vulnerabilities in what this imports
 make version-check TAG=v0.5.0  # would that tag be allowed to release this?
 make locales                   # the template, and every catalog brought up to it
@@ -147,6 +143,6 @@ make github
 | `repository.json` | Squash merges only, under the pull request's title alone; auto-merge on; a merged branch is deleted |
 | `ruleset.json` | `main` takes nothing but a pull request, squashed, once `Ready` and `Title` have passed; no force push, no deletion |
 | `actions.json` | A workflow's token reads unless it says otherwise, and may open the release pull request |
-| `code-scanning.json` | CodeQL as GitHub sets it up by default: every language it finds, on pull requests, on `main` and weekly |
+| `code-scanning.json` | CodeQL's default setup for Go, on pull requests, on `main` and weekly. The workflows are zizmor's, in `make check` |
 
-Run it again after changing one of them. Every call sets the whole state, so a second run changes nothing. The files and the script are the same in every project released this way.
+Run it again after changing one of them. Every call sets the whole state, so a second run changes nothing. The script is the same in every project released this way, and so is every file but `code-scanning.json`.
