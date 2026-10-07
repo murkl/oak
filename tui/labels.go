@@ -67,6 +67,9 @@ func labelOpening() string { return say("Start") }
 // the menu's first row.
 func labelStart() string { return say("Start") }
 
+// The menu's own segment of the breadcrumb, at the head of every page it opens.
+func labelMenu() string { return say("Menu") }
+
 func labelLanguage() string { return say("Interface language") }
 
 // The sentence under it, and it says what the setting does not do: a machine
