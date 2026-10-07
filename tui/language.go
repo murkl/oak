@@ -19,7 +19,6 @@ import (
 // choice, and the landing page every run opens on, which stands the same list
 // under the wordmark rather than in the frame (see landing.go).
 type languageScreen struct {
-	opening
 	app *app
 
 	// What the page says above its rows, where it says anything. Read afresh

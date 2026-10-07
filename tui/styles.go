@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 // Every style is built here and nowhere else, so a screen renders content and
@@ -49,7 +50,9 @@ func buildStyles() {
 	// hidden, because knowing an entry exists and is out of reach beats it
 	// silently not being there.
 	mutedStyle = baseStyle.Foreground(ink(colors.muted, slotGrey))
-	headStyle = baseStyle.Foreground(ink(colors.head, slotBrightCyan)).Bold(true)
+	// Not bold on sixteen colours: a console draws bold as the bright slot,
+	// which is another colour, and a blue product's accent sits there.
+	headStyle = baseStyle.Foreground(ink(colors.head, slotBlue)).Bold(lipgloss.ColorProfile() != termenv.ANSI)
 	infoStyle = baseStyle.Foreground(ink(colors.info, slotCyan))
 	goodStyle = baseStyle.Foreground(ink(colors.good, slotGreen)).Bold(true)
 	failStyle = baseStyle.Foreground(ink(colors.fail, slotRed))

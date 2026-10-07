@@ -70,6 +70,9 @@ func labelStart() string { return say("Start") }
 // The menu's own segment of the breadcrumb, at the head of every page it opens.
 func labelMenu() string { return say("Menu") }
 
+// The last page before the work, in the breadcrumb.
+func labelConfirmation() string { return say("Confirmation") }
+
 func labelLanguage() string { return say("Interface language") }
 
 // The sentence under it, and it says what the setting does not do: a machine

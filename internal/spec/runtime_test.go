@@ -362,3 +362,49 @@ func TestAnActionsFolderBesideTheProductIsRefused(t *testing.T) {
 		t.Errorf("err = %v, want the product's actions/ refused", err)
 	}
 }
+
+// A picture is drawn as written, or as the function of oak.sh it names prints
+// it, once, while the product loads. A module's icon is read the same way.
+func TestAPictureIsPrintedByTheFunctionItNames(t *testing.T) {
+	dir := writeRuntime(t, testRuntime+"logo: logo_tux()\nicon: |\n  /\\\n", "installer")
+	writeShell(t, dir, "logo_tux() { printf 'TUX\\n'; }\nicon_tux() { printf '<>\\n'; }\n")
+	decl := filepath.Join(dir, DirModules, "installer", FileModule)
+	if err := os.WriteFile(decl, []byte("title: The installer\nstages: [go]\nicon: icon_tux()\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := LoadRuntime(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.Logo != "TUX\n" {
+		t.Errorf("logo = %q, want what logo_tux printed", rt.Logo)
+	}
+	if rt.Icon != "/\\\n" {
+		t.Errorf("icon = %q, want it as written", rt.Icon)
+	}
+	mods, err := rt.LoadModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mods[0].UI.Icon; got != "<>\n" {
+		t.Errorf("module icon = %q, want what icon_tux printed", got)
+	}
+}
+
+// A picture that cannot be drawn stops the start, rather than a page.
+func TestAPictureThatCannotBeDrawnStopsTheStart(t *testing.T) {
+	for name, c := range map[string]struct{ shell, want string }{
+		"not defined":    {"true\n", "oak.yaml: icon: icon_tux() is not a function in oak.sh"},
+		"failing":        {"icon_tux() { false; }\n", "oak.yaml: icon: icon_tux() failed: exit status 1"},
+		"printing blank": {"icon_tux() { echo; }\n", "oak.yaml: icon: icon_tux() printed nothing"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := writeRuntime(t, testRuntime+"icon: icon_tux()\n", "installer")
+			writeShell(t, dir, c.shell)
+			_, err := LoadRuntime(dir)
+			if err == nil || err.Error() != c.want {
+				t.Errorf("err = %v, want %q", err, c.want)
+			}
+		})
+	}
+}

@@ -45,9 +45,9 @@ type (
 	// one on it would name nothing but the page itself.
 	homer interface{ home() bool }
 
-	// A screen that names the heading it stands under. For a page that begins
-	// the trail and is still not the whole of where you are: the opening is a
-	// row of pages one after another, and each of them is somewhere inside it.
+	// A screen that names the heading it stands under: the opening is a row of
+	// pages one after another, each somewhere inside it, and an action's pages
+	// stand under the action.
 	crumbHeader interface{ crumbHead() string }
 
 	// A screen with a text box on it: a value being typed, a narrowing box
@@ -130,17 +130,15 @@ func crumbFrom(stack []screen) []screen {
 	return stack
 }
 
-// crumbTrail is what the breadcrumb says: the heading the page stands under,
-// where it names one, and then the title of every screen from there up.
+// crumbTrail is what the breadcrumb says: the title of every screen from where
+// it starts up, each after the heading it stands under, where it names one.
 func crumbTrail(stack []screen) []string {
 	trail := crumbFrom(stack)
 	out := make([]string, 0, len(trail)+1)
-	if len(trail) > 0 {
-		if h, ok := trail[0].(crumbHeader); ok && h.crumbHead() != "" {
+	for _, s := range trail {
+		if h, ok := s.(crumbHeader); ok && h.crumbHead() != "" {
 			out = append(out, h.crumbHead())
 		}
-	}
-	for _, s := range trail {
 		if t := s.Title(); t != "" {
 			out = append(out, t)
 		}
