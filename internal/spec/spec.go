@@ -169,8 +169,8 @@ type UI struct {
 	// after the module all over again.
 	Title string
 
-	// Description is what this module is, in one sentence, read on its menu
-	// under the row that starts the work.
+	// Description is what this module is and what its menu offers, over the
+	// menu's rows beside the tick that says it is ready.
 	Description string
 
 	// Text is the words of its own pages, each in place of the runtime's.
@@ -195,8 +195,7 @@ type Text struct {
 	Confirm string `yaml:"confirm"`
 }
 
-// Help is what this module is, in one sentence: the line under the row that
-// starts its work.
+// Help is what this module is and what its menu offers, translated.
 func (s *Module) Help() string { return i18n.T(s.UI.Description) }
 
 // Start is what starting the work is called, translated. Empty where the
@@ -657,7 +656,7 @@ func (s *Module) Messages() []Message {
 
 	decl := FileModule
 	add(decl, "what this module is called, wherever the interface names it", s.UI.Title)
-	add(decl, "what it is, in one sentence, under the row that starts the work", s.UI.Description)
+	add(decl, "what it is and what its menu offers, over the menu's rows", s.UI.Description)
 	add(decl, "the row that starts the work", s.UI.Text.Start)
 	add(decl, "the row that opens every answer, and the heading over that page", s.UI.Text.Settings)
 	add(decl, "the last page before the work, after every password", s.UI.Text.Confirm)

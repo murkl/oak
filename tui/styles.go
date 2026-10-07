@@ -49,7 +49,7 @@ func buildStyles() {
 	// hidden, because knowing an entry exists and is out of reach beats it
 	// silently not being there.
 	mutedStyle = baseStyle.Foreground(ink(colors.muted, slotGrey))
-	headStyle = baseStyle.Foreground(ink(colors.head, slotMagenta)).Bold(true)
+	headStyle = baseStyle.Foreground(ink(colors.head, slotBrightCyan)).Bold(true)
 	infoStyle = baseStyle.Foreground(ink(colors.info, slotCyan))
 	goodStyle = baseStyle.Foreground(ink(colors.good, slotGreen)).Bold(true)
 	failStyle = baseStyle.Foreground(ink(colors.fail, slotRed))

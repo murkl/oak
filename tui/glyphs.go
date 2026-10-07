@@ -124,6 +124,15 @@ var glyphTick = []string{
 	"   ▀██▀",
 }
 
+// glyphTickSmall is the same tick a step smaller, beside the words over the
+// menu: that page waits for a choice, and the two rows of it must not be
+// dwarfed by the mark.
+var glyphTickSmall = []string{
+	"      ▄█▀",
+	"█▄  ▄█▀",
+	" ▀██▀",
+}
+
 // glyphCross is the other one: the mark over a run that could not go on, drawn
 // out of the same blocks and at the same size, so the two pages are one page
 // with one thing different about them.
@@ -280,6 +289,7 @@ func ConsoleGlyphs(words ...string) string {
 	marks = append(marks, g.focus...)
 	marks = append(marks, g.spinner...)
 	marks = append(marks, glyphTick...)
+	marks = append(marks, glyphTickSmall...)
 	marks = append(marks, glyphCross...)
 
 	border := lipgloss.NormalBorder()

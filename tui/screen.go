@@ -41,6 +41,10 @@ type (
 	// frame saying nothing about where you are.
 	crumbRooter interface{ crumbRoot() bool }
 
+	// A screen that is home: where every trail starts and none is drawn, since
+	// one on it would name nothing but the page itself.
+	homer interface{ home() bool }
+
 	// A screen that names the heading it stands under. For a page that begins
 	// the trail and is still not the whole of where you are: the opening is a
 	// row of pages one after another, and each of them is somewhere inside it.
@@ -106,6 +110,13 @@ func held(s screen) bool {
 	}
 	h, ok := s.(holder)
 	return ok && h.holds()
+}
+
+// isHome reports whether s is the page every trail starts from, defaulting to
+// no.
+func isHome(s screen) bool {
+	h, ok := s.(homer)
+	return ok && h.home()
 }
 
 // crumbFrom is where the breadcrumb starts: the last screen on the stack that

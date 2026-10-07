@@ -80,27 +80,28 @@ const (
 // which keeps the hue and only stops it being one nobody can read.
 const darkRed = "#f27983" // fail — dark scheme
 
-// head takes the one hue of Nord that means nothing else here: green and red are
-// a status, yellow a warning, the blues the accent and the values. Nord's purple
-// (nord15) sits just short of WCAG AA on Polar Night, so it is lightened as far
-// as the red is, and taken down for Snow Storm like the hues above.
-const (
-	darkPurple  = "#b894b1" // head — dark scheme
-	lightPurple = "#755c70" // head — light scheme
-)
+// head is Nord's teal (nord7), the Frost hue between the green of a status and
+// the cyan of a value, so a heading reads as one of the calm colours rather than
+// as a signal. It clears WCAG AA on Polar Night as it is, and is taken down for
+// Snow Storm like the hues above.
+const lightTeal = "#3a605f" // head — light scheme
 
 // A terminal of sixteen colours shows slots rather than hex, painted by whoever
 // dressed it. termenv puts a hex into the slot of the nearest stock xterm colour,
 // which for Nord's green is yellow, so every role names the slot of its own hue
 // and a console in any theme shows that theme's green, red or grey.
+//
+// A heading and a value are both cyan, so the heading takes the bright slot: a
+// console bolds into it anyway, and naming it keeps the two apart on a terminal
+// that does not.
 const (
-	slotRed     = "1"
-	slotGreen   = "2"
-	slotYellow  = "3"
-	slotMagenta = "5"
-	slotCyan    = "6"
-	slotWhite   = "7"
-	slotGrey    = "8"
+	slotRed        = "1"
+	slotGreen      = "2"
+	slotYellow     = "3"
+	slotCyan       = "6"
+	slotWhite      = "7"
+	slotGrey       = "8"
+	slotBrightCyan = "14"
 )
 
 // ink is a colour as a style paints it: itself wherever the terminal can show
@@ -142,7 +143,7 @@ var darkScheme = scheme{
 	muted:  darkDim,
 	soft:   nord4,
 	info:   nord8,
-	head:   darkPurple,
+	head:   nord7,
 	warn:   darkAmber,
 	fail:   darkRed,
 	good:   nord14,
@@ -155,7 +156,7 @@ var lightScheme = scheme{
 	muted:  lightDim,
 	soft:   nord2,
 	info:   lightBlue,
-	head:   lightPurple,
+	head:   lightTeal,
 	warn:   lightAmber,
 	fail:   lightRed,
 	good:   lightGreen,

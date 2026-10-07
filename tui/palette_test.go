@@ -88,7 +88,7 @@ func TestOnSixteenColoursEveryRoleTakesTheSlotOfItsHue(t *testing.T) {
 		code  string
 	}{
 		"good": {goodStyle, "32"}, "fail": {failStyle, "31"}, "warn": {alertStyle, "33"},
-		"head": {headStyle, "35"}, "info": {infoStyle, "36"}, "soft": {softStyle, "37"},
+		"head": {headStyle, "96"}, "info": {infoStyle, "36"}, "soft": {softStyle, "37"},
 		"muted": {mutedStyle, "90"}, "rule": {ruleStyle, "90"}, "accent": {accentStyle, "32"},
 	} {
 		if got := c.style.Render("x"); !inSlot(got, c.code) {

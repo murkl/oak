@@ -2,14 +2,17 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // hub is where a machine that has answered everything waits: the work and the
 // answers, and no way to get lost between them. What a module offers beside
 // them is a row on the settings page — see settingsScreen.
 //
-// It has no description of its own and needs none — each row has a sentence
-// under it, and together they say the whole of what this page is.
+// Over the two rows the module says what it is, beside a small tick. The page
+// only comes up once every check the work waits for has said yes and every
+// question has an answer, so the tick is true without a word of the runtime's
+// own.
 type hub struct {
 	app    *app
 	picker *picker
@@ -45,12 +48,11 @@ func (h *hub) Refresh() {
 // build names both rows after what pressing them does — in the module's own
 // words for it where it has them — and not after the module they belong to:
 // the frame overhead carries that name on every page, and a row repeating it
-// would be the same word twice on one screen. What the module has to say for
-// itself is the sentence under the first.
+// would be the same word twice on one screen.
 func (h *hub) build() {
 	h.picker = newPicker([]item{
-		{title: h.app.verb(), detail: h.app.module.Help(), key: keyInstall},
-		{title: h.app.settingsTitle(), detail: labelSettingsSummary(), key: keySettings},
+		{title: h.app.verb(), key: keyInstall},
+		{title: h.app.settingsTitle(), key: keySettings},
 	})
 }
 
@@ -60,6 +62,9 @@ func (h *hub) Hint() string  { return labelHintMenu() }
 // crumbRoot: the hub is home. Whatever run of pages ended on it is over, and
 // none of it is behind this page any more.
 func (h *hub) crumbRoot() bool { return true }
+
+// home: a trail on this page would name nothing but the page itself.
+func (h *hub) home() bool { return true }
 
 // working puts the turning mark in the header while the lists are read.
 func (h *hub) working() bool { return h.checking }
@@ -92,7 +97,33 @@ func (h *hub) Update(msg tea.Msg) (screen, tea.Cmd) {
 	return h, nil
 }
 
-func (h *hub) View(width, height int) string { return withDetail(h.picker, width, height) }
+// View is the module's words over the rows, a blank line between them. A frame
+// too short for both keeps the rows, since they are what the page is for.
+func (h *hub) View(width, height int) string {
+	intro := h.intro(width)
+	if len(intro) == 0 || len(intro)+1+h.picker.height(width) > height {
+		return h.picker.View(width, height)
+	}
+	return block(intro) + "\n\n" + h.picker.View(width, height-len(intro)-1)
+}
+
+// intro is the module's description at the reading width, the small tick in
+// front of it. Nothing where the module describes nothing: a tick beside no
+// words would be a mark on its own.
+func (h *hub) intro(width int) []string {
+	help := h.app.module.Help()
+	if help == "" {
+		return nil
+	}
+	tick := make([]string, len(glyphTickSmall))
+	tickW := 0
+	for i, line := range glyphTickSmall {
+		tick[i] = goodStyle.Render(line)
+		tickW = max(tickW, lipgloss.Width(line))
+	}
+	words := inked(help, bodyWidth(width)-tickW-gapM, textStyle)
+	return beside(tick, tickW, words, gapM)
+}
 
 // unofferedMsg is the answers the lists no longer offer.
 type unofferedMsg struct{ names []string }

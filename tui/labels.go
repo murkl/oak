@@ -153,13 +153,6 @@ func labelSettingsHelp() string {
 	return say("Every used value. Open one to change it.")
 }
 
-// The row's own detail on the hub, read before the list behind it is open —
-// so, unlike labelSettingsHelp, without the instruction that only makes sense
-// once it is.
-func labelSettingsSummary() string {
-	return say("Every used value.")
-}
-
 // The last row of the settings page, and the page behind it. The row says what
 // it does rather than what it is about — it is the one row there that acts
 // instead of holding a value — and the sentence behind it says what that costs,

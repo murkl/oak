@@ -70,19 +70,19 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:546
+#: internal/spec/spec.go:545
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:548
+#: internal/spec/spec.go:547
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
-#: internal/spec/spec.go:558
+#: internal/spec/spec.go:557
 msgid "This answer is not among the ones offered here."
 msgstr "Diese Antwort gehört nicht zu den hier angebotenen."
 
-#: internal/spec/spec.go:568
+#: internal/spec/spec.go:567
 msgid "This password was not accepted."
 msgstr "Dieses Passwort wurde nicht angenommen."
 
@@ -103,11 +103,11 @@ msgstr "Sprache der Oberfläche"
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf dem Rechner prüfen, auf dem er ausgeführt wurde"
 
-#: internal/store/store.go:231 tui/labels.go:231
+#: internal/store/store.go:231 tui/labels.go:224
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:233 tui/labels.go:232
+#: internal/store/store.go:233 tui/labels.go:225
 msgid "No"
 msgstr "Nein"
 
@@ -300,81 +300,77 @@ msgid "Every used value. Open one to change it."
 msgstr "Alle verwendeten Werte. Zum Ändern einen öffnen."
 
 #: tui/labels.go:160
-msgid "Every used value."
-msgstr "Alle verwendeten Werte."
-
-#: tui/labels.go:167
 msgid "Reset all answers"
 msgstr "Alle Antworten zurücksetzen"
 
-#: tui/labels.go:169
+#: tui/labels.go:162
 msgid "Every answer is forgotten and the file they are kept in is deleted. The module starts again at its first question, and this cannot be undone."
 msgstr "Alle Antworten werden verworfen und die Datei, in der sie stehen, wird gelöscht. Das Modul beginnt wieder bei seiner ersten Frage, und das lässt sich nicht rückgängig machen."
 
-#: tui/labels.go:172
+#: tui/labels.go:165
 msgid "Repeat"
 msgstr "Wiederholen"
 
-#: tui/labels.go:173
+#: tui/labels.go:166
 msgid "The entries do not match."
 msgstr "Die Eingaben stimmen nicht überein."
 
-#: tui/labels.go:176
+#: tui/labels.go:169
 msgid "Do you want to continue?"
 msgstr "Möchtest du fortfahren?"
 
-#: tui/labels.go:177
+#: tui/labels.go:170
 msgid "This step cannot be undone."
 msgstr "Dieser Schritt kann nicht rückgängig gemacht werden."
 
-#: tui/labels.go:187
+#: tui/labels.go:180
 msgid "Failed"
 msgstr "Fehlgeschlagen"
 
-#: tui/labels.go:189
+#: tui/labels.go:182
 #, c-format
 msgid "Working · %s"
 msgstr "Läuft · %s"
 
-#: tui/labels.go:192
+#: tui/labels.go:185
 #, c-format
 msgid "Finished in %s"
 msgstr "Fertig in %s"
 
-#: tui/labels.go:195
+#: tui/labels.go:188
 #, c-format
 msgid "The full log is in %s."
 msgstr "Das vollständige Protokoll steht in %s."
 
-#: tui/labels.go:204
+#: tui/labels.go:197
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr "Abgebrochen bei %s; alles danach wurde nicht mehr ausgeführt."
 
-#: tui/labels.go:207
+#: tui/labels.go:200
 msgid "Cannot continue"
 msgstr "Fortfahren nicht möglich"
 
-#: tui/labels.go:211
+#: tui/labels.go:204
 msgid "Leave"
 msgstr "Beenden"
 
-#: tui/labels.go:216
+#: tui/labels.go:209
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr "Der Vorgang läuft hinter dieser Seite weiter. Jede Auswahl hier bricht ihn ab."
 
-#: tui/labels.go:219
+#: tui/labels.go:212
 msgid "Exit"
 msgstr "Beenden"
 
-#: tui/labels.go:220
+#: tui/labels.go:213
 msgid "Close this program. The machine keeps running."
 msgstr "Das Programm schließen. Der Rechner läuft weiter."
 
-#: tui/labels.go:224
+#: tui/labels.go:217
 msgid "Reset"
 msgstr "Zurücksetzen"
 
-#: tui/labels.go:226
+#: tui/labels.go:219
 msgid "Forget every answer and start again from the beginning."
 msgstr "Alle Antworten vergessen und von vorn beginnen."
