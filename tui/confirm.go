@@ -88,7 +88,7 @@ func startInstall(a *app, next int) screen {
 	if next < len(secrets) {
 		return newSecret(a, secrets[next], func() tea.Cmd {
 			return push(startInstall(a, next+1))
-		})
+		}).under(labelMenu())
 	}
 	return newConfirm(a)
 }

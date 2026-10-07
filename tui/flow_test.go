@@ -1818,6 +1818,19 @@ func TestTheLastPageBeforeTheWorkOpensOnNo(t *testing.T) {
 	h.wants("Start", "Settings").refuses("Do you want to continue?")
 }
 
+// The passwords before the work follow one another rather than one inside the
+// other: each stands under the menu, none behind the one before it.
+func TestEachPasswordBeforeTheWorkStandsUnderTheMenu(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: testInstaller + "  - name: PW2\n    title: Disk password\n    type: new-password\n    required: true\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter() // Start
+	h.wants(labelMenu() + " " + glyphs.crumb + " Password")
+	h.typeIn("x").enter().typeIn("x").enter()
+	h.wants(labelMenu() + " " + glyphs.crumb + " Disk password").refuses("Password " + glyphs.crumb)
+}
+
 // The last page stands for itself: the password pages before it are done with,
 // and a trail naming one of them over a question about the whole run is wrong.
 func TestTheLastPageHasNoTrail(t *testing.T) {
