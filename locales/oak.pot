@@ -22,40 +22,40 @@ msgstr ""
 #. belongs to, the step itself, the script and line it was in, what ran, and
 #. what it returned. Each is one column of a narrow table, so short wins
 #. over exact.
-#: internal/exec/failure.go:66
+#: internal/exec/failure.go:60
 msgid "Module"
 msgstr ""
 
-#: internal/exec/failure.go:68
+#: internal/exec/failure.go:62
 msgid "Action"
 msgstr ""
 
-#: internal/exec/failure.go:70
+#: internal/exec/failure.go:64
 msgid "Task"
 msgstr ""
 
-#: internal/exec/failure.go:79
+#: internal/exec/failure.go:73
 msgid "Script"
 msgstr ""
 
-#: internal/exec/failure.go:81
+#: internal/exec/failure.go:75
 msgid "Command"
 msgstr ""
 
-#: internal/exec/failure.go:83
+#: internal/exec/failure.go:77
 msgid "Exit code"
 msgstr ""
 
-#: internal/exec/failure.go:91
+#: internal/exec/failure.go:85
 #, c-format
 msgid "%s failed"
 msgstr ""
 
-#: internal/exec/failure.go:96
+#: internal/exec/failure.go:90
 msgid "Error"
 msgstr ""
 
-#: internal/exec/handover.go:49
+#: internal/exec/handover.go:39
 msgid "There is no terminal to hand over."
 msgstr ""
 
