@@ -2,6 +2,17 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.23.0](https://github.com/murkl/oak/compare/v0.22.0...v0.23.0) (2026-10-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* a centred menu with Start and Setup in every language, confirm: true for a yes before the work, yes-after for a step that follows another, and no description or text ([#60](https://github.com/murkl/oak/issues/60))
+
+### Features
+
+* a centred menu with Start and Setup in every language, confirm: true for a yes before the work, yes-after for a step that follows another, and no description or text ([#60](https://github.com/murkl/oak/issues/60)) ([9b21569](https://github.com/murkl/oak/commit/9b21569d6f8f2c35d88b561e34f3cefefb960f8f))
+
 ## [0.22.0](https://github.com/murkl/oak/compare/v0.21.0...v0.22.0) (2026-10-07)
 
 
