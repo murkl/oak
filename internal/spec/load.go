@@ -36,13 +36,11 @@ type declaration struct {
 	Title    string `yaml:"title"`
 	Language string `yaml:"language"`
 
-	// What this module is and the phases its work happens in.
-	Description string   `yaml:"description"`
-	Stages      []string `yaml:"stages"`
+	// The phases its work happens in, and whether it waits for a yes first.
+	Stages  []string `yaml:"stages"`
+	Confirm bool     `yaml:"confirm"`
 
-	// The words its own pages are drawn with, in place of the runtime's, and
-	// the picture beside the words over its menu.
-	Text Text   `yaml:"text"`
+	// The picture over its menu.
 	Icon string `yaml:"icon"`
 
 	// Where it runs its actions, each a list of their names — see Rules.
@@ -68,9 +66,9 @@ func Load(dir string) (*Module, error) {
 	if err := read(filepath.Join(dir, FileModule), &head); err != nil {
 		return nil, err
 	}
-	s.UI = UI{Title: head.Title, Description: head.Description, Text: head.Text, Icon: head.Icon}
+	s.UI = UI{Title: head.Title, Icon: head.Icon}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
-	s.Stages, s.Rules = head.Stages, head.Rules
+	s.Stages, s.Rules, s.Confirm = head.Stages, head.Rules, head.Confirm
 	if err := head.Status.settle(dir, FileModule); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
@@ -300,13 +298,13 @@ var retired = map[string]string{
 	"test":           "a task is tested by the test.sh beside it",
 	"stage":          "a task lies in the folder of its stage, and that is the whole of where it runs",
 	"network":        "a wireless network is an action under actions/, and the internet the work waits for is one named under rules: start-if",
-	"action":         "the word for starting the work is text: start",
-	"start":          "the word for starting the work is text: start",
-	"start-title":    "it is text: start",
-	"settings-title": "it is text: settings",
+	"action":         "the menu's rows are the runtime's own, Start and Setup",
+	"start":          "the menu's rows are the runtime's own, Start and Setup",
+	"start-title":    "the menu's rows are the runtime's own, Start and Setup",
+	"settings-title": "the menu's rows are the runtime's own, Start and Setup",
 	"console":        "the row that leaves to the console is the runtime's own",
-	"confirm":        "a task that needs asking says confirm itself, the last page before a module's work is text: confirm, and an action is agreed to by choosing its row",
-	"default":        "every confirm opens on no",
+	"confirm":        "a task that needs asking says confirm itself, a module confirm: true, and an action is agreed to by choosing its row",
+	"default":        "a confirm opens on no, and on yes after a task its yes-after names has run",
 	"variables":      "an action has one page: its variable, and a second question is a second action named under its rules: on-failure",
 	"shows":          "a code is drawn by an action, beside its report",
 	"quits":          "a way out is an action, named under rules: on-success or on-leave",
@@ -317,7 +315,7 @@ var retired = map[string]string{
 	"offered":        "it is a rule now: under rules:, as offer-if",
 	"requires":       "it is a rule now: under rules:, as start-if in module.yaml and as offer-if in action.yaml",
 	"menu":           "its rows stand on the settings page: under rules:, as on-settings",
-	"settings":       "the settings page is named by text: settings, and a row on it is an action under rules:, as on-settings",
+	"settings":       "the menu's rows are the runtime's own, Start and Setup, and a row on the settings page is an action under rules:, as on-settings",
 	"values":         "a question's list is options, and what prints one is options-from",
 	"command":        "what prints a question's list is options-from",
 	"answer":         "a value worked out instead of asked is value-from",
@@ -330,6 +328,8 @@ var retired = map[string]string{
 	"existing":       "a password that exists already is type: password, one being chosen type: new-password",
 	"free":           "a list that also takes an answer typed in is type: open-list",
 	"variable":       "an action's questions are variables:, a list like the module's",
+	"description":    "a question, a starting point and an action are described, and a module's menu is its icon over its rows",
+	"text":           "the menu's rows are the runtime's own, Start and Setup, and the yes before the work is confirm: true",
 }
 
 // unknownField is how the decoder says a key is not one of them. It names the
@@ -365,9 +365,6 @@ func (s *Module) check(tasks []*Task, runs map[string]int) error {
 		return fmt.Errorf("%s: title is required", FileModule)
 	}
 	if err := s.checkVars(); err != nil {
-		return fmt.Errorf("%s: %w", FileModule, err)
-	}
-	if err := s.checkText("text: confirm", s.UI.Text.Confirm); err != nil {
 		return fmt.Errorf("%s: %w", FileModule, err)
 	}
 	if err := s.checkPresets(); err != nil {
@@ -421,6 +418,26 @@ func (s *Module) checkTasks(tasks []*Task) error {
 			return fmt.Errorf("%s/%s: %w", DirTasks, Stage(stage), err)
 		}
 		s.Tasks = append(s.Tasks, ordered...)
+	}
+	return s.checkYesAfter()
+}
+
+// checkYesAfter holds every yes-after to tasks that can have run by the time
+// its confirm is asked. Anything else is a confirm that never opens on Yes.
+func (s *Module) checkYesAfter() error {
+	for i, t := range s.Tasks {
+		if len(t.YesAfter) > 0 && !t.Confirms() {
+			return fmt.Errorf("%s: yes-after: a task without confirm is never asked", t.where())
+		}
+		for _, name := range t.YesAfter {
+			j := slices.IndexFunc(s.Tasks, func(o *Task) bool { return o.id == name })
+			switch {
+			case j < 0:
+				return fmt.Errorf("%s: yes-after: no such task: %s", t.where(), name)
+			case j >= i:
+				return fmt.Errorf("%s: yes-after: %s does not run before it", t.where(), name)
+			}
+		}
 	}
 	return nil
 }
@@ -554,7 +571,7 @@ func (s *Module) checkDeferredAsked(tasks []*Task) error {
 //
 // A blank line survives, because that is the one break that was meant.
 func (s *Module) normalize(tasks []*Task) {
-	fields := []*string{&s.UI.Title, &s.UI.Description, &s.UI.Text.Start, &s.UI.Text.Settings, &s.UI.Text.Confirm}
+	fields := []*string{&s.UI.Title}
 	for _, o := range s.Presets {
 		fields = append(fields, &o.Title, &o.Description)
 	}

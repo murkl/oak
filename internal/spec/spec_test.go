@@ -487,57 +487,27 @@ func TestLocalesAreFoundBesideTheDeclaration(t *testing.T) {
 	}
 }
 
-// The word for starting the work is the module's, so it is translated like
-// everything else it says, and a block scalar is read as the one line a catalog
-// looks it up by.
-func TestTheWordForStartingIsTranslatable(t *testing.T) {
-	sp, err := Load(module(t, map[string]string{
-		FileModule: head("text:\n  start: |\n    Install\n"),
-	}))
+// A confirm may open on Yes after a task that runs before it.
+func TestAConfirmMayOpenOnYesAfterATaskBeforeIt(t *testing.T) {
+	sp, err := Load(module(t, unit("go", "z", "title: Z\nneeds: [do]\nconfirm: Sure?\nyes-after: [do]\n")))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"Test Installer", "Install", "Do it"}
-	if got := texts(sp); strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Errorf("Messages() = %v\nwant %v", got, want)
-	}
-	if got := sp.Start(); got != "Install" {
-		t.Errorf("Start() = %q, want %q", got, "Install")
+	if got := sp.Tasks[len(sp.Tasks)-1].YesAfter; !slices.Equal(got, []string{"do"}) {
+		t.Errorf("YesAfter = %v, want [do]", got)
 	}
 }
 
-// So is the last page, its question and what it says under it, with the
-// answers it names filled in.
-func TestTheLastPageIsTheModulesOwnAndTranslatable(t *testing.T) {
-	sp, err := Load(module(t, map[string]string{
-		FileModule: head("text:\n  confirm: |\n    Erase {{DISK}}?\n\n    Everything on it\n    is lost.\nvariables:\n  - name: DISK\n    type: text\n    title: Disk\n"),
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := texts(sp); !slices.Contains(got, "Erase {{DISK}}?\n\nEverything on it is lost.") {
-		t.Errorf("Messages() = %v, want the last page among them, one line per paragraph", got)
-	}
-	question, body := sp.Confirm(func(string) string { return "/dev/sda" })
-	if question != "Erase /dev/sda?" || body != "Everything on it is lost." {
-		t.Errorf("Confirm() = %q, %q", question, body)
-	}
-}
-
-// So is the word for its settings, the same way.
-func TestTheWordForTheSettingsIsTranslatable(t *testing.T) {
-	sp, err := Load(module(t, map[string]string{
-		FileModule: head("text:\n  settings: |\n    Configuration\n"),
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"Test Installer", "Configuration", "Do it"}
-	if got := texts(sp); strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Errorf("Messages() = %v\nwant %v", got, want)
-	}
-	if got := sp.Settings(); got != "Configuration" {
-		t.Errorf("Settings() = %q, want %q", got, "Configuration")
+// A module waits for a yes before its work only where it says so.
+func TestAModuleConfirmsItsWorkOnlyWhereItSaysSo(t *testing.T) {
+	for yaml, want := range map[string]bool{"confirm: true\n": true, "": false} {
+		sp, err := Load(module(t, map[string]string{FileModule: head(yaml)}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sp.Confirm != want {
+			t.Errorf("%q: Confirm = %v, want %v", yaml, sp.Confirm, want)
+		}
 	}
 }
 
@@ -569,7 +539,22 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "an offer opening on no, the way an older Oak read it",
 			files: unit("go", "do", "title: Do\nconfirm: Really?\ndefault: no\n"),
-			want:  "default is not a key here — every confirm opens on no",
+			want:  "default is not a key here — a confirm opens on no, and on yes after a task its yes-after names has run",
+		},
+		{
+			name:  "a yes-after on a task that asks nothing",
+			files: unit("go", "z", "title: Z\nneeds: [do]\nyes-after: [do]\n"),
+			want:  "tasks/z: yes-after: a task without confirm is never asked",
+		},
+		{
+			name:  "a yes-after naming no task",
+			files: unit("go", "z", "title: Z\nconfirm: Sure?\nyes-after: [ghost]\n"),
+			want:  "tasks/z: yes-after: no such task: ghost",
+		},
+		{
+			name:  "a yes-after naming a task that runs later",
+			files: unit("go", "a", "title: A\nconfirm: Sure?\nyes-after: [do]\n"),
+			want:  "tasks/a: yes-after: do does not run before it",
 		},
 		{
 			name:  "a preset filling in a variable nobody declared",
@@ -693,28 +678,33 @@ func TestLoadRefuses(t *testing.T) {
 		},
 		{
 			name:  "the keys the runtime now says for itself",
-			files: map[string]string{FileModule: head("console: Type installer.\nconfirm: Careful.\n")},
+			files: map[string]string{FileModule: head("console: Type installer.\n")},
 			want:  "console is not a key here — the row that leaves to the console is the runtime's own",
 		},
 		{
 			name:  "the word for starting said the way an older Oak read it",
 			files: map[string]string{FileModule: head("action: Install\n")},
-			want:  "the word for starting the work is text: start",
+			want:  "the menu's rows are the runtime's own, Start and Setup",
 		},
 		{
 			name:  "the word for starting said the way Oak 0.17 read it",
 			files: map[string]string{FileModule: head("start-title: Install\n")},
-			want:  "start-title is not a key here — it is text: start",
+			want:  "start-title is not a key here — the menu's rows are the runtime's own, Start and Setup",
 		},
 		{
 			name:  "the name of the settings said the way Oak 0.17 read it",
 			files: map[string]string{FileModule: head("settings-title: Configuration\n")},
-			want:  "settings-title is not a key here — it is text: settings",
+			want:  "settings-title is not a key here — the menu's rows are the runtime's own, Start and Setup",
 		},
 		{
-			name:  "the last page naming a variable nothing declares",
-			files: map[string]string{FileModule: head("text:\n  confirm: Erase {{DSIK}}?\nvariables:\n  - name: DISK\n    type: text\n    title: D\n")},
-			want:  "text: confirm: {{DSIK}} is not a variable of this module",
+			name:  "a module describing itself the way Oak 0.22 read it",
+			files: map[string]string{FileModule: head("description: Ready.\n")},
+			want:  "description is not a key here — a question, a starting point and an action are described",
+		},
+		{
+			name:  "the words of a module's pages the way Oak 0.22 read them",
+			files: map[string]string{FileModule: head("text:\n  start: Install\n")},
+			want:  "text is not a key here — the menu's rows are the runtime's own, Start and Setup, and the yes before the work is confirm: true",
 		},
 		{
 			name: "a task's offer naming a variable nothing declares",
@@ -883,7 +873,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a row on the settings page the way an older Oak named it",
 			files: map[string]string{FileModule: head("rules:\n  settings: [o]\n")},
-			want:  "settings is not a key here — the settings page is named by text: settings, and a row on it is an action under rules:, as on-settings",
+			want:  "settings is not a key here — the menu's rows are the runtime's own, Start and Setup, and a row on the settings page is an action under rules:, as on-settings",
 		},
 		{
 			name:  "the header's status read the way an older Oak named it",

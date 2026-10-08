@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 var (
@@ -221,5 +222,22 @@ func TestTheLastRowStaysOnTheLastLineOfTheWindow(t *testing.T) {
 	lines := strings.Split(p.View(40, 5), "\n")
 	if len(lines) != 5 || !strings.Contains(lines[4], "i") {
 		t.Errorf("the last row is not on the last line:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
+// A column is its widest title with the cursor's width on either side, in
+// colour as well: a cell more pulls it off the axis it is centred on.
+func TestAColumnIsItsWidestTitleWithTheCursorsWidthEitherSide(t *testing.T) {
+	was := lipgloss.ColorProfile()
+	t.Cleanup(func() { lipgloss.SetColorProfile(was); buildStyles() })
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	buildStyles()
+
+	p := newPicker([]item{{title: "Install", key: "a"}, {title: "Configuration", key: "b"}})
+	want := lipgloss.Width(glyphs.cursor+"Configuration") + lipgloss.Width(glyphs.cursor)
+	for _, row := range p.column(2) {
+		if got := lipgloss.Width(row); got != want {
+			t.Errorf("%q is %d wide, want %d", row, got, want)
+		}
 	}
 }

@@ -63,9 +63,13 @@ func labelOwnAnswer() string         { return say("An answer of your own") }
 // — never the row of answers already given.
 func labelOpening() string { return say("Start") }
 
-// What starting the work is called where a module names no word of its own:
-// the menu's first row.
-func labelStart() string { return say("Start") }
+// The menu's two rows: what starting the work is called, and the page of
+// every answer, its row and the heading over it. The same two words in every
+// module and every language, so they are in no catalog.
+const (
+	rowStart = "Start"
+	rowSetup = "Setup"
+)
 
 // The menu's own segment of the breadcrumb, at the head of every page it opens.
 func labelMenu() string { return say("Menu") }
@@ -94,10 +98,6 @@ func labelChoice() string { return say("What would you like to start?") }
 // header beside what it is counting — a word in front of it would only repeat
 // what the page already says.
 func labelCounter(at, of int) string { return say("%d of %d", at, of) }
-
-// What the page of every answer is called where a module names no word of its
-// own: its row on the menu, and the heading over it.
-func labelSettings() string { return say("Settings") }
 
 // The page a fresh machine's starting points stand on. The runtime's own words,
 // so it reads the same in every module; the rows are the module's.
@@ -150,12 +150,6 @@ func labelVerifyStepsHelp() string {
 	return say("Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end.")
 }
 
-// Nameless on purpose: the frame already carries the module's name on every
-// page, and a sentence repeating it here would be the same word twice.
-func labelSettingsHelp() string {
-	return say("Every used value. Open one to change it.")
-}
-
 // The last row of the settings page, and the page behind it. The row says what
 // it does rather than what it is about — it is the one row there that acts
 // instead of holding a value — and the sentence behind it says what that costs,
@@ -168,9 +162,9 @@ func labelResetHelp() string {
 func labelPasswordRepeat() string   { return say("Repeat") }
 func labelPasswordMismatch() string { return say("The entries do not match.") }
 
-// The last page before the work: whether to go on, and why that matters.
-func labelContinue() string     { return say("Do you want to continue?") }
-func labelIrreversible() string { return say("This step cannot be undone.") }
+// The last page before the work, where the module asks for one. Nameless,
+// since the frame names the module over it.
+func labelReallyStart() string { return say("Do you really want to start?") }
 
 // What a run says about itself. None of it names the module: the frame says
 // which one this is above every page, and a headline repeating it would be the

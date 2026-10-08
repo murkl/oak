@@ -7,9 +7,9 @@ import (
 )
 
 // confirmScreen is the last page before anything is changed, after every
-// password: a yes or no, the question in the warning colour over it. The module
-// says in its own words what is about to happen; one that says nothing gets the
-// runtime's warning that it cannot be undone.
+// password, where the module declares confirm: a yes or no, the question in the
+// warning colour over it. The question is the runtime's, the same in every
+// module.
 //
 // It opens on No: the password before it was confirmed with enter, and an enter
 // pressed once too often must not start the work.
@@ -17,24 +17,15 @@ type confirmScreen struct {
 	app    *app
 	picker *picker
 
-	// question is what the page asks: the module's, or the runtime's own.
 	question string
 }
 
 func newConfirm(a *app) *confirmScreen {
-	s := &confirmScreen{app: a}
+	s := &confirmScreen{app: a, question: labelReallyStart()}
 	s.picker = newPicker([]item{
 		{title: labelYes(), key: keyYes},
 		{title: labelNo(), key: keyNo},
 	})
-	question, body := a.module.Confirm(a.store.Get)
-	if question == "" {
-		question, body = labelContinue(), labelIrreversible()
-	}
-	s.question = question
-	if body != "" {
-		s.picker.describe(body)
-	}
 	s.picker.focus(keyNo)
 	return s
 }
@@ -80,7 +71,8 @@ func (s *confirmScreen) View(width, height int) string {
 }
 
 // startInstall is the way into an installation: the secrets that have to be
-// typed first, in order, and the last page once there are none left.
+// typed first, in order, and then the last page where the module asks for one,
+// or the work itself.
 //
 // Asked here rather than among the other questions, because a secret is never
 // written down: it would be missing again at every start, and no machine could
@@ -92,7 +84,10 @@ func startInstall(a *app, next int) screen {
 			return push(startInstall(a, next+1))
 		}).under(labelMenu())
 	}
-	return newConfirm(a)
+	if a.module.Confirm {
+		return newConfirm(a)
+	}
+	return startRun(a)
 }
 
 // startRun is the work itself. A finished run ends on its result, under it

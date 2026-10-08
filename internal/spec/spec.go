@@ -115,6 +115,11 @@ type Module struct {
 	Actions []*Action
 	Rules   Rules
 
+	// Confirm is whether the work waits for a yes on the last page before it,
+	// after every password. The question is the runtime's, the same in every
+	// module.
+	Confirm bool
+
 	// Warnings is what loaded but says something that can never take effect. A
 	// module that behaves is not a module that refuses to start, so these are
 	// reported — by `--inspect`, and in the log when the module is opened —
@@ -169,54 +174,9 @@ type UI struct {
 	// after the module all over again.
 	Title string
 
-	// Description is what this module is and what its menu offers, over the
-	// menu's rows beside the tick that says it is ready.
-	Description string
-
-	// Text is the words of its own pages, each in place of the runtime's.
-	Text Text
-
-	// Icon stands beside Description, in place of the runtime's: as written,
+	// Icon stands over the menu's rows, in place of the runtime's: as written,
 	// or as a function of oak.sh prints it.
 	Icon string
-}
-
-// Text is what a module calls its own pages and what it asks before its work.
-// Each is optional, and an empty one leaves the runtime's own words.
-type Text struct {
-	// Start is what starting the work is called — "Install", "Repair" — on the
-	// first row of the menu. A verb rather than a second name: the title
-	// already stands over it.
-	Start string `yaml:"start"`
-
-	// Settings is what the page of every answer is called — "Configuration"
-	// — on its row of the menu and over the page itself.
-	Settings string `yaml:"settings"`
-
-	// Confirm is the last page before the work, after every password: what is
-	// about to happen, in the module's own words. {{VAR}} is filled in from the
-	// answers, and the first paragraph is the question.
-	Confirm string `yaml:"confirm"`
-}
-
-// Help is what this module is and what its menu offers, translated.
-func (s *Module) Help() string { return i18n.T(s.UI.Description) }
-
-// Start is what starting the work is called, translated. Empty where the
-// module leaves it to the runtime.
-func (s *Module) Start() string { return i18n.T(s.UI.Text.Start) }
-
-// Settings is what the page of every answer is called, translated. Empty where
-// the module leaves it to the runtime.
-func (s *Module) Settings() string { return i18n.T(s.UI.Text.Settings) }
-
-// Confirm is the last page's words, translated and with the answers filled in:
-// the question, then whatever else it says. Empty where the module leaves the
-// page to the runtime.
-func (s *Module) Confirm(get func(string) string) (question, body string) {
-	text := strings.TrimSpace(Expand(i18n.T(s.UI.Text.Confirm), get))
-	question, body, _ = strings.Cut(text, "\n\n")
-	return question, strings.TrimSpace(body)
 }
 
 // Checks reports whether anything in this module says how to tell that it
@@ -282,6 +242,11 @@ type Task struct {
 	// Declining skips it and the run carries on. It comes after `asks`, so the
 	// offer can name what was just chosen.
 	Confirm string `yaml:"confirm"`
+
+	// YesAfter names tasks of this module that run before this one. Where one
+	// of them ran in this run, the confirm opens on Yes: this step is what
+	// follows from that one.
+	YesAfter []string `yaml:"yes-after"`
 
 	// Report is what the run stops to say once this one has run: the milestone
 	// somebody watching a list of task names has no other way of recognising.
@@ -660,10 +625,6 @@ func (s *Module) Messages() []Message {
 
 	decl := FileModule
 	add(decl, "what this module is called, wherever the interface names it", s.UI.Title)
-	add(decl, "what it is and what its menu offers, over the menu's rows", s.UI.Description)
-	add(decl, "the row that starts the work", s.UI.Text.Start)
-	add(decl, "the row that opens every answer, and the heading over that page", s.UI.Text.Settings)
-	add(decl, "the last page before the work, after every password", s.UI.Text.Confirm)
 	for _, o := range s.Presets {
 		add(decl, "a starting point: its row", o.Title)
 		add(decl, "starting point "+o.Title+": what choosing it does", o.Description)

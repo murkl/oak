@@ -9,10 +9,9 @@ import (
 // answers, and no way to get lost between them. What a module offers beside
 // them is a row on the settings page — see settingsScreen.
 //
-// Over the two rows the module says what it is, beside a small tick. The page
-// only comes up once every check the work waits for has said yes and every
-// question has an answer, so the tick is true without a word of the runtime's
-// own.
+// Over the two rows stands the module's icon and nothing else. The page only
+// comes up once every check the work waits for has said yes and every question
+// has an answer, so there is nothing left to say on it.
 type hub struct {
 	app    *app
 	picker *picker
@@ -45,14 +44,14 @@ func (h *hub) Refresh() {
 	h.picker.focus(key)
 }
 
-// build names both rows after what pressing them does — in the module's own
-// words for it where it has them — and not after the module they belong to:
-// the frame overhead carries that name on every page, and a row repeating it
-// would be the same word twice on one screen.
+// build names both rows after what pressing them does, in the same words in
+// every module, and not after the module they belong to: the frame overhead
+// carries that name on every page, and a row repeating it would be the same
+// word twice on one screen.
 func (h *hub) build() {
 	h.picker = newPicker([]item{
-		{title: h.app.verb(), key: keyInstall},
-		{title: h.app.settingsTitle(), key: keySettings},
+		{title: rowStart, key: keyInstall},
+		{title: rowSetup, key: keySettings},
 	})
 }
 
@@ -97,44 +96,37 @@ func (h *hub) Update(msg tea.Msg) (screen, tea.Cmd) {
 	return h, nil
 }
 
-// View is the module's words over the rows, a blank line between them. A frame
-// too short for both keeps the rows, since they are what the page is for.
+// View is the icon over the rows, a blank line between them, the two centred
+// as one block in the frame. A frame too small for the icon keeps the rows,
+// since they are what the page is for.
 func (h *hub) View(width, height int) string {
-	intro := h.intro(width)
-	if len(intro) == 0 || len(intro)+1+h.picker.height(width) > height {
-		return h.picker.View(width, height)
+	rows := h.picker.column(min(len(h.picker.items), height))
+	if picture := h.picture(); len(picture)+gapS+len(rows) <= height && lipgloss.Width(picture[0]) <= width {
+		rows = append(append(picture, make([]string, gapS)...), rows...)
 	}
-	return block(intro) + "\n\n" + h.picker.View(width, height-len(intro)-1)
+	for i, r := range rows {
+		rows[i] = lipgloss.PlaceHorizontal(width, lipgloss.Center, r)
+	}
+	// Centred between the frame's rules, so the blank line the frame keeps under
+	// the top one counts as a row above. A row left over goes under the block.
+	lead := max((height+1-len(rows))/2-1, 0)
+	return block(append(make([]string, lead), rows...))
 }
 
-// intro is the module's description at the reading width, its icon in front:
-// the module's, the runtime's, or the tick. Nothing where the module describes
-// nothing, since an icon beside no words would be a mark on its own.
-//
-// The icon starts where the rows' titles do, past the cursor's column, so the
-// page has one left edge.
-func (h *hub) intro(width int) []string {
-	help := h.app.module.Help()
-	if help == "" {
-		return nil
-	}
-	picture, ink := glyphTickSmall, goodStyle
+// picture is the module's icon, the runtime's, or the tick, squared off so it
+// centres as one block. Five rows stand to the blank line and the two rows
+// under them in the golden ratio, which is the size the tick is drawn at.
+func (h *hub) picture() []string {
+	picture, ink := padLines(glyphTick), goodStyle
 	if icon := h.app.icon(); icon != "" {
 		picture, ink = logoLines(icon), accentStyle
 	}
-	indent := lipgloss.Width(glyphBlank)
-	icon := make([]string, len(picture))
-	iconW := 0
+	out := make([]string, len(picture))
 	for i, line := range picture {
-		icon[i] = field(glyphBlank) + ink.Render(line)
-		iconW = max(iconW, lipgloss.Width(line))
+		out[i] = ink.Render(line)
 	}
-	words := inked(help, bodyWidth(width)-indent-iconW-hubGap, textStyle)
-	return beside(icon, indent+iconW, words, hubGap)
+	return out
 }
-
-// hubGap is the channel between the icon and the words.
-const hubGap = gapXL
 
 // unofferedMsg is the answers the lists no longer offer.
 type unofferedMsg struct{ names []string }
