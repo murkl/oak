@@ -11,17 +11,10 @@ import (
 	"github.com/murkl/oak/internal/spec"
 )
 
-// Store is every declared variable and its current value.
-//
-// A value can come from four places, each beating the one before it: the
-// declared default, the saved answer file, the preset somebody chose, and the
-// answer somebody typed. That order is what lets a saved file stop the
-// questions from being asked twice.
-//
-// The environment this program was started in is not among them. What a script
-// is handed is settled here and given to it — a variable inherited from
-// whatever shell happened to start this run is as often an accident as an
-// instruction, and an installation is not a place to guess which.
+// Store is every declared variable and its current value: the default, then the
+// answer file, then a preset, then what was typed, each beating the one before.
+// The environment Oak was started in is none of them, since an inherited
+// variable is as often an accident as an instruction.
 type Store struct {
 	mod   *spec.Module
 	val   map[string]string
@@ -50,29 +43,15 @@ func (s *Store) Path() string { return s.path }
 // Get reads a value.
 func (s *Store) Get(name string) string { return s.val[name] }
 
-// Set records an answer. It does not save — the caller decides when the file is
+// Set records an answer. It does not save - the caller decides when the file is
 // written, because a value being tried out and a value being settled are not
 // the same thing.
 func (s *Store) Set(name, value string) { s.val[name] = value }
 
-// Env is what a script sees: the process environment, then every declared
-// variable — the module's own and its options' pages — and then the two names
-// Oak keeps for itself. Later entries win, so
-// a variable always carries the value the store holds and never a stale
-// inherited one.
-//
-// Those two are the whole of what Oak adds. MODULE_CONF is the answer file,
-// which is the one channel in both directions — a script reads its answers from
-// the environment and writes one back by appending a line to that file, exactly
-// as somebody editing it by hand would. DEBUG is there only when the run was
-// started with --debug, so `[ "$DEBUG" = true ]` is the whole test and there is
-// no second value to remember. Everything else a script used to be handed it
-// can work out for itself: its own folder is where lib.sh was sourced from.
-//
-// Secrets are in here like anything else — that is the whole reason they are
-// asked for. They reach the bash process that runs the stages, and the check
-// that tries one before it is taken, and go no further: not to the answer file,
-// not to the log.
+// Env is what a script sees: the process environment, every declared variable
+// over it, and MODULE_CONF, the answer file a script appends an answer to, with
+// DEBUG=true under --debug. Secrets are in it and go no further than the
+// processes it is handed to.
 func (s *Store) Env() exec.Env {
 	env := append(exec.Env{}, os.Environ()...)
 	for _, v := range s.mod.Declared() {
@@ -98,16 +77,10 @@ func (s *Store) Apply(o *spec.Preset) {
 	}
 }
 
-// Missing lists the questions still standing, in the order they were declared:
-// every variable that is required, means something given the answers so far,
-// and has no acceptable value yet.
-//
-// Three kinds are not among them, and for much the same reason: none of them is
-// a question anybody could answer here. A secret is never written down and is
-// asked for immediately before the run that needs it — see Secrets. A deferred
-// value is one a task asks for mid-run, because until that task's turn there is
-// nothing to choose from. A derived one the module reads off the machine
-// itself.
+// Missing lists the questions still standing in declaration order: every
+// required variable that means something given the answers so far and has no
+// acceptable value. Secrets, deferred and derived values are no question
+// anybody could answer here, so they are not among them.
 func (s *Store) Missing() []*spec.Variable {
 	var out []*spec.Variable
 	for _, v := range s.mod.Vars {
@@ -125,7 +98,7 @@ func (s *Store) Missing() []*spec.Variable {
 // happens at all: before anything the work waits for is looked at, before a
 // starting point is chosen.
 //
-// The same rule as Missing, narrowed — so a question already answered is not
+// The same rule as Missing, narrowed - so a question already answered is not
 // asked again on the way in, and a second start goes straight past them.
 func (s *Store) Upfront() []*spec.Variable {
 	var out []*spec.Variable
@@ -138,7 +111,7 @@ func (s *Store) Upfront() []*spec.Variable {
 }
 
 // Secrets lists the variables that have to be typed before a run and are never
-// kept — in declaration order, so a folder decides what is asked first.
+// kept - in declaration order, so a folder decides what is asked first.
 func (s *Store) Secrets() []*spec.Variable {
 	var out []*spec.Variable
 	for _, v := range s.mod.Vars {
@@ -149,15 +122,9 @@ func (s *Store) Secrets() []*spec.Variable {
 	return out
 }
 
-// Visible lists the variables worth showing on the settings page: everything
-// that means something given the answers so far, in declaration order.
-//
-// The three kinds Missing leaves out are left out here too, because a settings
-// page is a promise that every row on it can be opened and none of them can. A
-// deferred value offers what is read off work that has not happened yet, a
-// derived one is read off the machine every run, and a secret is not stored at
-// all — a row showing a password that cannot be typed into is a row that only
-// raises the question of why not.
+// Visible lists what the settings page shows: every variable that means
+// something given the answers so far, in declaration order. It leaves out what
+// Missing leaves out, since a row that cannot be opened only asks why not.
 func (s *Store) Visible() []*spec.Variable {
 	var out []*spec.Variable
 	for _, v := range s.mod.Vars {
@@ -168,13 +135,9 @@ func (s *Store) Visible() []*spec.Variable {
 	return out
 }
 
-// Unoffer records that the answer name holds is not among those its list
-// offers any more. The list is the only thing that can say so, and reading it
-// is running shell, so it is read where the answer is about to be acted on
-// rather than on every question about the answers - see Runner.Unoffered.
-//
-// From then on that value is turned away like one that breaks a rule, so the
-// question is put again and says why. Another value is judged on its own.
+// Unoffer records that name's answer is no longer among those its list offers,
+// which only running the list can tell (see Runner.Unoffered). From then on
+// that value is turned away like one that breaks a rule.
 func (s *Store) Unoffer(name string) { s.unoffered[name] = s.val[name] }
 
 // Reoffer takes back what Unoffer recorded, for a list read again that offers
@@ -209,7 +172,7 @@ func (s *Store) Invalid(v *spec.Variable, value string) string {
 }
 
 // Display is what a value looks like on a page: a bool in words, and an
-// unanswered question as a dash rather than as nothing at all — an empty column
+// unanswered question as a dash rather than as nothing at all - an empty column
 // reads as a row that is still loading.
 func (s *Store) Display(v *spec.Variable) string {
 	if value := s.val[v.Name]; value != "" {
@@ -221,9 +184,9 @@ func (s *Store) Display(v *spec.Variable) string {
 // Label is how one value is read out loud: true and false in the interface's
 // own language wherever they turn up, and every other value as itself.
 //
-// The two words are the runtime's rather than a folder's — they are what a
+// The two words are the runtime's rather than a folder's - they are what a
 // script tests against, and what they are called on screen is not something a
-// folder should have to translate — so a list that offers a third answer beside
+// folder should have to translate - so a list that offers a third answer beside
 // them still reads as Yes and No.
 func Label(value string) string {
 	switch value {

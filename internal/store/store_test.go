@@ -16,8 +16,8 @@ func setup(t *testing.T, variables string) *Store {
 	return New(load(t, "title: T\nstages: [go]\n"+variables), filepath.Join(t.TempDir(), "installer.conf"), false)
 }
 
-// load writes the smallest module that will load — the given declaration and
-// one task — and reads it back.
+// load writes the smallest module that will load - the given declaration and
+// one task - and reads it back.
 func load(t *testing.T, installer string) *spec.Module {
 	t.Helper()
 	dir := t.TempDir()
@@ -68,7 +68,7 @@ func TestMissingIsWhatIsStillOpen(t *testing.T) {
 }
 
 // A value edited straight into the answer file never passed a prompt, so it is
-// held to the same rules — and an invalid one puts the question back rather
+// held to the same rules - and an invalid one puts the question back rather
 // than reaching a script.
 func TestAnInvalidStoredValueIsStillMissing(t *testing.T) {
 	s := setup(t, twoVars)
@@ -234,7 +234,7 @@ func TestDebugReachesAScriptOnlyWhenItWasAskedFor(t *testing.T) {
 }
 
 // Everything else a script used to be handed it can work out for itself, and
-// what Oak hands over is a promise it has to keep across releases — so the list
+// what Oak hands over is a promise it has to keep across releases - so the list
 // is written down here as well as in the reference.
 func TestOakAddsNothingElseToTheEnvironment(t *testing.T) {
 	s := setup(t, twoVars)
@@ -269,7 +269,7 @@ variables:
 	}
 }
 
-// What comes first is the same rule as what is missing, narrowed — so a second
+// What comes first is the same rule as what is missing, narrowed - so a second
 // start, where the answer is already in the file, goes straight past it.
 func TestUpfrontIsWhatIsStillOpenAndMarkedFirst(t *testing.T) {
 	s := setup(t, `
@@ -297,7 +297,7 @@ variables:
 }
 
 // The settings page reads true and false out loud wherever they turn up, so a
-// list that offers a third answer beside them is still readable — and a
+// list that offers a third answer beside them is still readable - and a
 // question nobody has answered reads as a dash rather than as an empty column.
 func TestDisplayReadsTheTwoBoolWordsOutLoud(t *testing.T) {
 	s := setup(t, `
@@ -397,8 +397,8 @@ func TestExistsSaysWhetherThisMachineHasAnsweredAnythingYet(t *testing.T) {
 	}
 }
 
-// A script may answer questions by appending to the answer file — a shared
-// configuration fetched from somewhere, a link a run has just produced — and
+// A script may answer questions by appending to the answer file - a shared
+// configuration fetched from somewhere, a link a run has just produced - and
 // what it wrote has to arrive without the program being restarted.
 func TestLoadingAgainPicksUpWhatAScriptWroteIntoTheAnswerFile(t *testing.T) {
 	s := setup(t, twoVars)
@@ -426,7 +426,7 @@ func TestLoadingAgainPicksUpWhatAScriptWroteIntoTheAnswerFile(t *testing.T) {
 }
 
 // A derived answer is a fact the module reads off the machine, so it is neither
-// a question that holds the run up nor a row on the settings page — and it is
+// a question that holds the run up nor a row on the settings page - and it is
 // never written down, because the file could only hold a copy able to disagree
 // with what the next run reads.
 func TestADerivedAnswerIsNeitherAskedNorShownNorWritten(t *testing.T) {
