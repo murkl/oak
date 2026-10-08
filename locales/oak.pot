@@ -114,47 +114,47 @@ msgstr ""
 msgid "No"
 msgstr ""
 
-#: main.go:236
+#: main.go:206
 #, c-format
 msgid "One language at a time: %s or %s."
 msgstr ""
 
-#: main.go:240
+#: main.go:210
 #, c-format
 msgid "%s needs the code of a language: %s=<code>."
 msgstr ""
 
-#: main.go:243
+#: main.go:213
 #, c-format
 msgid "One module at a time: %s or %s."
 msgstr ""
 
-#: main.go:247
+#: main.go:217
 #, c-format
 msgid "%s needs the name of a module: %s=<id>."
 msgstr ""
 
-#: main.go:250
+#: main.go:220
 #, c-format
 msgid "%q is not something this program takes."
 msgstr ""
 
-#: main.go:251
+#: main.go:221
 #, c-format
 msgid "It takes %s."
 msgstr ""
 
-#: main.go:271
+#: main.go:241
 #, c-format
 msgid "No module called %s."
 msgstr ""
 
-#: main.go:272 main.go:339
+#: main.go:242 main.go:309
 #, c-format
 msgid "This one offers %s."
 msgstr ""
 
-#: main.go:338
+#: main.go:308
 #, c-format
 msgid "No language called %s."
 msgstr ""

@@ -1,13 +1,7 @@
-// Command potgen writes Oak's own translation template to stdout.
-//
-// The list of what needs translating is read out of the Go sources rather than
-// kept by hand beside them: every T("…") and every say("…") is a message, so a
-// word added, reworded or deleted is in the template the next time this runs
-// and in front of the translators the next time that is committed. Nothing can
-// drift, because there is nothing to keep in step.
-//
-// Only string literals are taken. T(sp.UI.Title) is a message too, but it is
-// a module's rather than Oak's, and `oak --strings` lists those.
+// Command potgen writes Oak's translation template to stdout, read out of every
+// T("…") and say("…") in the Go sources so it cannot drift. Only string
+// literals are taken: T(sp.UI.Title) is a module's message, which `oak
+// --strings` lists.
 package main
 
 import (
@@ -28,7 +22,7 @@ import (
 // project is what the template says it belongs to.
 const project = "oak"
 
-// keywords are the calls that put a string in front of somebody — the
+// keywords are the calls that put a string in front of somebody - the
 // translator itself, and the interface's own voice, which wraps it.
 var keywords = map[string]bool{"T": true, "say": true}
 
@@ -74,7 +68,7 @@ func collect(root string) ([]i18n.Entry, error) {
 			return err
 		}
 		// A note is written above the message it is about, or above whatever
-		// holds it — a one-line function is still one thing. It belongs to the
+		// holds it - a one-line function is still one thing. It belongs to the
 		// first message under it and to no other.
 		notes := translatorNotes(fset, file)
 		pending := ""

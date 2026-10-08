@@ -1,28 +1,7 @@
-// Command oak draws an interface for programs that live beside it as files.
-//
-// On its own the binary does nothing: it draws an interface, asks questions,
-// keeps the answers and runs shell in order, reporting where it broke. What is
-// asked and what the shell does is a folder of yaml and scripts.
-//
-// One of those folders is a module, and they sit together in modules/ beside
-// the binary. oak.yaml beside them says what the product they add up to is
-// called and what it looks like; each module says the rest for itself. Nothing
-// about any particular operating system is compiled in, so the same binary
-// drives a different product by sitting next to a different oak.yaml and a
-// different set of modules.
-//
-// The command line is eight options and nothing else. Five are about a run:
-// --version says which release this binary is and which build of the product
-// beside it, --module opens one of the
-// folders outright, --language settles the words it is read in, --debug shows
-// the run without starting anything that has not said it simulates itself, and
-// --kiosk says the program is all its machine is for. Two are about the folder
-// rather than the run, for whoever is writing one: --inspect loads it the way a
-// run does and reports what it holds, and --strings writes a module's
-// translation template. And --glyphs is about the binary: every character it
-// can put on a console, for a product that picks the console font to hold that
-// font to. What a product may declare is in the yaml beside the binary, never
-// here.
+// Command oak draws an interface for the modules beside it: it asks, keeps the
+// answers and runs their shell in order, reporting where it broke. Nothing
+// about an operating system is compiled in, and every option is in
+// docs/REFERENCE.md.
 package main
 
 import (
@@ -51,7 +30,7 @@ import (
 var version = "dev"
 
 // The answers and the log live beside whoever started the program, never inside
-// a module — which may be a read-only medium or a mounted image. A module's are
+// a module - which may be a read-only medium or a mounted image. A module's are
 // named after the module, so two of them started from the same folder keep
 // their own; Oak's own answers are named after Oak, beside them, and hold what
 // is settled before any module has been chosen.
@@ -144,19 +123,10 @@ func start(args []string) error {
 	return run(rt, mods, cmd)
 }
 
-// offered cuts the modules down to the ones this machine belongs to, by asking
-// each of them — a module that declares nothing about it belongs everywhere.
-//
-// What is left is what the interface offers: several is the question it puts
-// after the language, one is opened on the way in without a list of one row, and
-// none is this program having nothing to do here. A module named outright
-// arrives as the only one, so the same line that reports none of them is also
-// what says why the named one was refused, in that module's own words.
-//
-// A simulated run skips the question entirely and offers all of them. What
-// --debug is for is reading the pages on a machine that is none of the ones this
-// product is about, and a list narrowed to what that machine happens to be would
-// hide exactly the pages somebody wanted to see.
+// offered cuts the modules down to those this machine belongs to, a module that
+// declares nothing belonging everywhere, and the error for none names why a
+// module named outright was refused. --debug offers all of them, since it is
+// for reading pages on a machine none of them is about.
 func offered(mods []*spec.Module, debug bool) ([]*spec.Module, error) {
 	if debug {
 		return mods, nil
@@ -191,14 +161,14 @@ func machine(mod *spec.Module) error {
 
 // command is a command line, read.
 type command struct {
-	// module is the module it named, or empty where it named none — which is
+	// module is the module it named, or empty where it named none - which is
 	// the question the interface then asks. The two below narrow to it as well:
 	// a report is about every module unless one was named, and a template
 	// belongs to exactly one.
 	module string
 
 	// language is the language it named, as a catalog's code or a locale the
-	// way the environment writes one, or empty where it named none — which is
+	// way the environment writes one, or empty where it named none - which is
 	// the question the welcome page then asks.
 	language string
 
@@ -212,7 +182,7 @@ type command struct {
 
 // parse reads one. Which module names exist is not decided here but by what is
 // in modules/, so a name nobody declared is refused by narrow with everything
-// on offer under it — and adding a module stays a folder rather than a change
+// on offer under it - and adding a module stays a folder rather than a change
 // here.
 func parse(args []string) (command, error) {
 	var c command
@@ -255,7 +225,7 @@ func parse(args []string) (command, error) {
 }
 
 // narrow cuts a run down to the module the command line named, or leaves every
-// one of them where it named none — which is the question the interface then
+// one of them where it named none - which is the question the interface then
 // asks. A name no folder answers to is said so, with everything on offer under
 // it.
 func narrow(rt *spec.Runtime, mods []*spec.Module, id string) ([]*spec.Module, error) {
@@ -325,7 +295,7 @@ func versions(dir string) (string, error) {
 }
 
 // chosen is the language the command line named, matched the way the
-// environment's own locale is — `de`, `de_DE` and `de_DE.UTF-8` are all German —
+// environment's own locale is - `de`, `de_DE` and `de_DE.UTF-8` are all German -
 // or nothing where it named none.
 func chosen(name string, langs []i18n.Lang) (string, error) {
 	if name == "" {
@@ -391,7 +361,7 @@ func open(mod *spec.Module, debug bool) (*tui.Program, error) {
 		return nil, err
 	}
 
-	// Opened before the first page of this module is drawn — and only now,
+	// Opened before the first page of this module is drawn - and only now,
 	// because where it goes follows where the answers go.
 	if err := logging.Init(filepath.Join(filepath.Dir(conf), mod.ID()+logExt)); err != nil {
 		return nil, err
@@ -416,11 +386,8 @@ func open(mod *spec.Module, debug bool) (*tui.Program, error) {
 }
 
 // catalogs is every source of words a run has: the runtime's own, and each
-// module's laid over them. A module that declares none simply speaks the
-// runtime's.
-//
-// Several modules at once is what the language page and the page asking which
-// to open need, since none of them is the one this run is about yet.
+// module's laid over them. Several modules at once is what the language page
+// and the page that asks which to open need.
 func catalogs(mods ...*spec.Module) []fs.FS {
 	out := []fs.FS{locales.FS}
 	for _, mod := range mods {

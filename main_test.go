@@ -205,7 +205,7 @@ func TestEveryModuleOfARuntimeIsRead(t *testing.T) {
 	}
 }
 
-// Naming one is the question of which to open, already answered — so the run
+// Naming one is the question of which to open, already answered - so the run
 // narrows to it, whatever else was read alongside it.
 func TestNamingAModuleNarrowsTheRunToIt(t *testing.T) {
 	rt, mods := product(t, runtime(t, runtimeDecl, "installer", "recovery"))
@@ -610,7 +610,7 @@ func TestWhatAModuleIsOfferedOnIsGivenTheProductsShell(t *testing.T) {
 	}
 }
 
-// The check is an action a module wrote, and it is written next to its tasks —
+// The check is an action a module wrote, and it is written next to its tasks -
 // where `return 0` is how a guard says yes. Shell that means one thing there
 // and another here would be a trap laid for whoever writes the next module.
 func TestAnActionMaySayYesTheWayEveryOtherGuardDoes(t *testing.T) {
