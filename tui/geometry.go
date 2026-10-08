@@ -3,7 +3,7 @@ package tui
 // Every size in this program comes from one place, and that place is the golden
 // ratio.
 //
-// In whole cells φ means Fibonacci: 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 — each
+// In whole cells φ means Fibonacci: 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 - each
 // pair as close to φ as integers get, so a layout built from them keeps the
 // same proportion at every scale without a single rounded pixel.
 const (
@@ -58,13 +58,8 @@ func raised(rows []string, height int) []string {
 	return append(make([]string, lead), rows...)
 }
 
-// bodyWidth is how far running text may run: the width less a golden margin.
-//
-// A description is a sentence or two above a list, not a column of prose. The
-// reading width would break it early enough to cost a second line; the bare
-// frame edge would leave it flush against the border, the one block on the page
-// with nothing to its right. A φ³ margin — 21 of the frame's 89 — stops it
-// short of the edge while still holding the sentence on one line.
+// bodyWidth is how far running text may run: the width less a φ³ margin, 21 of
+// the frame's 89. A description stays off the border and still on one line.
 func bodyWidth(width int) int {
 	return width - int(float64(width)/(phi*phi*phi)+0.5)
 }

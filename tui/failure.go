@@ -9,22 +9,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// One failure, drawn one way, wherever it comes from — the system check that
-// refused to start, or a stage that died halfway through. A person reading it
-// is not having a good day, and the last thing they need is two different
-// shapes of bad news to learn.
-//
-// The order is what somebody actually needs, in that order: **where** — which
-// module, which unit, which file and line, which command, which exit code —
-// and then **what it said** on its way out, in the words of the tool itself.
-//
-// Where first, because that is the fixed part: the same handful of rows every
-// time, read at a glance and in the same place on every failure. What a tool
-// said is as long as the tool felt like being, and a paragraph of somebody
-// else's prose above the rows would push them off the top of the page it is
-// being read on.
-//
-// Nothing is folded away and nothing has to be pressed for.
+// renderFailure draws every failure one way: first where, the module, unit,
+// file and line, command and exit code, in fixed rows, then what the tool said
+// on its way out. Nothing is folded away or has to be pressed for.
 func renderFailure(err error, width int) string {
 	var b strings.Builder
 	f, ok := err.(*exec.Failure)
@@ -34,7 +21,7 @@ func renderFailure(err error, width int) string {
 	}
 
 	// The label column is as wide as the widest label plus a gap, so the values
-	// stand in one column — the same rule every other pair in this interface
+	// stand in one column - the same rule every other pair in this interface
 	// lines up by.
 	fields := f.Fields()
 	labelW := 0
@@ -51,7 +38,7 @@ func renderFailure(err error, width int) string {
 		b.WriteString(label + field(strings.Repeat(" ", gapM)) + softStyle.Render(value) + "\n")
 	}
 	// What the script itself said, which is the whole of what this page shows
-	// of its output — the rest is in the log, and the line under it says where.
+	// of its output - the rest is in the log, and the line under it says where.
 	if msg := strings.TrimSpace(f.Stderr); msg != "" {
 		b.WriteString("\n" + failStyle.Render(wrapped(msg, width)) + "\n")
 	}
@@ -92,7 +79,7 @@ func unitOf(err error) string {
 }
 
 // logNote says where everything that did not fit is. It is the one place the
-// interface admits there is more output than it showed — and it is a path, not
+// interface admits there is more output than it showed - and it is a path, not
 // an offer to show it: a page of somebody else's build log inside this frame
 // would be the frame breaking.
 func logNote(width int) string {
@@ -107,7 +94,7 @@ func logNote(width int) string {
 }
 
 // hardWrap breaks a string at the width, on a space where there is one and
-// mid-word where there is not — for the one line here that is a path rather
+// mid-word where there is not - for the one line here that is a path rather
 // than a sentence.
 func hardWrap(s string, width int) []string {
 	var out []string

@@ -6,13 +6,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// confirmScreen is the last page before anything is changed, after every
-// password, where the module declares confirm: a yes or no, the question in the
-// warning colour over it. The question is the runtime's, the same in every
-// module.
-//
-// It opens on No: the password before it was confirmed with enter, and an enter
-// pressed once too often must not start the work.
+// confirmScreen is the runtime's yes or no before anything changes, after every
+// password, where the module declares confirm. It opens on No, since the
+// password before it was confirmed with enter.
 type confirmScreen struct {
 	app    *app
 	picker *picker
@@ -70,13 +66,9 @@ func (s *confirmScreen) View(width, height int) string {
 	return head + "\n\n" + s.picker.View(width, max(height-used, 1))
 }
 
-// startInstall is the way into an installation: the secrets that have to be
-// typed first, in order, and then the last page where the module asks for one,
-// or the work itself.
-//
-// Asked here rather than among the other questions, because a secret is never
-// written down: it would be missing again at every start, and no machine could
-// ever be finished answering. Here it is typed once, used, and forgotten.
+// startInstall is the way into the work: the secrets to type first, then the
+// confirmation where declared, or the run. A secret is asked here because it is
+// never written down, typed once, used and forgotten.
 func startInstall(a *app, next int) screen {
 	secrets := a.store.Secrets()
 	if next < len(secrets) {
@@ -90,10 +82,9 @@ func startInstall(a *app, next int) screen {
 	return startRun(a)
 }
 
-// startRun is the work itself. A finished run ends on its result, under it
-// whatever the module offers once the work is done, and going on from there
-// leaves. A failed one lands back on the hub, which is where a wrong answer is
-// corrected.
+// startRun is the work itself. A finished run ends on its result and the
+// module's success rows, and a failed one lands back on the hub to correct an
+// answer.
 func startRun(a *app) screen {
 	return newRun(a, a.runner.Tasks(), leave, func() tea.Cmd { return reset(newHub(a)) })
 }

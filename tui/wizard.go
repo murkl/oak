@@ -6,18 +6,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// wizard is a run of questions: every value that is required, means something,
-// and has no acceptable answer yet — asked one to a page, in the order the
-// folder declared them. Usually the opening run, before the hub is ever shown,
-// but the same run of questions is what settings falls back into on the way
-// out, if flipping a setting just left something else standing open.
-//
-// It is not a screen. It is the thing that decides which screen comes next, and
-// it holds nothing but the length of the run it started with. What is still
-// open is read from the answers every single time rather than remembered,
-// because answering one question can open another — say yes to a desktop and
-// there is suddenly a graphics driver to choose — and a list worked out once at
-// the start would quietly skip it.
+// wizard decides which question comes next: every required value that means
+// something and has no acceptable answer, one to a page, in declaration order.
+// It reads what is open from the answers each time, since one answer can open
+// another question.
 type wizard struct {
 	app   *app
 	total int
@@ -34,8 +26,8 @@ func (w *wizard) screen(v *spec.Variable) screen {
 }
 
 // next is what follows an answer: the question after it, or the end of the run.
-// Reached again by answering a question a second time — somebody went back a
-// page — and correct there too, because where a question sits is worked out
+// Reached again by answering a question a second time - somebody went back a
+// page - and correct there too, because where a question sits is worked out
 // from what is still open rather than counted off as pages go by.
 func (w *wizard) next() tea.Cmd {
 	missing := w.app.store.Missing()

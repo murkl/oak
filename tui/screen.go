@@ -2,21 +2,16 @@ package tui
 
 import tea "github.com/charmbracelet/bubbletea"
 
-// A screen is a page of the interface. The contract is four methods, and the
-// smallness is the point: a screen says what it is called, what it does with a
-// key, what it looks like in the space it is given, and which keys it answers
-// to. Everything else — the frame, the breadcrumb, the footer — belongs to the
-// model and no screen can disagree with it.
-//
-// Screens are a stack, one in front of the last, bar one: the way out is drawn
-// over the stack rather than on it, because it is a question about what is
-// happening rather than a step further into it. See Model.leaving.
+// A screen is a page of the interface: its name, what it does with a key, how
+// it looks and which keys it answers to, while the frame belongs to the model.
+// Screens stack, except the way out, which is drawn over the stack (see
+// Model.leaving).
 type screen interface {
 	// Title is this screen's segment of the breadcrumb. Empty adds nothing.
 	Title() string
 	Update(tea.Msg) (screen, tea.Cmd)
 	// View is handed its space rather than reading a global, so a screen can be
-	// rendered at any size — which is what makes it testable.
+	// rendered at any size - which is what makes it testable.
 	View(width, height int) string
 	// Hint is the footer's key help, kept next to the keys it describes so the
 	// two cannot drift apart.
@@ -36,7 +31,7 @@ type (
 
 	// A screen that starts the breadcrumb over at itself rather than adding to
 	// the trail behind it. One run of questions is not a path through the
-	// program — it is one place you stay in while the question changes, and a
+	// program - it is one place you stay in while the question changes, and a
 	// trail of every answer already given would be a line that grows across the
 	// frame saying nothing about where you are.
 	crumbRooter interface{ crumbRoot() bool }
@@ -62,7 +57,7 @@ type (
 
 	// A screen that stands on the field rather than in the frame, under the
 	// splash's wordmark: the welcome page. It is handed the splash before that
-	// starts, draws it for as long as it lasts and keeps the wordmark after —
+	// starts, draws it for as long as it lasts and keeps the wordmark after -
 	// and it is handed the whole terminal, keys and all, since there is no
 	// frame around it to carry them.
 	stager interface{ stage(*splashModel) }
@@ -71,7 +66,7 @@ type (
 // opening is embedded by the pages in front of the questions proper: the
 // language, the fork, what a module asks first, what the work waits for, the
 // starting points. They follow one another rather than lead into one another,
-// so each stands under one heading instead of inside the page before it — a
+// so each stands under one heading instead of inside the page before it - a
 // line growing by a segment for every page already answered says where somebody
 // has been, which is not what a breadcrumb is for.
 type opening struct{}
@@ -102,7 +97,7 @@ func takesText(s screen) bool {
 
 // held reports whether there is no going back from s: something is running on
 // it, or it says so itself. The two are the same thing to somebody pressing
-// esc — there is no page behind this one — and both answer with the way out
+// esc - there is no page behind this one - and both answer with the way out
 // rather than with a page that is not there.
 func held(s screen) bool {
 	if working(s) {
@@ -177,18 +172,14 @@ type (
 		bad  bool
 	}
 
-	// The two ways this program ends, and they are not the same thing. leaveMsg
-	// is a page saying it has nothing after it: what happens then is the model's
-	// to decide, and on a machine that booted to run this it is a question
-	// rather than an exit — see Model.exit. quitMsg is the program actually
-	// stopping, which only the two things that know the machine is already going
-	// down ever say: the page that just restarted it, and a task the program
-	// does not come back from.
+	// leaveMsg is a page with nothing after it, which the model may turn into a
+	// question (see Model.exit). quitMsg ends the program, said only by what
+	// knows the machine is already going down.
 	leaveMsg struct{}
 	quitMsg  struct{}
 
 	// dismissMsg closes the way out again, leaving whatever is behind it
-	// exactly as it was — including a run that never stopped.
+	// exactly as it was - including a run that never stopped.
 	dismissMsg struct{}
 )
 

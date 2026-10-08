@@ -13,21 +13,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// consoleFont is what a Linux virtual console can draw: the printable ASCII
-// range, the Latin-1 letters, and the marks below.
-//
-// It is a demand rather than an observation. A console font holds at most 512
-// glyphs and every one of them is somebody's choice, so there is no set that is
-// simply there — what is below is the set a product running on a console has to
-// load a font for, and `kbd`'s own default8x16 is one that holds all of it.
-// Several well-known ones do not: every Terminus has the full block and neither
-// half of it, which is exactly the three cells a code and the mark over a
-// finished run are drawn from.
-//
-// Written out rather than read off the running machine on purpose. What matters
-// is not which font this developer happens to have loaded — it is which
-// codepoints a product may count on, and that is a decision rather than a fact
-// about anything here.
+// consoleFont is what a product on a Linux console must load a font for:
+// printable ASCII, the Latin-1 letters and the marks below, all in kbd's
+// default8x16. It is a decision rather than read off this machine; every
+// Terminus lacks both half blocks.
 const consoleFont = "─│┌┐└┘├┤┬┴┼░▒█▀▄■·•»«±°÷↑↓←→▲▼▶◀♦"
 
 func inConsoleFont(s string) bool {
@@ -52,7 +41,7 @@ func undrawable(s string) rune {
 }
 
 // The whole point of the reduced set: a console font holds at most 512 glyphs,
-// and a codepoint that is not among them is not drawn as anything sensible —
+// and a codepoint that is not among them is not drawn as anything sensible -
 // the kernel puts a replacement in its place, so a spinner stops turning and a
 // tick turns into a letter.
 func TestEveryPlainGlyphIsOneAConsoleFontHas(t *testing.T) {
@@ -86,7 +75,7 @@ func TestEveryPlainGlyphIsOneAConsoleFontHas(t *testing.T) {
 }
 
 // And the four cells everything drawn as a picture is built from, which are in
-// neither set because there is nothing to choose between — but are still four
+// neither set because there is nothing to choose between - but are still four
 // glyphs a font either holds or does not. Without them the mark over a finished
 // run and the code on the welcome page come out as whatever that font puts in
 // place of a codepoint it has never heard of.
@@ -205,11 +194,9 @@ func TestNothingTurningLooksLikeAFinishedRow(t *testing.T) {
 	}
 }
 
-// The marks are chosen for a console font. The words are not: they come out of
-// the code and out of a catalog, and both are written by somebody with a real
-// font in front of them — an ellipsis or a return symbol costs nothing there
-// and is a hole in the line on a virtual console. So the words are put through
-// the same set the marks come from, and this is that working.
+// The words come from code and catalogs written in front of a real font, where
+// an ellipsis costs nothing and is a hole on a console. So they are held to the
+// same set as the marks.
 func TestEveryWordOnScreenFitsAConsoleFont(t *testing.T) {
 	t.Cleanup(func() { adaptGlyphs(false) })
 	adaptGlyphs(true)
@@ -274,7 +261,7 @@ func TestEveryTranslationFitsAConsoleFont(t *testing.T) {
 }
 
 // What the binary says it can put on a console is what the reduced set draws,
-// the frame included, with the words as that set spells them — never a mark of
+// the frame included, with the words as that set spells them - never a mark of
 // the full set, and never one a console font does not have.
 func TestConsoleGlyphsIsWhatTheReducedSetDraws(t *testing.T) {
 	got := ConsoleGlyphs("Press ⏎ to go on…", "Zurück")

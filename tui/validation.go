@@ -67,16 +67,9 @@ func (s *resultsScreen) headline() string {
 	return failStyle.Render(glyphs.fail) + field(" ") + boldStyle.Render(s.verdict)
 }
 
-// failureScreen is one failure, opened: everything there is to know about it,
-// under the name of what it happened to.
-//
-// It is the same page wherever a failure comes from — a test the machine
-// disagreed with, or the task that stopped the run — because they are the same
-// thing and somebody reading either is after the same answer. What differs is
-// the title over it and where leaving it goes, so those are what it is handed.
-//
-// Nothing is folded away and nothing is summarised. Somebody on this page is
-// about to open a file, and what they need is which one and which line of it.
+// failureScreen is one failure opened in full under the name of what it
+// happened to, the same page for a failed test and a stopped run. Nothing is
+// folded away, since the reader is about to open a file at a line.
 type failureScreen struct {
 	title string
 	err   error
@@ -91,7 +84,7 @@ type failureScreen struct {
 	hint func() string
 
 	// app and picker are the rows under the report where a module names actions
-	// for a run that failed — see offering. Nil everywhere else.
+	// for a run that failed - see offering. Nil everywhere else.
 	app    *app
 	picker *picker
 }
@@ -106,7 +99,7 @@ func (s *failureScreen) saying(text string) *failureScreen {
 	return s
 }
 
-// hinted names the way out for a page there is no going back from — where what
+// hinted names the way out for a page there is no going back from - where what
 // is behind it is leaving rather than the page it was opened from.
 func (s *failureScreen) hinted(hint func() string) *failureScreen {
 	s.hint = hint
@@ -114,7 +107,7 @@ func (s *failureScreen) hinted(hint func() string) *failureScreen {
 }
 
 // offering puts the actions a module names for a run that failed under the
-// report, as rows above the one that leaves it — sharing the log, say. Where
+// report, as rows above the one that leaves it - sharing the log, say. Where
 // the module names none, or this machine has none of them, the page is the
 // report alone.
 func (s *failureScreen) offering(a *app) *failureScreen {
@@ -154,12 +147,9 @@ func (s *failureScreen) Hint() string {
 	return s.hint()
 }
 
-// Closed by the one key that means yes, and by nothing else. Everywhere else a
-// page that is only read answers to esc as well, because leaving it costs
-// nothing; here it costs the only account of what went wrong that this run will
-// ever give — and the page it is read on is reached by pressing enter, which
-// makes a second enter the one keystroke nobody arrives here holding. With rows
-// under it, that enter is on the row at the end of them.
+// Closed by enter alone, not esc, since leaving costs the run's only account of
+// what went wrong and enter is the key nobody arrives here holding. With rows
+// under it, that enter is on the last row.
 func (s *failureScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {

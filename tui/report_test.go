@@ -10,7 +10,7 @@ import (
 const testLink = "https://paste.rs/xqMHY"
 
 // Every row of a code is the same width, and there are half as many rows as
-// there are columns — which is what makes a module square in a cell that is
+// there are columns - which is what makes a module square in a cell that is
 // twice as tall as it is wide. A code drawn any other way is a picture of one.
 func TestACodeIsSquareInTheCellsItIsDrawnIn(t *testing.T) {
 	rows := qrCode(testLink, 40, 20)
@@ -56,7 +56,7 @@ func TestNothingIsDrawnForNoValue(t *testing.T) {
 }
 
 // The page is what it says and the value it produced. Everything else on it is
-// there to be dropped when the frame is too short for all of it — the paragraph
+// there to be dropped when the frame is too short for all of it - the paragraph
 // first, whole, and the mark only once there is no paragraph left.
 func TestAShortFrameLosesTheParagraphBeforeTheMark(t *testing.T) {
 	r := newReport("The system is installed", "One sentence.\n\nAnd a second one.", testLink)

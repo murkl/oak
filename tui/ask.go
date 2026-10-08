@@ -10,17 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// ask is a question put in the middle of a run: a value that could not have
-// been known before some of the work was done — which snapshot to go back to,
-// once the disk holding them is open.
-//
-// It stands where the list of tasks was rather than on a page of its own. A run
-// is one thing happening, and stepping out of it to answer something and back
-// in again would say that two things are, when what is really going on is a
-// single stretch of work that stopped to ask.
-//
-// It is answered or it is not got past. There is nothing behind it to go back
-// to: the task after it needs the value, and half the work is already done.
+// ask is a question in the middle of a run, for a value only known once some
+// work is done, standing where the task list was. It is answered or not got
+// past, since the task after it needs the value.
 type ask struct {
 	v      *spec.Variable
 	values []item
@@ -52,17 +44,9 @@ func (a *ask) Init(app *app) tea.Cmd {
 	}
 }
 
-// fill takes the answers and reports what to do with the task behind them.
-//
-// A list that came back empty is a task with nothing to do: this machine has no
-// snapshot to go back to, no second disk to pick. That is a step to skip, not a
-// run to abandon — and it is the one outcome a module cannot declare in
-// advance, because what there is to choose from is read off work that has only
-// just happened.
-//
-// A command that *failed* is something else entirely and stops the run: nothing
-// was read, so nothing is known, and skipping on that would be a step quietly
-// left out because a script had a typo in it.
+// fill takes the answers and says what to do with the task behind them. An
+// empty list skips the task, since there is nothing to choose, while a command
+// that failed stops the run rather than hide a typo.
 func (a *ask) fill(msg askedMsg, current string) (skip bool, err error) {
 	a.loading = false
 	if msg.err != nil {
@@ -81,7 +65,7 @@ func (a *ask) fill(msg askedMsg, current string) (skip bool, err error) {
 }
 
 // Update offers a key to the question and reports whether it has been answered.
-// The narrowing box gets it first, exactly as it does on a question page — a
+// The narrowing box gets it first, exactly as it does on a question page - a
 // list of snapshots is long, and typing through it is the only sane way down.
 func (a *ask) Update(key tea.KeyMsg, app *app) (cmd tea.Cmd, given bool) {
 	if a.loading {

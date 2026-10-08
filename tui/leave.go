@@ -9,25 +9,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// leaveScreen is the way out, on a machine where leaving is not quitting a
+// leaveScreen is the way out where the module says the machine booted to run
+// it: what to leave it in, and under that closing the interface, or in a kiosk
+// starting over. Drawn over what was happening, it stops nothing until a row is
+// chosen, and under --debug a row that does not simulate itself only closes the
 // program.
-//
-// A module that names actions for this page is saying that this machine booted
-// to run it: quitting into whatever is behind it is not an exit unless there is
-// something there. So every way out of the interface arrives here instead, and
-// what is offered is what the module says this machine can be left in —
-// switched off, started again — and, under those, running with the interface
-// closed. In a kiosk there is no console to go back to, and that last row
-// starts the program over instead.
-//
-// It is drawn over whatever was happening rather than in place of it, and
-// nothing is stopped by its appearing: a run carries on behind it and the
-// header keeps counting. Choosing a row is what stops it — that is what halt
-// is, and it is called before any row does anything else.
-//
-// The actions are the module's, which is also what makes them harmless while
-// one is being tried out: under --debug an action is not run unless it
-// simulates itself, and the program simply closes.
 type leaveScreen struct {
 	app    *app
 	halt   func()
@@ -53,10 +39,9 @@ func newLeave(a *app, halt func(), running bool) *leaveScreen {
 	for _, act := range a.rows(a.module.Rules.OnLeave) {
 		items = append(items, actionRow(act))
 	}
-	// Last: the rows above end this machine's session, and this one only ends
-	// the program. It reads as the smallest of them and belongs under them. A
-	// kiosk has nothing to go back to, so the same place holds the one thing it
-	// can do instead.
+	// Last, since it only ends the program while the rows above end the
+	// machine's session. A kiosk has nothing to go back to and starts over
+	// instead.
 	if a.kiosk {
 		items = append(items, item{title: labelStartOver(), detail: labelStartOverHelp(), key: keyStartOver})
 	} else {
@@ -64,7 +49,7 @@ func newLeave(a *app, halt func(), running bool) *leaveScreen {
 	}
 	s.picker = newPicker(items)
 	// Said out loud only while there is something to say it about: whoever
-	// reached this page in the middle of a run is owed both halves of it — that
+	// reached this page in the middle of a run is owed both halves of it - that
 	// the run did not stop, and that every row here stops it.
 	if running {
 		s.picker.describe(labelLeaveRunning())
@@ -87,7 +72,7 @@ func (s *leaveScreen) working() bool { return s.doing != nil }
 
 // leftMsg is the option coming back, which on a machine that is genuinely going
 // down never happens: the machine takes the program with it long before. It
-// arrives when something went wrong, and when nothing was really done — a
+// arrives when something went wrong, and when nothing was really done - a
 // module being tried out.
 type leftMsg struct{ err error }
 
@@ -116,7 +101,7 @@ func (s *leaveScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		case confirms(msg):
 			return s, s.carryOut(s.picker.selected())
 		case backs(msg):
-			// Back to whatever this was drawn over — the hub, a question, an
+			// Back to whatever this was drawn over - the hub, a question, an
 			// installation that has been running the whole time this page was
 			// up. Nothing was stopped to get here, so there is nothing to
 			// restore.
@@ -135,7 +120,7 @@ func (s *leaveScreen) carryOut(key string) tea.Cmd {
 		return nil
 	}
 	// From here on this is a decision rather than a question, so whatever was
-	// running behind this page is put down first — every row ends it.
+	// running behind this page is put down first - every row ends it.
 	s.halt()
 	// The console is not a command and nothing is waiting for it: the program
 	// closes, and whatever started it is back.

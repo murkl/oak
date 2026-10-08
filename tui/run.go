@@ -13,23 +13,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// runScreen runs the tasks, one after another, and shows how far it has got. It
-// is the installation, from the first partition to whatever the module offers
-// once the system is on the disk.
-//
-// What it shows is a list of names with a mark against each. What it does not
-// show is a single line of what any of them printed: a package manager's
-// progress bars, a compiler's warnings and a bootloader's chatter are not
-// information here, they are noise with escape codes in it, and the frame is
-// the promise that none of it gets out. All of it goes to the log, which is
-// where anyone chasing a detail was always going to look. The exception is
-// declared, never guessed: a task that says its output is its progress has the
-// last line it drew shown dimmed under its name - one line, sanitized, and only
-// while it runs.
-//
-// The one thing that interrupts the list is a task that asks first: a value it
-// needs, or whether to go ahead. What a module offers once the work is done is
-// not a task at all but its success rows, on the page the run ends on.
+// runScreen runs the tasks one after another and shows each name with a mark,
+// never a line of what they print, which goes to the log. A task that declared
+// its output its progress gets the last line it drew dimmed under its name, and
+// a task that asks first interrupts the list.
 type runScreen struct {
 	app *app
 
@@ -38,7 +25,7 @@ type runScreen struct {
 
 	// Where the two outcomes lead. Both are given by whoever started the run,
 	// because only they know what a success means next and where a failure is
-	// fixed — an installation that fails belongs back among the answers.
+	// fixed - an installation that fails belongs back among the answers.
 	then func() tea.Cmd
 	back func() tea.Cmd
 
@@ -69,7 +56,7 @@ type runScreen struct {
 
 	// settled is whether a keystroke means anything yet. It is false while
 	// something is running and for a moment after every question and every
-	// result — see settleFor.
+	// result - see settleFor.
 	settled bool
 
 	// When the run began, and how long it turned out to take. Read from the wall
@@ -94,7 +81,7 @@ const (
 // about itself: a value it has to ask for, then the offer, then the work, then
 // the check that the work took, then whatever it has to report of what it came
 // to. Each is skipped by a task that declared none, and the order is the useful
-// one — an offer can name what was just chosen, a check runs while what it
+// one - an offer can name what was just chosen, a check runs while what it
 // looks at is freshest, and a report can name what the work produced.
 type phase int
 
@@ -106,7 +93,7 @@ const (
 	phaseReport
 )
 
-// outcome is what something the run went on past came to — a task's own test,
+// outcome is what something the run went on past came to - a task's own test,
 // or the work of a task the result stands without: the task it belongs to, and
 // the failure where there was one.
 type outcome struct {
@@ -129,13 +116,8 @@ func passed(outcomes []outcome) int {
 }
 
 // settleFor is the pause before a keystroke counts, after a question appears
-// and after the run ends.
-//
-// An installation takes minutes and people press keys while they wait. Those
-// keystrokes sit in the terminal's buffer and arrive the instant the screen
-// changes — without this pause the result of a twenty-minute install would be
-// gone before it had been on screen for a frame, and a question nobody had read
-// yet would be answered by an enter meant for something else entirely.
+// and after the run ends. Keys pressed while waiting arrive the instant the
+// screen changes and would otherwise answer what nobody has read.
 const settleFor = 618 * time.Millisecond
 
 func newRun(a *app, steps []*spec.Task, then, back func() tea.Cmd) *runScreen {
@@ -144,15 +126,13 @@ func newRun(a *app, steps []*spec.Task, then, back func() tea.Cmd) *runScreen {
 
 func (s *runScreen) Title() string { return "" }
 
-// crumbRoot: a run is not a place you navigated to, it is a thing happening.
-// The trail of pages that led here — a confirmation, a password — is spent, and
-// leaving it standing would be a line of the frame saying where you no longer
-// are. Titling itself nothing then leaves the row to the list.
+// crumbRoot: a run is something happening rather than a place, so the pages
+// that led here are spent and the trail is left to the list.
 func (s *runScreen) crumbRoot() bool { return true }
 
 // working is what puts the turning mark in the header: something is running,
 // which a question waiting for an answer is not, and neither is a page being
-// read. Fetching the answers to one still is — that is a command of the module's,
+// read. Fetching the answers to one still is - that is a command of the module's,
 // running like any other.
 func (s *runScreen) working() bool {
 	switch {
@@ -164,15 +144,13 @@ func (s *runScreen) working() bool {
 	return s.asking == nil
 }
 
-// holds: nothing in a run has a page behind it. The work cannot be stepped out
-// of, and neither can a question it stopped to ask — the task that needs the
-// answer has already started. So esc and backspace mean here what ctrl+c means
-// everywhere, and the model turns them into the way out. What is left of a run
-// once it is over is a page like any other, and is closed like one.
+// holds: nothing in a run has a page behind it, since the work and the question
+// it stopped on are already under way, so esc and backspace mean what ctrl+c
+// means. Once over, the run is a page closed like any other.
 func (s *runScreen) holds() bool { return !s.done && s.told == nil }
 
 // takesText: the narrowing box over a question the run stopped for. It has the
-// first claim on esc — the box is closed before the question is left — and
+// first claim on esc - the box is closed before the question is left - and
 // while it is open a letter is a character being typed.
 func (s *runScreen) takesText() bool { return s.ask != nil && s.ask.filter.active() }
 
@@ -219,7 +197,7 @@ func (s *runScreen) Init() tea.Cmd {
 }
 
 // elapsed is how long this run has been going, and how long it went for once it
-// is over — one answer, so the headline reads the same number before and after.
+// is over - one answer, so the headline reads the same number before and after.
 func (s *runScreen) elapsed() time.Duration {
 	if s.done {
 		return s.took
@@ -229,7 +207,7 @@ func (s *runScreen) elapsed() time.Duration {
 
 // clock renders a duration the way a clock does: minutes and seconds, with
 // hours in front of them once there are any. An installation is measured in
-// minutes, so that is the unit it is read in — and one that runs past an hour
+// minutes, so that is the unit it is read in - and one that runs past an hour
 // has to say so rather than counting up to 74 minutes.
 func clock(d time.Duration) string {
 	if d < 0 {
@@ -254,13 +232,9 @@ type (
 // something to watch and to photograph.
 const simulateFor = time.Second
 
-// step takes on the task at the cursor: asks it whatever it said it needed,
-// offers it if it is an offer, runs it, and ends the run when there are none
-// left. It is called again after each of those, and carries on from where the
-// phase says it got to.
-//
-// Each is started from here rather than from a loop, so the frame is redrawn
-// between them and the list is always showing the truth.
+// step takes on the task at the cursor: asks what it needs, offers it if it is
+// an offer, runs it, and ends the run when none are left. It is called again
+// after each, so the frame is redrawn between them.
 func (s *runScreen) step() tea.Cmd {
 	if s.at >= len(s.steps) {
 		return s.finish(nil)
@@ -311,18 +285,9 @@ func (s *runScreen) follows(e *spec.Task) bool {
 	return false
 }
 
-// prove runs what a task declared as its own proof that the work took: read
-// the machine, change nothing, say whether it looks right.
-//
-// It answers nil for a task that declares none and for a run with validation
-// switched off, which is what carries the run straight on to the next phase.
-//
-// A simulated task never gets here, and one that simulates itself runs its
-// test like any other: that test is handed DEBUG and decides for itself what a
-// run that changed nothing has to say.
-//
-// A test that will not even start is a failed test rather than a failed run:
-// the work is done either way, and this page is not where that is argued.
+// prove runs a task's test: read the machine, change nothing, say whether the
+// work took. Nil where there is none or validation is off, and a test that will
+// not start is a failed test rather than a failed run.
 func (s *runScreen) prove(e *spec.Task) tea.Cmd {
 	if !e.Checks() || !s.app.prefs.Validates() {
 		return nil
@@ -347,7 +312,7 @@ func proved(session *exec.Session) tea.Cmd {
 // tell puts up what a task had to report of what it just did, and holds the run
 // there until it has been read.
 //
-// A task with nothing to report — which is nearly all of them — passes straight
+// A task with nothing to report - which is nearly all of them - passes straight
 // through.
 func (s *runScreen) tell(e *spec.Task) tea.Cmd {
 	if !e.Reports() {
@@ -360,7 +325,7 @@ func (s *runScreen) tell(e *spec.Task) tea.Cmd {
 }
 
 // advance moves the cursor to the next task, which starts over at the first
-// phase — the one after it has its own questions to be asked.
+// phase - the one after it has its own questions to be asked.
 func (s *runScreen) advance() tea.Cmd {
 	s.at++
 	s.stage = phaseAsk
@@ -393,9 +358,9 @@ func waitFor(session *exec.Session) tea.Cmd {
 	}
 }
 
-// fell is what becomes of a task whose work failed. One the result stands
-// without is written down and gone past, test and report and all — neither has
-// anything to say about work that did not happen. Any other ends the run.
+// fell is what becomes of a task whose work failed: one the result stands
+// without is noted and passed, without test or report, and any other ends the
+// run.
 func (s *runScreen) fell(err error) tea.Cmd {
 	e := s.steps[s.at]
 	if !e.AllowFailure {
@@ -437,7 +402,7 @@ func (s *runScreen) settle() tea.Cmd {
 }
 
 // stop kills the task that is running, and everything it started. Reached only
-// once somebody has chosen a row on the way out — asking to leave a run does
+// once somebody has chosen a row on the way out - asking to leave a run does
 // not stop it, saying so does.
 func (s *runScreen) stop() {
 	if s.session == nil {
@@ -500,7 +465,7 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
-		// The keys that ask to leave never reach this page — the model takes
+		// The keys that ask to leave never reach this page - the model takes
 		// them, and asking is not stopping: the page it opens is drawn over
 		// this one and the run carries on behind it. See holds and leave.go.
 		if !s.settled {
@@ -533,8 +498,8 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			return s, s.choose(msg)
 		}
 		// The result is dismissed deliberately or not at all: enter and esc,
-		// nothing else. Every other key — and every scroll, which arrives here
-		// as an arrow — leaves the report on screen.
+		// nothing else. Every other key - and every scroll, which arrives here
+		// as an arrow - leaves the report on screen.
 		if answers(msg) {
 			return s, s.then()
 		}
@@ -638,11 +603,9 @@ func (s *runScreen) View(width, height int) string {
 	return b.String() + s.list(width, height-used)
 }
 
-// verdict is what the tests came to, under the line that says the run is over.
-//
-// One number, inked as the exception it is where the two differ - the ones that
-// disagreed are behind the test results row. On the success page only: a run
-// that failed is not a run whose tests are worth counting.
+// verdict is what the tests came to, under the line that says the run is over,
+// inked where some disagreed. On the success page only, since a failed run's
+// tests are not worth counting.
 func (s *runScreen) verdict(width int) string {
 	note, alarm := s.tally()
 	if !s.done || s.err != nil || note == "" {
@@ -667,14 +630,9 @@ func (s *runScreen) failures() []outcome {
 	return out
 }
 
-// tally is what the run has come to so far beyond its own list, and whether it
-// is something to look at rather than something to note: the optional tasks
-// that failed, where any did, and the tests, where any ran. Empty where there is
-// neither.
-//
-// Read at more than one moment — a page a task stops the run on, and the end of
-// the run — so it is one sentence worked out in one place rather than two that
-// could come to disagree.
+// tally is what the run has come to beyond its list, the optional tasks that
+// failed and the tests that ran, and whether it is worth a look. Worked out in
+// one place, since a page mid-run and the end both read it.
 func (s *runScreen) tally() (string, bool) {
 	var said []string
 	alarm := false
@@ -690,7 +648,7 @@ func (s *runScreen) tally() (string, bool) {
 	return strings.Join(said, " · "), alarm
 }
 
-// headline is the run itself: what is happening, or what happened — and, either
+// headline is the run itself: what is happening, or what happened - and, either
 // way, the clock on it. An installation is minutes of a list filling in with
 // nothing to judge it against; how long it has been going is the one thing
 // somebody watching it cannot work out for themselves, and how long it took is
@@ -736,15 +694,9 @@ func (s *runScreen) question(width, height int) string {
 	return text + "\n\n" + s.asking.View(width, height-used)
 }
 
-// list is every task with its mark: done, running, skipped, still to come.
-// The whole run is on screen from the first frame, so what is left is never a
-// surprise — and the window follows the cursor down for a run too long to fit.
-//
-// The one line that is not a task is what a task that declared its output its
-// progress drew last, under its name while it runs - and it costs the window a
-// row rather than pushing the running task off the bottom. Too wide, it is cut
-// at its start: a bar is sized by the tool that draws it, not by this page, and
-// how far it has got is what it says at its end.
+// list is every task with its mark, the window following the cursor down a run
+// too long to fit. A task's progress line costs a row under its name and is cut
+// at its start, since a bar says how far it got at its end.
 func (s *runScreen) list(width, height int) string {
 	drawn := s.progress()
 	rows := height

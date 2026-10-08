@@ -8,19 +8,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// The one thing here that is not part of the interface: no breadcrumb, no
-// footer, no keys, no frame. A moment before the interface rather than a page
-// inside it — but the same program, because leaving the alternate screen and
-// entering it again would blink the shell through the middle of the start.
-//
-// The wordmark sweeps in, and under it stands the product's version, put up
-// the moment the sweep is done. Nothing else here moves: the splash starts with
-// the wordmark and ends on the first page, with no fade in between — a console
-// drawn over a framebuffer shows every step of one.
-//
-// Where the welcome page comes next, the wordmark does not leave: that page
-// stands under it and keeps it, and draws the splash itself for as long as it
-// lasts — see landing.go.
+// The splash is a moment before the interface, without frame, trail or keys, in
+// the same program so the shell never blinks through. The wordmark sweeps in
+// and the version stands under it, and where the welcome page follows it keeps
+// the wordmark (see landing.go).
 
 const (
 	// animEvery is one animation frame, the rate the wordmark sweeps in.
@@ -31,14 +22,14 @@ const (
 	// wordmark.
 	splashFor = 1618 * time.Millisecond
 
-	// sweepFor is how long the wordmark takes to come in — the splash divided
+	// sweepFor is how long the wordmark takes to come in - the splash divided
 	// by φ³, long enough to read as a light passing through it and short enough
 	// that nobody waits through it.
 	sweepFor = 382 * time.Millisecond
 
 	// trailCols is how many columns behind the sweep's front a letter still
-	// carries a trace of it — cooling from the accent back to its row's own
-	// resting colour, and, for a block pixel, filling in from hollow to solid —
+	// carries a trace of it - cooling from the accent back to its row's own
+	// resting colour, and, for a block pixel, filling in from hollow to solid -
 	// long enough to read as a light passing through the word and coming
 	// into focus behind it, short enough that most of a settled wordmark is
 	// already at rest.
@@ -52,7 +43,7 @@ func animTick() tea.Cmd {
 }
 
 // logoLines squares off a block of text. Trailing spaces do not survive every
-// editor, and a ragged block would be centred line by line — which would pull
+// editor, and a ragged block would be centred line by line - which would pull
 // the wordmark apart.
 func logoLines(logo string) []string {
 	return padLines(strings.Split(strings.TrimRight(logo, "\n"), "\n"))
@@ -75,8 +66,8 @@ func padLines(lines []string) []string {
 }
 
 type splashModel struct {
-	// rows is the logo, squared off and split in two: the eyebrow — the OS
-	// name, dim, standing over the wordmark — and the headline, the one line
+	// rows is the logo, squared off and split in two: the eyebrow - the OS
+	// name, dim, standing over the wordmark - and the headline, the one line
 	// this program actually is, lit in the accent. Everything from the first
 	// blank line on is the headline; a logo with none is headline only.
 	rows      []string
@@ -110,7 +101,7 @@ func (m *splashModel) skip() { m.elapsed = splashFor }
 
 // revealed is how far the wordmark has swept into view, left to right: 0 at
 // the very start, 1 once the build is done, and held there for the rest of
-// the splash — the letters do not sweep in twice.
+// the splash - the letters do not sweep in twice.
 func (m *splashModel) revealed() float64 {
 	if m.elapsed >= sweepFor {
 		return 1
@@ -138,22 +129,10 @@ func (m *splashModel) mark() []string {
 	return rows
 }
 
-// sweepLine renders one row up to front: a letter inside the trail comes into
-// focus on trailProgress — colour cooling from the accent down to resting,
-// and, for a solid block pixel, density filling in from hollow to solid —
-// and anything at or beyond front — the sweep has not reached it yet — is
-// unlit field, exactly like the gap between two letters that have already
-// arrived.
-//
-// Once the build is done, front sits at the row's own width forever — the
-// last few letters would otherwise stay a shade and a density off resting for
-// the whole rest of the splash, the trail's tail caught permanently mid-cool.
-// settled pins the progress at 1 outright once that happens, since there is
-// no front left to trail behind.
-//
-// A letter that has arrived is drawn in rest, the style resting belongs to, so
-// it takes the same slot on a terminal of sixteen colours as everything else in
-// that colour. Only the trail is a blend.
+// sweepLine renders one row up to front: a letter in the trail cools from the
+// accent to resting and fills in, anything beyond front is unlit, and settled
+// pins the trail at 1 once the sweep is done. An arrived letter is drawn in
+// rest, so it takes the same colour slot on sixteen colours.
 func sweepLine(line string, front float64, settled bool, resting lipgloss.Color, rest lipgloss.Style) string {
 	trail := rest.UnsetForeground()
 	var b strings.Builder
@@ -200,8 +179,8 @@ func sweepColor(t float64, resting lipgloss.Color) lipgloss.Color {
 
 // sweepGlyph is what a rune renders as at a given point in the trail: a solid
 // block pixel comes into focus through glyphs.focus' density steps as t goes
-// from the front to fully resolved. Anything else — a runtime's own logo may
-// draw with letters or icons rather than block pixels — renders as itself
+// from the front to fully resolved. Anything else - a runtime's own logo may
+// draw with letters or icons rather than block pixels - renders as itself
 // throughout; only the shipped block font resolves like this.
 func sweepGlyph(r rune, t float64) string {
 	if r != glyphBlockPixel {
@@ -211,7 +190,7 @@ func sweepGlyph(r rune, t float64) string {
 }
 
 // sign puts the version under a block, centred, with gapS blank lines of its
-// own — the same single line the logo itself uses to part the eyebrow from
+// own - the same single line the logo itself uses to part the eyebrow from
 // the wordmark, so it reads as its own caption underneath rather than a third
 // row of the mark itself.
 func (m *splashModel) sign(block string) string {

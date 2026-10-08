@@ -5,13 +5,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// hub is where a machine that has answered everything waits: the work and the
-// answers, and no way to get lost between them. What a module offers beside
-// them is a row on the settings page — see settingsScreen.
-//
-// Over the two rows stands the module's icon and nothing else. The page only
-// comes up once every check the work waits for has said yes and every question
-// has an answer, so there is nothing left to say on it.
+// hub is where a machine that answered everything waits, the work and the
+// answers under the module's icon, once every check the work waits for said
+// yes. What a module offers beside them is a row on the settings page.
 type hub struct {
 	app    *app
 	picker *picker
@@ -35,7 +31,7 @@ func newHub(a *app) *hub {
 
 // Init asks again which actions this machine has, every time the page comes
 // up: a card is a thing that gets plugged in, and the pages this one leads to
-// — the way out, the end of a run — offer what the last look found.
+// - the way out, the end of a run - offer what the last look found.
 func (h *hub) Init() tea.Cmd { return h.app.lookFor() }
 
 func (h *hub) Refresh() {

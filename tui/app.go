@@ -1,16 +1,7 @@
-// Package tui is the interface: one frame, a stack of pages inside it, and
-// nothing above the shell layer that knows what a task is.
-//
-// It is the only half of the program a person ever sees, and it draws whatever
-// module it was handed without knowing anything about what that module does.
-// Every page is a screen — four methods, no state shared with its neighbours —
-// and the frame around them belongs to the model alone, so there is exactly one
-// place that decides what this program looks like and exactly one that can
-// promise nothing escapes it.
-//
-// Three things are deliberately kept to one file each: palette.go names every
-// colour, glyphs.go every character, and labels.go every word the interface
-// says that did not come out of a module.
+// Package tui is the interface: one frame around a stack of pages, each a
+// screen of four methods sharing no state, so one place decides what the
+// program looks like. palette.go names every colour, glyphs.go every character
+// and labels.go every word that is not a module's.
 package tui
 
 import (
@@ -28,8 +19,8 @@ import (
 // Program is one module, opened: the answers it keeps, the runner that joins
 // the two, and the words it is read in.
 //
-// What it takes to open one — where the answer file and the log go, what this
-// machine has already been told — is the caller's business rather than the
+// What it takes to open one - where the answer file and the log go, what this
+// machine has already been told - is the caller's business rather than the
 // interface's, so the interface is handed the finished thing.
 type Program struct {
 	Module  *spec.Module
@@ -39,13 +30,9 @@ type Program struct {
 	Sources []fs.FS
 }
 
-// Opening is everything a run has before a module has been opened: what the
-// product is called and looks like, which modules it offers, every language any
-// of them can be read in, and the one answer the runtime keeps for itself.
-//
-// It is Program's other half. Between them they are the whole of what the
-// interface is handed: this before a module has been chosen, and that one
-// afterwards.
+// Opening is everything a run has before a module is opened: the product's name
+// and look, its modules, every language and the runtime's one answer. With
+// Program it is all the interface is handed.
 type Opening struct {
 	Runtime *spec.Runtime
 	Modules []*spec.Module
@@ -104,26 +91,24 @@ type app struct {
 	kiosk   bool
 
 	// offered is which of the module's actions this machine has, as what they
-	// require last said — see has. An answer stands until the next look
+	// require last said - see has. An answer stands until the next look
 	// replaces it, so a row does not blink out while that look is under way.
 	offered map[*spec.Action]bool
 
 	// looked is whether the module open now has been asked about its actions
-	// yet — see Model.look.
+	// yet - see Model.look.
 	looked bool
 
 	// first records whether this machine had answered anything when the program
-	// started. It is read once, before the first save — after that the answer
+	// started. It is read once, before the first save - after that the answer
 	// file exists whatever happens, and the question "is this a first run" would
 	// answer itself wrong for the rest of the session.
 	first bool
 }
 
 // Run shows the splash and then the interface, and returns when the user
-// leaves. One program for both, because the splash hands over to the first page
-// and that cannot cross a program boundary — the terminal would drop out of
-// the alternate screen in between. Choosing which module to open happens inside
-// it for the same reason.
+// leaves. One program for both, since the terminal would drop out of the
+// alternate screen between two.
 func Run(o *Opening, open Open) error {
 	// Which kind of terminal this is has to be settled here: the question is put
 	// to the terminal itself, and from the next line on there is a key reader
@@ -141,7 +126,7 @@ func Run(o *Opening, open Open) error {
 	SetAccent(o.Runtime.Accent)
 	// One module is no question: it is opened here, so the interface comes up on
 	// its first page rather than on a list with a single row on it. So is one
-	// named on the command line — that is the question, already answered.
+	// named on the command line - that is the question, already answered.
 	if len(o.Modules) == 1 {
 		if err := a.enter(o.Modules[0]); err != nil {
 			return err
@@ -151,12 +136,9 @@ func Run(o *Opening, open Open) error {
 	return err
 }
 
-// enter opens a module and makes it the one this run is about: from here on the
-// answers, the log and every word on screen belong to it.
-//
-// Choosing the module already open is not a second opening. It would rotate a
-// log this run is already writing, and there is nothing to settle that the
-// first one did not.
+// enter opens a module and makes it the one this run is about, its answers, log
+// and words. Choosing the module already open opens nothing, which would rotate
+// the log it is writing.
 func (a *app) enter(mod *spec.Module) error {
 	if a.module == mod {
 		return nil
@@ -172,7 +154,7 @@ func (a *app) enter(mod *spec.Module) error {
 	return nil
 }
 
-// brand is the product's own name, the word a sentence about it uses — the
+// brand is the product's own name, the word a sentence about it uses - the
 // welcome page's greeting among them, read before a module is even on offer.
 func (a *app) brand() string { return a.runtime.Title }
 
@@ -186,7 +168,7 @@ func (a *app) icon() string {
 }
 
 // heading is what the frame is titled, on every page: the product, and once
-// one of its modules has been opened, which one — joined onto it the way a
+// one of its modules has been opened, which one - joined onto it the way a
 // breadcrumb reads, so the header still says what this run is once the page
 // that named it has scrolled away.
 func (a *app) heading() string {
@@ -196,19 +178,14 @@ func (a *app) heading() string {
 	return a.brand() + " " + glyphs.crumb + " " + a.module.Name()
 }
 
-// leaves reports whether this machine has to be asked about on the way out. A
-// module nobody has opened yet has said nothing about the machine, so leaving
-// the pages in front of one is leaving. A kiosk always asks, because starting
-// over is a way out every module has there.
+// leaves reports whether leaving asks about the machine: never before a module
+// is opened, always in a kiosk, where starting over is a way out every module
+// has.
 func (a *app) leaves() bool { return a.module != nil && (a.kiosk || a.module.Leaves()) }
 
-// speak puts the whole interface in a language and remembers the choice. It is
-// the runtime's answer rather than a module's — it is settled before one is
-// opened and it holds for all of them — so it is kept in Oak's own file and in
-// no module's.
-//
-// Every word on screen is read through i18n at draw time, so there is nothing
-// to rebuild: the next frame is simply in the new language.
+// speak puts the interface in a language and keeps it in Oak's own file, since
+// it holds for every module. Words are read through i18n at draw time, so the
+// next frame is in the new language.
 func (a *app) speak(code string) tea.Cmd {
 	i18n.Activate(code, a.sources...)
 	a.prefs.SetLang(code)
@@ -235,13 +212,9 @@ func (a *app) remember() tea.Cmd {
 	return nil
 }
 
-// speakLike puts the interface in whatever language an answer comes closest to,
-// for the module that ties one of its own variables to the words on screen —
-// see `language:` in a module's declaration.
-//
-// A locale is not a catalog, so the match is by language rather than by name:
-// de_AT is German. An answer no catalog fits leaves the source language
-// standing, which is what a module nobody has translated already is.
+// speakLike puts the interface in the language an answer comes closest to, for
+// a module that ties a variable to it (`language:`). de_AT is German, and an
+// answer no catalog fits leaves the source language.
 func (a *app) speakLike(value string) {
 	codes := make([]string, len(a.langs))
 	for i, l := range a.langs {
@@ -293,13 +266,9 @@ func (a *app) hintEnd(otherwise string) string {
 	return otherwise
 }
 
-// save writes the answer file. A machine that cannot record its own answers
-// would ask again from the top after any interruption, so failing to save is
-// worth saying out loud rather than carrying on quietly.
-//
-// Whatever the module reads off the machine is read again first: an answer has
-// just changed, and a value worked out from one is only as current as the last
-// time it was worked out.
+// save writes the answer file after reading the machine's values again, since
+// one may follow the answer that just changed. A failure is said out loud,
+// since an unsaved run asks again from the top.
 func (a *app) save() tea.Cmd {
 	a.runner.Resolve()
 	if err := a.store.Save(); err != nil {
@@ -309,25 +278,17 @@ func (a *app) save() tea.Cmd {
 	return nil
 }
 
-// The opening is one chain, and each link only knows the one after it: pick a
-// language, pick a module, settle whatever that module wants settled before
-// anything is typed, wait for whatever its actions say the work requires,
-// pick a starting point, answer what is still open — and from then on it is
-// simply ready. A link with nothing to ask hands straight on, so a module with
-// no presets never shows a page offering none.
-//
-// The language leads because every word of every page after it is in it, the
-// question of which module included — and because it is the runtime's own
-// answer rather than any module's, the one thing settled before there is a
-// module to settle anything. Which module comes next because everything after
-// that belongs to it: the questions, the answers on disk, the work.
+// The opening is one chain, each link knowing only the next: language, module,
+// what it settles first, what its actions require, a starting point, the open
+// questions. A link with nothing to ask hands straight on, and the language
+// leads since every later word is in it.
 
 func (a *app) start() screen { return a.landing() }
 
 // landing is the page a run opens on: what this is, and the words the rest of
-// it is read in. It is drawn whether or not a module was named on the way in —
+// it is read in. It is drawn whether or not a module was named on the way in -
 // what it says is the runtime's, and it is read before anything else is, with
-// that module named under the wordmark — but not where there is only one
+// that module named under the wordmark - but not where there is only one
 // language to offer, or the command line already named one, because then the
 // one thing it asks is not a question.
 func (a *app) landing() screen {
@@ -354,7 +315,7 @@ func (a *app) chooseModule(first bool) screen {
 // upfront asks what the module marked `first`, one question to a page and none
 // of them numbered: this is not a run of questions but the few that cannot wait
 // for one. It calls itself until nothing is left, which is also what makes a
-// second start skip straight past — the answers are already in the file.
+// second start skip straight past - the answers are already in the file.
 func (a *app) upfront() screen {
 	open := a.store.Upfront()
 	if len(open) == 0 {
@@ -364,8 +325,8 @@ func (a *app) upfront() screen {
 }
 
 // waits is the page standing in front of the work for as long as one of the
-// actions it requires says no — the machine is not the one it needs, there is
-// no internet — or nothing, where it requires none.
+// actions it requires says no - the machine is not the one it needs, there is
+// no internet - or nothing, where it requires none.
 func (a *app) waits() screen {
 	if len(a.module.Rules.StartIf) == 0 {
 		return a.afterCheck()
@@ -386,7 +347,7 @@ func (a *app) afterCheck() screen {
 
 // afterPreset is the fork the whole program turns on: a question still open
 // means the wizard, and nothing open means this machine is ready to run.
-// There is no flag recording that — a required value with no answer is what
+// There is no flag recording that - a required value with no answer is what
 // makes the program ask, and an answer is what makes it stop.
 func (a *app) afterPreset() screen {
 	if missing := a.store.Missing(); len(missing) > 0 {

@@ -6,15 +6,9 @@ import (
 	"github.com/murkl/oak/internal/logging"
 )
 
-// resetScreen is the last row of the settings page, asked before it acts: every
-// answer this module holds is dropped and the module opens again at its first
-// question.
-//
-// A page rather than a row that acts the moment it is pressed, because there is
-// no taking it back: the answer file is deleted, and with it a run of questions
-// that may have taken somebody ten minutes. It opens on No for the same reason
-// — the row above it is an ordinary setting, and an enter meant for that one
-// must not land here.
+// resetScreen asks before dropping every answer of the module, since the answer
+// file goes with no way back. It opens on No, since an enter meant for the
+// setting above must not land here.
 type resetScreen struct {
 	app    *app
 	picker *picker
@@ -54,14 +48,9 @@ func (s *resetScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 
 func (s *resetScreen) View(width, height int) string { return s.picker.View(width, height) }
 
-// startOver forgets the answers and opens the module where a machine that has
-// answered nothing opens it: at the questions it wants settled before anything
-// else, and from there through what the work waits for and the starting points —
-// which are offered again, because being offered once is what a starting point
-// is for and this machine has just become one that has never started.
-//
-// The whole stack goes with it. What led here — the hub, this page — is a trail
-// through answers that no longer exist.
+// startOver forgets the answers and opens the module where a machine that
+// answered nothing opens it, starting points included. The whole stack goes
+// too, a trail through answers that no longer exist.
 func (s *resetScreen) startOver() tea.Cmd {
 	if err := s.app.store.Reset(); err != nil {
 		logging.Error("%s", err)

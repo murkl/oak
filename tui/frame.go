@@ -55,7 +55,7 @@ func truncate(s string, width int) string {
 }
 
 // truncateStart cuts a string to width from the front, marking that it was cut.
-// For a path, where what tells it apart — the folder, the file, the line — is
+// For a path, where what tells it apart - the folder, the file, the line - is
 // all at the end.
 func truncateStart(s string, width int) string {
 	if lipgloss.Width(s) <= width || width < 2 {
@@ -92,13 +92,8 @@ func wrap(s string, width int) []string {
 	return out
 }
 
-// paragraph renders body text at the body width: short of the frame edge by a
-// golden margin, wide enough that a sentence rarely costs a second line.
-//
-// Where the lines fall in the yaml is not where they fall on screen. A
-// description is written in a block scalar and wrapped by whoever was editing
-// it to whatever their editor was that day; a blank line between two of them is
-// the only break that was meant, and is the only one kept.
+// paragraph renders body text at the body width, a golden margin short of the
+// frame edge. Only a blank line in the yaml is kept as a break.
 func paragraph(s string, width int) string {
 	var out []string
 	for _, para := range strings.Split(s, "\n\n") {
@@ -113,12 +108,9 @@ func paragraph(s string, width int) string {
 	return textStyle.Render(strings.Join(out, "\n"))
 }
 
-// frameSize is the space a screen gets to draw in: the golden frame where the
-// terminal can hold it, the terminal itself where it cannot.
-//
-// The numbers it returns are the *content* box. What the border and the padding
-// cost is added back on in renderFrame, so no screen ever has to know they are
-// there.
+// frameSize is the content box a screen draws in, the golden frame where the
+// terminal holds it and the terminal where not. renderFrame adds the border and
+// padding back, so no screen knows of them.
 const frameChromeW = 2 + 2*padH // border either side, padding either side
 const frameChromeH = 2 + 2*padV
 
@@ -148,12 +140,9 @@ type chrome struct {
 	version string
 }
 
-// right is what stands opposite the brand: the machine's status, with the
-// working mark in front of it while something is running.
-//
-// The mark is joined rather than wrapped. A style closed inside another takes
-// the outer one down with it, and the status after it would come out in the
-// terminal's own ink, background and all.
+// right stands opposite the brand: the status, with the working mark joined in
+// front while something runs. Joined rather than wrapped, since a nested style
+// would end the outer one early.
 func (c chrome) right() string {
 	ink := infoStyle
 	if c.alarm {
@@ -222,14 +211,9 @@ func breadcrumb(segments []string, width int) string {
 // detailRows is how many lines a row's own sentence is given under its list.
 const detailRows = 2
 
-// withDetail draws a list with the selected row's own sentence underneath it,
-// held apart by a blank line. The sentence changes as the cursor moves, which
-// is what makes a list of names readable without any of them having to be a
-// sentence itself.
-//
-// The room it takes is reserved whether or not this row has anything to say, so
-// moving the cursor never shifts the rows above it — a list that jumps under
-// the hand is a list nobody trusts.
+// withDetail draws a list with the selected row's sentence a blank line below
+// it. Its room is kept whether or not the row has one, so moving the cursor
+// never shifts the rows.
 func withDetail(p *picker, width, height int) string {
 	// A blank line above the sentence, reserved like the sentence itself.
 	const gap = 1

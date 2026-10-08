@@ -8,16 +8,8 @@ import (
 )
 
 // filter is the narrowing box a long list puts in front of itself: press / and
-// type, and only the rows that match are left. It is deliberately the same box
-// the search page is built around — cursor, field, list under it, one blank
-// between — because narrowing one list and narrowing another are the
-// same gesture and must not look like two.
-//
-// Closed it draws nothing at all, so a list that is never narrowed carries no
-// furniture for it. Every list that can have one has one, however few rows are
-// in it right now: a key that works on some folders and not others is worse than
-// a key that occasionally saves nothing, because the only way to find out which
-// kind of list this is would be to press it and see.
+// type, the same box as the search page. Closed it draws nothing, and every
+// list that can have one has one, so the key works the same everywhere.
 type filter struct {
 	input textinput.Model
 	open  bool
@@ -30,18 +22,12 @@ type filter struct {
 }
 
 // filterKey opens the box. Slash rather than a letter, because a list already
-// spends its letters on moving through it — h, j, k, l, g, G — and because it is
+// spends its letters on moving through it - h, j, k, l, g, G - and because it is
 // what a terminal has meant by "narrow this" since long before this program.
 const filterKey = "/"
 
-// newFilter builds the box closed, waiting for the key. permanent — see the
-// field of that name — opens it already focused instead.
-//
-// How long the list turns out to be is deliberately no part of this. A page
-// that counted its rows would be a page that looks one way on this machine and
-// another on the next, and which of the two a person is about to get is not
-// something they can be told in advance: the declaration says it, once, for
-// every machine.
+// newFilter builds the box closed, or open and focused where permanent. The
+// list's length plays no part, so the page looks the same on every machine.
 func newFilter(permanent bool) *filter {
 	f := &filter{}
 	f.input = textinput.New()
@@ -61,14 +47,12 @@ func (f *filter) query() string { return f.input.Value() }
 
 // active reports whether the box is open and taking what is typed. Asked by
 // the page holding it, which has to say whether a letter is a character or a
-// key of its own — see takesText.
+// key of its own - see takesText.
 func (f *filter) active() bool { return f != nil && f.open }
 
-// Update offers a key to the box and reports whether it took it. What a list
-// owns everywhere else it still owns here — the arrows move the cursor, enter
-// chooses — and every other key is a character being typed, the same split the
-// search page lives by. Esc closes the box, and only once it is closed does it
-// mean back: narrowing is left before the page is.
+// Update offers a key to the box and reports whether it took it: arrows and
+// enter stay the list's, every other key is typed. Esc closes the box, and only
+// a closed box lets esc mean back.
 func (f *filter) Update(key tea.KeyMsg) (took bool, cmd tea.Cmd) {
 	if !f.open {
 		if key.String() != filterKey {
@@ -118,18 +102,15 @@ func (f *filter) View() string {
 // so the two can never drift apart.
 func (f *filter) rows() int { return strings.Count(f.View(), "\n") }
 
-// matches is the one definition of matching in the whole program: a plain,
-// case-folding substring of the text exactly as it reads on screen. Every
-// filter box asks it, so what a query finds in one it finds in the other. An
-// empty query matches everything, which is the box before anything is typed
-// into it.
+// matches is the program's one definition of matching: a case-folding substring
+// of the text as it reads on screen. An empty query matches everything.
 func matches(text, query string) bool {
 	return strings.Contains(strings.ToLower(text), strings.ToLower(strings.TrimSpace(query)))
 }
 
-// narrow keeps the rows a query matches, on the title — which is all a row of
-// answers has. A page whose rows read as more than that — a name under a
-// heading — asks matches about each part itself.
+// narrow keeps the rows a query matches, on the title - which is all a row of
+// answers has. A page whose rows read as more than that - a name under a
+// heading - asks matches about each part itself.
 func narrow(items []item, query string) []item {
 	out := make([]item, 0, len(items))
 	for _, it := range items {
@@ -140,10 +121,9 @@ func narrow(items []item, query string) []item {
 	return out
 }
 
-// filterHint is a page's own key help with the box's folded into it: what the box
-// does while it is up, and the key that opens it while it is not. The same shape
-// the frame uses for r and f. Nil is a page whose question has not resolved a
-// list yet, and it promises nothing.
+// filterHint folds the box's keys into a page's own help: what the box does
+// while up, and the key that opens it while not. Nil is a page whose list has
+// not resolved yet.
 func filterHint(base string, f *filter) string {
 	switch {
 	case f == nil:
