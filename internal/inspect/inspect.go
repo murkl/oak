@@ -1,9 +1,6 @@
-// Package inspect answers what a build script asks about a folder of modules.
-//
-// The load is the same one a run does at startup, so everything it refuses
-// would have stopped the program too. What is left is to say what was found, or
-// to write one module's translation template — the two things --inspect and
-// --strings answer with, on stdout and without drawing anything.
+// Package inspect answers --inspect and --strings on stdout, without drawing
+// anything. It loads the folder as a run does, so what it refuses would have
+// stopped the program too.
 package inspect
 
 import (
@@ -20,8 +17,8 @@ import (
 	"github.com/murkl/oak/internal/spec"
 )
 
-// Report says what a folder holds — what the product is called, and every
-// module it offers or the one that was named — without touching anything.
+// Report says what a folder holds - what the product is called, and every
+// module it offers or the one that was named - without touching anything.
 //
 // base is where the runtime's own catalogs come from, which a module's are laid
 // over to work out how much of it a language actually covers.
@@ -41,7 +38,7 @@ func Report(w io.Writer, rt *spec.Runtime, mods []*spec.Module, base fs.FS) erro
 		unread += n
 	}
 	// The two things here that are verdicts rather than descriptions, so this
-	// fails where a build script runs it — see spec.Unread and drift. Both are
+	// fails where a build script runs it - see spec.Unread and drift. Both are
 	// said at once: a run that reported them wants them all fixed, not the
 	// first one found.
 	var faults []string
@@ -128,10 +125,9 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 	}
 	fmt.Fprintf(w, "  languages   %s\n", strings.Join(names, " "))
 
-	// What the module's shell reaches for and nothing here answers. Not a
-	// verdict — $HOME belongs on this line — but the only place a name that
-	// used to arrive from Oak and no longer does is visible at all, since in
-	// shell it is an empty string rather than an error. See spec.Unset.
+	// What the module's shell reaches for and nothing here answers: no verdict,
+	// since $HOME belongs here, but the one place a name Oak no longer hands
+	// over shows at all. See spec.Unset.
 	unset, err := mod.Unset()
 	if err != nil {
 		return 0, err
@@ -155,7 +151,7 @@ func report(w io.Writer, mod *spec.Module, base fs.FS) (int, error) {
 	// coverage that dropped, which is the only way a stale translation is
 	// noticed.
 	//
-	// What a translation says with the {{VAR}} is its own business — German
+	// What a translation says with the {{VAR}} is its own business - German
 	// puts them in another order - but which ones it says is not: one dropped
 	// leaves the sentence naming no disk, and one misspelled is the same thing
 	// with the typo out of sight in a file nobody rereads.
@@ -210,7 +206,7 @@ func missing(want, have []string) []string {
 
 // oneSentence is as much of a message as names it in a table: a report is read
 // down its left edge, and a confirm text runs to five lines. Cut by character
-// rather than by byte — the strings it cuts are the ones with the em dashes in
+// rather than by byte - the strings it cuts are the ones with the em dashes in
 // them.
 func oneSentence(s string) string {
 	s = strings.Join(strings.Fields(s), " ")
@@ -254,7 +250,7 @@ func catalogs(mod *spec.Module, base fs.FS) []fs.FS {
 // Template writes the translation template for one module: every word it says,
 // each with its translation left empty, in the order it says them. Redirect it
 // to locales/<name>.pot, and a catalog for a language is that file with the
-// right-hand side filled in — by hand, or on a platform that speaks po.
+// right-hand side filled in - by hand, or on a platform that speaks po.
 func Template(w io.Writer, rt *spec.Runtime, mods []*spec.Module) error {
 	// One template belongs to one module. Which of several is not something to
 	// guess at, so it is named on the command line rather than picked here.

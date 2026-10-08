@@ -12,25 +12,20 @@ import (
 
 // Ext is what a catalog file is called: the language code, and this. The
 // template they are filled in from sits in the same folder and ends in .pot,
-// and it is skipped by exactly that difference — it is a list to work through,
+// and it is skipped by exactly that difference - it is a list to work through,
 // not a language anybody speaks.
 const Ext = ".po"
 
 // LanguageName is the message whose translation is a language's own name for
-// itself — "Deutsch" in de.po, "Français" in fr.po. Every catalog carries it,
+// itself - "Deutsch" in de.po, "Français" in fr.po. Every catalog carries it,
 // which is how a list of languages can be read by the people who speak them
 // without this program keeping a table of language names for a world it has not
 // been translated into yet.
 const LanguageName = "English"
 
-// Parse reads a catalog: a po file as gettext writes one, and as a translation
-// platform hands one back.
-//
-// Only what this program can act on is read. A fuzzy entry is skipped, which is
-// what the flag is for — the source text changed under a translation, and the
-// English is the better of the two until somebody has looked. Contexts and
-// plural forms are skipped rather than guessed at: nothing here writes them, so
-// an entry carrying one was written by something that knows more than this does.
+// Parse reads a po file as gettext and translation platforms write it. Fuzzy
+// entries, contexts and plural forms are skipped: nothing here writes them, and
+// a fuzzy one is a translation of an older English.
 func Parse(raw []byte) (*Catalog, error) {
 	c := &Catalog{Messages: map[string]string{}}
 	err := entries(raw, func(id, str string, usable bool) {
@@ -66,7 +61,7 @@ func Texts(raw []byte) ([]string, error) {
 
 // entries reads a po file as gettext writes one and hands over each entry: its
 // source text, its translation, and whether this program can act on it. A
-// fuzzy entry is not — the source text changed under the translation — and
+// fuzzy entry is not - the source text changed under the translation - and
 // nor is one with a context or plural forms, which nothing here writes, so an
 // entry carrying one was written by something that knows more than this does.
 func entries(raw []byte, each func(id, str string, usable bool)) error {
@@ -94,7 +89,7 @@ func entries(raw []byte, each func(id, str string, usable bool)) error {
 			flush()
 			continue
 		}
-		// Comments, references and flags — and among the flags the one that
+		// Comments, references and flags - and among the flags the one that
 		// decides whether the entry under it may be shown at all. An obsolete
 		// entry starts with #~ and is a comment like any other.
 		if line[0] == '#' {
@@ -156,13 +151,9 @@ type Entry struct {
 	Refs []string // where it comes from, as a translator would go looking for it
 }
 
-// Template writes a pot: every message a program says, each with its
-// translation left empty. It is what a catalog for a new language is started
-// from, and what an existing one is brought up to date against — see msgmerge.
-//
-// The header carries no POT-Creation-Date on purpose. A template that changed
-// every time it was written would be a diff on every build, and there would be
-// no way to ask whether it is still current.
+// Template writes a pot: every message with its translation left empty, for
+// msgmerge to start or update a catalog from. It carries no POT-Creation-Date,
+// so an unchanged template writes the same bytes.
 func Template(w io.Writer, project string, entries []Entry) error {
 	b := bufio.NewWriter(w)
 
@@ -207,7 +198,7 @@ func Template(w io.Writer, project string, entries []Entry) error {
 }
 
 // placeholder matches a printf verb, which is what makes an entry c-format.
-// Neither %% nor a per cent sign with a word behind it is one — "100% of the
+// Neither %% nor a per cent sign with a word behind it is one - "100% of the
 // disk" is a sentence, and flagging it would have a translation refused over an
 // argument that was never there.
 var placeholder = regexp.MustCompile(`%[-+#0]*\[?[0-9]*]?(\.[0-9]+)?[a-zA-Z]`)
