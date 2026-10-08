@@ -7,10 +7,23 @@ APP     := oak
 PKG     := .
 BIN_DIR := bin
 
-# The version: the tag on this commit, or the last one before it, without its
-# `v`. It is what `oak --version` answers on its `runtime:` line; `make run`
-# appends "-dev".
-VERSION := $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),dev)
+# The last release: the newest tag up to this commit, without its `v`.
+RELEASED := $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),0.0.0)
+
+# The next release: the one the open release pull request raises to, as origin
+# was last fetched, or the smallest after the last. A release branch no newer
+# than the last release is one already merged.
+RELEASE_BRANCH := origin/release-please--branches--main
+PENDING := $(shell git show $(RELEASE_BRANCH):.release-please-manifest.json 2>/dev/null | sed -n 's/.*"\.":[[:space:]]*"\([^"]*\)".*/\1/p')
+NEXT    := $(shell printf '%s\n' '$(RELEASED)' '$(PENDING)' | sort -V | tail -n1)
+ifeq ($(NEXT),$(RELEASED))
+NEXT := $(shell echo '$(RELEASED)' | awk -F. '{ print $$1 "." $$2 "." $$3 + 1 }')
+endif
+
+# What `oak --version` answers on its `runtime:` line: the tag on this commit,
+# or the next release as a pre-release of it. Never a release's own number on
+# anything else.
+VERSION := $(or $(shell git describe --tags --exact-match 2>/dev/null | sed 's/^v//'),$(NEXT)-dev)
 
 # What a release is called. CI hands in the tag its release run wrote.
 TAG ?= v$(VERSION)
@@ -57,9 +70,10 @@ build:
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		go build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o $(BIN) $(PKG)
 
-# Straight from source, into the example, for this machine.
+# Straight from source, into the example, for this machine: a pre-release even
+# on a tag.
 example:
-	go build -ldflags="-X main.version=$(VERSION)-dev" -o $(EXAMPLE)/$(APP) $(PKG)
+	go build -ldflags="-X main.version=$(NEXT)-dev" -o $(EXAMPLE)/$(APP) $(PKG)
 
 run: example
 	cd $(EXAMPLE) && ./$(APP) $(if $(MODULE),--module=$(MODULE)) $(ARGS)

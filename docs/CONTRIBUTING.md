@@ -57,6 +57,7 @@ Nothing is typed and nothing is tagged by hand.
 
 - Merges collect in the release pull request until it is merged. When to release is a decision, not a schedule
 - The binary answers `--version` with its tag, without the `v`, on the `runtime:` line. The last step before the download link refuses one that answers anything else, and `make build && make version-check TAG=v0.5.0` asks the same of a tag already out
+- Every other build answers the next release as a pre-release: `0.7.0-dev`, as the open release pull request names it, or the next patch where none is open
 - The changelog is never edited by hand
 
 **Note:** _The page stays a draft until the binary hangs on it, so every link to the latest release points at the one before until then. A run that fails on the way leaves a draft: re-run its failed jobs._
