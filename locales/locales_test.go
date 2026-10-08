@@ -8,7 +8,7 @@ import (
 	"github.com/murkl/oak/locales"
 )
 
-// The catalogs that actually ship, which no other test looks at — everything
+// The catalogs that actually ship, which no other test looks at - everything
 // else builds its own. A file that stopped parsing, or stopped being filled in,
 // would leave the interface in English with nothing on screen to say why.
 func TestEveryCatalogThatShipsHoldsALanguage(t *testing.T) {

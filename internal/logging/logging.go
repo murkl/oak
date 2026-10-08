@@ -1,18 +1,10 @@
-// Package logging is the single sink for everything a run records — the
-// runtime's own progress and every line a script prints.
-//
-// Each line is pipe-separated: timestamp | level | message
+// Package logging is the single sink for everything a run records, which the
+// interface never shows: the runtime's own lines at INFO, WARN and ERROR, a
+// script's output at DEBUG (see External).
 //
 //	2026-08-26 14:08:01 | INFO | Prepare disk
 //	2026-08-26 14:08:02 | DEBUG | :: Synchronizing package databases...
 //	2026-08-26 14:08:09 | ERROR | Prepare disk failed
-//
-// The level says who emitted the line without needing a column of its own: the
-// runtime uses INFO/WARN/ERROR, a script's captured output uses DEBUG (see
-// External), so third-party noise is filtered by level alone.
-//
-// Every technical detail goes here and only here: the interface shows a spinner
-// and a name, never a line of build output.
 package logging
 
 import (
@@ -38,7 +30,7 @@ var (
 
 // Init opens path as the log file, keeping the previous run's log as
 // "<path>.old". Without it every write is a no-op, so a failure here never
-// stops a run — losing the log is worse than not having one, but not that much
+// stops a run - losing the log is worse than not having one, but not that much
 // worse.
 func Init(p string) error {
 	mu.Lock()
