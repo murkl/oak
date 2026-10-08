@@ -192,7 +192,7 @@ func loadAction(where string) (*Action, error) {
 	}
 	work := Script(beside(where, FileActionScript))
 	if work == "" {
-		return nil, fmt.Errorf("no %s here — an action does its work in one", FileActionScript)
+		return nil, fmt.Errorf("no %s here - an action does its work in one", FileActionScript)
 	}
 	return &Action{
 		Title: d.Title, Description: d.Description,
@@ -229,7 +229,7 @@ func (s *Module) gather(own []*Action) (map[string]int, error) {
 		for _, name := range names {
 			a := find(name)
 			if a == nil {
-				return fmt.Errorf("%s: %s: no such action: %s — an action is a folder under %s/", where, key, name, DirActions)
+				return fmt.Errorf("%s: %s: no such action: %s - an action is a folder under %s/", where, key, name, DirActions)
 			}
 			was, seen := runs[name]
 			runs[name] = max(was, how)
@@ -279,7 +279,7 @@ func (s *Module) gather(own []*Action) (map[string]int, error) {
 
 	for _, a := range own {
 		if _, ok := runs[a.id]; !ok {
-			return nil, fmt.Errorf("%s/%s: nothing names it, so it never runs — name it under rules: in %s or in another action", DirActions, a.id, FileModule)
+			return nil, fmt.Errorf("%s/%s: nothing names it, so it never runs - name it under rules: in %s or in another action", DirActions, a.id, FileModule)
 		}
 	}
 	s.Actions = own
@@ -328,7 +328,7 @@ func (s *Module) checkAction(a *Action, how int) error {
 	case a.Title == "":
 		return fmt.Errorf("title is required")
 	case pages > 1:
-		return fmt.Errorf("an action has one kind of page: variables, report or tty — a second kind is a second action, named under rules: on-failure")
+		return fmt.Errorf("an action has one kind of page: variables, report or tty - a second kind is a second action, named under rules: on-failure")
 	case how != opened && pages > 0:
 		return fmt.Errorf("it runs by itself where it is named, so it has no page")
 	case how == gating && a.Error == "":

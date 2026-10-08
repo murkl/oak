@@ -29,7 +29,7 @@ func TestEveryClockGoesThroughAfter(t *testing.T) {
 				continue
 			}
 			if strings.Contains(line, "tea.Tick(") {
-				t.Errorf("%s:%d sets a clock of its own — use after:\n\t%s",
+				t.Errorf("%s:%d sets a clock of its own - use after:\n\t%s",
 					path, i+1, strings.TrimSpace(line))
 			}
 		}

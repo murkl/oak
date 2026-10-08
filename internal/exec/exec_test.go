@@ -87,7 +87,7 @@ func TestShellWithNoFileStillNamesWhatBroke(t *testing.T) {
 		t.Fatalf("err = %v (%T), want a *Failure", s.Err(), s.Err())
 	}
 	if f.Script != "" {
-		t.Errorf("script = %q, want none — there is no file", f.Script)
+		t.Errorf("script = %q, want none - there is no file", f.Script)
 	}
 	if f.Command != "ls /definitely/not/here" {
 		t.Errorf("command = %q", f.Command)

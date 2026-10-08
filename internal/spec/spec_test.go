@@ -192,17 +192,17 @@ func TestOrderRefusesWhatCannotBeWalked(t *testing.T) {
 		{
 			name:  "a hooks folder from an older Oak",
 			files: map[string]string{"hooks/@preflight/root/hook.yaml": "title: Root\nscript: \"true\"\n"},
-			want:  "the runtime runs no hooks — each is an action now",
+			want:  "the runtime runs no hooks - each is an action now",
 		},
 		{
 			name:  "an action named the way an older Oak read it",
 			files: map[string]string{FileModule: head("requires: [o]\n")},
-			want:  "requires is not a key here — it is a rule now: under rules:, as start-if",
+			want:  "requires is not a key here - it is a rule now: under rules:, as start-if",
 		},
 		{
 			name:  "a shell of the module's own, the way an older Oak read one",
 			files: map[string]string{"module.sh": "helper() { :; }\n"},
-			want:  "module.sh: a module has no shell of its own — what its scripts share",
+			want:  "module.sh: a module has no shell of its own - what its scripts share",
 		},
 		{
 			name:  "a need pointing at nothing",
@@ -415,7 +415,7 @@ func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 		{"a question and a report", row("title: O\nreport: Done\nvariables:\n  - name: X\n    type: text\n    title: X\n"), "an action has one kind of page"},
 		{"a gate of the module's", row("title: O\nrules:\n  start-if: [o]\n"), "an action's own are offer-if and on-failure"},
 		{"a row of the module's", row("title: O\nrules:\n  on-success: [o]\n"), "an action's own are offer-if and on-failure"},
-		{"an action still saying variable", row("title: O\nvariable:\n  name: X\n  type: text\n  title: X\n"), "variable is not a key here — an action's questions are variables:"},
+		{"an action still saying variable", row("title: O\nvariable:\n  name: X\n  type: text\n  title: X\n"), "variable is not a key here - an action's questions are variables:"},
 		{"a code with no report to stand on", row("title: O\nshows: X\n"), "there is no report for it to appear on"},
 		{"a script written into the yaml", row("title: O\nscript: echo hi\n"), "an action in the action.sh beside it"},
 		{"a yes or no before it runs", row("title: O\nconfirm: Sure?\n"), "an action is agreed to by choosing its row"},
@@ -536,7 +536,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "an offer opening on no, the way an older Oak read it",
 			files: unit("go", "do", "title: Do\nconfirm: Really?\ndefault: no\n"),
-			want:  "default is not a key here — a confirm opens on no, and on yes after a task its yes-after names has run",
+			want:  "default is not a key here - a confirm opens on no, and on yes after a task its yes-after names has run",
 		},
 		{
 			name:  "a yes-after on a task that asks nothing",
@@ -566,7 +566,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "presets grouped on a page of their own, the way an older Oak read them",
 			files: map[string]string{FileModule: head("presets:\n  - title: P\n    options:\n      - title: O\n")},
-			want:  "options is not a key here — a starting point stands under presets: itself",
+			want:  "options is not a key here - a starting point stands under presets: itself",
 		},
 		{
 			name:  "two variables of the same name",
@@ -636,7 +636,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "existing, which a type says now",
 			files: map[string]string{FileModule: head("variables:\n  - name: PW\n    type: new-password\n    title: P\n    existing: true\n")},
-			want:  "existing is not a key here — a password that exists already is type: password",
+			want:  "existing is not a key here - a password that exists already is type: password",
 		},
 		{
 			name:  "a variable that names no type",
@@ -666,7 +666,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a row for an answer of one's own, which a type says now",
 			files: map[string]string{FileModule: head("variables:\n  - name: FS\n    type: list\n    title: F\n    options: [a]\n    free: Other\n")},
-			want:  "free is not a key here — a list that also takes an answer typed in is type: open-list",
+			want:  "free is not a key here - a list that also takes an answer typed in is type: open-list",
 		},
 		{
 			name:  "a check on an answer the settings page shows and its pattern holds",
@@ -676,7 +676,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "the keys the runtime now says for itself",
 			files: map[string]string{FileModule: head("console: Type installer.\n")},
-			want:  "console is not a key here — the row that leaves to the console is the runtime's own",
+			want:  "console is not a key here - the row that leaves to the console is the runtime's own",
 		},
 		{
 			name:  "the word for starting said the way an older Oak read it",
@@ -686,22 +686,22 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "the word for starting said the way Oak 0.17 read it",
 			files: map[string]string{FileModule: head("start-title: Install\n")},
-			want:  "start-title is not a key here — the menu's rows are the runtime's own, Start and Setup",
+			want:  "start-title is not a key here - the menu's rows are the runtime's own, Start and Setup",
 		},
 		{
 			name:  "the name of the settings said the way Oak 0.17 read it",
 			files: map[string]string{FileModule: head("settings-title: Configuration\n")},
-			want:  "settings-title is not a key here — the menu's rows are the runtime's own, Start and Setup",
+			want:  "settings-title is not a key here - the menu's rows are the runtime's own, Start and Setup",
 		},
 		{
 			name:  "a module describing itself the way Oak 0.22 read it",
 			files: map[string]string{FileModule: head("description: Ready.\n")},
-			want:  "description is not a key here — a question, a starting point and an action are described",
+			want:  "description is not a key here - a question, a starting point and an action are described",
 		},
 		{
 			name:  "the words of a module's pages the way Oak 0.22 read them",
 			files: map[string]string{FileModule: head("text:\n  start: Install\n")},
-			want:  "text is not a key here — the menu's rows are the runtime's own, Start and Setup, and the yes before the work is confirm: true",
+			want:  "text is not a key here - the menu's rows are the runtime's own, Start and Setup, and the yes before the work is confirm: true",
 		},
 		{
 			name: "a task's offer naming a variable nothing declares",
@@ -751,19 +751,19 @@ func TestLoadRefuses(t *testing.T) {
 			// somebody needs in order to fix it.
 			name:  "a key a product used to be able to declare",
 			files: map[string]string{FileModule: head("blind: true\n")},
-			want:  "blind is not a key here — a question asked first opens its filter by itself",
+			want:  "blind is not a key here - a question asked first opens its filter by itself",
 		},
 		{
 			// The two keys this layout retired, each pointing at where what
 			// they said now lives.
 			name:  "a task still naming its stage",
 			files: unit("go", "do", "title: Do\nstage: go\n"),
-			want:  "stage is not a key here — a task lies in the folder of its stage",
+			want:  "stage is not a key here - a task lies in the folder of its stage",
 		},
 		{
 			name:  "a task still saying execute",
 			files: unit("go", "do", "title: Do\nexecute: echo hi\n"),
-			want:  "execute is not a key here — a task does its work in the task.sh beside it",
+			want:  "execute is not a key here - a task does its work in the task.sh beside it",
 		},
 		{
 			name:  "a language tied to a variable nobody declared",
@@ -803,7 +803,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "asks on a question asked on the way in, which says nothing of being deferred",
 			files: unit("go", "do", "title: Do\nasks: DISK\n"),
-			want:  "asks: DISK is asked on the way in — a question asked mid-run says type: deferred",
+			want:  "asks: DISK is asked on the way in - a question asked mid-run says type: deferred",
 		},
 		{
 			name: "a deferred question that is free text, which is not one the frame can put mid-run",
@@ -845,52 +845,52 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a question's list the way an older Oak named it",
 			files: map[string]string{FileModule: head("variables:\n  - name: X\n    type: text\n    title: X\n    values: [a]\n")},
-			want:  "values is not a key here — a question's list is options",
+			want:  "values is not a key here - a question's list is options",
 		},
 		{
 			name:  "what prints a list the way an older Oak named it",
 			files: map[string]string{FileModule: head("variables:\n  - name: X\n    type: text\n    title: X\n    command: x()\n")},
-			want:  "command is not a key here — what prints a question's list is options-from",
+			want:  "command is not a key here - what prints a question's list is options-from",
 		},
 		{
 			name:  "a value worked out the way an older Oak named it",
 			files: map[string]string{FileModule: head("variables:\n  - name: X\n    type: text\n    title: X\n    answer: x()\n")},
-			want:  "answer is not a key here — a value worked out instead of asked is value-from",
+			want:  "answer is not a key here - a value worked out instead of asked is value-from",
 		},
 		{
 			name:  "a task the run goes on past, the way an older Oak named it",
 			files: unit("go", "do", "title: Do\noptional: true\n"),
-			want:  "optional is not a key here — a task the run goes on past when it fails says allow-failure",
+			want:  "optional is not a key here - a task the run goes on past when it fails says allow-failure",
 		},
 		{
 			name:  "an action's no the way an older Oak named it",
 			files: units(map[string]string{FileModule: head("rules:\n  start-if: [o]\n")}, action("o", "title: O\nfail: No.\n")),
-			want:  "fail is not a key here — what a no from an action means is its error",
+			want:  "fail is not a key here - what a no from an action means is its error",
 		},
 		{
 			name:  "a row on the settings page the way an older Oak named it",
 			files: map[string]string{FileModule: head("rules:\n  settings: [o]\n")},
-			want:  "settings is not a key here — the menu's rows are the runtime's own, Start and Setup, and a row on the settings page is an action under rules:, as on-settings",
+			want:  "settings is not a key here - the menu's rows are the runtime's own, Start and Setup, and a row on the settings page is an action under rules:, as on-settings",
 		},
 		{
 			name:  "the header's status read the way an older Oak named it",
 			files: map[string]string{FileModule: head("status:\n  script: x()\n")},
-			want:  "script is not a key here — a task does its work in the task.sh beside it, an action in the action.sh beside it, and the header's status reads check",
+			want:  "script is not a key here - a task does its work in the task.sh beside it, an action in the action.sh beside it, and the header's status reads check",
 		},
 		{
 			name:  "a menu of rows, the way an older Oak placed them",
 			files: map[string]string{FileModule: head("rules:\n  menu: [o]\n")},
-			want:  "menu is not a key here — its rows stand on the settings page: under rules:, as on-settings",
+			want:  "menu is not a key here - its rows stand on the settings page: under rules:, as on-settings",
 		},
 		{
 			name:  "a task showing a code, the way an older Oak drew one",
 			files: unit("go", "do", "title: Do\nreport: Done\nshows: DISK\n"),
-			want:  "shows is not a key here — a code is drawn by an action",
+			want:  "shows is not a key here - a code is drawn by an action",
 		},
 		{
 			name:  "a starting point fetched the way an older Oak fetched one",
 			files: map[string]string{FileModule: head("presets:\n  - title: P\n    asks: DISK\n")},
-			want:  "asks is not a key here — a starting point that is fetched names the action that fetches it",
+			want:  "asks is not a key here - a starting point that is fetched names the action that fetches it",
 		},
 		{
 			name:  "a starting point opening an action that is not there",
@@ -908,7 +908,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "the network said the way an older Oak read it",
 			files: map[string]string{FileModule: head("network:\n  wlan: true\n")},
-			want:  "network is not a key here — a wireless network is an action under actions/",
+			want:  "network is not a key here - a wireless network is an action under actions/",
 		},
 	}
 	for _, tc := range cases {

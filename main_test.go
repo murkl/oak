@@ -132,7 +132,7 @@ func TestASavedLanguageBeatsTheMachineLocale(t *testing.T) {
 	t.Setenv("LC_ALL", "fr_FR.UTF-8")
 	langs := []i18n.Lang{{Code: "en"}, {Code: "de"}, {Code: "fr"}}
 	if got := language("de", langs); got != "de" {
-		t.Errorf("language() = %q, want de — a stored choice is somebody having said so", got)
+		t.Errorf("language() = %q, want de - a stored choice is somebody having said so", got)
 	}
 }
 
@@ -140,7 +140,7 @@ func TestAMachineLocaleSettlesTheLanguageWhenNothingWasSaved(t *testing.T) {
 	t.Setenv("LC_ALL", "de_AT.UTF-8")
 	langs := []i18n.Lang{{Code: "en"}, {Code: "de"}}
 	if got := language("", langs); got != "de" {
-		t.Errorf("language() = %q, want de — de_AT is German", got)
+		t.Errorf("language() = %q, want de - de_AT is German", got)
 	}
 }
 
@@ -148,7 +148,7 @@ func TestALanguageNoLongerOnOfferFallsBackToTheMachineLocale(t *testing.T) {
 	t.Setenv("LC_ALL", "de_DE.UTF-8")
 	langs := []i18n.Lang{{Code: "en"}, {Code: "de"}}
 	if got := language("fr", langs); got != "de" {
-		t.Errorf("language() = %q, want de — a saved code no catalog answers to is not an answer", got)
+		t.Errorf("language() = %q, want de - a saved code no catalog answers to is not an answer", got)
 	}
 }
 
@@ -163,7 +163,7 @@ func TestALanguageNamedOnTheCommandLineIsMatchedLikeALocale(t *testing.T) {
 		}
 	}
 	if got, err := chosen("", langs); err != nil || got != "" {
-		t.Errorf("chosen(\"\") = %q, %v, want nothing — no language was named", got, err)
+		t.Errorf("chosen(\"\") = %q, %v, want nothing - no language was named", got, err)
 	}
 }
 
@@ -259,7 +259,7 @@ func TestARuntimeHoldingABrokenModuleWillNotStart(t *testing.T) {
 func TestAModuleWithNoCatalogsSpeaksTheRuntimesOwn(t *testing.T) {
 	mod := loaded(t, writeModule(t, "title: T\nstages: [go]\n", nil))
 	if got := len(catalogs(mod)); got != 1 {
-		t.Errorf("catalogs() has %d sources, want 1 — the runtime's alone", got)
+		t.Errorf("catalogs() has %d sources, want 1 - the runtime's alone", got)
 	}
 }
 

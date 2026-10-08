@@ -59,7 +59,7 @@ variables:
 func TestMissingIsWhatIsStillOpen(t *testing.T) {
 	s := setup(t, twoVars)
 	if names := names(s.Missing()); strings.Join(names, ",") != "USER" {
-		t.Errorf("missing = %v, want just USER — HOST has a default", names)
+		t.Errorf("missing = %v, want just USER - HOST has a default", names)
 	}
 	s.Set("USER", "moritz")
 	if got := s.Missing(); len(got) != 0 {
@@ -285,7 +285,7 @@ variables:
     required: true
 `)
 	if got := names(s.Upfront()); strings.Join(got, ",") != "LOCALE" {
-		t.Errorf("upfront = %v, want just LOCALE — USER is not marked first", got)
+		t.Errorf("upfront = %v, want just LOCALE - USER is not marked first", got)
 	}
 	s.Set("LOCALE", "de_DE")
 	if got := s.Upfront(); len(got) != 0 {
@@ -345,7 +345,7 @@ variables:
     default: workstation
 `)
 	if got := s.Get("USER"); got != "" {
-		t.Errorf("USER = %q, want nothing — the environment answers no question here", got)
+		t.Errorf("USER = %q, want nothing - the environment answers no question here", got)
 	}
 	if got := s.Get("HOST"); got != "workstation" {
 		t.Errorf("HOST = %q, want the declared default", got)
@@ -374,7 +374,7 @@ variables:
 	s := New(sp, filepath.Join(t.TempDir(), "installer.conf"), false)
 
 	if got := names(s.Visible()); strings.Join(got, ",") != "DISK,FS" {
-		t.Errorf("visible = %v, want DISK and FS — EXTRA's condition does not hold", got)
+		t.Errorf("visible = %v, want DISK and FS - EXTRA's condition does not hold", got)
 	}
 	s.Set("DISK", "/dev/sda")
 	if got := names(s.Visible()); strings.Join(got, ",") != "DISK,FS,EXTRA" {
