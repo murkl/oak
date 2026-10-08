@@ -214,6 +214,6 @@ func TestWhatIsAnsweredIsNotReported(t *testing.T) {
 			"echo \"${BASH_SOURCE[0]}\"\n",
 	}))
 	if len(got) != 0 {
-		t.Errorf("Unset() = %v, want nothing — every one of those is answered", got)
+		t.Errorf("Unset() = %v, want nothing - every one of those is answered", got)
 	}
 }

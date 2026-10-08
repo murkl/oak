@@ -255,7 +255,7 @@ func Template(w io.Writer, rt *spec.Runtime, mods []*spec.Module) error {
 	// One template belongs to one module. Which of several is not something to
 	// guess at, so it is named on the command line rather than picked here.
 	if len(mods) > 1 {
-		return fmt.Errorf("%d modules here — name one: %s", len(mods), strings.Join(rt.Modules, ", "))
+		return fmt.Errorf("%d modules here - name one: %s", len(mods), strings.Join(rt.Modules, ", "))
 	}
 	mod := mods[0]
 	msgs := mod.Messages()

@@ -50,7 +50,7 @@ func TestHasIsAboutTheCatalogNotTheOutput(t *testing.T) {
 	Use("de", &Catalog{Messages: map[string]string{"Kernel": "Kernel", "Back": "Zurück"}})
 	// A word a language spells exactly as English does is still translated.
 	if !Has("Kernel") {
-		t.Error("Has(Kernel) = false, want true — it is in the catalog")
+		t.Error("Has(Kernel) = false, want true - it is in the catalog")
 	}
 	if Has("Missing") {
 		t.Error("Has(Missing) = true")

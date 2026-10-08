@@ -109,9 +109,9 @@ func Load(dir string) (*Module, error) {
 // written for an older Oak is told what to do instead of losing what was in it
 // without a word.
 var retiredParts = map[string]string{
-	"hooks/":    "the runtime runs no hooks — each is an action now, a folder under actions/ that module.yaml names under rules:",
+	"hooks/":    "the runtime runs no hooks - each is an action now, a folder under actions/ that module.yaml names under rules:",
 	"options/":  "an option is an action now, a folder under actions/ that module.yaml names under rules:",
-	"module.sh": "a module has no shell of its own — what its scripts share with each other and with the modules beside it is a function in oak.sh beside oak.yaml",
+	"module.sh": "a module has no shell of its own - what its scripts share with each other and with the modules beside it is a function in oak.sh beside oak.yaml",
 }
 
 // checkType settles a variable's type, which every one names, and the keys
@@ -154,7 +154,7 @@ func checkStages(stages []string) error {
 	for _, stage := range stages {
 		switch {
 		case marked(stage):
-			return fmt.Errorf("stage %q: the %s is the folder's, not the name's — list it as %s", stage, Mark, strings.TrimPrefix(stage, Mark))
+			return fmt.Errorf("stage %q: the %s is the folder's, not the name's - list it as %s", stage, Mark, strings.TrimPrefix(stage, Mark))
 		case seen[stage]:
 			return fmt.Errorf("stage %q is listed twice", stage)
 		}
@@ -194,12 +194,12 @@ func loadTasks(dir string, stages []string) ([]*Task, error) {
 		}
 		name := entry.Name()
 		if !marked(name) {
-			return nil, fmt.Errorf("%s/%s: a task lies in the folder of its stage — %s/%s/%s/",
+			return nil, fmt.Errorf("%s/%s: a task lies in the folder of its stage - %s/%s/%s/",
 				DirTasks, name, DirTasks, Stage("<stage>"), name)
 		}
 		stage := strings.TrimPrefix(name, Mark)
 		if !slices.Contains(stages, stage) {
-			return nil, fmt.Errorf("%s/%s: no such stage — %s declares %s",
+			return nil, fmt.Errorf("%s/%s: no such stage - %s declares %s",
 				DirTasks, name, FileModule, strings.Join(stages, ", "))
 		}
 		tasks, err := loadStage(filepath.Join(base, name), stage)
@@ -251,7 +251,7 @@ func loadTask(where string) (*Task, error) {
 	t.work = Script(beside(where, FileTaskScript))
 	t.check = Script(beside(where, FileTest))
 	if t.work == "" {
-		return nil, fmt.Errorf("no %s here — a task does its work in one", FileTaskScript)
+		return nil, fmt.Errorf("no %s here - a task does its work in one", FileTaskScript)
 	}
 	return t, nil
 }
@@ -337,7 +337,7 @@ func refused(path string, err error) error {
 		}
 		line := fmt.Sprintf("line %s: %s is not a key here", m[1], m[2])
 		if instead, ok := retired[m[2]]; ok {
-			line += " — " + instead
+			line += " - " + instead
 		}
 		said = append(said, line)
 	}
@@ -470,7 +470,7 @@ func checkNeeds(groups map[string][]*Task) ([]string, error) {
 				case here[n]:
 					kept = append(kept, n)
 				case elsewhere[n] != "":
-					warnings = append(warnings, fmt.Sprintf("%s: needs %s, which is in %s — needs orders tasks within one stage, the stages order the rest",
+					warnings = append(warnings, fmt.Sprintf("%s: needs %s, which is in %s - needs orders tasks within one stage, the stages order the rest",
 						t.where(), n, elsewhere[n]))
 				default:
 					return nil, fmt.Errorf("%s: needs unknown task: %s", t.where(), n)
@@ -497,7 +497,7 @@ func (s *Module) checkAsks(t *Task) error {
 	case v == nil:
 		return fmt.Errorf("asks: no such variable: %s", t.Asks)
 	case !v.Deferred():
-		return fmt.Errorf("asks: %s is asked on the way in — a question asked mid-run says type: %s", t.Asks, TypeDeferred)
+		return fmt.Errorf("asks: %s is asked on the way in - a question asked mid-run says type: %s", t.Asks, TypeDeferred)
 	}
 	return nil
 }

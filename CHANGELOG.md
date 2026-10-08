@@ -1,6 +1,6 @@
 # Changelog
 
-What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before — never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
+What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before, never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
 ## [0.23.0](https://github.com/murkl/oak/compare/v0.22.0...v0.23.0) (2026-10-08)
 

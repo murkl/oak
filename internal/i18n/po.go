@@ -161,7 +161,7 @@ func Template(w io.Writer, project string, entries []Entry) error {
 	fmt.Fprint(b, "#\n")
 	fmt.Fprint(b, "# One catalog per language beside this file, named by its code: de.po, fr.po.\n")
 	fmt.Fprint(b, "# The msgid is the English source text and the key at once, so a message no\n")
-	fmt.Fprint(b, "# catalog has anything to say about is shown exactly as it stands here — which\n")
+	fmt.Fprint(b, "# catalog has anything to say about is shown exactly as it stands here - which\n")
 	fmt.Fprint(b, "# is what makes a half-finished translation useful from its first line.\n")
 	fmt.Fprint(b, "#\n")
 	fmt.Fprint(b, "# Generated. See the Makefile.\n")
@@ -174,7 +174,7 @@ func Template(w io.Writer, project string, entries []Entry) error {
 
 	all := append([]Entry{{
 		Text: LanguageName,
-		Note: `the name of this language in the language itself — "Deutsch", not "German". A list of languages is read by the people who speak them.`,
+		Note: `the name of this language in the language itself - "Deutsch", not "German". A list of languages is read by the people who speak them.`,
 	}}, entries...)
 
 	for _, e := range all {
