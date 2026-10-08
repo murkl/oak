@@ -130,7 +130,7 @@ variables:
 		"actions/root/action.yaml": "title: Root\nerror: Log in as root.\n",
 		"actions/root/action.sh":   "true\n",
 		// The one task reads both answers, so the report is about what the
-		// module holds rather than about a guard that disagrees — see
+		// module holds rather than about a guard that disagrees - see
 		// spec.Unread.
 		"tasks/@go/first/task.sh": "echo \"$HOST $PASSWORD\"\n",
 	}))
@@ -250,7 +250,7 @@ func TestEveryActionIsListedWithWhatItNames(t *testing.T) {
 }
 
 // A need reaching into another stage says nothing the stages have not already
-// said, so it is reported rather than refused — and the report is where whoever
+// said, so it is reported rather than refused - and the report is where whoever
 // wrote it sees that.
 func TestANeedReachingIntoAnotherStageIsReported(t *testing.T) {
 	dir := around(t, writeModule(t, "title: T\nstages: [go, later]\n", map[string]string{

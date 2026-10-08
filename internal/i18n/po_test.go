@@ -67,7 +67,7 @@ msgstr ""
 }
 
 // Nothing here writes a context or a plural, so an entry carrying one came from
-// somewhere that knows something this does not — and is left alone rather than
+// somewhere that knows something this does not - and is left alone rather than
 // half read.
 func TestAnEntryWithAContextIsSkipped(t *testing.T) {
 	c, err := Parse([]byte(`

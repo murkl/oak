@@ -14,16 +14,9 @@ type Lang struct {
 	Name string
 }
 
-// Discover lists the languages the given sources hold, merged into one list.
-//
-// There are two sources and they are independent: the runtime's own catalogs,
-// compiled into the binary, and each module's, which translate the
-// words that module wrote. A language present in either is offered — a module
-// may speak one the runtime has never heard of, and a half-translated interface
-// is still worth more to the person who needs it than an English one.
-//
-// The source language always comes first; the rest follow by the name they call
-// themselves, so the list reads the way a list of languages should.
+// Discover lists the languages any of the sources holds, the runtime's or a
+// module's, since a half-translated interface beats an English one. The source
+// language comes first, the rest by the name they call themselves.
 func Discover(sources ...fs.FS) []Lang {
 	names := map[string]string{SourceLang: "English"}
 	for _, src := range sources {
@@ -48,13 +41,9 @@ func Discover(sources ...fs.FS) []Lang {
 	return out
 }
 
-// Activate puts the program in a language, reading that language's catalog from
-// every source. Later sources win, so a module may reword something
-// the runtime also says.
-//
-// A code with no catalog anywhere leaves every message at its source text,
-// which is the right outcome: English is not a fallback here, it is what the
-// messages are written in.
+// Activate puts the program in a language, reading its catalog from every
+// source, later sources winning. A code with no catalog anywhere leaves the
+// messages in English, which is what they are written in.
 func Activate(code string, sources ...fs.FS) {
 	found := make([]*Catalog, 0, len(sources))
 	for _, src := range sources {
@@ -66,7 +55,7 @@ func Activate(code string, sources ...fs.FS) {
 }
 
 // catalogs reads every catalog in a source, keyed by language code. A source
-// that is not there — a module with no locales at all — is simply
+// that is not there - a module with no locales at all - is simply
 // empty, not an error: translations are an addition, never a requirement.
 func catalogs(src fs.FS) map[string]*Catalog {
 	out := map[string]*Catalog{}
