@@ -40,7 +40,7 @@ func buildStyles() {
 
 	// Body text is the terminal's own foreground: no colour set at all, so it
 	// follows whatever theme the terminal is wearing without this program being
-	// told about it. It is the one choice not worth making — every other colour
+	// told about it. It is the one choice not worth making - every other colour
 	// here carries a meaning, and ink that is merely ink carries none.
 	textStyle = baseStyle
 	boldStyle = textStyle.Bold(true)
@@ -84,11 +84,9 @@ func placeOnField(width, height int, block string) string {
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, block)
 }
 
-// styleInput dresses a text box in the interface's own styles. bubbles'
-// textinput sets its own otherwise, which would leave a stranger's grey
-// placeholder in the frame.
-// The cursor block takes cursorStyle, the same accent a list row's own cursor is
-// drawn in, so the two read as one idea rather than two different cursors.
+// styleInput dresses a text box in the interface's styles in place of
+// textinput's own grey. Its cursor takes cursorStyle, so it reads as the same
+// cursor as a list row's.
 func styleInput(m *textinput.Model) {
 	// No prompt of its own: every box in this program already has the same
 	// cursor in front of it that a list row under the cursor has, and two

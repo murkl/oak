@@ -2,18 +2,14 @@ package tui
 
 import "github.com/murkl/oak/internal/i18n"
 
-// Every word the interface says that does not come out of a module: the fixed
-// pages, the buttons, the key hints. They are here as functions
-// rather than constants because the language can change while the program is
-// running — the first screen is the one that changes it — and a constant read
-// at package init would be the one word left in the old language.
-//
-// The English text is the message and also its own key; see internal/i18n.
+// Every word the interface says that is not a module's, as functions, since the
+// first page changes the language at run time. The English text is the message
+// and its key; see internal/i18n.
 
 // say is the interface's own voice: the message in the language showing, in
 // marks the terminal can actually draw. Every word below goes through it,
 // because the ones that need rewriting are as likely to arrive from a catalog
-// as from the line above — a translation of "⏎ continue" carries the same
+// as from the line above - a translation of "⏎ continue" carries the same
 // symbol, and a console can draw it no better in German.
 func say(msg string, args ...any) string {
 	return glyphs.spell.Replace(i18n.T(msg, args...))
@@ -30,8 +26,8 @@ func labelHintClose() string    { return say("⏎ close") }
 func labelHintQuit() string     { return say("⏎ quit") }
 
 // labelHintAnswer is the hint for a question a run stopped to ask. It is the
-// one list in the program with nothing behind it — the task waiting on the
-// answer has already started — so esc there says what q says on the menu.
+// one list in the program with nothing behind it - the task waiting on the
+// answer has already started - so esc there says what q says on the menu.
 func labelHintAnswer() string { return say("↑↓ move · ⏎ confirm · esc quit") }
 
 // The page an action the work requires stands on, while it says no. It asks
@@ -60,7 +56,7 @@ func labelOwnAnswer() string         { return say("An answer of your own") }
 // The heading over the opening: the pages in front of the questions proper.
 // They come one after another rather than one inside the other, so the line
 // above them says which part of the program this is and then which of its pages
-// — never the row of answers already given.
+// - never the row of answers already given.
 func labelOpening() string { return say("Start") }
 
 // The menu's two rows: what starting the work is called, and the page of
@@ -95,7 +91,7 @@ func labelChoice() string { return say("What would you like to start?") }
 
 // labelCounter is where something sits in a run of things: which question of
 // how many, which task of how many. Bare numbers, because it is read in the
-// header beside what it is counting — a word in front of it would only repeat
+// header beside what it is counting - a word in front of it would only repeat
 // what the page already says.
 func labelCounter(at, of int) string { return say("%d of %d", at, of) }
 
@@ -106,13 +102,9 @@ func labelPresetsHelp() string {
 	return say("Choose where to start from. Every answer it fills in can still be changed afterwards.")
 }
 
-// What a run proved about itself: how many of the tests its tasks declared the
-// machine agreed with. It is read twice — under the line that says the run is
-// over, and again as the heading of the page listing the ones it did not.
-//
-// One sentence for both outcomes, because what is in front of it already says
-// which of the two this is: a mark on that page, and the colour of the line
-// under the run.
+// What a run proved: how many of its tasks' tests the machine agreed with,
+// under the end of the run and as the heading of the failed ones. One sentence
+// for both, since the mark and colour beside it say which.
 
 // TRANSLATORS: the first %d is how many tests passed, the second how many ran.
 func labelTestsPassed(passed, ran int) string { return say("%d of %d tests passed", passed, ran) }
@@ -134,25 +126,17 @@ func labelHintChecks() string { return say("↑↓ move · ⏎ select") }
 // The row under a list of actions that goes on from there.
 func labelGoOn() string { return say("Continue") }
 
-// The switch in the settings. It is the runtime's own answer and holds for every
-// module: what a task tests is the module's business, whether anything is tested
-// at all is not.
-//
-// One row and no heading over it: the row says what happens, and a heading would
-// only say it a second time. It says steps rather than what they install, because
-// what a module does with them is the module's, and a runtime that called them
-// installation steps would be naming the one thing it must not know.
-//
-// The sentence under it says what saying yes is worth, because somebody reading
-// it is deciding whether a thing they have never seen fail is worth the time.
+// The settings switch for testing, the runtime's answer for every module. It
+// says steps rather than what they install, which is the module's business, and
+// the sentence under it what saying yes is worth.
 func labelVerifySteps() string { return say("Verify steps") }
 func labelVerifyStepsHelp() string {
 	return say("Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end.")
 }
 
 // The last row of the settings page, and the page behind it. The row says what
-// it does rather than what it is about — it is the one row there that acts
-// instead of holding a value — and the sentence behind it says what that costs,
+// it does rather than what it is about - it is the one row there that acts
+// instead of holding a value - and the sentence behind it says what that costs,
 // because nothing after it can be taken back.
 func labelReset() string { return say("Reset all answers") }
 func labelResetHelp() string {
@@ -166,14 +150,9 @@ func labelPasswordMismatch() string { return say("The entries do not match.") }
 // since the frame names the module over it.
 func labelReallyStart() string { return say("Do you really want to start?") }
 
-// What a run says about itself. None of it names the module: the frame says
-// which one this is above every page, and a headline repeating it would be the
-// same word twice on one screen — which is also why the runtime needs no word
-// of the module's own here.
-//
-// The clock is on two of them. How long a run has been going is the one thing
-// somebody watching a list of tasks actually wants to know and cannot work out
-// for themselves, and how long it took is the same answer once it is over.
+// What a run says about itself, never the module's name, which the frame
+// carries already. Two carry the clock, since how long it has run is what
+// somebody watching wants to know.
 func labelRunFailed() string { return say("Failed") }
 func labelRunningFor(elapsed string) string {
 	return say("Working · %s", elapsed)
@@ -185,9 +164,8 @@ func labelLogHint(path string) string {
 	return say("The full log is in %s.", path)
 }
 
-// What the page a run stopped on says under the mark. The headline already
-// names the run; this names the step it got to and what that means for
-// everything after it.
+// What the page a run stopped on says under the mark: the step it got to, and
+// what that means for everything after it.
 //
 // TRANSLATORS: %s is the name of the step the run stopped at.
 func labelRunStopped(step string) string {
@@ -197,7 +175,7 @@ func labelRunStopped(step string) string {
 func labelCannotContinue() string { return say("Cannot continue") }
 
 // The way out, on a machine where leaving is not quitting a program but
-// deciding what happens to the machine — see leave.go.
+// deciding what happens to the machine - see leave.go.
 func labelLeave() string { return say("Leave") }
 
 // Read over the rows when this page went up in the middle of a run: both halves

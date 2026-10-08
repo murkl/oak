@@ -11,10 +11,8 @@ import (
 )
 
 // The palette is Nord (https://www.nordtheme.com), written out in full and
-// referred to by role below. Real hex rather than the ANSI 16, because this
-// runs in a terminal emulator on a configured desktop, not on a virtual
-// console — and because the same sixteen values already dress the prompt, the
-// editor and the system monitor. One palette for the whole environment.
+// referred to by role below. The same sixteen values dress the prompt, the
+// editor and the system monitor, so one palette covers the environment.
 const (
 	nord0  = "#2e3440" // Polar Night
 	nord1  = "#3b4252"
@@ -37,7 +35,7 @@ const (
 // Nord is drawn for a dark field: Frost and Aurora are mixed to sit on Polar
 // Night, and on a light terminal the same values wash out to a smear. These are
 // those hues taken down to where they carry against Snow Storm, at about the
-// contrast the originals have against Polar Night — so the light interface reads
+// contrast the originals have against Polar Night - so the light interface reads
 // with the same weight as the dark one rather than merely being legible.
 const (
 	lightGreen = "#4b6237"
@@ -49,42 +47,39 @@ const (
 // scheme: Polar Night's four sit too close together for a border in one to
 // read against the field in another, and mirroring nord1 and nord3 straight
 // onto Snow Storm would land both within a whisker of the paper. These four
-// are built the same way the hues above are — one point each between nord3
-// and nord4 — and split the same way: the hint sits at the point with more
+// are built the same way the hues above are - one point each between nord3
+// and nord4 - and split the same way: the hint sits at the point with more
 // contrast against the field, since it is text and has to be read outright,
 // and the rule and the border at the point with less, since they only have
 // to be seen.
 const (
-	darkDim   = "#aeb5c3" // hint, footer, breadcrumb — dark scheme
-	darkRule  = "#878f9f" // rule, border — dark scheme
-	lightDim  = "#5a6477" // hint, footer, breadcrumb — light scheme
-	lightRule = "#767f90" // rule, border — light scheme
+	darkDim   = "#aeb5c3" // hint, footer, breadcrumb - dark scheme
+	darkRule  = "#878f9f" // rule, border - dark scheme
+	lightDim  = "#5a6477" // hint, footer, breadcrumb - light scheme
+	lightRule = "#767f90" // rule, border - light scheme
 )
 
 // warn is a status role, not a text colour: the header's health dot flips to it
 // the instant a check comes back unhappy, and it has to catch the eye at a
 // glance. Nord's one yellow (nord13) is a body-text pastel that at dot size
 // reads as off-white rather than a warning, so warn takes a saturated amber of
-// its own — bright on Polar Night, taken down to hold its contrast on Snow
+// its own - bright on Polar Night, taken down to hold its contrast on Snow
 // Storm, so the sign is the same weight in either scheme.
 const (
-	darkAmber  = "#ffb02e" // warn — dark scheme
-	lightAmber = "#9a5000" // warn — light scheme
+	darkAmber  = "#ffb02e" // warn - dark scheme
+	lightAmber = "#9a5000" // warn - light scheme
 )
 
-// fail is the one role that is regularly a paragraph rather than a word: when a
-// stage dies, what the tool said is read line by line, and it is the most
-// important text this program ever puts on screen. Nord's own red (nord11) sits
-// at 3.05 against Polar Night — enough for a heading, short of what a block of
-// text needs. This is that red lightened until it clears WCAG AA for body text,
-// which keeps the hue and only stops it being one nobody can read.
-const darkRed = "#f27983" // fail — dark scheme
+// fail is the role read as a paragraph, what a tool said when a stage died.
+// Nord's red is lightened until it clears WCAG AA for body text on Polar Night,
+// keeping its hue.
+const darkRed = "#f27983" // fail - dark scheme
 
 // head is Nord's blue (nord9), the Frost hue Nord gives secondary elements: a
 // step deeper than the cyan of a value, and calm beside a status. It clears WCAG
 // AA on Polar Night as it is, and is taken down for Snow Storm like the hues
 // above.
-const lightBlue9 = "#486d93" // head — light scheme
+const lightBlue9 = "#486d93" // head - light scheme
 
 // A terminal of sixteen colours shows slots rather than hex, painted by whoever
 // dressed it. termenv puts a hex into the slot of the nearest stock xterm colour,
@@ -107,7 +102,7 @@ func ink(c lipgloss.Color, slot string) lipgloss.TerminalColor {
 }
 
 // scheme is one whole set of roles. There are two, one for each kind of
-// terminal, and nothing outside this file knows which of them is showing —
+// terminal, and nothing outside this file knows which of them is showing -
 // which is what keeps the light interface from being a second design.
 type scheme struct {
 	// accent is the primary. Green is the colour of a thing that is on and
@@ -123,12 +118,9 @@ type scheme struct {
 	warn  lipgloss.Color
 	fail  lipgloss.Color
 
-	// good is the third of the status roles, opposite fail: something worked,
-	// and worked for good. It is not the accent — the accent is whatever colour
-	// the runtime dressed itself in, and an installation that finished has to read as
-	// finished in an installer painted red as readily as in one painted green.
-	// So it is green here and stays green, the one colour that means this
-	// everywhere a person has ever looked at a machine.
+	// good says something worked for good, opposite fail. It is not the accent,
+	// which may be any colour, so it is green, as everywhere else a machine
+	// says so.
 	good lipgloss.Color
 }
 
@@ -180,14 +172,10 @@ var (
 	terminalDark = true
 )
 
-// Adapt dresses the interface for the terminal it is about to draw on: what it
-// is painted, how many colours it has, and which glyphs it can actually draw.
-// Anything the terminal will not answer is taken as dark, which is what a
-// terminal is unless somebody changed it.
-//
-// It has to be asked before the program takes the terminal over: the answer
-// arrives as an escape sequence on stdin, and once there is a key reader running
-// it would be read as somebody typing.
+// Adapt dresses the interface for its terminal: what it is painted, how many
+// colours it has and which glyphs it draws, taking dark where the terminal will
+// not say. It asks before the program takes the terminal over, since the answer
+// arrives on stdin like a keystroke.
 func Adapt() {
 	plain := terminalIsPlain()
 	adaptProfile(plain)
@@ -206,14 +194,9 @@ func adaptProfile(plain bool) {
 	}
 }
 
-// adapt dresses the interface for a terminal of the given kind. It is separate
-// from the asking so that what the answer does can be checked without a
-// terminal to answer.
-//
-// The field itself is left alone: whatever the terminal is painted, that is what
-// the interface sits on. There is no setting for it, and that is deliberate —
-// this program runs on somebody else's terminal for twenty minutes and then is
-// never seen again, which is no place to insist on a background of its own.
+// adapt dresses the interface for a terminal of the given kind, apart from the
+// asking so it can be tested without one. The field is left as the terminal
+// paints it, with no setting of its own.
 func adapt(dark bool) {
 	base = darkScheme
 	if !dark {
@@ -222,22 +205,9 @@ func adapt(dark bool) {
 	apply()
 }
 
-// terminalIsDark puts the question to the terminal: an escape sequence asking
-// what colour it is painted, and the answer read back off the same handle.
-//
-// termenv will not ask anything whose TERM says tmux, screen or dumb, on the
-// reasoning that a multiplexer can have several terminals attached and so has no
-// one answer to give. tmux does answer, though — it learned the colour from
-// whichever terminal is attached and passes it along — so inside tmux the
-// question goes out under a TERM that termenv is willing to ask, and only there.
-//
-// A terminal with no colour to report is not asked at all. A virtual console has
-// sixteen slots painted by whoever booted the machine and nothing to say about
-// what is behind them; a terminal calling itself dumb has said as much outright.
-// Either way the answer is the dark this falls back to, and asking for it costs
-// a round trip on the console and five seconds on anything that answers nothing.
-// Which terminals those are is the question next door: the ones with no font of
-// their own to draw with.
+// terminalIsDark asks the terminal what it is painted, inside tmux under a TERM
+// termenv agrees to ask, since tmux passes the answer on. A terminal with no
+// colour to report, a console or a dumb one, is not asked at all and is dark.
 func terminalIsDark() bool {
 	if terminalIsPlain() {
 		return true
@@ -251,7 +221,7 @@ func terminalIsDark() bool {
 
 // plainTerm is the environment as it stands, except that TERM names an ordinary
 // terminal. It is only ever handed to the one question above, never to anything
-// that decides what the interface may draw — tmux is still the thing being
+// that decides what the interface may draw - tmux is still the thing being
 // talked to, and it is still the one being asked.
 type plainTerm struct{}
 
@@ -284,7 +254,7 @@ func apply() {
 }
 
 // The interface is built dark and stays that way until somebody asks the
-// terminal, so that a run with no terminal to ask — a test, a piped -list — is
+// terminal, so that a run with no terminal to ask - a test, a piped -list - is
 // not sat waiting on an answer that is never coming.
 func init() { SetAccent("") }
 
@@ -292,17 +262,9 @@ func init() { SetAccent("") }
 // behind it: WCAG AA for body text.
 const minContrast = 4.5
 
-// readable takes a colour far enough from the field it sits on to be read
-// against it, and no further. The runtime names one accent and cannot know which
-// terminal it will be shown in, so a green picked against Polar Night would
-// otherwise arrive on white paper as a pale smudge.
-//
-// What it moves towards is black or white, whichever the field is not. That
-// darkens or lightens without turning the hue, so a green stays a green — it
-// just stops being one nobody can see.
-//
-// A colour in some notation other than #rrggbb is left exactly as it was written
-// it: an accent this cannot measure is still an accent somebody chose.
+// readable moves a colour towards black or white, whichever the field is not,
+// until it can be read on it, so an accent picked for one terminal keeps its
+// hue on another. A colour not written as #rrggbb is left as written.
 func readable(c, bezel lipgloss.Color) lipgloss.Color {
 	if _, ok := rgb(string(c)); !ok {
 		return c
@@ -320,7 +282,7 @@ func readable(c, bezel lipgloss.Color) lipgloss.Color {
 	return toward
 }
 
-// blend mixes a into b, t of the way. A pair it cannot read comes back as a —
+// blend mixes a into b, t of the way. A pair it cannot read comes back as a -
 // which only happens to an accent named in some notation other than
 // #rrggbb, and an accent that does not blend beats an accent that turns to noise.
 func blend(a, b lipgloss.Color, t float64) lipgloss.Color {

@@ -12,17 +12,9 @@ import (
 )
 
 // Every glyph the interface draws, in one place, so the set can be checked
-// against a font rather than discovered to be wrong on someone's terminal.
-//
-// Two sets, because a terminal emulator draws from a font with tens of thousands
-// of glyphs and a Linux virtual console — where an installer actually lives —
-// from a console font holding at most 512. A codepoint that is not in it gets a
-// replacement glyph: a spinner that never changes, a tick that reads as a letter.
-//
-// So the reduced set is built out of what a console font is guaranteed to hold:
-// ASCII, box drawing and blocks, and the punctuation every one of them inherits
-// from codepage 437. Each mark is chosen for reading on its own rather than for
-// resembling what it replaces.
+// against a font. The reduced set is for a Linux console font of at most 512
+// glyphs and keeps to ASCII, box drawing, blocks and codepage 437, each mark
+// chosen to read on its own.
 type glyphSet struct {
 	// cursor and its blank are the same width, so a row never shifts as the
 	// selection moves over it.
@@ -62,7 +54,7 @@ type glyphSet struct {
 	secret string
 
 	// focus are the density steps a block pixel passes through as the splash's
-	// sweep trail cools past it: hollow at the front, filling in to solid — so
+	// sweep trail cools past it: hollow at the front, filling in to solid - so
 	// a fresh letter looks like it is coming into focus rather than switching
 	// on at full weight in one step.
 	focus []string
@@ -73,8 +65,8 @@ type glyphSet struct {
 	// spell rewrites the marks a set has no glyph for but that turn up inside a
 	// sentence rather than beside one: the return symbol a key hint names, and
 	// the ellipsis a line that is still going ends on. They arrive as words
-	// rather than as marks — out of the code, and out of a catalog that
-	// translates them — so this is a rewriting of what is said and not one more
+	// rather than as marks - out of the code, and out of a catalog that
+	// translates them - so this is a rewriting of what is said and not one more
 	// entry above.
 	spell *strings.Replacer
 }
@@ -83,15 +75,10 @@ type glyphSet struct {
 // because a space is a space.
 const glyphBlank = "  "
 
-// The four cells everything drawn as a picture rather than as writing is built
-// from: a full block, its two halves, and nothing. Between them they say what
-// two stacked square pixels are doing, which is what makes a terminal cell —
-// twice as tall as it is wide — carry two square dots instead of one oblong.
-//
-// They are not in either glyph set above, because there is nothing to choose
-// between: all four are in codepage 437 and in every lat* console font, so the
-// large tick and the code beside it are the same shape on a virtual console as
-// in a terminal emulator. Nothing else the interface draws can say that.
+// The four cells every picture is built from: a full block, its halves and
+// nothing, so a cell twice as tall as wide carries two square dots. All four
+// are in codepage 437 and every lat* font, so the tick and the code look the
+// same everywhere.
 const (
 	blockFull  = "█"
 	blockUpper = "▀"
@@ -114,7 +101,7 @@ func cell(upper, lower bool) string {
 
 // glyphTick is the mark a finished run is headed by, at the size of something
 // worth stopping for. The same tick every finished row carries, drawn out of
-// blocks instead of asked of the font — a font's own tick is one cell tall
+// blocks instead of asked of the font - a font's own tick is one cell tall
 // whatever it is set beside, and this one has a whole page under it.
 var glyphTick = []string{
 	"           ▄█▀",
@@ -135,7 +122,7 @@ var glyphCross = []string{
 	"▄█▀     ▀█▄",
 }
 
-// glyphBlockPixel is the one rune the shipped block-letter wordmark draws with —
+// glyphBlockPixel is the one rune the shipped block-letter wordmark draws with -
 // every "on" cell of a letter is this and nothing else. The splash checks for it
 // by name rather than by literal, so a custom logo built from something else
 // entirely is left exactly as it is.
@@ -171,7 +158,7 @@ var fullGlyphs = glyphSet{
 
 // plainGlyphs is the same interface on a virtual console. Every entry here is
 // in codepage 437 and in the lat* console fonts alike, which between them is
-// every font a Linux console is realistically wearing — including the one the
+// every font a Linux console is realistically wearing - including the one the
 // kernel falls back to when nothing loaded a font at all.
 var plainGlyphs = glyphSet{
 	cursor: "» ",
@@ -182,15 +169,9 @@ var plainGlyphs = glyphSet{
 	scrollTrack: "│",
 	scrollThumb: "█",
 
-	// No console font has a tick, so a finished row takes the bullet instead:
-	// a mark that says something happened on this line without spelling out
-	// what, and one that reads against the smaller middle dot a row that was
-	// passed over keeps. The cross is missing too, and comes out of ASCII,
-	// where an x already means gone.
-	//
-	// Neither is a block. At the weight of a filled cell a mark sits on the
-	// line like a cursor stuck on the row, and a column of them beside the
-	// titles is heavier than the titles.
+	// No console font has a tick or a cross, so a finished row takes the bullet
+	// and a failed one an x. Neither is a block, which on the line would read
+	// as a stuck cursor.
 	ok:     "•",
 	fail:   "x",
 	ask:    "?",
@@ -205,12 +186,9 @@ var plainGlyphs = glyphSet{
 	on:  "■",
 	off: "·",
 
-	// One stroke turning on the spot: upright, leaning, flat, leaning back.
-	// The full set's circle is nowhere in a console font, and the shaded
-	// blocks that stood here before were a whole cell of ink going on and off
-	// beside the word — a mark that size next to a line of text reads as a
-	// cursor stuck on the row rather than as something turning. A stroke is
-	// the weight of the rules the interface is already drawn with.
+	// One stroke turning on the spot, at the weight of the interface's rules,
+	// since a console has no circle and a blinking block reads as a stuck
+	// cursor.
 	spinner: []string{"│", "/", "─", "\\"},
 
 	// The return symbol is in no console font at all, and the ellipsis is
@@ -219,7 +197,7 @@ var plainGlyphs = glyphSet{
 }
 
 // glyphs is the set showing right now, read at draw time from everywhere the
-// interface renders — exactly as the palette is, and for the same reason: which
+// interface renders - exactly as the palette is, and for the same reason: which
 // terminal this is cannot be known until it has been asked.
 var glyphs = fullGlyphs
 
@@ -233,13 +211,9 @@ func adaptGlyphs(plain bool) {
 	}
 }
 
-// terminalIsPlain reports whether this is a terminal drawing from a console
-// font rather than from a real one.
-//
-// TERM is the whole of the question. A Linux virtual console says `linux` and
-// nothing else does, so there is no guessing involved — and a terminal that
-// says nothing at all, or says it is dumb, is one that has told us to expect
-// nothing of it. Everything else is a terminal emulator with a font behind it.
+// terminalIsPlain reports whether the terminal draws from a console font: TERM
+// `linux`, or none or dumb, which promises nothing. Everything else has a font
+// behind it.
 func terminalIsPlain() bool {
 	switch term := os.Getenv("TERM"); {
 	case term == "", term == "dumb":
@@ -252,14 +226,9 @@ func terminalIsPlain() bool {
 // spinEvery is how fast the working mark turns.
 const spinEvery = 100 * time.Millisecond
 
-// spinFrame is the frame every working mark in the program is on right now.
-//
-// Read off the clock rather than counted per page, and that is the whole
-// point: two marks are regularly on screen at once — the header's, and the
-// one a running page draws beside its own title — and two counters started at
-// two different moments turn the same glyph out of step, which reads as two
-// unrelated things happening rather than one. A tick still asks for the
-// redraw; it no longer decides the phase.
+// spinFrame is the frame every working mark is on now, read off the clock so
+// the header's and a page's marks turn in step. A tick still asks for the
+// redraw.
 func spinFrame() string {
 	return glyphs.spinner[int(time.Now().UnixNano()/int64(spinEvery))%len(glyphs.spinner)]
 }
@@ -269,7 +238,7 @@ func spinFrame() string {
 // pictures, the frame, and every word handed in as the reduced set spells it.
 //
 // A product that loads a console font holds that font to this rather than to a
-// copy of it — a copy is the one list here that nothing would keep in step.
+// copy of it - a copy is the one list here that nothing would keep in step.
 func ConsoleGlyphs(words ...string) string {
 	g := plainGlyphs
 	marks := []string{

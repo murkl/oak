@@ -6,18 +6,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// languageScreen picks the language the whole interface speaks.
-//
-// It is deliberately not one of a module's variables: which words the questions
-// are asked in has to be settled before any question can be read — before the
-// question of which module to open is read — and it belongs to the runtime
-// rather than to the thing being installed. It is also the one setting whose
-// effect is immediate and total: every word on the next frame is in the new
-// language, including the one on the row that was just chosen.
-//
-// Two pages are built out of it: the row in the settings that changes the
-// choice, and the landing page every run opens on, which stands the same list
-// under the wordmark rather than in the frame (see landing.go).
+// languageScreen picks the language of the whole interface, the runtime's
+// setting rather than a module's, since it has to be settled before any
+// question is read. It makes the settings row and the welcome page's list (see
+// landing.go).
 type languageScreen struct {
 	app *app
 
@@ -71,8 +63,8 @@ func (s *languageScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		}
 		// The rows are rebuilt before leaving, so a page that stays on screen
 		// for one more frame is already in the language just chosen. The names
-		// themselves do not change — a language is always listed in its own
-		// words — but the sentence above them does.
+		// themselves do not change - a language is always listed in its own
+		// words - but the sentence above them does.
 		cmd := s.app.speak(code)
 		s.build()
 		return s, tea.Batch(cmd, s.done())

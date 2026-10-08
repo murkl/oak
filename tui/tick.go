@@ -8,7 +8,7 @@ import (
 
 // after is every clock in the interface: the message a page asks for once a
 // stretch of time has gone by. They all go through one name so a test can run
-// the interface on no time at all — that a page acts when its clock goes off is
+// the interface on no time at all - that a page acts when its clock goes off is
 // behaviour and is tested, how long it waited first is not, and a suite that
 // waits those out spends its run waiting.
 var after = tea.Tick
@@ -19,7 +19,7 @@ var after = tea.Tick
 const pollEvery = 100 * time.Millisecond
 
 // tickMsg is one of those redraws. A page that has work in flight asks for the
-// next one for as long as it has any, and stops asking the moment it does not —
+// next one for as long as it has any, and stops asking the moment it does not -
 // so an idle interface costs nothing at all.
 type tickMsg struct{}
 

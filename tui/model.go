@@ -8,7 +8,7 @@ import (
 
 // Model owns the terminal, the screen stack and the chrome around whatever is
 // on top of it. A screen never draws its own frame, so there is exactly one
-// place that decides what the program looks like — and exactly one place that
+// place that decides what the program looks like - and exactly one place that
 // can promise nothing ever escapes it.
 type Model struct {
 	app    *app
@@ -16,11 +16,9 @@ type Model struct {
 	width  int
 	height int
 
-	// leaving is the way out, drawn over the page underneath rather than in
-	// place of it. It is not part of the stack because it is not somewhere you
-	// navigated to: it is a question put over whatever was happening, and
-	// whatever was happening carries on behind it until one of its rows is
-	// chosen. Nil while nobody is asking to leave.
+	// leaving is the way out, a question drawn over the page underneath while
+	// whatever was happening carries on behind it. Nil while nobody asks to
+	// leave.
 	leaving screen
 
 	// The opening. splash is the logo while it is up and nil once it has gone.
@@ -38,8 +36,8 @@ type Model struct {
 	spinning bool
 
 	// The header's status: whether the module's check has answered yet, and
-	// what it said last. reading and waiting are the one chain of reads — a
-	// read out, or the clock until the next — the way spinning guards the
+	// what it said last. reading and waiting are the one chain of reads - a
+	// read out, or the clock until the next - the way spinning guards the
 	// mark's, and round is which of them still counts: see recheckMsg.
 	known, passes    bool
 	reading, waiting bool
@@ -57,7 +55,7 @@ const (
 	defaultHeight = 24
 )
 
-// statuser is a screen with something to say in the header — the stage counter
+// statuser is a screen with something to say in the header - the stage counter
 // during an install. Optional, like every other screen extra.
 type statuser interface{ status() string }
 
@@ -91,7 +89,7 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) top() screen { return m.stack[len(m.stack)-1] }
 
 // turn keeps the working mark moving, and keeps exactly one chain of ticks
-// doing it — a second would turn the mark at twice the rate and outlive the
+// doing it - a second would turn the mark at twice the rate and outlive the
 // work it stands for. It answers nil once there is nothing left to say, which
 // is what stops the clock.
 func (m *Model) turn() tea.Cmd {
@@ -129,7 +127,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // look asks the module once, as soon as it is open, which of its actions this
 // machine has, so a page stands with their rows from its first frame rather
 // than growing them over somebody's cursor. The menu and the settings ask
-// again themselves every time they come up — see hub.Init.
+// again themselves every time they come up - see hub.Init.
 func (m *Model) look() tea.Cmd {
 	a := m.app
 	if a.module == nil || a.looked {
@@ -139,13 +137,9 @@ func (m *Model) look() tea.Cmd {
 	return a.lookFor()
 }
 
-// statusMsg is what the header's status check answered; statusDueMsg is the
-// clock saying it is time to ask it again. Both carry the round they belong to.
-//
-// recheckMsg is a page saying it may have changed what the status is about —
-// an action that just ran — so the next read is asked for now rather than after
-// the interval, and whatever the read already out there says is not waited for:
-// it was taken before the change.
+// statusMsg is what the header's status check answered and statusDueMsg the
+// clock asking again, both carrying their round. recheckMsg asks for a read
+// now, since a page may just have changed what the status is about.
 type (
 	statusMsg struct {
 		pass  bool
@@ -191,7 +185,7 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.turn()
 
 	// Each is asked again on the way out of Update, where nothing is out any
-	// more — see poll.
+	// more - see poll.
 	case statusMsg:
 		m.reading = false
 		if msg.round != m.round {
@@ -221,12 +215,9 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// The splash answers to one thing only, and swallows the key that says
-		// it — otherwise dismissing the logo would also press whatever the page
-		// underneath has under the cursor. Arrows are excepted: they are what
-		// this terminal makes of a mouse wheel, and are nobody saying anything.
-		// So is ctrl+c: it means leave wherever it is pressed, and the logo
-		// goes out of its way rather than standing in front of the answer.
+		// The splash answers to one key and swallows it, so dismissing the logo
+		// presses nothing on the page underneath. Arrows, which a mouse wheel
+		// sends, and ctrl+c, which always means leave, pass through.
 		if m.splash != nil {
 			if !scrolls(msg) {
 				m.splash.skip()
@@ -284,11 +275,9 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.stopAndQuit()
 	}
 
-	// A keystroke belongs to whatever is in front of the user. Everything else
-	// belongs to the page that started it — which may be a run going on behind
-	// the way out, and which is the whole reason opening that page does not
-	// stop one. The way out itself has nothing in flight except while it is
-	// carrying a row out.
+	// A keystroke belongs to whatever is in front of the user, everything else
+	// to the page that started it, which may be a run behind the way out. The
+	// way out has nothing in flight except while carrying a row out.
 	_, typed := msg.(tea.KeyMsg)
 	if m.leaving != nil && (typed || working(m.leaving)) {
 		next, cmd := m.leaving.Update(msg)
@@ -300,15 +289,10 @@ func (m *Model) step(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmd, m.turn())
 }
 
-// wayOut reports whether a keystroke is somebody asking to leave the program
-// rather than answering the page in front of them. It is decided here, once,
-// so that every page of every module answers these keys alike and no page has
-// to remember to.
-//
-// ctrl+c always is. q is, wherever a letter is not a character being typed.
-// And so are esc and backspace on a page there is nothing behind — a run, and
-// the questions it stops to ask — where the way out is what going back means.
-// Everywhere else those two are the page's own, and mean one step back.
+// wayOut reports whether a key asks to leave rather than answer the page,
+// decided once for every page: ctrl+c always, q where no letter is typed, and
+// esc and backspace on a page with nothing behind it. Elsewhere those two mean
+// one step back.
 func (m *Model) wayOut(k tea.KeyMsg) bool {
 	if aborts(k) {
 		return true
@@ -329,12 +313,9 @@ func (m *Model) front() screen {
 	return m.top()
 }
 
-// busy is the page with something running, wherever it is: the way out while it
-// is putting the machine down, and otherwise the topmost page on the stack that
-// is working. Nil when nothing at all is happening.
-//
-// It is looked for below the top because a run carries on behind the page that
-// asks whether to leave it, and the header has to keep saying so.
+// busy is the page with something running: the way out while it puts the
+// machine down, else the topmost working page, looked for below the top since a
+// run carries on behind the way out. Nil when nothing happens.
 func (m *Model) busy() screen {
 	if m.leaving != nil && working(m.leaving) {
 		return m.leaving
@@ -397,19 +378,10 @@ func (m *Model) View() string {
 	})
 }
 
-// exit is what every way out of the interface goes through — ctrl+c, q, esc out
-// of a run, backing off the last page, the end of an installation.
-//
-// Where the module said how this machine is put down, that is a question rather
-// than an exit: the machine booted to run this and there is nothing behind it to
-// quit into, so the page offering a restart or a shutdown is what happens next.
-// Where it said nothing, the program ends, which is right for something somebody
-// started from a shell they are still sitting in.
-//
-// Nothing is stopped by asking. Wondering how to leave an installation is not
-// leaving one, and a package transaction is not interrupted by a keystroke that
-// only opened a page: the work carries on behind it and the header keeps saying
-// so, until one of the rows on that page is actually chosen — see leave.go.
+// exit is what every way out goes through: where the module says how the
+// machine is put down it asks rather than quits, and otherwise the program
+// ends. Asking stops nothing, so a package transaction carries on until a row
+// is chosen (see leave.go).
 func (m *Model) exit() tea.Cmd {
 	if !m.app.leaves() {
 		return m.stopAndQuit()
@@ -431,7 +403,7 @@ func (m *Model) halt() {
 }
 
 // stopAndQuit ends the program, after telling everything still running to put
-// down whatever it is holding — so a run can never outlive the interface that
+// down whatever it is holding - so a run can never outlive the interface that
 // started it.
 func (m *Model) stopAndQuit() tea.Cmd {
 	m.halt()
@@ -462,7 +434,7 @@ func (m *Model) indicator() string {
 
 // state is the header's status as the module's check last left it: Oak's mark
 // for yes or no, and the words the module gave each. Nothing until the check
-// has answered once — a mark shown before then would claim a state nothing has
+// has answered once - a mark shown before then would claim a state nothing has
 // read.
 func (m *Model) state() (mark, words string) {
 	if !m.known {

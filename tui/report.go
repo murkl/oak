@@ -6,40 +6,22 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// report is the page a run holds still on when a task has something to say: the
-// work is done, and here is what came of it.
-//
-// It exists because a list of task names filling in from the top cannot say
-// this. Every row on it looks like every other, so the moment a machine stops
-// being a disk being written to and starts being a system somebody owns goes
-// past unmarked — and the questions that follow it ("open a shell in there?",
-// "restart now?") arrive as though the work were still going on. So the run
-// stops, once, and says so at the size the thing deserves.
-//
-// It is also the page a run that could not go on stops at, under the other mark
-// and in the other colour. The two are one page with one thing different about
-// them — a run saying where it got to, at the size that deserves — so they are
-// one type rather than two that would drift apart.
-//
-// The words are the module's where the module has any, because what has just
-// happened is its own business. What is the runtime's is the mark, the colour,
-// and the code — a value nobody is going to copy off a screen by hand.
+// report is the page a run holds still on when a task has something to say, or
+// when it could not go on, one type in two colours. The words are the module's
+// where it has any; the mark, the colour and the code are the runtime's.
 type report struct {
 	headline string
 	body     string
 
 	// code is the value drawn to be scanned, and printed underneath as itself.
-	// Empty where the module named none, or where what it named came back empty —
+	// Empty where the module named none, or where what it named came back empty -
 	// a link that could not be made is not a page that cannot be shown.
 	code string
 
-	// note is one line under the words: what the run has proved about itself by
-	// the time this page went up. It is here rather than only at the end of the
-	// run because this is the page somebody actually reads — a run that offers a
-	// restart is a run most people never see the end of.
-	//
-	// Empty where nothing has been tested. alarm is whether it is something to
-	// look at rather than something to note.
+	// note is one line under the words, what the run has proved about itself by
+	// now, since a run that offers a restart is one most people never see the
+	// end of. Empty where nothing was tested; alarm marks it as something to
+	// look at.
 	note  string
 	alarm bool
 
@@ -48,15 +30,9 @@ type report struct {
 	stopped bool
 }
 
-// The page divides in the golden ratio, and which way round it divides is
-// decided by the code: the words are the major part and the code the minor,
-// because the words are what is read and the code is what is done afterwards.
-//
-// Beside rather than under, which is the one place this page departs from what
-// a poster of it would look like. The frame is 89 by 21 — wide, and no taller
-// than the terminal it is guaranteed to have — and a code stacked under a
-// paragraph wants some 30 rows. Side by side, the same two blocks sit in the
-// proportion the rest of the program is built in, and neither is cut.
+// The page divides in the golden ratio, the words the major part and the code
+// the minor. Side by side rather than stacked, since a code under a paragraph
+// wants some 30 rows and the frame is 89 by 21.
 const (
 	// reportWordsMin is the narrowest the words may be squeezed to before the
 	// code is dropped instead. Below it a sentence breaks every three words and
@@ -116,17 +92,9 @@ func (r *report) View(width, height int) string {
 	return block(beside(r.words(wordsW, height), wordsW, code, reportGap))
 }
 
-// words is everything there is to read, in the order it is read: the mark, what
-// happened, what it means, and the value it produced.
-//
-// Every gap between them is one blank line and no more. The mark is five rows
-// tall and carries the whole hierarchy of the page on its own; spacing the rest
-// out to match would leave a page of islands.
-//
-// What a frame too short for all of it loses is what carries least: the tail of
-// the paragraph first, and only once there is none of it left, the mark. The
-// headline, the line about the tests and the value are what this page is, and
-// none of them is ever what goes.
+// words is everything to read, in order: the mark, what happened, what it means
+// and the value, one blank line apart. A frame too short loses the paragraph's
+// tail first, then the mark, never the headline, the tests line or the value.
 func (r *report) words(width, height int) []string {
 	ink := r.ink()
 	head := inked(r.headline, width, ink)
@@ -190,7 +158,7 @@ func shortened(lines []string) []string {
 }
 
 // inked renders one paragraph as rows in a style, at a width already short of
-// the frame — the channel beside it is the margin, so there is no second one to
+// the frame - the channel beside it is the margin, so there is no second one to
 // take off here.
 func inked(text string, width int, ink lipgloss.Style) []string {
 	lines := wrap(text, width)
@@ -201,14 +169,9 @@ func inked(text string, width int, ink lipgloss.Style) []string {
 	return out
 }
 
-// beside lays two blocks side by side, each centred against the other, with a
-// channel between them. The taller decides the height, so whichever of the two
-// it is, the shorter sits in the middle of it rather than hanging off the top.
-//
-// leftW is the column the left block stands in, not the width of the longest
-// line in it: both callers wrapped their words to a column already, and a right
-// block that moved with the longest line would sit somewhere else on every page
-// — against the frame's edge on one and halfway across it on the next.
+// beside lays two blocks side by side, each centred against the taller, with a
+// channel between them. leftW is the left column's width rather than its
+// longest line, so the right block stands in the same place on every page.
 func beside(left []string, leftW int, right []string, gap int) []string {
 	rows := max(len(left), len(right))
 	for _, line := range left {

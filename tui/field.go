@@ -11,19 +11,15 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// fieldScreen asks for one value.
-//
-// Which of the two shapes it takes is not a decision this file makes: a
-// variable that has a set of answers is a list, and one that does not is a text
-// box. The declaration is already a complete description of the question, and
-// it is the same page whether it is reached from the opening run of questions
-// or from the settings page afterwards — one way of answering, learnt once.
+// fieldScreen asks for one value: a list where the variable has a set of
+// answers, a text box where not. It is the same page from the opening questions
+// and from the settings page.
 type fieldScreen struct {
 	app  *app
 	v    *spec.Variable
 	done func() tea.Cmd
 
-	// step is where this question sits in the opening run — "3 of 7" — and is
+	// step is where this question sits in the opening run - "3 of 7" - and is
 	// zero everywhere else. Somebody being asked a series of questions is owed
 	// the length of it; somebody who opened one row of a settings page is not.
 	at, of int
@@ -59,7 +55,7 @@ type fieldScreen struct {
 const keyFieldFree = "\x00free"
 
 // A question that asked for its narrowing box gets it from the first frame
-// rather than on a keypress — as does one asked first, where nothing on this
+// rather than on a keypress - as does one asked first, where nothing on this
 // machine is known to print what it looks like it does yet, the / included.
 // Every other list waits for the key.
 func newField(a *app, v *spec.Variable, done func() tea.Cmd) *fieldScreen {
@@ -94,7 +90,7 @@ func (s *fieldScreen) takesText() bool { return s.typing || s.filter.active() }
 
 func (s *fieldScreen) Init() tea.Cmd {
 	// The answers can come from a command and the suggestion from another, and
-	// either can take a moment — a timezone guessed over the network does. Both
+	// either can take a moment - a timezone guessed over the network does. Both
 	// are fetched off the frame rather than in front of a frozen one.
 	return tea.Batch(tick(), func() tea.Msg {
 		values, _ := s.app.runner.Options(s.v)
@@ -136,13 +132,10 @@ func (s *fieldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		if slices.ContainsFunc(msg.values, func(o runner.Option) bool { return o.Value == current }) {
 			s.app.store.Reoffer(s.v.Name)
 		}
-		// An answer held that will not do - a rule it breaks, a list that no
-		// longer offers it - is why this question is being put again, so the
-		// page says so from the first frame. A list then opens where a fresh
-		// question would: on its suggestion rather than on a row that is not
-		// there, which would leave the cursor on the first one and an enter
-		// meant for the page before answering with it. A box keeps what it
-		// held, since that is the answer to correct.
+		// An answer that will not do is why the question is asked again, so the
+		// page says so at once. A list then opens on its suggestion, where an
+		// enter meant for the page before lands harmlessly, and a box keeps
+		// what it held to be corrected.
 		turned := ""
 		if current != "" {
 			turned = s.app.store.Invalid(s.v, current)
@@ -178,7 +171,7 @@ func (s *fieldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// The narrowing box gets the key before the page does: / opens it,
-		// typing narrows, esc closes it — which is why esc only leaves the
+		// typing narrows, esc closes it - which is why esc only leaves the
 		// question once there is no box left to close. Not while the text box is
 		// up, though: there every key is already a character.
 		if s.choosing() {
@@ -220,7 +213,7 @@ func (s *fieldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 func (s *fieldScreen) choosing() bool { return !s.typing && s.picker != nil }
 
 // list is the rows the page shows: the answers the box has left of them, and
-// under those the row that opens the text box. That row is never narrowed away —
+// under those the row that opens the text box. That row is never narrowed away -
 // it is not an answer among them but the way to give one they do not hold,
 // which is exactly what a query that found nothing is looking for.
 func (s *fieldScreen) list() []item {
@@ -257,8 +250,8 @@ func (s *fieldScreen) commit() (screen, tea.Cmd) {
 		var ok bool
 		value, ok = s.picker.chosen()
 		// Nothing under the cursor is nothing to commit: enter on a list
-		// narrowed to nothing. An empty value under it is a different thing —
-		// "no variant", "the default" — and is committed like any other.
+		// narrowed to nothing. An empty value under it is a different thing -
+		// "no variant", "the default" - and is committed like any other.
 		if !ok {
 			return s, nil
 		}
@@ -277,7 +270,7 @@ func (s *fieldScreen) commit() (screen, tea.Cmd) {
 	}
 	s.app.store.Set(s.v.Name, value)
 	// In force before the next page rather than alongside it: an answer that
-	// changes the machine this is running on — the console keyboard — has to
+	// changes the machine this is running on - the console keyboard - has to
 	// hold for whatever is typed next, and the next page is where that is typed.
 	s.app.runner.Apply(s.v)
 	// The one answer that can also be about this program: a module may tie the
@@ -291,7 +284,7 @@ func (s *fieldScreen) commit() (screen, tea.Cmd) {
 	return s, tea.Batch(s.app.save(), s.done())
 }
 
-// View opens with the variable's own description — what this value is for, in
+// View opens with the variable's own description - what this value is for, in
 // the folder's own words. It is the reason a list of names is answerable by
 // somebody who has never installed anything.
 func (s *fieldScreen) View(width, height int) string {
@@ -316,7 +309,7 @@ func (s *fieldScreen) View(width, height int) string {
 	return b.String()
 }
 
-// problemRows is what a refusal costs the list under it — nothing until there
+// problemRows is what a refusal costs the list under it - nothing until there
 // is one, so a page that never refuses anything is never short a row.
 func (s *fieldScreen) problemRows() int {
 	if s.problem == "" {
@@ -325,12 +318,9 @@ func (s *fieldScreen) problemRows() int {
 	return 2
 }
 
-// crumbRoot: a question asked in a run stands alone, whichever run it is.
-// Which questions came before it is what the counter in the header says, or the
-// heading above it, and a growing line of answers already given would say the
-// same thing a third time and worse. A question opened from the settings page
-// is the exception: there it really is one page inside another, and so is an
-// action's question, under the action, in the trail of what opened it.
+// crumbRoot: a question in a run stands alone, its place told by the header's
+// counter or heading. From the settings page, or as an action's question, it is
+// a page inside another and keeps the trail.
 func (s *fieldScreen) crumbRoot() bool { return s.of > 0 || s.root }
 
 func (s *fieldScreen) crumbHead() string { return s.head }

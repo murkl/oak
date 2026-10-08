@@ -9,23 +9,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// secretScreen asks for a value that is never written down.
-//
-// Twice, where the password is being chosen: nothing can check one that does
-// not exist yet, and a typo in it is discovered at the first boot of a system
-// that took twenty minutes to build. The second entry costs four seconds.
-// Once, where it already exists and is only being handed over — see
-// Variable.Existing — because the thing it is handed to answers within seconds
-// and says which of the two it was.
-//
-// Where the module declares a check, the password is tried on what it opens
-// before it is taken, and a wrong one is refused here rather than halfway
-// through the run that needed it — see Variable.Check.
-//
-// What is typed reaches the environment of the bash process that runs the
-// stages, and of the check before it where there is one. Not the answer file,
-// not the log, not the argument list of anything, and not the screen, which
-// shows one dot per character.
+// secretScreen asks for a value never written down: twice where it is chosen,
+// once where it exists and is tried on what it opens (see Variable.Check). It
+// reaches the environment of the stages and the check, and never the answer
+// file, the log, an argument list or the screen.
 type secretScreen struct {
 	app  *app
 	v    *spec.Variable
@@ -77,7 +64,7 @@ func (s *secretScreen) box() {
 func (s *secretScreen) Init() tea.Cmd { return textinput.Blink }
 
 // takesText: the whole page is a box being typed into, and a password is
-// allowed every letter there is — q included.
+// allowed every letter there is - q included.
 func (s *secretScreen) takesText() bool { return true }
 
 // working is the check, while it runs: the mark turns in the header, and the

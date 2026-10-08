@@ -5,32 +5,23 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// The way in: the pages that stand on the field under the wordmark rather than
-// in the frame. The welcome page every run opens on, and after it — where the
-// product offers more than one module — the question of which to open. The
-// splash's wordmark stays where it was, each question comes up under it, and
-// answering the last of them is what opens the frame with everything in it.
+// The way in: the welcome page and, where there are several modules, the
+// question of which, both under the splash's wordmark. Answering the last opens
+// the frame.
 
-// The welcome page is the one page in the program that is never translated.
-//
-// It is read before a language has been settled — settling one is what it is
-// for — so there is no catalog to read it from and no point pretending
-// otherwise. Nothing here goes through say(), which is also what keeps it out
-// of the template: a string nobody can translate has no business in a
-// translator's file.
-//
-// What that costs is paid back in how it is written: short sentences, plain
-// English, and no word that needs another language to be understood.
+// The welcome page is the one page never translated, since it is read before a
+// language is settled; nothing here goes through say(), keeping it out of the
+// template. It is written in short, plain English to make up for it.
 const (
 	landingChoose = "Please choose your language:"
 	landingHint   = "↑↓ move · ⏎ confirm · q quit"
 )
 
 // stand is what such a page draws around its rows. The choice itself is the
-// page's own — the language page's rows and keys, or the fork's — and what
+// page's own - the language page's rows and keys, or the fork's - and what
 // stands around it is the same on both, so the two read as one way in.
 type stand struct {
-	// splash is the one the page stands under, handed over before it starts —
+	// splash is the one the page stands under, handed over before it starts -
 	// see stager. Nil where the product draws no logo, and the page is then the
 	// question alone.
 	splash *splashModel
@@ -52,7 +43,7 @@ type question struct {
 
 // view is the page centred across the terminal and raised to the golden
 // section of its height. While the splash is still on, it is the splash's
-// wordmark and sign-off with the rest of the page left blank — laid out on the
+// wordmark and sign-off with the rest of the page left blank - laid out on the
 // rows the page will take, so the wordmark does not move when the question
 // arrives.
 func (s *stand) view(width, height int, q question) string {
@@ -115,18 +106,16 @@ func (q question) lines(width, room int) []string {
 }
 
 // landingScreen is the welcome page: the words the rest of the run is read in.
-// The choice itself is the language screen's, rows and keys alike — a second
+// The choice itself is the language screen's, rows and keys alike - a second
 // way of making it would be a second thing to keep right.
 type landingScreen struct {
 	stand
 	choice *languageScreen
 }
 
-// newLanding is that page. A module named on the way in, or the only one on
-// offer, is said under the wordmark, because the page that would otherwise
-// name it is never drawn. In its own words rather than a catalog's, like
-// everything else here, and read when the page is built, so a module chosen
-// after it is not written back over the page that came before.
+// newLanding is that page. A module named on the way in, or the only one, is
+// named under the wordmark in its own words, read when the page is built so a
+// later choice does not rewrite it.
 func newLanding(a *app, done func() tea.Cmd) *landingScreen {
 	s := &landingScreen{choice: newLanguagePage(a, nil, done)}
 	if a.module != nil {

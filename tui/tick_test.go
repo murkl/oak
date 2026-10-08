@@ -7,11 +7,9 @@ import (
 	"testing"
 )
 
-// Every clock in the interface goes through after, which is what lets a test
-// run the whole thing on no time at all. One tea.Tick written straight into a
-// page would still work and still draw correctly — it would only be invisible
-// to that, and the suite would go back to sitting out every animation it has.
-// So the rule is checked rather than remembered.
+// Every clock goes through after, which lets the tests run on no time; a
+// tea.Tick written into a page would make the suite sit out its animation. So
+// the rule is checked rather than remembered.
 func TestEveryClockGoesThroughAfter(t *testing.T) {
 	sources, err := filepath.Glob("*.go")
 	if err != nil {

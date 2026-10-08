@@ -7,13 +7,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// One list type for every list in the program: the main menu, a page of
-// actions, a set of answers. They are all rows with a cursor, and the
-// differences between them are what a row carries, not how it behaves.
-//
-// Hand-rendered rather than bubbles/list because a row here has a value column,
-// a heading it can be grouped under, a sentence that belongs to it and a
-// reachable/unreachable distinction, none of which that component knows about.
+// One list type for every list in the program, rows with a cursor that differ
+// only in what a row carries. Hand-rendered, since a row here has a value
+// column, a heading, a sentence and a reachable state that bubbles/list does
+// not know.
 
 // item is one line of a list.
 type item struct {
@@ -37,7 +34,7 @@ type picker struct {
 	cursor int
 	top    int // first visible row, for lists longer than the frame
 
-	// centre is set when the cursor was put somewhere rather than moved there —
+	// centre is set when the cursor was put somewhere rather than moved there -
 	// an answer already in force, six hundred rows down a list of timezones.
 	// Landing on it at the very bottom of the window shows what comes before it
 	// and nothing of what comes after, which reads as the end of the list.
@@ -59,7 +56,7 @@ func (p *picker) describe(text string) { p.lead = strings.TrimSpace(text) }
 
 // prelude is the description as the rows that lead the list: the page's own
 // sentence, wrapped to the reading width and followed by the blank that used to
-// sit under it — now the first rows of the scroll rather than a header held
+// sit under it - now the first rows of the scroll rather than a header held
 // above it. Nil for a list with no description.
 func (p *picker) prelude(width int) []string {
 	if p.lead == "" {
@@ -77,7 +74,7 @@ func (p *picker) prelude(width int) []string {
 
 // next finds the nearest selectable row from i in direction d, or i itself if
 // there is none. Headings and unreachable rows are skipped rather than
-// selected — the cursor should never land somewhere pressing enter does nothing.
+// selected - the cursor should never land somewhere pressing enter does nothing.
 func (p *picker) next(i, d int) int {
 	for j := i + d; j >= 0 && j < len(p.items); j += d {
 		if !p.items[j].heading && !p.items[j].disabled {
@@ -160,12 +157,9 @@ func (p *picker) height(width int) int {
 	return len(p.prelude(width)) + len(p.items)
 }
 
-// column is the rows, squared off to the widest of them so they centre as one
-// column rather than each on its own. Only as wide as a name needs: the room a
-// row keeps for a value is trimmed off again, since none of them has one.
-//
-// As much blank follows the titles as the cursor takes in front of them, so it
-// is the titles that centre and the cursor stands in the margin.
+// column is the rows squared off to the widest name, so they centre as one
+// column, with as much blank after the titles as the cursor takes in front. So
+// the titles centre and the cursor stands in the margin.
 func (p *picker) column(height int) []string {
 	w := 0
 	for _, it := range p.items {
@@ -201,7 +195,7 @@ func (p *picker) View(width, height int) string {
 	total := pre + len(p.items)
 	p.scroll(height, pre)
 
-	// A list — description and all — shorter than the window has nothing to
+	// A list - description and all - shorter than the window has nothing to
 	// indicate: every row is already on screen, and a track with no room to
 	// move on it would only say so in a more roundabout way than leaving it off
 	// entirely.
@@ -217,7 +211,7 @@ func (p *picker) View(width, height int) string {
 	}
 
 	// A heading or a description line does not fill the row the way a title and
-	// value do — each is short on purpose — so it needs padding out to the same
+	// value do - each is short on purpose - so it needs padding out to the same
 	// width before the scrollbar goes on, or the bar would sit wherever the
 	// shortest line happens to end instead of in a column of its own.
 	rowW := lipgloss.Width(glyphs.cursor) + titleW + valueW
@@ -248,7 +242,7 @@ func (p *picker) View(width, height int) string {
 }
 
 // scrollbarW is what the scrollbar costs: its own cell, plus the space that
-// keeps it off the column in front of it — the same idea as markerW, one
+// keeps it off the column in front of it - the same idea as markerW, one
 // column further out.
 const scrollbarW = 2
 
@@ -264,8 +258,8 @@ func scrollThumb(total, height, top int) (at, length int) {
 }
 
 // scrollCell is one row of the bar. The track takes the ink the frame's own
-// rules and border are drawn in — it is furniture, and reads as part of the box
-// rather than as something with a meaning of its own — and the thumb the ink of
+// rules and border are drawn in - it is furniture, and reads as part of the box
+// rather than as something with a meaning of its own - and the thumb the ink of
 // supporting text, which is as far from it as this palette goes without the
 // thing starting to look like it wants choosing.
 func scrollCell(onThumb bool) string {
@@ -275,16 +269,9 @@ func scrollCell(onThumb bool) string {
 	return ruleStyle.Render(glyphs.scrollTrack)
 }
 
-// columns divides the row between the title on the left and the value on the
-// right. The value column is only as wide as this list's longest value needs,
-// so a page of short statuses leaves the rest of the line to its titles and a
-// page of long ones takes the room it has to — and either way both edges stand
-// in the same place down the whole list, which is the only thing that makes a
-// column a column.
-//
-// The golden major is the ceiling. One long value would otherwise squeeze the
-// titles down to nothing, and that is the worse loss of the two: the value is
-// what a row reports, but the title is what it is.
+// columns divides a row between title and value, the value column as wide as
+// the longest value needs, so both edges stand still down the list. The golden
+// major is its ceiling, since the title is what a row is.
 func (p *picker) columns(width int) (titleW, valueW int) {
 	avail := width - lipgloss.Width(glyphs.cursor)
 	widest := 0
@@ -301,17 +288,10 @@ func (p *picker) columns(width int) (titleW, valueW int) {
 	return avail - valueW, valueW
 }
 
-// scroll keeps the cursor inside the visible window, in the combined space of
-// the description rows and the list rows: pre of the former sit ahead of the
-// cursor's index, so the sentence scrolls off as the cursor moves down.
-//
-// Clamping alone would never bring it back — the cursor cannot climb above the
-// first row. The pull-in below does: once the cursor is the first row to choose
-// in the window, the window reaches up over the rows that lead it. That is a
-// heading, which belongs to the rows under it, and the description, which leads
-// the whole list the same way. A heading over some other row stays where it is,
-// or walking up a list would scroll it under a cursor that is nowhere near its
-// top.
+// scroll keeps the cursor in the window across description and list rows, so
+// the description scrolls off going down. Once the cursor is the window's first
+// choosable row, the window reaches up over the heading and description that
+// lead it.
 func (p *picker) scroll(height, pre int) {
 	cur := pre + p.cursor
 	// A cursor that was put here rather than moved here gets the middle of the
@@ -369,7 +349,7 @@ func (p *picker) line(it item, cursor bool, titleW, valueW int) string {
 
 	// The value is pinned to the right edge, a small margin short of it, so the
 	// left edge stays a clean column of names to read down and the right edge is
-	// a column of answers — both standing in the same place on every row, which
+	// a column of answers - both standing in the same place on every row, which
 	// is the only thing that makes a column a column.
 	//
 	// An empty value is not drawn: its colour codes would end the row behind

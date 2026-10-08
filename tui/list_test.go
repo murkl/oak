@@ -53,8 +53,8 @@ func TestMovementDoesNotWrap(t *testing.T) {
 	}
 }
 
-// An empty value under the cursor is a real answer — "no variant", "the
-// default" — and is not the same thing as a list with nothing in it.
+// An empty value under the cursor is a real answer - "no variant", "the
+// default" - and is not the same thing as a list with nothing in it.
 func TestChosenTellsAnEmptyAnswerFromNoAnswer(t *testing.T) {
 	p := newPicker([]item{{title: "Standard", key: ""}})
 	key, ok := p.chosen()

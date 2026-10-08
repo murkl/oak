@@ -64,7 +64,7 @@ func TestWrapBreaksOnWords(t *testing.T) {
 	}
 }
 
-// Where a line ends in the yaml is not where it ends on screen — except for a
+// Where a line ends in the yaml is not where it ends on screen - except for a
 // blank line, which is the one break that was meant.
 func TestParagraphKeepsOnlyDeliberateBreaks(t *testing.T) {
 	got := paragraph("first\nstill first\n\nsecond", 89)

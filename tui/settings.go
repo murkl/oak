@@ -8,21 +8,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// settingsScreen is every answer this installer holds, on one page, each beside
-// what it is currently set to.
-//
-// Not a hand-written page: it is the folder's own list of variables, in the
-// order the module declared them, grouped by the headings it named. A variable
-// added to the declaration is on this page the moment it exists, and there is
-// no second list anywhere that could fall out of step with the first.
-//
-// A row shows a name and a value and nothing else. What the value is *for* is a
-// sentence, and a sentence belongs on the page that asks the question — which
-// is one keypress away, and is the same page the opening run of questions used.
-//
-// It narrows like any other long list: press / and type. A module of any size
-// puts more answers on this page than fit in a frame, and hunting for one by
-// scrolling is the thing the box exists to spare.
+// settingsScreen is every answer on one page beside its value, the module's own
+// variables in declaration order under its headings, so no second list can
+// drift. A row's sentence is on its question one key away, and / narrows the
+// page like any long list.
 type settingsScreen struct {
 	app *app
 
@@ -36,14 +25,10 @@ type settingsScreen struct {
 	picker *picker
 }
 
-// The groups the runtime's own rows stand in, so that the layout puts a blank
-// line where one changes. The NUL prefix cannot collide with a group the folder
-// named.
-//
-// Neither carries a heading. The rows say what they are, and the blank line is
-// what sets them apart from the module's own: over them, the words this
-// session is read in and the actions the module names under `settings`; under
-// them, the two rows about the run itself, which stand together.
+// The groups the runtime's own rows stand in, so a blank line falls where one
+// changes, NUL-prefixed so no folder's group collides. Neither has a heading:
+// the language and the `settings` actions stand over the module's rows, the
+// run's two rows under them.
 const (
 	groupSession = "\x00session"
 	groupRun     = "\x00run"
@@ -69,14 +54,14 @@ func newSettings(a *app) *settingsScreen {
 }
 
 // Init asks again which actions this machine has, every time the page comes
-// up: what an action is offered on — a card, a network — changes while the
+// up: what an action is offered on - a card, a network - changes while the
 // page is away. It stands at once with what the last look found, and a row
 // lands or goes when this one answers.
 func (s *settingsScreen) Init() tea.Cmd { return s.app.lookFor() }
 
 // Refresh rebuilds on the way back from a value that was just changed: the row
 // shows the new value, and a group whose condition that answer just flipped
-// appears or goes. Whatever was typed into the box stays typed — the query is
+// appears or goes. Whatever was typed into the box stays typed - the query is
 // how this row was found, and changing it is no reason to go looking again.
 func (s *settingsScreen) Refresh() { s.build() }
 
@@ -91,7 +76,7 @@ func (s *settingsScreen) build() {
 func (s *settingsScreen) collect() []settingRow {
 	rows := []settingRow{}
 	// Language leads, above the folder's own rows. It changes this page itself,
-	// so it is found without having to read anything — unless the module tied it
+	// so it is found without having to read anything - unless the module tied it
 	// to one of its own answers, see `language:`, in which case that answer is
 	// the row a few lines further down and a second one above it would only be
 	// the same setting able to disagree with itself.
@@ -119,15 +104,9 @@ func (s *settingsScreen) collect() []settingRow {
 			label: v.GroupLabel(),
 		})
 	}
-	// And under everything, the two rows that are about the run rather than
-	// about a value: whether it checks its own work, and the one that throws
-	// every answer away. Neither is an answer, so both stand where the page is
-	// finished being read rather than among the rows they act on — together, as
-	// one group — and the one that cannot be taken back stands last of all.
-	//
-	// Validating is offered only where this module has something to check: a
-	// switch for a thing that would never happen is a row that reads as a
-	// promise nothing keeps.
+	// Under everything, the two rows about the run rather than a value,
+	// together, the irreversible one last. Validation is offered only where the
+	// module has something to check.
 	if s.app.module.Checks() {
 		rows = append(rows, settingRow{item: item{
 			title: labelVerifySteps(),
@@ -215,7 +194,7 @@ func (s *settingsScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		return s, nil
 	}
 	// The box gets the key before the page does: / opens it, typing narrows,
-	// esc closes it — which is why esc only leaves the page once there is no
+	// esc closes it - which is why esc only leaves the page once there is no
 	// box left to close.
 	if took, cmd := s.filter.Update(key); took {
 		s.layout()
@@ -231,10 +210,10 @@ func (s *settingsScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	return s, nil
 }
 
-// leave is what backing out of the page does — ordinarily straight to the hub,
+// leave is what backing out of the page does - ordinarily straight to the hub,
 // but through whatever answer is now missing first. Turning a setting on can
-// call for values nothing has asked for yet — a desktop asks for its graphics
-// driver only once it is on — and letting the hub come up before those are answered
+// call for values nothing has asked for yet - a desktop asks for its graphics
+// driver only once it is on - and letting the hub come up before those are answered
 // would leave an install one enter key away from running without them.
 func (s *settingsScreen) leave() tea.Cmd {
 	if missing := s.app.store.Missing(); len(missing) > 0 {
@@ -280,8 +259,8 @@ func truth(on bool) string {
 }
 
 // switchScreen is a yes or no that belongs to the runtime rather than to a
-// module. A module's own bool has a page already — the one every question is
-// asked on — and it is built out of a declaration this answer does not have, so
+// module. A module's own bool has a page already - the one every question is
+// asked on - and it is built out of a declaration this answer does not have, so
 // the two rows get a page of their own rather than a fake variable to hang off.
 type switchScreen struct {
 	app    *app

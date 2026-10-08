@@ -6,32 +6,18 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// choiceScreen is which of the runtime's modules this run is.
-//
-// It comes before everything the module itself does, because all of that
-// belongs to whichever it settles — the questions, the answer file, the log.
-// An installer that can also repair what it installed is not one program with a
-// switch in it: the two ask different questions, do different work and are
-// dangerous in different ways, so they are two modules and this is the one
-// moment they are told apart.
-//
-// Which is also why it stands under the wordmark with the welcome page rather
-// than in the frame: the frame is titled after the module, and before one has
-// been chosen there is nothing yet for it to be about. It is read in the
-// language just chosen, since that is settled by now.
-//
-// What is on offer is each module's own name, so the runtime never learns
-// what any of them is for, and nothing under it: the welcome page offers its
-// languages the same way, and the two read as one way in. A runtime offering
-// one module, or one named on the command line, never draws this page.
+// choiceScreen is which module this run is, asked before anything of a module
+// since everything after belongs to it, under the wordmark since the frame is
+// titled after the module. It offers each module's own name, and is never drawn
+// for one module or one named outright.
 type choiceScreen struct {
 	stand
 	app    *app
 	picker *picker
 	done   func() tea.Cmd
 
-	// first is whether nothing stands behind this page — no language was
-	// asked for — so leaving it is leaving the program rather than a step back.
+	// first is whether nothing stands behind this page - no language was
+	// asked for - so leaving it is leaving the program rather than a step back.
 	first bool
 }
 

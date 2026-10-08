@@ -11,12 +11,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// An action is run in one of two ways. By itself, as a question: whether the
-// work may begin, whether another action is offered. Or opened by somebody —
-// from a row, a starting point, or on the failure of one that said no — which
-// is its one page where it has one, and its script. What any of it is for is
-// the module's business: this file only walks through what action.yaml
-// declares.
+// An action runs by itself as a question, or opened by somebody with its one
+// page and its script. What it is for is the module's; this file only walks
+// through what action.yaml declares.
 
 // offeredMsg is what the actions an action requires said about this machine.
 // The model takes it, whichever page is in front when it lands.
@@ -27,7 +24,7 @@ type offeredMsg struct {
 
 // lookFor asks whether this machine has each of the actions that require
 // others, beside the drawing rather than in it. One that requires nothing is
-// known without asking — see has.
+// known without asking - see has.
 func (a *app) lookFor() tea.Cmd {
 	var cmds []tea.Cmd
 	for _, act := range a.module.Actions {
@@ -87,7 +84,7 @@ func (a *app) action(key string) *spec.Action {
 	return a.module.Action(name)
 }
 
-// asks reports whether an action, opened, puts a question before its work —
+// asks reports whether an action, opened, puts a question before its work -
 // rather than running the moment it is opened.
 func (a *app) asks(act *spec.Action) bool { return a.question(act, 0) < len(act.Vars) }
 
@@ -111,7 +108,7 @@ func (a *app) openFrom(act *spec.Action, then func() tea.Cmd) tea.Cmd {
 }
 
 // firstPage is the page an opened action stands on first, on top of depth
-// pages of the actions before it — the one that opened this on failure. Every page
+// pages of the actions before it - the one that opened this on failure. Every page
 // is pushed onto the one before it, so esc goes back a page, and the work knows
 // how many to take away again once it is done.
 func (a *app) firstPage(act *spec.Action, depth int, then func() tea.Cmd) screen {
@@ -133,13 +130,9 @@ func (a *app) page(act *spec.Action, i, depth int, then func() tea.Cmd) screen {
 	return newField(a, v, after).under(act.Label())
 }
 
-// actionScreen is an action's script running.
-//
-// It goes the moment the script has worked, taking the pages before it along,
-// back to wherever the action was opened from — or to the page it reports on
-// first, where it has one. Where it did not work, what it opens on failure is opened on top
-// of those pages, and where it has none, the page every failure opens on, whose
-// way back is to the last page: the next thing to try is another go at it.
+// actionScreen is an action's script running. Once it worked it goes back with
+// the pages before it, or to its report; where it did not, what it opens on
+// failure is opened over them, else the failure page.
 type actionScreen struct {
 	app   *app
 	act   *spec.Action
@@ -205,7 +198,7 @@ func (s *actionScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		return s, done()
 	}
 	// A report shows what the script wrote down, so the answer file is read
-	// back first — the same moment a task's report reads it.
+	// back first - the same moment a task's report reads it.
 	if err := s.app.runner.Imported(); err != nil {
 		logging.Warn("%s: %s", s.act.Title, err)
 	}
@@ -245,15 +238,10 @@ func (s *toldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 
 func (s *toldScreen) View(width, height int) string { return s.page.View(width, height) }
 
-// gateScreen is the actions the work requires, asked one after another, in the
-// order the module names them. It stands on the first that says no, for as long
-// as it says no: its fail is the page, it asks again by itself every few
-// seconds, and enter opens the action it falls back on where this machine has
-// that. Once every one says yes, the opening goes on.
-//
-// An action to fall back on that asks something first is opened straight away,
-// once: its question is the next thing to do, and esc from it shows this page.
-// One that would run at once waits for enter, since choosing it is the consent.
+// gateScreen asks the actions the work requires in order and stands on the
+// first no, asking again every few seconds, with enter opening its fallback. A
+// fallback that asks first opens at once; one that would run waits for enter,
+// which is the consent.
 type gateScreen struct {
 	opening
 	app  *app
@@ -322,7 +310,7 @@ func (s *gateScreen) Init() tea.Cmd {
 }
 
 // check asks the action standing now, as a new round, whether the work may go
-// on — and whether this machine has what it opens on failure.
+// on - and whether this machine has what it opens on failure.
 func (s *gateScreen) check() tea.Cmd {
 	s.round++
 	round := s.round

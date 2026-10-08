@@ -25,10 +25,8 @@ import (
 // it finds in the folder, and these tests use the name the real modules use.
 const treeFile = spec.FileModule
 
-// A whole program, driven by keystrokes, with a folder written for the test.
-//
-// The interface is tested the way it is used: press keys, read the screen. What
-// is asserted is what a person would see, so a refactor that keeps the
+// A whole program, driven by keystrokes against a folder written for the test,
+// and asserted on what a person would see. So a refactor that keeps the
 // behaviour keeps the tests.
 
 type harness struct {
@@ -113,8 +111,8 @@ var testTasks = map[string]string{
 	"tasks/@go/c-extras/task.sh":   "echo ran\n",
 }
 
-// writeModule puts one module on disk — the standard one, with whatever a test
-// changed about it — and answers with the folder it went into.
+// writeModule puts one module on disk - the standard one, with whatever a test
+// changed about it - and answers with the folder it went into.
 func writeModule(t *testing.T, dir string, files map[string]string) string {
 	t.Helper()
 	base := map[string]string{treeFile: testInstaller, spec.FileRuntimeShell: testShell}
@@ -170,7 +168,7 @@ func openModuleIn(t *testing.T, debug bool) Open {
 	return func(mod *spec.Module) (*Program, error) {
 		st := store.New(mod, filepath.Join(answers, mod.ID()+".conf"), debug)
 		// The catalogs the module brought, discovered the way the program
-		// discovers them — so a test that writes one is testing what ships.
+		// discovers them - so a test that writes one is testing what ships.
 		var sources []fs.FS
 		if mod.Locales != "" {
 			sources = append(sources, os.DirFS(mod.Locales))
@@ -205,7 +203,7 @@ func startIn(t *testing.T, locales string, mods ...*spec.Module) *harness {
 	return startWith(t, testRuntime(), openModule(t), locales, mods...)
 }
 
-// startWith is the same again for a run opened some other way — with --debug,
+// startWith is the same again for a run opened some other way - with --debug,
 // for the tests that are about what a script is handed, and for the pages that
 // are about the product rather than about any of its modules.
 func startWith(t *testing.T, rt *spec.Runtime, open Open, locales string, mods ...*spec.Module) *harness {
@@ -291,11 +289,9 @@ func init() {
 // going, so it is the one thing here deliberately not waited out.
 const quiet = 60 * time.Millisecond
 
-// patience is how long anything else is waited for. A page reacting answers in
-// microseconds - a page fetching what it offers, the next page after a choice -
-// but on a machine busy with the race detector that can take longer than any
-// guess, and a key sent before its page has arrived is a key lost. So it is
-// waited out, and this is only the bound on a command that never answers.
+// patience bounds the wait for a command that never answers. A page answers in
+// microseconds, but under the race detector a key sent before its page arrived
+// would be lost, so the page is waited for.
 const patience = 20 * time.Second
 
 // drain handles everything waiting, and everything that arrives while it is
@@ -362,10 +358,9 @@ func (h *harness) handle(msg tea.Msg) {
 			h.run(c)
 		}
 	case tickMsg, spinMsg, statusDueMsg, gateDueMsg:
-		// A clock. It carries nothing and re-arms itself, so handling one
-		// would be a test that never ends — a test that wants one to go off
-		// sends it. The opening's is the exception: it runs out, and what the
-		// palette is left at when it has is behaviour.
+	// A clock carries nothing and re-arms itself, so a test that wants one
+	// sends it. The opening's runs out, and where it leaves the palette is
+	// behaviour.
 	default:
 		if blink(msg) {
 			return
@@ -376,7 +371,7 @@ func (h *harness) handle(msg tea.Msg) {
 	}
 }
 
-// blink reports whether a message is a text cursor asking to be redrawn — the
+// blink reports whether a message is a text cursor asking to be redrawn - the
 // other clock in the program, and the only one this file cannot name outright
 // because the type behind it is not exported.
 func blink(msg tea.Msg) bool {
@@ -580,7 +575,7 @@ func TestAnAnsweredFirstQuestionIsNotAskedAgain(t *testing.T) {
 // A question asked first is asked before loadkeys has run, so even the key that
 // would normally open the filter is typed on a layout nobody has chosen yet.
 // Its box is up from the first frame however short the list is, and typing
-// narrows straight away — no / needed first, and nothing in the yaml to say so.
+// narrows straight away - no / needed first, and nothing in the yaml to say so.
 func TestAQuestionAskedFirstOpensItsFilterFromTheStart(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile: testInstaller +
@@ -594,7 +589,7 @@ func TestAQuestionAskedFirstOpensItsFilterFromTheStart(t *testing.T) {
 // ─── Which program ───────────────────────────────────────────────────────────
 
 // A runtime offering more than one module asks which to open before anything
-// follows from it — and what it asks with is entirely each module's own words.
+// follows from it - and what it asks with is entirely each module's own words.
 // What is chosen then decides which questions there are, where the answers go
 // and what the run is called from there on.
 const testRecovery = `
@@ -1009,7 +1004,7 @@ func twoLanguageTree() map[string]string {
 // And it is read before there is a language to read it in, so it is written in
 // one and stays there: a catalog offering a translation of its words is never
 // asked for one, and a machine that chose German last time opens on the same
-// English page — the name of the module under the wordmark included.
+// English page - the name of the module under the wordmark included.
 func TestTheLandingPageIsNeverTranslated(t *testing.T) {
 	tree := twoLanguageTree()
 	tree["locales/de.po"] += "\nmsgid \"" + landingChoose + "\"\nmsgstr \"Bitte Sprache wählen:\"\n" +
@@ -1154,13 +1149,11 @@ func TestTheInterfaceLanguageIsNotAnAnswer(t *testing.T) {
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
-// wireless is a network the way a module needing the internet writes one, in
-// actions: the machine has a card where card says yes, the work requires —
-// where it waits — internet, which says yes once marker exists and otherwise
-// falls back on joining one of two networks. The open one is joined as it is
-// chosen; the other says no, and its fallback asks for the passphrase. Both
-// write what they joined with to marker. Nothing in it is anything Oak knows
-// about.
+// wireless is a network written the way a module needing the internet writes
+// one in actions: a card where card says yes, and an internet check that says
+// yes once marker exists and otherwise falls back on joining. The open network
+// joins as chosen, the other asks for its passphrase, and both write what they
+// joined with to marker.
 func wireless(marker, card string, waits bool) map[string]string {
 	tree := map[string]string{
 		treeFile:                   testInstaller + wirelessRules(waits),
@@ -1277,10 +1270,9 @@ func TestTheWaitAnswersOnlyItsOwnClock(t *testing.T) {
 	h.wants("There is no internet connection.")
 }
 
-// The fallback, and where that says no, the fallback it names in turn: a chain
-// of one page each. Once the last has worked the wait looks again — and the
-// opening goes on exactly as it would have with a cable. Each script is handed
-// what the pages were answered with, under their names.
+// The fallback, and where that says no the one it names in turn, a page each,
+// after which the wait looks again and the opening goes on as with a cable.
+// Each script gets the pages' answers under their names.
 func TestTheFallbackOfTheWaitCarriesOn(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "online")
 	h := newHarness(t, wireless(marker, "exit 0", true))
@@ -1559,7 +1551,7 @@ func TestOneLanguageIsNoLandingPage(t *testing.T) {
 	newHarness(t, nil).wants("Full", "Bare").refuses(landingChoose, "Language")
 }
 
-// A module may tie the words on screen to one of its own answers — see
+// A module may tie the words on screen to one of its own answers - see
 // `language:` in a module's declaration. Answering it then also settles the
 // language, whatever was chosen on the way in.
 func TestAModuleCanTieTheInterfaceToOneOfItsOwnAnswers(t *testing.T) {
@@ -1716,7 +1708,7 @@ func TestSettingsShowsEveryAnswerOnOnePage(t *testing.T) {
 }
 
 // A secret is not on the page at all. It is never stored, so the row could only
-// show what cannot be read and open on nothing that can be typed — and a
+// show what cannot be read and open on nothing that can be typed - and a
 // settings page is a promise that every row on it can be opened.
 func TestSettingsLeavesASecretOffThePage(t *testing.T) {
 	h := newHarness(t, nil)
@@ -1862,7 +1854,7 @@ func TestTheSettingsFilterSurvivesChangingAValue(t *testing.T) {
 	h.wants("Disk", "/dev/sdb").refuses("User name")
 }
 
-// Turning a setting on can call for an answer nothing has asked for yet —
+// Turning a setting on can call for an answer nothing has asked for yet -
 // extras on means a driver has to be chosen. Backing out of settings must run
 // into that question rather than hand the hub a machine one enter key away
 // from installing without it.
@@ -1883,7 +1875,7 @@ func TestTurningOnASettingAsksForWhatItNowRequiresOnTheWayOut(t *testing.T) {
 // ─── Starting over ───────────────────────────────────────────────────────────
 
 // The last row of the settings page drops every answer this module holds and
-// opens it where a machine that has answered nothing opens it — the starting
+// opens it where a machine that has answered nothing opens it - the starting
 // points among them, since being offered once is the whole of what one is.
 func TestResettingForgetsEveryAnswerAndOffersTheStartingPointsAgain(t *testing.T) {
 	h := newHarness(t, nil)
@@ -2066,7 +2058,7 @@ func TestASecretThatAlreadyExistsIsAskedOnce(t *testing.T) {
 }
 
 // Where the module can tell a wrong one, it says so on the page it was typed on,
-// in its own words, and asks again — rather than starting a run that stops on
+// in its own words, and asks again - rather than starting a run that stops on
 // the first step that needed it.
 func TestASecretTheModuleChecksIsRefusedWhereItWasTyped(t *testing.T) {
 	h := newHarness(t, map[string]string{
@@ -2176,7 +2168,7 @@ func TestATaskOpensOnYesOnceTheTaskItFollowsHasRun(t *testing.T) {
 }
 
 // A value that could not have been known before the work started: the run
-// stops where the list of tasks was, asks, and carries on with the answer — and
+// stops where the list of tasks was, asks, and carries on with the answer - and
 // the offer after it can name what was just chosen.
 func TestATaskCanAskForAValueInTheMiddleOfTheRun(t *testing.T) {
 	h := newHarness(t, map[string]string{
@@ -2399,7 +2391,7 @@ func finishedRun(t *testing.T) *harness {
 }
 
 // A run that finished ends on its result, and under it the actions the module
-// offers once the work is done — opening on the row that goes on.
+// offers once the work is done - opening on the row that goes on.
 func TestAFinishedRunOffersTheModulesActionsForIt(t *testing.T) {
 	h := finishedRun(t)
 	h.wants("Finished in", "Share the answers", "Continue").refuses("First", "Second")
@@ -2437,8 +2429,8 @@ func TestAFailureReportFitsTheSmallestTerminal(t *testing.T) {
 }
 
 // The smallest module that is still an installer: some questions and something to
-// do. Everything else the runtime offers — a language to pick, a starting
-// point, a task that asks first — is a page that simply does not appear.
+// do. Everything else the runtime offers - a language to pick, a starting
+// point, a task that asks first - is a page that simply does not appear.
 func TestTheSmallestTreeStillWorks(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		treeFile:                       "title: Test Installer\nstages: [go]\nvariables:\n  - name: USER\n    type: text\n    title: User name\n    required: true\n",
@@ -2691,11 +2683,9 @@ func TestBackspaceGoesBackWhereEscDoes(t *testing.T) {
 	h.wants("User name", "1 of 2")
 }
 
-// Except in front of a box being typed into, where it is the delete key and
-// nothing else. A key repeat is faster than a hand: a box cleared by holding
-// backspace down would otherwise leave the page on the very next repeat, which
-// is a step back nobody asked for. Esc is the way back there, and the only one
-// the hint ever promised.
+// In front of a box being typed into, backspace only deletes, so holding it
+// down to clear the box never steps back a page on the next repeat. Esc is the
+// way back there, the only one the hint promises.
 func TestBackspaceOnlyDeletesInFrontOfABox(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter()
@@ -2756,7 +2746,7 @@ func TestTheQuestionOfWhichModuleIsBackedOutOfLikeAnyOther(t *testing.T) {
 	h.wants(landingChoose, "English")
 }
 
-// q asks to leave from wherever it is pressed, not only from the menu — and
+// q asks to leave from wherever it is pressed, not only from the menu - and
 // what it opens is drawn over the page rather than instead of it, so either
 // key that means back lands on exactly what was there before.
 func TestQAsksToLeaveFromAnyPageAndComesBackToIt(t *testing.T) {
@@ -2801,8 +2791,8 @@ func TestQIsACharacterWhereSomethingIsBeingTyped(t *testing.T) {
 	h.wants("Password").refuses("Restart", "Shut down")
 }
 
-// A question a run stopped for has no page behind it — the task waiting on the
-// answer has already started — so back means the same thing there that ctrl+c
+// A question a run stopped for has no page behind it - the task waiting on the
+// answer has already started - so back means the same thing there that ctrl+c
 // means everywhere, and the run is still standing on it afterwards.
 func TestAQuestionInARunIsLeftRatherThanBackedOutOf(t *testing.T) {
 	files := leaveTree("true", "true")
@@ -2908,7 +2898,7 @@ func TestAFailedTestOpensOnWhereItBroke(t *testing.T) {
 	}
 }
 
-// A test is judged by its exit status, whichever way it leaves — a failing
+// A test is judged by its exit status, whichever way it leaves - a failing
 // command, or a plain `return 1`. A task's own work is the one thing whose
 // final status is dropped, and getting the two mixed up made a failing test
 // read as a passing one.
@@ -3213,7 +3203,7 @@ func TestAPresetCanFetchItsAnswers(t *testing.T) {
 	h.wants("Online")
 
 	// An answer has already been written down once, which is what a real run
-	// looks like by the time it reaches this page — so the file carries an empty
+	// looks like by the time it reaches this page - so the file carries an empty
 	// line for the code, and reading it back would undo the answer about to be
 	// given unless that answer is written down first.
 	if err := h.a.store.Save(); err != nil {
