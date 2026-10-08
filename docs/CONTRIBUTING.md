@@ -142,7 +142,7 @@ make github
 | File | Says |
 | --- | --- |
 | `repository.json` | Squash merges only, under the pull request's title alone; auto-merge on; a merged branch is deleted |
-| `ruleset.json` | `main` takes nothing but a pull request, squashed, once `Ready` and `Title` have passed; no force push, no deletion |
+| `ruleset.json` | `main` takes nothing but a pull request, squashed, once `Ready` and `Title` have passed; no force push, no deletion. The only protection: a classic one is removed |
 | `actions.json` | A workflow's token reads unless it says otherwise, and may open the release pull request |
 | `code-scanning.json` | CodeQL's default setup for Go, on pull requests, on `main` and weekly. The workflows are zizmor's, in `make check` |
 
