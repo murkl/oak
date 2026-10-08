@@ -9,7 +9,7 @@ import (
 )
 
 // A failure report is the most important text this program ever puts on screen,
-// and the frame lays it out as a table — so what it holds is a contract. The
+// and the frame lays it out as a table - so what it holds is a contract. The
 // first two rows are what somebody reading it has to have before anything else:
 // which module, and which step of it.
 func TestAFailureIsReportedAsLabelledFields(t *testing.T) {
@@ -44,7 +44,7 @@ func TestAFailureIsReportedAsLabelledFields(t *testing.T) {
 }
 
 // An action is a module's own code like a task, so a mistake in one is an
-// authoring bug like any other — and the report says it was an action, because
+// authoring bug like any other - and the report says it was an action, because
 // that is the half of the module to go and look in.
 func TestAFailureInAnActionNamesTheAction(t *testing.T) {
 	f := &Failure{
@@ -79,7 +79,7 @@ func TestAFailureWithNoTrapReportSaysOnlyWhatItKnows(t *testing.T) {
 }
 
 // Fail is for a script that was handed the terminal: what went wrong was on
-// screen, so there is no trap report to fill in — only the code it left.
+// screen, so there is no trap report to fill in - only the code it left.
 func TestFailCarriesTheExitCodeOfAScriptThatOwnedTheTerminal(t *testing.T) {
 	step := Step{Name: "Enter the new system"}
 	if err := sh.Fail(step, nil); err != nil {
@@ -98,7 +98,7 @@ func TestFailCarriesTheExitCodeOfAScriptThatOwnedTheTerminal(t *testing.T) {
 }
 
 // An action's script runs under the same trap as a task's, so a mistake in it
-// names the file and the line — and the report says whose it was.
+// names the file and the line - and the report says whose it was.
 func TestAFailingActionNamesItselfAndTheLine(t *testing.T) {
 	session, err := sh.Start(Step{Name: "Broken", Action: true, Script: sourced(t, "echo fine\nls /definitely/not/here\n")}, Env(os.Environ()))
 	if err != nil {

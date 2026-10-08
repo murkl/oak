@@ -77,10 +77,9 @@ func TestAHandoverWithoutATerminalSaysSo(t *testing.T) {
 	}
 }
 
-// An interactive shell takes the terminal's foreground for its job control.
-// Once it is gone, this process has the terminal back rather than being left in
-// the background of it. Needs a terminal this process controls, so it is
-// skipped where there is none.
+// Once an interactive shell that took the terminal's foreground is gone, this
+// process has the terminal back. Skipped where this process controls no
+// terminal.
 func TestAHandoverGivesTheTerminalBack(t *testing.T) {
 	tty, err := os.OpenFile(controllingTerminal, os.O_RDWR, 0)
 	if err != nil {

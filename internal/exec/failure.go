@@ -34,24 +34,18 @@ type Failure struct {
 	Stderr  string
 }
 
-// Field is one row of a failure report: what it is, and what it says.
-//
-// Path marks the value whose end carries more than its start — the file and the
-// line it broke on. A frame too narrow for it cuts the front rather than the
-// back, because the leading folders are the one part somebody chasing it can
-// work out for themselves and the line number is not.
+// Field is one row of a failure report: what it is, and what it says. Path
+// marks a value whose end matters more than its start, the file and the line,
+// so a narrow frame cuts its front.
 type Field struct {
 	Label string
 	Value string
 	Path  bool
 }
 
-// Fields renders the failure as those rows, so the frame can lay them out as a
-// table rather than parse a sentence back apart. The labels are translated here
-// because this is the one place that knows what each value is.
-//
-// An action is named as one. It is a module's own code like a task's, and the
-// row that says which of the two broke is where somebody starts looking.
+// Fields renders the failure as rows for the frame's table, translating the
+// labels here, the one place that knows what each value is. An action is named
+// as one, since which of the two broke is where somebody starts looking.
 func (f *Failure) Fields() []Field {
 	var out []Field
 	add := func(label, value string) {
@@ -98,15 +92,10 @@ func (f *Failure) Error() string {
 	return b.String()
 }
 
-// parseReport reads the ERR trap's first line: code, source, line, command.
-//
-// A script can also die without the trap — a bare `exit 1` does not fire ERR —
-// so a missing or unreadable report is normal and simply leaves the fields
-// empty. The exit code alone still names the step that failed.
-//
-// Only the first line counts. A command substitution fails twice over — once in
-// the subshell it ran in and once in the line that took its output — and the
-// inner one is where the command actually is.
+// parseReport reads the ERR trap's first line: code, source, line, command. A
+// missing report is normal, since a bare `exit 1` fires no ERR; only the first
+// line counts, because a failing command substitution reports twice and the
+// inner report is where the command is.
 func parseReport(s string) *Failure {
 	first, _, _ := strings.Cut(strings.TrimRight(s, "\n"), "\n")
 	fields := strings.SplitN(first, "\t", 4)
@@ -124,7 +113,7 @@ func parseReport(s string) *Failure {
 	return &Failure{Code: code, Script: short(fields[1]), Line: line, Command: fields[3]}
 }
 
-// short renders a script path the way whoever wrote it knows it — relative to
+// short renders a script path the way whoever wrote it knows it - relative to
 // the working dir. Absolute is right only when the path is outside it.
 func short(p string) string {
 	wd, err := os.Getwd()
@@ -153,8 +142,8 @@ func exited(err error) (interface{ ExitCode() int }, bool) {
 	return e, errors.As(err, &e)
 }
 
-// Fail wraps whatever comes back from a script that ran outside a Session — one
-// that was handed the terminal — in the one shape failures are reported in.
+// Fail wraps whatever comes back from a script that ran outside a Session - one
+// that was handed the terminal - in the one shape failures are reported in.
 // There is no trap report to fill in: what went wrong was on screen.
 func (r Runner) Fail(step Step, err error) error {
 	if err == nil {
@@ -165,7 +154,7 @@ func (r Runner) Fail(step Step, err error) error {
 		Script: short(step.Script.File), Code: exitCode(err),
 	}
 	// What stopped it before it could answer is the whole of what there is to
-	// say — the terminal it was to be handed was not there.
+	// say - the terminal it was to be handed was not there.
 	if _, ok := exited(err); !ok {
 		f.Stderr = err.Error()
 	}
