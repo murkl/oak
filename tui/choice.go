@@ -22,9 +22,8 @@ import (
 //
 // What is on offer is each module's own name, so the runtime never learns
 // what any of them is for, and nothing under it: the welcome page offers its
-// languages the same way, and the two read as one way in. What a module says
-// about itself is read on its menu once it is open. A runtime offering one
-// module, or one named on the command line, never draws this page.
+// languages the same way, and the two read as one way in. A runtime offering
+// one module, or one named on the command line, never draws this page.
 type choiceScreen struct {
 	stand
 	app    *app

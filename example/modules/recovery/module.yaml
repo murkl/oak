@@ -1,9 +1,6 @@
 # A second module, so the interface asks which one to open.
 
 title: Tux Recovery
-description: |
-  Ready to check a system tree that is already there. Start the check, or
-  review every setting first.
 
 stages: [check]
 

@@ -187,7 +187,6 @@ func (s *settingsScreen) layout() {
 		key = s.picker.selected()
 	}
 	s.picker = newPicker(s.list())
-	s.picker.describe(labelSettingsHelp())
 	s.picker.focus(key)
 }
 
@@ -207,7 +206,7 @@ func (s *settingsScreen) languageName() string {
 // being typed into it rather than a key of this page's.
 func (s *settingsScreen) takesText() bool { return s.filter.active() }
 
-func (s *settingsScreen) Title() string { return s.app.settingsTitle() }
+func (s *settingsScreen) Title() string { return rowSetup }
 func (s *settingsScreen) Hint() string  { return filterHint(labelHintList(), s.filter) }
 
 func (s *settingsScreen) Update(msg tea.Msg) (screen, tea.Cmd) {

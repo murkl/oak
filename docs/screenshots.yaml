@@ -35,9 +35,9 @@
         press: [tux, enter]
       - page: Desktop
         press: enter
-      - page: [Install, Settings]
+      - page: [Start, Setup]
         press: enter
-      - page: Build the system tree in
+      - page: Do you really want to start?
         choose: "Yes"
         press: enter
       # The report's headline. A simulated run starts no test, so there is no
@@ -54,10 +54,7 @@
   steps:
       - page: Please choose your language
         press: enter
-      - page: [Start, Settings]
-        press: enter
-      - page: Do you want to continue?
-        choose: "Yes"
+      - page: [Start, Setup]
         press: enter
       - page: [Failed, continue]
         press: enter

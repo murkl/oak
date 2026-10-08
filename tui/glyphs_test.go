@@ -96,7 +96,7 @@ func TestEveryPictureCellIsOneAConsoleFontHas(t *testing.T) {
 			t.Errorf("%q is drawn as a picture and no console font can draw it", cell)
 		}
 	}
-	for _, picture := range [][]string{glyphTick, glyphTickSmall, glyphCross} {
+	for _, picture := range [][]string{glyphTick, glyphCross} {
 		for i, line := range picture {
 			if r := undrawable(line); r != 0 {
 				t.Errorf("row %d of a picture shows %q, which no console font can draw", i, r)

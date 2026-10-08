@@ -280,8 +280,11 @@ func (s *runScreen) step() tea.Cmd {
 				{title: labelYes(), key: keyYes},
 				{title: labelNo(), key: keyNo},
 			})
-			// No first, like every confirm: the page before it was left with enter.
-			s.asking.focus(keyNo)
+			// No first, like every confirm: the page before it was left with
+			// enter. Yes only after a task this one follows from has run.
+			if !s.follows(e) {
+				s.asking.focus(keyNo)
+			}
 			return s.settle()
 		}
 	}
@@ -295,6 +298,17 @@ func (s *runScreen) step() tea.Cmd {
 		return s.tell(e)
 	}
 	return s.start()
+}
+
+// follows reports whether a task e names under yes-after ran earlier in this
+// run. Passed over or declined is not ran.
+func (s *runScreen) follows(e *spec.Task) bool {
+	for i, t := range s.steps[:s.at] {
+		if s.state[i] == ran && slices.Contains(e.YesAfter, t.ID()) {
+			return true
+		}
+	}
+	return false
 }
 
 // prove runs what a task declared as its own proof that the work took: read

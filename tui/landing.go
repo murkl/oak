@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -112,28 +110,8 @@ func (q question) lines(width, room int) []string {
 	if len(rows)+count+len(keys) > room {
 		keys = nil
 	}
-	rows = append(rows, q.column(max(min(count, room-len(rows)-len(keys)), 1))...)
+	rows = append(rows, q.list.column(max(min(count, room-len(rows)-len(keys)), 1))...)
 	return append(rows, keys...)
-}
-
-// column is the rows, squared off to the widest of them so they centre as one
-// column rather than each on its own. Only as wide as a name needs: the room a
-// row keeps for a value is trimmed off again, since none of them has one.
-func (q question) column(height int) []string {
-	p := q.list
-	w := 0
-	for _, it := range p.items {
-		w = max(w, lipgloss.Width(it.title))
-	}
-	w += lipgloss.Width(glyphs.cursor) + gapS + valueGap
-	if height < len(p.items) {
-		w += scrollbarW
-	}
-	rows := strings.Split(p.View(w, height), "\n")
-	for i, r := range rows {
-		rows[i] = strings.TrimRight(r, " ")
-	}
-	return padLines(rows)
 }
 
 // landingScreen is the welcome page: the words the rest of the run is read in.

@@ -49,8 +49,8 @@ flowchart TD
     Q1 --> N["start-if"] --> PR["Presets"]
     PR --> Q["The questions"]
     Q --> H["Menu"]
-    H --> SE["Settings"] --> H
-    H --> CF["Last warning"] --> R["The run"]
+    H --> SE["Setup"] --> H
+    H --> CF["Last warning<br/>confirm"] --> R["The run"]
     R --> OK["Done<br/>Test results · on-success"]
     R --> ER["Failure<br/>on-failure"]
 
@@ -82,7 +82,6 @@ accent: "#8fbcbb"
 
 ```yaml
 title: Tux Setup
-description: Set a machine up for Tux.
 stages: [install]
 
 variables:

@@ -37,10 +37,11 @@ icon: icon_tux()
 | `version` | This build of the product, under the wordmark on the way in and in the corner of every page. `--version` answers it after Oak's own |
 | `accent` | `#rrggbb`, the one colour the interface is built from |
 | `logo` | The wordmark. Above the first blank line a dim eyebrow |
-| `icon` | Beside the words over every module's menu, in the accent. Default: a tick |
+| `icon` | Over every module's menu, centred above its rows, in the accent. Default: a tick |
 | `status` | One line about the machine in the header, see [Status](#status) |
 
 - `logo` and `icon` are a picture as written, or `name()`: a function of `oak.sh` that prints it, run once at startup
+- An `icon` five rows tall stands to the menu's rows in the golden ratio, as the tick does
 - A picture that cannot be drawn stops the start
 
 **Note:** _A terminal of sixteen colours, such as the Linux console, shows every colour in the slot of its hue: green, yellow, red, blue, cyan, white and grey (8). A heading is not bold there, since a console draws bold as the bright slot. The accent takes the stock colour nearest it. A product that paints the console's palette paints those slots._
@@ -109,17 +110,9 @@ The folder name is the module's identity: `oak --module=setup` opens it, and it 
 
 ```yaml
 title: Tux Setup
-description: Ready to set this machine up for Tux. Start the install, or review every value first.
 stages: [prepare, install]
+confirm: true
 language: TUX_LOCALE
-
-text:
-  start: Install
-  settings: Configuration
-  confirm: |
-    Erase {{TUX_DISK}} and install Tux?
-
-    Everything on it is lost.
 
 rules:
   offer-if: [live-image]
@@ -134,25 +127,18 @@ rules:
 | --- | --- |
 | `title` | **Required.** The module's one name: its row, and the trail over every page |
 | `stages` | **Required.** The phases of the work, in order. Each is a folder `tasks/@<stage>/` |
-| `description` | What it is and what its menu offers, beside the icon over the menu's rows |
+| `confirm` | `true` asks whether to start, after every password, before the work. Default `false` |
 | `icon` | Its own icon, in place of the product's, see [`oak.yaml`](#oakyaml) |
-| `text` | The words of its own pages, see [Text](#text) |
 | `language` | A variable whose answer also sets the interface language: `de_DE` is German |
 | `rules` | Where its actions run, see [Rules](#rules) |
 | `status` | Its own header line, in place of the product's |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
 
-### Text
+### The Menu
 
-| Key under `text` | Description |
-| --- | --- |
-| `start` | The row that starts the work, a verb: `Install`, `Repair`. Default `Start` |
-| `settings` | The row and page of every answer. Default `Settings` |
-| `confirm` | The last page before the work, after every password. The first paragraph is the question. Default: whether to continue, as a step that cannot be undone |
-
-- The last page opens on No, and No goes back to the menu with every password forgotten
-- `{{VAR}}` in `confirm` is filled in from the answers
+- Its rows are **Start** and **Setup** in every module and every language. **Setup** opens every answer
+- With `confirm: true` the last page before the work asks whether to start. It opens on No, and No goes back to the menu with every password forgotten
 
 ### Rules
 
@@ -242,7 +228,7 @@ conditions:
 
 ### Placeholders
 
-`{{VAR}}` is filled in from the answers in a module's `text: confirm`, a task's `confirm` and `report`, and an action's `error` and `report`. A name the module does not declare is refused at startup, and a translation that drops or adds one fails `--inspect`.
+`{{VAR}}` is filled in from the answers in a task's `confirm` and `report`, and an action's `error` and `report`. A name the module does not declare is refused at startup, and a translation that drops or adds one fails `--inspect`.
 
 ## Tasks
 
@@ -262,6 +248,7 @@ conditions:
 | `conditions` | Every one must hold, or it is left out of the run |
 | `asks` | A deferred question the run stops for first. A list that comes back empty skips the task |
 | `confirm` | A yes or no before it runs, opening on No. No skips it |
+| `yes-after` | Tasks before it: where one of them ran in this run, `confirm` opens on Yes |
 | `report` | A page the run stops on afterwards. The first paragraph is the headline |
 | `progress` | `true`: the last line it printed is shown under it while it runs |
 | `simulates` | `true`: run under `--debug` too, reading `DEBUG` itself |

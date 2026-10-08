@@ -160,6 +160,33 @@ func (p *picker) height(width int) int {
 	return len(p.prelude(width)) + len(p.items)
 }
 
+// column is the rows, squared off to the widest of them so they centre as one
+// column rather than each on its own. Only as wide as a name needs: the room a
+// row keeps for a value is trimmed off again, since none of them has one.
+//
+// As much blank follows the titles as the cursor takes in front of them, so it
+// is the titles that centre and the cursor stands in the margin.
+func (p *picker) column(height int) []string {
+	w := 0
+	for _, it := range p.items {
+		w = max(w, lipgloss.Width(it.title))
+	}
+	w += lipgloss.Width(glyphs.cursor) + gapS + valueGap
+	if height < len(p.items) {
+		w += scrollbarW
+	}
+	rows := strings.Split(p.View(w, height), "\n")
+	for i, r := range rows {
+		rows[i] = strings.TrimRight(r, " ")
+	}
+	rows = padLines(rows)
+	margin := field(strings.Repeat(" ", lipgloss.Width(glyphs.cursor)))
+	for i := range rows {
+		rows[i] += margin
+	}
+	return rows
+}
+
 // View renders the visible window of rows: the description first, where the
 // page has one, then the list, the two scrolling as one.
 func (p *picker) View(width, height int) string {
@@ -344,7 +371,13 @@ func (p *picker) line(it item, cursor bool, titleW, valueW int) string {
 	// left edge stays a clean column of names to read down and the right edge is
 	// a column of answers — both standing in the same place on every row, which
 	// is the only thing that makes a column a column.
-	value := infoStyle.Render(truncate(it.value, valueW-valueGap))
+	//
+	// An empty value is not drawn: its colour codes would end the row behind
+	// the spaces a column trims.
+	value := ""
+	if it.value != "" {
+		value = infoStyle.Render(truncate(it.value, valueW-valueGap))
+	}
 	return lead + row(title, value+field(strings.Repeat(" ", valueGap)), titleW+valueW)
 }
 

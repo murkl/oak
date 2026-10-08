@@ -48,11 +48,15 @@ type harness struct {
 	wake chan struct{}
 }
 
+// reallyStart is the last page before the work.
+const reallyStart = "Do you really want to start?"
+
 // The module every flow test starts from: two starting points, a handful of
 // questions, three tasks, one of them conditional.
 const testInstaller = `
 title: Test Installer
 stages: [go, finish]
+confirm: true
 presets:
   - title: Full
     description: Everything at once.
@@ -595,7 +599,6 @@ func TestAQuestionAskedFirstOpensItsFilterFromTheStart(t *testing.T) {
 // and what the run is called from there on.
 const testRecovery = `
 title: Test Recovery
-description: Open a system already on a disk.
 stages: [open]
 variables:
   - name: DISK
@@ -616,8 +619,7 @@ func both(t *testing.T) []*spec.Module {
 	t.Helper()
 	dir := t.TempDir()
 	installer := writeModule(t, filepath.Join(dir, "installer"), map[string]string{
-		treeFile: strings.Replace(testInstaller, "title: Test Installer",
-			"title: Test Installer\ndescription: Put a system on this machine.", 1),
+		treeFile: testInstaller,
 	})
 	recovery := writeModule(t, filepath.Join(dir, "recovery"), map[string]string{
 		treeFile:                       testRecovery,
@@ -641,10 +643,9 @@ func TestChoosingAProgramSettlesTheQuestionsTheWarningAndTheRun(t *testing.T) {
 	h.wants("Disk").enter()
 	h.wants("Snapshot", "one", "two").enter()
 
-	// The frame carries that module's name from here on, the warning is its own,
-	// and only its own tasks run.
-	h.wants("Test Recovery", "Open a system already on a disk.").enter()
-	h.wants("Do you want to continue?", "This step cannot be undone.").yes()
+	// The frame carries that module's name from here on, and only its own tasks
+	// run. It asks for no yes before them.
+	h.wants("Test Recovery", glyphs.cursor+"Start").enter()
 	h.ran()
 	h.wants("Finished in", "Open the disk")
 	h.refuses("First")
@@ -707,15 +708,6 @@ func TestTheQuestionOfWhichModuleIsLeftWithQWhereItComesFirst(t *testing.T) {
 	h.wants(forkQuestion, labelHintMenu()).refuses(labelHintChoose())
 }
 
-// The rows are the modules' names and nothing under them, wherever the cursor
-// is: what a module says about itself is read on its menu once it is open.
-func TestTheQuestionOfWhichModuleOffersTheNamesAlone(t *testing.T) {
-	h := start(t, both(t)...)
-	h.refuses("Put a system on this machine.")
-	h.down()
-	h.wants("Test Recovery").refuses("Open a system already on a disk.")
-}
-
 // And whatever the terminal, it stays inside it.
 func TestTheQuestionOfWhichModuleNeverRunsPastTheEdge(t *testing.T) {
 	h := start(t, both(t)...)
@@ -758,7 +750,7 @@ func TestTheMenuHeadsTheTrailOfThePagesItOpensAndDrawsNoneItself(t *testing.T) {
 	h.wants("Start").refuses(labelMenu())
 
 	h.down().enter()
-	h.wants(labelMenu() + " " + glyphs.crumb + " " + labelSettings())
+	h.wants(labelMenu() + " " + glyphs.crumb + " " + rowSetup)
 }
 
 // A module has one name, and the frame carries it on every page. So the rows
@@ -768,85 +760,127 @@ func TestTheRowsInsideAModuleAreNamedAfterWhatTheyDo(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter() // a starting point
 	h.typeIn("moritz").enter().enter()
-	h.wants("Start", "Settings").refuses(glyphs.cursor + "Test Installer")
+	h.wants("Start", "Setup").refuses(glyphs.cursor + "Test Installer")
 }
 
-// What the module says about itself stands over the menu's rows beside the
-// small tick, and a module that says nothing gets neither.
-func TestTheMenuSaysWhatTheModuleIsBesideATick(t *testing.T) {
-	h := newHarness(t, map[string]string{
-		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\ndescription: Ready to set up this machine.", 1),
-	})
-	h.down().enter() // a starting point
-	h.typeIn("moritz").enter().enter()
-	h.wants(glyphTickSmall[0], "Ready to set up this machine.", glyphs.cursor+"Start")
-
-	h = newHarness(t, nil)
-	h.down().enter()
-	h.typeIn("moritz").enter().enter()
-	h.wants(glyphs.cursor + "Start").refuses(glyphTickSmall[0])
-}
-
-// The icon beside the words over the menu is the module's, or else the
-// runtime's, or else the tick, and starts where the rows' titles do.
-func TestTheMenuIconIsTheModulesThenTheRuntimesThenTheTick(t *testing.T) {
-	menu := func(module, product string) *harness {
-		t.Helper()
-		head := "title: Test Installer\ndescription: Ready to set up this machine."
-		if module != "" {
-			head += "\nicon: '" + module + "'"
-		}
-		tree := map[string]string{treeFile: strings.Replace(testInstaller, "title: Test Installer", head, 1)}
-		rt := testRuntime()
-		rt.Icon = product
-		h := startWith(t, rt, openModule(t), "", loadModule(t, writeModule(t, t.TempDir(), tree)))
-		h.down().enter().typeIn("moritz").enter().enter()
-		return h
+// menuWith is the menu of a module drawing the icon given, under a runtime
+// drawing the one given; empty draws none.
+func menuWith(t *testing.T, module, product string) *harness {
+	t.Helper()
+	head := "title: Test Installer"
+	if module != "" {
+		head += "\nicon: '" + module + "'"
 	}
-	edge := func(h *harness, mark string) {
-		t.Helper()
-		for _, line := range strings.Split(h.screen(), "\n") {
-			if i := strings.Index(line, mark); i >= 0 {
-				if j := strings.Index(h.screen(), glyphs.cursor+"Start"); j < 0 {
-					t.Fatal("no cursor on Start")
-				}
-				start := strings.Index(line, "│") + len("│") + padH
-				if got := lipgloss.Width(line[start:i]); got != lipgloss.Width(glyphBlank) {
-					t.Errorf("%q starts %d cells in, want where the titles do", mark, got)
-				}
-				return
+	tree := map[string]string{treeFile: strings.Replace(testInstaller, "title: Test Installer", head, 1)}
+	rt := testRuntime()
+	rt.Icon = product
+	h := startWith(t, rt, openModule(t), "", loadModule(t, writeModule(t, t.TempDir(), tree)))
+	h.down().enter().typeIn("moritz").enter().enter()
+	return h
+}
+
+// body is what the frame holds under its rule, each line without the border
+// and the padding.
+func body(h *harness) []string {
+	h.t.Helper()
+	var out []string
+	lines := strings.Split(h.screen(), "\n")
+	ruled := func(line string) bool {
+		return strings.HasPrefix(line, "│") && strings.Contains(line, glyphs.rule+glyphs.rule)
+	}
+	for i, line := range lines {
+		if !ruled(line) {
+			continue
+		}
+		for _, l := range lines[i+1:] {
+			if ruled(l) {
+				return out
 			}
+			r := []rune(strings.TrimSuffix(strings.TrimPrefix(l, "│"), "│"))
+			out = append(out, string(r[padH:len(r)-padH]))
 		}
-		t.Errorf("the menu does not show %q", mark)
+	}
+	h.t.Fatalf("no frame:\n%s", h.screen())
+	return nil
+}
+
+// The icon over the menu is the module's, or else the runtime's, or else the
+// tick.
+func TestTheMenuIconIsTheModulesThenTheRuntimesThenTheTick(t *testing.T) {
+	tick := strings.TrimSpace(glyphTick[2])
+
+	menuWith(t, "", "").wants(tick)
+	menuWith(t, "", "<A>").wants("<A>").refuses(tick)
+	menuWith(t, "[M]", "<A>").wants("[M]").refuses("<A>")
+}
+
+// The menu is the icon and the two rows under it, a blank line apart, centred
+// as one block between the frame's rules, and nothing else.
+func TestTheMenuIsTheIconCentredOverItsRows(t *testing.T) {
+	h := menuWith(t, "<A>", "")
+	// An even room and an odd one: the row left over has a side to go to.
+	for _, height := range []int{24, 25} {
+		h.send(tea.WindowSizeMsg{Width: 80, Height: height})
+		menuIsCentred(t, body(h))
+	}
+}
+
+func menuIsCentred(t *testing.T, rows []string) {
+	t.Helper()
+	top := 0
+	for top < len(rows) && strings.TrimSpace(rows[top]) == "" {
+		top++
 	}
 
-	h := menu("", "")
-	h.wants("Ready to set up this machine.")
-	edge(h, strings.TrimSpace(glyphTickSmall[1]))
+	want := []string{"<A>", "", glyphs.cursor + "Start", "Setup"}
+	if top+len(want) > len(rows) {
+		t.Fatalf("the menu is not all there:\n%s", strings.Join(rows, "\n"))
+	}
+	for i, w := range want {
+		if got := strings.TrimSpace(rows[top+i]); got != strings.TrimSpace(w) {
+			t.Fatalf("row %d of the menu is %q, want %q:\n%s", i, got, strings.TrimSpace(w), strings.Join(rows, "\n"))
+		}
+	}
+	for _, line := range rows[top+len(want):] {
+		if strings.TrimSpace(line) != "" {
+			t.Errorf("the menu shows %q under its rows", line)
+		}
+	}
+	// A row left over goes under the block.
+	if below := len(rows) - top - len(want); below-top > 1 || top > below {
+		t.Errorf("the menu stands %d rows under the rule over it and %d over the one under it", top, below)
+	}
 
-	h = menu("", "<A>")
-	h.refuses(glyphTickSmall[0])
-	edge(h, "<A>")
-
-	h = menu("[M]", "<A>")
-	h.refuses("<A>")
-	edge(h, "[M]")
+	// The icon centres, and so do the titles under it: the cursor stands in the
+	// margin in front of them.
+	blank := strings.Repeat(" ", lipgloss.Width(glyphs.cursor))
+	for _, block := range [][]string{rows[top : top+1], rows[top+2 : top+4]} {
+		left, right := lipgloss.Width(block[0]), lipgloss.Width(block[0])
+		for _, line := range block {
+			line = strings.Replace(line, glyphs.cursor, blank, 1)
+			left = min(left, lipgloss.Width(line)-lipgloss.Width(strings.TrimLeft(line, " ")))
+			right = min(right, lipgloss.Width(line)-lipgloss.Width(strings.TrimRight(line, " ")))
+		}
+		if right-left > 1 || left > right {
+			t.Errorf("%q stands %d cells from the left and %d from the right", strings.TrimSpace(block[0]), left, right)
+		}
+	}
 }
 
 // A page opened from the settings stands in the menu's trail, and so does the
 // page of an action opened there.
 func TestThePagesOfTheSettingsStandInTheMenusTrail(t *testing.T) {
 	h := newHarness(t, twoLanguageTree())
-	h.enter().enter()                            // English, Full
-	h.typeIn("moritz").enter().enter()           // the user name, the disk
-	h.enter().enter().wants("Start", "Settings") // the driver, the system language
-	h.down().enter().enter()                     // the settings, the interface language
-	h.wants(labelMenu() + " " + glyphs.crumb + " " + labelSettings() + " " + glyphs.crumb + " " + labelLanguage())
+	h.enter().enter()                         // English, Full
+	h.typeIn("moritz").enter().enter()        // the user name, the disk
+	h.enter().enter().wants("Start", "Setup") // the driver, the system language
+	h.down().enter().enter()                  // the settings, the interface language
+	h.wants(labelMenu() + " " + glyphs.crumb + " " + rowSetup + " " + glyphs.crumb + " " + labelLanguage())
 
 	h = newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 0", false))
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.down().enter().enter() // the settings, the wireless network
-	h.wants(labelMenu() + " " + glyphs.crumb + " " + labelSettings() + " " + glyphs.crumb + " Wireless network " + glyphs.crumb + " Network")
+	h.wants(labelMenu() + " " + glyphs.crumb + " " + rowSetup + " " + glyphs.crumb + " Wireless network " + glyphs.crumb + " Network")
 }
 
 // The last page before the work stands under the menu, like the passwords
@@ -855,35 +889,7 @@ func TestTheConfirmationStandsUnderTheMenu(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().typeIn("x").enter().typeIn("x").enter()
-	h.wants(labelMenu()+" "+glyphs.crumb+" "+labelConfirmation(), "Do you want to continue?")
-}
-
-// A module may name what starting its work is called, and then the menu's
-// first row says that instead.
-func TestTheModuleNamesWhatStartingItsWorkIsCalled(t *testing.T) {
-	h := newHarness(t, map[string]string{
-		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\ntext:\n  start: Install", 1),
-	})
-	h.down().enter() // a starting point
-	h.typeIn("moritz").enter().enter()
-	h.wants(glyphs.cursor+"Install", "Settings").refuses(labelStart())
-}
-
-// And what its settings are called: the menu's second row, and the heading over
-// the page it opens.
-func TestTheModuleNamesWhatItsSettingsAreCalled(t *testing.T) {
-	h := newHarness(t, map[string]string{
-		treeFile: strings.Replace(testInstaller, "title: Test Installer", "title: Test Installer\ntext:\n  settings: Configuration", 1),
-	})
-	h.down().enter() // a starting point
-	h.typeIn("moritz").enter().enter()
-	h.wants("Start", "Configuration").refuses(labelSettings())
-
-	h.down().enter()
-	h.wants("Configuration", "User name").refuses(labelSettings())
-	if _, ok := h.m.top().(*settingsScreen); !ok {
-		t.Errorf("the row opened %T, want the settings", h.m.top())
-	}
+	h.wants(labelMenu()+" "+glyphs.crumb+" "+labelConfirmation(), reallyStart)
 }
 
 // The frame is titled after the product on every page, and once a module is
@@ -938,10 +944,10 @@ func TestAPresetIsOnlyOfferedOnce(t *testing.T) {
 	h := newHarness(t, nil)
 	h.wants(labelPresets(), "Full", "Bare")
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.wants("Test Installer", "Settings")
+	h.wants("Test Installer", "Setup")
 
 	h.restart()
-	h.wants("Test Installer", "Settings").refuses("Full", "Bare")
+	h.wants("Test Installer", "Setup").refuses("Full", "Bare")
 }
 
 // A preset fills in answers, and an answer is an answer whether it was typed or
@@ -1405,7 +1411,7 @@ func toAction(h *harness, title string) *harness {
 // menu: first, in its own words and under no heading, ahead of the answers.
 func TestAnActionStandsOnTheSettingsPageAheadOfTheAnswers(t *testing.T) {
 	h := intoHub(newHarness(t, wireless(filepath.Join(t.TempDir(), "online"), "exit 0", false)))
-	h.wants("Start", "Settings").refuses("Wireless network")
+	h.wants("Start", "Setup").refuses("Wireless network")
 
 	toSettings(h)
 	view := h.screen()
@@ -1612,7 +1618,7 @@ func TestTheOpeningRunsPresetThenQuestionsThenHub(t *testing.T) {
 	h.wants("Disk", "2 of 2", "/dev/sda  1TB")
 
 	h.enter()
-	h.wants("Test Installer", "Settings")
+	h.wants("Test Installer", "Setup")
 }
 
 // A preset is a set of answers and nothing more.
@@ -1842,7 +1848,7 @@ func TestEscClosesTheSettingsFilterBeforeItLeavesThePage(t *testing.T) {
 	h.typeIn("/disk").esc()
 	h.wants("User name", "Disk")
 	h.esc()
-	h.wants("Test Installer", "Settings")
+	h.wants("Test Installer", "Setup")
 }
 
 // The query is how the row was found, so changing its value does not throw it
@@ -1869,9 +1875,9 @@ func TestTurningOnASettingAsksForWhatItNowRequiresOnTheWayOut(t *testing.T) {
 	h.key(tea.KeyUp).enter() // Yes is the row above No
 	h.wants("Extras", "Yes")
 	h.esc().esc() // close the filter, then leave settings
-	h.wants("Driver", "mesa", "nvidia").refuses("Settings")
+	h.wants("Driver", "mesa", "nvidia").refuses("Setup")
 	h.enter() // mesa, the focused row
-	h.wants("Test Installer", "Settings")
+	h.wants("Test Installer", "Setup")
 }
 
 // ─── Starting over ───────────────────────────────────────────────────────────
@@ -1888,7 +1894,7 @@ func TestResettingForgetsEveryAnswerAndOffersTheStartingPointsAgain(t *testing.T
 	// starting points are spent by then, and bringing them back is half of what
 	// the reset is for.
 	h.restart()
-	h.wants("Settings").refuses(labelPresets())
+	h.wants("Setup").refuses(labelPresets())
 
 	h.down().enter()           // Settings
 	h.typeIn("/reset").enter() // the one row there that is not an answer
@@ -1919,15 +1925,15 @@ func TestTheLastPageBeforeTheWorkOpensOnNo(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter() // Start
-	h.wants("Password").refuses("Do you want to continue?")
+	h.wants("Password").refuses(reallyStart)
 	h.typeIn("x").enter().typeIn("x").enter()
-	h.wants("Do you want to continue?", "This step cannot be undone.", "Yes", "No")
+	h.wants(reallyStart, "Yes", "No")
 	if s, ok := h.m.top().(*confirmScreen); !ok || s.picker.selected() != keyNo {
 		t.Fatalf("the page does not open on No; the page on top is %T", h.m.top())
 	}
 
 	h.enter()
-	h.wants("Start", "Settings").refuses("Do you want to continue?")
+	h.wants("Start", "Setup").refuses(reallyStart)
 }
 
 // The passwords before the work follow one another rather than one inside the
@@ -1951,22 +1957,19 @@ func TestTheLastPageHasNoTrail(t *testing.T) {
 	h.enter() // Start
 	h.wants("Password")
 	h.typeIn("x").enter().typeIn("x").enter()
-	h.wants("Do you want to continue?").refuses("Password")
+	h.wants(reallyStart).refuses("Password")
 }
 
-// A module says in its own words what is about to happen, with the answers in
-// them, and the runtime's warning gives way to it.
-func TestTheLastPageSaysWhatTheModuleWillDo(t *testing.T) {
+// A module that does not declare confirm starts its work straight after the
+// passwords.
+func TestAModuleWithoutConfirmStartsTheWorkAfterThePasswords(t *testing.T) {
 	h := newHarness(t, map[string]string{
-		treeFile: strings.Replace(testInstaller, "title: Test Installer",
-			"title: Test Installer\ntext:\n  confirm: |\n    Erase {{DISK}}?\n\n    Everything on it is lost.", 1),
+		treeFile: strings.Replace(testInstaller, "confirm: true\n", "", 1),
 	})
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().typeIn("x").enter().typeIn("x").enter()
-	h.wants("Erase /dev/sda?", "Everything on it is lost.", "No").refuses("Do you want to continue?")
-	if s, ok := h.m.top().(*confirmScreen); !ok || s.picker.selected() != keyNo {
-		t.Fatalf("the page does not open on No; the page on top is %T", h.m.top())
-	}
+	h.refuses(reallyStart).ran()
+	h.wants("Finished in")
 }
 
 // No on the last page is the menu again, not the password that led to it, and
@@ -1975,10 +1978,10 @@ func TestNoOnTheLastPageForgetsThePassword(t *testing.T) {
 	h := newHarness(t, nil)
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().typeIn("hunter2").enter().typeIn("hunter2").enter()
-	h.wants("Do you want to continue?")
+	h.wants(reallyStart)
 
 	h.enter()
-	h.wants("Start", "Settings").refuses("Password")
+	h.wants("Start", "Setup").refuses("Password")
 	if got := h.a.store.Get("PW"); got != "" {
 		t.Errorf("PW = %q after No", got)
 	}
@@ -2102,7 +2105,7 @@ func TestAFailedTaskStopsTheRunAndSaysWhereItBroke(t *testing.T) {
 	h.enter().wants("Second", "Module", "Task", "Script", "Command", "Exit code", "not/here")
 
 	// And from there back to the answers, which is where a wrong one is fixed.
-	h.enter().wants("Settings")
+	h.enter().wants("Setup")
 }
 
 // A task may ask before it runs, which is how a module offers something
@@ -2138,6 +2141,37 @@ func TestATaskThatAsksOpensOnNo(t *testing.T) {
 	h.wants("Restart now?")
 	if r, ok := h.m.top().(*runScreen); !ok || r.asking.selected() != keyNo {
 		t.Fatalf("the question does not open on No; the page on top is %T", h.m.top())
+	}
+}
+
+// A task that follows from one before it opens on Yes once that one has run,
+// and on No where it was passed over.
+func TestATaskOpensOnYesOnceTheTaskItFollowsHasRun(t *testing.T) {
+	files := map[string]string{
+		"tasks/@finish/d-roll/task.yaml":    "title: Roll back\nconfirm: Roll back now?\n",
+		"tasks/@finish/d-roll/task.sh":      "echo rolled\n",
+		"tasks/@finish/e-rebuild/task.yaml": "title: Rebuild\nneeds: [d-roll]\nconfirm: Rebuild now?\nyes-after: [d-roll]\n",
+		"tasks/@finish/e-rebuild/task.sh":   "echo rebuilt\n",
+	}
+	for _, rolled := range []bool{true, false} {
+		h := newHarness(t, files)
+		h.down().enter().typeIn("moritz").enter().enter()
+		h.enter().typeIn("x").enter().typeIn("x").enter().yes()
+		h.asked().wants("Roll back now?")
+		if rolled {
+			h.yes()
+		} else {
+			h.enter()
+		}
+
+		h.asked().wants("Rebuild now?")
+		want := keyNo
+		if rolled {
+			want = keyYes
+		}
+		if r, ok := h.m.top().(*runScreen); !ok || r.asking.selected() != want {
+			t.Errorf("rolled back %v: the question does not open on %q", rolled, want)
+		}
 	}
 }
 
@@ -2346,7 +2380,7 @@ func TestAFailedRunOffersTheModulesActionsForIt(t *testing.T) {
 func TestTheRowsUnderAFailedRunOpenOnContinue(t *testing.T) {
 	h := failedRun(t)
 	h.enter()
-	h.wants("Settings").refuses("The log is online")
+	h.wants("Setup").refuses("The log is online")
 	if got := h.a.store.Get("LOG_URL"); got != "" {
 		t.Errorf("LOG_URL = %q, want nothing: the action was never chosen", got)
 	}
@@ -2417,11 +2451,10 @@ func TestTheSmallestTreeStillWorks(t *testing.T) {
 	// Straight to the one question: no preset page, because there are no presets.
 	h.wants("User name", "1 of 1")
 	h.typeIn("moritz").enter()
-	h.wants("Test Installer", "Settings")
+	h.wants("Test Installer", "Setup")
 
-	// No confirmation sentence to show, and no secret to ask for.
-	h.enter().wants("Do you want to continue?", "No")
-	h.yes().ran()
+	// Nothing to confirm and no secret to ask for: the row is the work.
+	h.enter().ran()
 	h.wants("Finished in", "Do it")
 
 	// Nothing follows a finished installation: enter on the result leaves.
@@ -2449,7 +2482,7 @@ func leaveTree(restart, shutdown string) map[string]string {
 func TestQuittingAsksWhatToDoWithTheMachine(t *testing.T) {
 	h := newHarness(t, leaveTree("true", "true"))
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.wants("Test Installer", "Settings")
+	h.wants("Test Installer", "Setup")
 
 	h.typeIn("q")
 	h.wants("Restart", "Shut down", "Exit")
@@ -2459,7 +2492,7 @@ func TestQuittingAsksWhatToDoWithTheMachine(t *testing.T) {
 
 	// And it is a question like any other: esc is the way back to the hub.
 	h.esc()
-	h.wants("Test Installer", "Settings")
+	h.wants("Test Installer", "Setup")
 }
 
 // Under the module's ways out is the runtime's own: the program stops and the
@@ -3193,7 +3226,7 @@ func TestAPresetCanFetchItsAnswers(t *testing.T) {
 
 	// Everything the code stood for is an answer now, and with nothing left
 	// open the hub is what follows.
-	h.wants("Test Installer", "Settings")
+	h.wants("Test Installer", "Setup")
 	for name, want := range map[string]string{"USER": "moritz", "DISK": "/dev/sdb", "EXTRAS": "false"} {
 		if got := h.a.store.Get(name); got != want {
 			t.Errorf("%s = %q, want %q", name, got, want)
@@ -3211,9 +3244,9 @@ func TestAPresetThatCannotFetchSaysWhyAndGoesBack(t *testing.T) {
 	h.down().down().enter()
 	h.typeIn("nope").enter()
 
-	h.wants("Nothing is shared under that code.").refuses("Settings")
+	h.wants("Nothing is shared under that code.").refuses("Setup")
 	h.enter()
-	h.wants("Configuration code").refuses("Settings")
+	h.wants("Configuration code").refuses("Setup")
 	if _, ok := h.m.top().(*fieldScreen); !ok {
 		t.Errorf("the page moved on to %T", h.m.top())
 	}
@@ -3344,7 +3377,7 @@ func TestAnAnswerTheListNoLongerOffersIsAskedAgainBeforeTheRun(t *testing.T) {
 		"    prefill: ./suggest.sh\n    options-from: disks()", 1)
 	h := newHarness(t, map[string]string{treeFile: tree, "suggest.sh": "echo /dev/sdb\n"})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.wants("Settings")
+	h.wants("Setup")
 
 	h.a.store.Set("DISK", "/dev/sdz")
 	h.enter()
@@ -3354,8 +3387,8 @@ func TestAnAnswerTheListNoLongerOffersIsAskedAgainBeforeTheRun(t *testing.T) {
 	}
 
 	h.enter()
-	h.wants("Settings")
-	h.enter().typeIn("x").enter().typeIn("x").enter().wants("Do you want to continue?")
+	h.wants("Setup")
+	h.enter().typeIn("x").enter().typeIn("x").enter().wants(reallyStart)
 	if got := h.a.store.Get("DISK"); got != "/dev/sdb" {
 		t.Errorf("DISK = %q, want the answer given again", got)
 	}
@@ -3375,16 +3408,16 @@ func TestAnAnswerTheListOffersAgainIsTakenAgain(t *testing.T) {
 	tree := strings.Replace(testInstaller, "    options-from: disks()", "    options-from: ./disks.sh", 1)
 	h := newHarness(t, map[string]string{treeFile: tree, "disks.sh": "cat " + disks + "\n"})
 	h.down().enter().typeIn("moritz").enter().enter()
-	h.wants("Settings")
+	h.wants("Setup")
 	h.a.store.Set("DISK", "/dev/sdz")
 	h.enter().wants("Disk", "This answer is not among the ones offered here.")
 
 	offer("/dev/sda\n/dev/sdb\n/dev/sdz\n")
-	h.esc().wants("Start", "Settings")
-	h.down().enter().wants("Every used value")
+	h.esc().wants("Start", "Setup")
+	h.down().enter().wants(labelMenu() + " " + glyphs.crumb + " " + rowSetup)
 	h.down().enter().wants("/dev/sdz").refuses("This answer is not among the ones offered here.")
-	h.enter().esc().wants("Settings")
-	h.key(tea.KeyUp).enter().typeIn("x").enter().typeIn("x").enter().wants("Do you want to continue?")
+	h.enter().esc().wants("Setup")
+	h.key(tea.KeyUp).enter().typeIn("x").enter().typeIn("x").enter().wants(reallyStart)
 	if got := h.a.store.Get("DISK"); got != "/dev/sdz" {
 		t.Errorf("DISK = %q, want the answer taken again", got)
 	}
