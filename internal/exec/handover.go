@@ -18,21 +18,11 @@ import (
 // its three channels were pointed at.
 const controllingTerminal = "/dev/tty"
 
-// Handover is a script that is given the terminal for as long as it runs.
-//
-// Given it outright rather than by inheritance. What this process inherited
-// need not be the terminal at all — a service on a console has its stderr in
-// the journal — and a shell draws its prompt on stderr: inherited, it would run
-// with nothing to see. So all three channels are the terminal itself.
-//
-// And given its own foreground process group on it. An interactive shell takes
-// the terminal's foreground for its job control and hands back the group it
-// found when it exits, which is the handover's and gone by then. So the group is
-// made here, and this process takes the terminal back afterwards rather than
-// waiting to be given it.
-//
-// It satisfies the interface's command contract. The channels the interface
-// offers are ignored for the reason above.
+// Handover is a script given the terminal outright on all three channels for as
+// long as it runs, never what this process inherited, which may be the journal.
+// It gets a foreground process group of its own, and this process takes the
+// terminal back afterwards: an interactive shell hands back a group that is
+// gone by then.
 type Handover struct {
 	cmd *exec.Cmd
 	tty string

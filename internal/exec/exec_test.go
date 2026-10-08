@@ -79,7 +79,7 @@ func TestAFailureSaysExactlyWhereItBroke(t *testing.T) {
 }
 
 // Shell a yaml wrote outright has no file to point at, so the report is what
-// broke and what it returned — and that much still arrives.
+// broke and what it returned - and that much still arrives.
 func TestShellWithNoFileStillNamesWhatBroke(t *testing.T) {
 	s := start(t, Script{Shell: "echo first\nls /definitely/not/here\necho never\n"})
 	f, ok := s.Err().(*Failure)
@@ -100,7 +100,7 @@ func TestShellWithNoFileStillNamesWhatBroke(t *testing.T) {
 	}
 }
 
-// A bare exit does not fire ERR, so there is no report to read — and the
+// A bare exit does not fire ERR, so there is no report to read - and the
 // failure still has to name the step and the code.
 func TestABareExitIsStillAFailure(t *testing.T) {
 	s := run(t, "echo giving up >&2\nexit 3\n")
@@ -128,7 +128,7 @@ func TestAGuardInTheMiddleOfAScriptIsNotAFailure(t *testing.T) {
 }
 
 // On the last line it is the script's answer, like any other. A script that
-// means to end there ends on the work, on an `if` block or on an `echo` — the
+// means to end there ends on the work, on an `if` block or on an `echo` - the
 // alternative is a status nobody meant, read as though somebody had.
 func TestAGuardOnTheLastLineIsTheScriptsAnswer(t *testing.T) {
 	f, ok := run(t, "X=false\n[ \"$X\" = true ] && echo yes\n").Err().(*Failure)
@@ -187,7 +187,7 @@ func TestAScriptStillNamesWhereItBroke(t *testing.T) {
 }
 
 // The product's shell is loaded, not run. A lookup in it that tries one thing
-// and falls back to another is ordinary shell — and under the trap every such
+// and falls back to another is ordinary shell - and under the trap every such
 // fallback wrote a report, which the unit about to run was then blamed for,
 // naming a line of somebody else's file.
 func TestWhatTheShellRecoversFromIsNotTheUnitsFailure(t *testing.T) {
@@ -235,10 +235,9 @@ func TestAShellThatWillNotLoadFailsTheUnit(t *testing.T) {
 	}
 }
 
-// A script can say no without any command having failed, and the trap sees
-// nothing then. `return 1` is one way; a guard that does not fire is the other,
-// and both are how an assertion is actually written. The line has to come back
-// either way — it is the one thing somebody reading the report came for.
+// A script can say no without a failing command, by `return 1` or a guard that
+// does not fire, and the trap sees nothing. The line has to come back either
+// way.
 func TestAScriptThatSaysNoWithoutFailingStillNamesTheLine(t *testing.T) {
 	says := func(body string) *Failure {
 		t.Helper()
@@ -265,8 +264,8 @@ func TestAScriptThatSaysNoWithoutFailingStillNamesTheLine(t *testing.T) {
 }
 
 // The fallback is only for a script that said no without anything failing. A
-// command that really did fail is reported where that command is — inside the
-// product's shell, where a function it called lives — and naming the call site
+// command that really did fail is reported where that command is - inside the
+// product's shell, where a function it called lives - and naming the call site
 // instead would be pointing away from the line somebody has to open.
 func TestAFailureInsideTheShellIsReportedThere(t *testing.T) {
 	r := Runner{Module: "Test Module", Shell: script(t, "no_thanks() { ls /definitely/not/here; }\n")}
@@ -330,7 +329,7 @@ func TestRunReturnsWhatACommandPrinted(t *testing.T) {
 }
 
 // The environment a script sees is the environment it is handed, and nothing
-// else — this is how every answer reaches every task.
+// else - this is how every answer reaches every task.
 func TestAScriptSeesTheEnvironmentItWasGiven(t *testing.T) {
 	seen := filepath.Join(t.TempDir(), "seen")
 	s, err := sh.Start(Step{Name: "Test", Script: sourced(t, "echo \"disk=$DISK\" >"+seen+"\n")}, Env{"DISK=/dev/sda"})
@@ -394,7 +393,7 @@ func TestKillingAStageTakesEverythingItStartedWithIt(t *testing.T) {
 }
 
 // Reason is for the shell whose failure is a sentence somebody reads on the page
-// they are standing on — a configuration that could not be fetched — rather than
+// they are standing on - a configuration that could not be fetched - rather than
 // a report of where a task broke. What the script said is the whole of it.
 func TestReasonAnswersWithWhatTheScriptSaid(t *testing.T) {
 	err := sh.Reason(`echo "Nothing is shared under that code" >&2; exit 1`, Env(os.Environ()))

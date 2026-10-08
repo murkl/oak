@@ -1,8 +1,6 @@
-// Package exec is the only place this program starts a process.
-//
-// Everything the runtime actually does is shell: a stage's script, a variable's
-// list of answers, an action. The runtime feeds them variables and reads
-// back an exit code or stdout — it never knows what any of them do.
+// Package exec is the only place this program starts a process. Everything the
+// runtime does is shell, handed variables and read back as an exit code or
+// stdout.
 package exec
 
 import (
@@ -26,29 +24,17 @@ import (
 // Env is the variable set handed to every script, as KEY=value entries.
 type Env []string
 
-// Runner starts scripts, each wrapped in the same failure-reporting trap.
-//
-// Shell is what the product hands to everything it runs, in front of that
-// script's own text — one place for what several scripts share, and the
-// functions a yaml calls by name. Empty where there is none. The runtime never
-// reads it and has no idea what is in it; it only makes sure everything it
-// starts gets the same one.
-//
-// Module is that module's name, and it is here rather than at every call site
-// because every failure this package builds carries it: a run has one module in
-// it, and which one is the first thing somebody reading a failure needs.
+// Runner starts scripts, each wrapped in the same failure-reporting trap. Shell
+// is the product's shell put in front of every script, empty where there is
+// none, and Module names the module in every failure.
 type Runner struct {
 	Shell  string
 	Module string
 }
 
-// Script is one task's work, in the shape its module wrote it: a file to
-// source, or shell its yaml wrote outright. Exactly one of the two is set.
-//
-// Which it is travels with it because the two are not run the same way. A
-// file's own last status propagates out of `source` and is not a failure;
-// shell written outright runs at the shell's own level, where there is no file
-// for a failure to point at and nothing for a status to propagate out of.
+// Script is one task's work: a file to source, or shell its yaml wrote
+// outright, exactly one of the two set. They run differently, since a file's
+// last status propagates out of `source` and is no failure.
 type Script struct {
 	File  string
 	Shell string
@@ -56,7 +42,7 @@ type Script struct {
 
 // Step is one piece of a module's work as this layer takes it: the shell
 // itself, what a failure calls it, and whether it is an action's rather than a
-// task's — the one thing a failure report says differently about the two.
+// task's - the one thing a failure report says differently about the two.
 type Step struct {
 	Name   string
 	Action bool
@@ -74,17 +60,10 @@ func (s Script) shell() string {
 
 func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
-// The ERR trap of the two wrappers below reports on file descriptor 3 — the
-// first entry of cmd.ExtraFiles. A dedicated descriptor keeps the report out of
-// the script's own output, so a script may print anything at all without being
-// mistaken for a failure report.
-//
-// The trap is the single detector, and -e is deliberately not set: -e would also
-// kill the shell when `source` merely returns the status of a benign last line —
-// `[ "$X" = true ] && do_it` leaves status 1 when the test is false.
-//
-// It reports on the failure's own terms: BASH_SOURCE and LINENO point into the
-// script, BASH_COMMAND is the command that failed.
+// The ERR trap of the wrappers below reports on file descriptor 3, so a script
+// may print anything without it being taken for a report. -e stays off: it
+// would also end the shell where `source` returns the status of a benign last
+// line such as `[ "$X" = true ] && do_it`.
 const strict = `set -Eo pipefail
 `
 
@@ -93,28 +72,16 @@ const strict = `set -Eo pipefail
 const strictTrace = `set -Eo pipefail -T
 `
 
-// The arguments every invocation is given: the script to run, and the shell to
-// put in front of it. Sourcing that here is what lets a script be plain shell
-// with no preamble at all, and what puts the product's functions within reach
-// of everything — its tasks, its actions, and what its yaml calls.
-//
-// It is **loaded, not run**, and that is why the trap is installed after it
-// rather than before. A lookup that tries one thing and falls back to another
-// is ordinary shell, and under the trap every such fallback writes a report —
-// which the unit about to run would then be blamed for, naming a line of
-// somebody else's file.
-//
-// The one failure that is the shell's own is one that will not load at all,
-// and that is caught here, with whatever it said on the way out.
+// The product's shell, sourced in front of every script, so a script needs no
+// preamble and reaches every function. It is loaded before the trap is set, so
+// a fallback inside it is not blamed on the unit about to run, and only a shell
+// that will not load fails here.
 const preamble = `[ -z "$2" ] || source "$2" || exit $?
 `
 
-// The trap, in its two shapes. A file names the file and the line it broke in;
-// shell a yaml wrote outright has no file, so the report names the command.
-//
-// The empty-BASH_SOURCE check drops the status a failing `source` propagates
-// back to the wrapper: everything inside the file names the file it is in, and
-// this level names nothing.
+// The trap in its two shapes: a file's names the file and the line, shell a
+// yaml wrote names the command. The empty BASH_SOURCE check drops the status a
+// failing `source` hands back to the wrapper.
 const (
 	fileTrap = `trap 'c=$?; s=${BASH_SOURCE[0]}; [ -n "$s" ] && { printf "%d\t%s\t%d\t%s\n" "$c" "$s" "$LINENO" "$BASH_COMMAND" >&3; exit $c; }' ERR
 `
@@ -122,26 +89,16 @@ const (
 `
 )
 
-// lastLine remembers where in the script the shell was, for the report a script
-// that says no without anything having failed would otherwise not produce.
-//
-// It records the script's own lines and nothing else: a function it called out
-// of the product's shell is where that function is, not where the script said
-// no. `set -T` is what carries the trap into everything the script runs.
+// lastLine remembers the script's own last line, for a script that says no
+// without a failing command. `set -T` carries it into the functions the script
+// calls, whose lines it skips.
 const lastLine = `trap '[ "${BASH_SOURCE[0]}" = "$1" ] && { oak_line=$LINENO; oak_cmd=$BASH_COMMAND; }; :' DEBUG
 `
 
-// The two wrappers: a script in a file, and shell a yaml wrote outright.
-//
-// Both answer with the script's own exit status, and both run under the trap.
-// So a script fails on any command that fails, and again on whatever it hands
-// back at the end — `exit 1`, `return 1`, or a last line that simply did not
-// work. One rule, and the same one for a task, for its test and for an action.
-//
-// A script can say no without any command having failed: `return 1` and a guard
-// that does not fire both look like that, and the trap sees neither. The file
-// wrapper therefore reports the last line the script was on where the trap has
-// nothing to report, so a failure always names a line.
+// The two wrappers answer with the script's own exit status under the trap, so
+// `exit 1`, `return 1` and a failing last line all fail a task, its test and an
+// action alike. Where the trap saw nothing, the file wrapper reports the last
+// line the script was on.
 const (
 	fileWrapper = strictTrace + preamble + fileTrap + lastLine + `source "$1"
 c=$?
@@ -163,28 +120,23 @@ func wrap(step Step) (wrapper, payload string) {
 	return shellWrapper, step.Script.Shell
 }
 
-// snippet runs what the yaml names — an option list, a prefill. No ERR trap:
+// snippet runs what the yaml names - an option list, a prefill. No ERR trap:
 // the caller wants the exit code or the output, and a non-zero status is an
 // answer rather than a failure.
 const snippet = preamble + `eval "$1"`
 
-// guard runs a module's shell as a question with a yes or no for an answer.
-//
-// Wrapped in a function of its own, exactly as shell a task wrote inline is:
-// `return 0` is how every guard in a module says yes, and shell that means one
-// thing beside a task and another beside the module is a trap laid for whoever
-// writes the next one. No ERR trap, because a no is the answer here rather than
-// a failure to report the file and line of.
+// guard runs a module's shell as a question with a yes or no for an answer. It
+// is wrapped in a function as a task's inline shell is, so `return 0` says yes
+// in both, and has no ERR trap since a no is an answer.
 const guard = preamble + `eval "oak_guard() {
 $1
 }"
 oak_guard
 exit $?`
 
-// handover runs a script that takes the terminal over. No trap and no pipes:
-// what it does is a session somebody is sitting in front of, so its output is
-// the terminal's and its exit code is the whole of what comes back. See
-// Handover for how it is given that terminal.
+// handover runs a script that takes the terminal over, with no trap and no
+// pipes: its output is the terminal's, and its exit code is all that comes
+// back. See Handover.
 const handover = preamble + `eval "$1"`
 
 // args is how bash is handed a wrapper: the wrapper itself, then what it runs
@@ -193,10 +145,9 @@ func (r Runner) args(wrapper, payload string) []string {
 	return []string{"-c", wrapper, "--", payload, r.Shell}
 }
 
-// bash is the one way this package starts a process. Every descriptor above
-// stderr is marked close-on-exec first: bubbletea's input reader opens its
-// epoll without the flag, and every script would inherit it. A kernel older
-// than 5.11 lacks the call and leaves them as they are.
+// bash is the one way this package starts a process. Descriptors above stderr
+// are marked close-on-exec first, since bubbletea opens its epoll without the
+// flag; a kernel before 5.11 leaves them as they are.
 func bash(args []string) *exec.Cmd {
 	_ = unix.CloseRange(3, math.MaxUint32, unix.CLOSE_RANGE_CLOEXEC)
 	return exec.Command("bash", args...)
@@ -215,14 +166,9 @@ func (r Runner) Run(s string, env Env) (string, error) {
 	return "", err
 }
 
-// Reason runs a one-liner and answers with what it said went wrong — the
-// script's own last words on stderr, where it left any, and the exit status
-// where it did not.
-//
-// For the shell whose failure is a sentence somebody reads on the page they are
-// standing on rather than a report of where a task broke: "nothing is shared
-// under that code" is the whole of what is worth saying, and an exit status in
-// front of it only gets in the way.
+// Reason runs a one-liner and answers with its last words on stderr, or its
+// exit status where it left none. It is for a failure somebody reads as a
+// sentence on the page they are on.
 func (r Runner) Reason(s string, env Env) error {
 	_, said, err := r.say(s, env)
 	switch {
@@ -234,11 +180,9 @@ func (r Runner) Reason(s string, env Env) error {
 	return err
 }
 
-// Guard runs a piece of a module's shell whose exit status is an answer rather
-// than a result: may this module be opened on this machine at all, does it have
-// this action, may the work begin. What it says on stderr where it says no is
-// what somebody reads — so a check that refuses says why, in the module's own
-// words.
+// Guard runs a module's shell whose exit status is an answer: may this module
+// open, does it have this action, may the work begin. What it says on stderr
+// with a no is what somebody reads.
 func (r Runner) Guard(s string, env Env) error {
 	_, said, err := r.ask(guard, s, env)
 	switch {
@@ -267,13 +211,9 @@ func (r Runner) ask(wrapper, s string, env Env) (out, said string, err error) {
 	return strings.TrimRight(stdout.String(), "\n"), strings.TrimSpace(stderr.String()), err
 }
 
-// Lines runs a command and returns its stdout, one entry per line, with blank
-// lines dropped.
-//
-// Only the end of a line is trimmed. What is in front of the first character is
-// the caller's business: a line may begin with a tab that separates a value
-// from the text it is chosen by, and an empty value in front of that tab is a
-// real answer — "no variant", "the default" — not an empty line.
+// Lines runs a command and returns its stdout one entry per line, blank lines
+// dropped. Only the end of a line is trimmed: a leading tab follows an empty
+// value, which is an answer too.
 func (r Runner) Lines(s string, env Env) ([]string, error) {
 	out, err := r.Run(s, env)
 	if err != nil {
@@ -317,10 +257,9 @@ func (r Runner) Start(step Step, env Env) (*Session, error) {
 	}
 	s := &Session{done: make(chan struct{}), cmd: cmd, run: r, step: step}
 
-	// The log gets the raw bytes of both channels; the failure report gets
-	// stderr, sanitized — see writeErr. Both are followed for the line they
-	// last drew — see Latest — each on a writer of its own, because the two
-	// are copied on two goroutines.
+	// The log gets the raw bytes of both channels, the failure report sanitized
+	// stderr. Each channel is followed for the line it last drew on a writer of
+	// its own, since the two are copied on two goroutines.
 	errw := &sessionWriter{sink: s.writeErr}
 	cmd.Stdout = io.MultiWriter(logging.External(), &progressWriter{sink: s.setLatest})
 	cmd.Stderr = io.MultiWriter(logging.External(), errw, &progressWriter{sink: s.setLatest})
@@ -346,10 +285,9 @@ func (r Runner) command(step Step, env Env) (*exec.Cmd, *os.File, error) {
 	wrapper, payload := wrap(step)
 	cmd := bash(r.args(wrapper, payload))
 	cmd.Env = env
-	// A process group of its own, so that stopping a stage stops everything it
-	// started. A stage is one line of shell that runs a package manager that
-	// runs a build; killing only the shell would leave all of that writing to
-	// the target disk after the program itself is gone.
+	// A process group of its own, so stopping a stage also stops the package
+	// manager and the build it started rather than leaving them writing to the
+	// target disk.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	rd, w, err := os.Pipe()
 	if err != nil {
@@ -359,20 +297,17 @@ func (r Runner) command(step Step, env Env) (*exec.Cmd, *os.File, error) {
 	return cmd, rd, nil
 }
 
-// Terminal builds the invocation of a script that is handed the terminal, for
-// the caller to run in place of the interface.
-//
-// It is deliberately not a Session: nothing is captured, nothing is logged, and
-// there is no process group to kill — the user is at the keyboard, and what
-// they see is what the script prints. All that comes back is the exit code.
+// Terminal builds the invocation of a script that is handed the terminal, to
+// run in place of the interface. It is no Session: nothing is captured or
+// logged, and only the exit code comes back.
 func (r Runner) Terminal(script Script, env Env) *Handover {
 	cmd := bash(r.args(handover, script.shell()))
 	cmd.Env = env
 	return &Handover{cmd: cmd, tty: controllingTerminal}
 }
 
-// drain closes this side of the write end — without it, reading the report
-// blocks until the child exits even though the trap already wrote — and returns
+// drain closes this side of the write end - without it, reading the report
+// blocks until the child exits even though the trap already wrote - and returns
 // what the trap reported.
 func drain(cmd *exec.Cmd, r *os.File) string {
 	for _, f := range cmd.ExtraFiles {
@@ -398,12 +333,9 @@ func (s *Session) Done() <-chan struct{} { return s.done }
 // Err holds the result, valid once Done is closed.
 func (s *Session) Err() error { return s.err }
 
-// Kill stops the script and everything it started, by signalling the whole
-// process group rather than the shell alone.
-//
-// It is the one thing ctrl+c has to do while a stage is running: leaving a
-// package transaction writing to a disk that nobody is watching any more is
-// worse than an interrupted one.
+// Kill stops the script and everything it started by signalling its whole
+// process group. ctrl+c needs it during a stage: a package transaction left
+// writing to an unwatched disk is worse than an interrupted one.
 func (s *Session) Kill() {
 	if s.cmd == nil || s.cmd.Process == nil {
 		return
@@ -428,11 +360,9 @@ func (s *Session) writeErr(line string) {
 	}
 }
 
-// Latest is the line the script has drawn most recently, on either channel —
-// what a task that declared its output its progress shows under its name. A
-// carriage return ends a line as much as a newline does: a progress bar draws
-// itself over and over in place with one, and the line worth showing is the
-// one it drew last rather than the one it will end on.
+// Latest is the line the script drew last on either channel, shown under a task
+// that declared its output its progress. A carriage return ends a line too,
+// since a progress bar redraws itself in place with one.
 func (s *Session) Latest() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -484,12 +414,9 @@ func (w *sessionWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// progressWriter hands on the last line a channel has drawn, the one still
-// being drawn included, sanitized and never empty.
-//
-// It keeps only what came after the last line ending: a program that prints
-// megabytes without one is not drawing a line anybody could read, and is not
-// worth holding in memory for the one that follows.
+// progressWriter hands on the last line a channel has drawn, the unfinished one
+// included, sanitized and never empty. It keeps only what follows the last line
+// ending, so output without one is not held.
 type progressWriter struct {
 	sink func(string)
 	buf  []byte
