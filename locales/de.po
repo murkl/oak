@@ -86,28 +86,28 @@ msgstr "Diese Antwort gehört nicht zu den hier angebotenen."
 msgid "This password was not accepted."
 msgstr "Dieses Passwort wurde nicht angenommen."
 
-#: internal/store/conf.go:70
+#: internal/store/conf.go:55
 #, c-format
 msgid "Answers for %s. Can be edited by hand."
 msgstr "Angaben für %s. Kann von Hand bearbeitet werden."
 
-#: internal/store/prefs.go:77
+#: internal/store/prefs.go:69
 msgid "Answers kept for every module. Can be edited by hand."
 msgstr "Angaben, die für jedes Modul gelten. Kann von Hand bearbeitet werden."
 
-#: internal/store/prefs.go:78 tui/labels.go:80
+#: internal/store/prefs.go:70 tui/labels.go:80
 msgid "Interface language"
 msgstr "Sprache der Oberfläche"
 
-#: internal/store/prefs.go:79
+#: internal/store/prefs.go:71
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf dem Rechner prüfen, auf dem er ausgeführt wurde"
 
-#: internal/store/store.go:231 tui/labels.go:221
+#: internal/store/store.go:194 tui/labels.go:221
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:233 tui/labels.go:222
+#: internal/store/store.go:196 tui/labels.go:222
 msgid "No"
 msgstr "Nein"
 

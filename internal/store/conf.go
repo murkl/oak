@@ -9,22 +9,13 @@ import (
 	"github.com/murkl/oak/internal/i18n"
 )
 
-// The answer file is shell, not yaml, and that is on purpose. It is the one
-// file a person is most likely to open in an editor on a live medium with
-// nothing installed on it, and `KEY='value' # what it is` is readable by
-// everyone and sourceable by anything. It is also exactly the shape the
-// variables reach a script in, so there is nothing to translate in either
-// direction.
+// The answer file is shell rather than yaml: `KEY='value' # what it is` reads
+// in any editor on a bare live medium and is the shape a script gets its
+// variables in, so nothing is translated either way.
 
-// Load reads the answer file over the values already held. A missing file is
-// normal — it is what a first run looks like, and it is what makes the program
-// ask rather than guess.
-//
-// A key nothing declares any more is passed over rather than refused: an
-// installer folder gets edited, and a file written by an older one still has to
-// open. A value that no longer satisfies its rules is kept exactly as written —
-// it is not this function's place to decide, and Missing will put the question
-// back where it belongs.
+// Load reads the answer file over the values already held; a missing file is a
+// first run. A key nothing declares any more is passed over, and a value that
+// breaks its rules is kept as written for Missing to ask again.
 func (s *Store) Load() error {
 	raw, err := os.ReadFile(s.path)
 	if os.IsNotExist(err) {
@@ -55,16 +46,10 @@ func (s *Store) Exists() bool {
 	return err == nil
 }
 
-// Save writes every answer worth keeping, in the order the folder declared
-// them, each with its own description as a trailing comment — so the file reads
-// as the same list of questions the interface asks, and a person editing it by
-// hand can see what each line is for without a second document.
-//
-// Secrets are not written. Not masked, not empty-but-present: absent, so there
-// is no line to wonder about. Neither is a derived answer: it is read off the
-// machine on every run, and a line here could only be a second answer able to
-// disagree with it. Nor is a page of an option, which answers that option for
-// this session and nothing the work reads.
+// Save writes every answer worth keeping in declaration order, each with its
+// description as a trailing comment, so the file reads like the questions.
+// Secrets, derived answers and an option's page are left out: none of them is
+// an answer the next run should read back.
 func (s *Store) Save() error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", i18n.T("Answers for %s. Can be edited by hand.", s.mod.Name()))
@@ -88,13 +73,9 @@ func (s *Store) Save() error {
 	return write(s.path, b.String())
 }
 
-// Reset drops every answer: each value back to what the module declared it
-// starts from, and the file they were kept in deleted — so what follows is a
-// first run, down to the starting points it is offered.
-//
-// The log is left standing. It says what this machine was told and what came of
-// it, and that is still true of the machine afterwards: forgetting the answers
-// is not unwriting the disk they were carried out on.
+// Reset drops every answer back to its declared start and deletes the file, so
+// what follows is a first run. The log stays, since what was done to the
+// machine is still true of it.
 func (s *Store) Reset() error {
 	for _, v := range s.mod.Declared() {
 		s.val[v.Name] = v.Default.String()
@@ -105,13 +86,9 @@ func (s *Store) Reset() error {
 	return nil
 }
 
-// write puts an answer file on disk: whole, and replaced in one step. A run
-// interrupted mid-write must not leave a half-file that reads as a machine
-// having answered nothing.
-//
-// 0600 because a module is free to ask for something an answer file has no
-// business showing the rest of the machine, and the file it is written into is
-// the same one either way.
+// write puts an answer file on disk whole and in one step, so an interrupted
+// run never leaves a half-file. 0600, since a module may ask for something the
+// rest of the machine has no business reading.
 func write(path, content string) error {
 	if dir := filepath.Dir(path); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -143,8 +120,8 @@ func quote(s string) string {
 }
 
 // parseLine reads one `KEY=value` line back, in the three shapes a person might
-// have left it in: single-quoted, double-quoted, or bare. Anything else — a
-// comment, a blank line, a line with no name in front of the equals — is not an
+// have left it in: single-quoted, double-quoted, or bare. Anything else - a
+// comment, a blank line, a line with no name in front of the equals - is not an
 // answer and is passed over.
 func parseLine(line string) (name, value string, ok bool) {
 	line = strings.TrimSpace(line)

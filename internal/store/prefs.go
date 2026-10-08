@@ -18,26 +18,18 @@ const (
 	ValidateVar = "OAK_VALIDATE"
 )
 
-// Preferences is what belongs to the runtime rather than to any of its modules:
-// the words all of them are read in, and whether a run checks its own work as
-// it goes.
-//
-// Neither can live in a module's answer file. The language is settled before a
-// module has been chosen, and both hold for every module a product offers — so
-// they are kept beside them, in a file of the same shape, read the same way,
-// holding the things that are not a module's business.
+// Preferences is what belongs to the runtime rather than a module: the language
+// and whether a run checks its work. Both hold for every module and the
+// language is settled before one is chosen, so they live in a file of their own
+// beside the modules' answers.
 type Preferences struct {
 	path     string
 	lang     string
 	validate bool
 }
 
-// NewPreferences reads the runtime's own answers, or comes back on the defaults
-// where there are none — which is what a first run looks like.
-//
-// Validation is on unless the file says otherwise. A run that checks its own
-// work is what somebody who has never thought about it wants; the setting is
-// there for whoever has.
+// NewPreferences reads the runtime's own answers, or the defaults on a first
+// run. Validation is on unless the file says otherwise.
 func NewPreferences(path string) *Preferences {
 	p := &Preferences{path: path, validate: true}
 	raw, err := os.ReadFile(path)
