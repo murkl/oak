@@ -10,17 +10,10 @@ import (
 	"github.com/murkl/oak/internal/i18n"
 )
 
-// Action is something a module does outside its run: a folder under actions/,
-// holding what it is and the action.sh that does it.
-//
-// The yaml says how it behaves and the script only does the work: it says yes
-// by exiting 0 and no by anything else. Where it runs is not the action's
-// business but the rule that names it: the module's `rules:`, a preset, and
-// another action's own `rules:`.
-//
-// An action has one kind of page at most: its questions before its script, the
-// report after it, or the terminal handed to it. A flow of several kinds is
-// several actions, each opened on the failure of the one before.
+// Action is something a module does outside its run: a folder under actions/
+// whose action.sh says yes by exiting 0, run wherever a rule names it. It has
+// one kind of page at most, so a flow of several kinds is several actions, each
+// opened on the failure of the one before.
 type Action struct {
 	Title       string
 	Description string
@@ -72,13 +65,12 @@ type actionDeclaration struct {
 }
 
 // Rules is where actions run, under `rules:` in module.yaml and action.yaml
-// alike, each a list of their names in the order they are run or stand as
-// rows. An -if runs by itself and answers yes or no; an on- is a row offered at
-// that place. An action's own are offer-if and on-failure: the rest place rows
-// and gates of a module.
+// alike, each a list of names in the order they run or stand. An -if answers
+// yes or no by itself, an on- is a row offered at that place, and an action's
+// own are offer-if and on-failure.
 type Rules struct {
 	// OfferIf is what a machine has to say yes to for this module to be offered
-	// on it at all — the only thing run before a module is opened.
+	// on it at all - the only thing run before a module is opened.
 	OfferIf []string `yaml:"offer-if"`
 
 	// StartIf is what has to say yes before the work starts. The first that
@@ -216,8 +208,8 @@ const (
 	opened = iota
 	// unasked runs by itself to answer a question, so it has no page.
 	unasked
-	// gating runs by itself, and a no from it is read by somebody — the page in
-	// front of the work, the reason a module is not offered — so it says why.
+	// gating runs by itself, and a no from it is read by somebody - the page in
+	// front of the work, the reason a module is not offered - so it says why.
 	gating
 )
 
@@ -371,7 +363,7 @@ func (s *Module) checkAction(a *Action, how int) error {
 }
 
 // checkShown settles a `shows:`, which is an answer put on the page a
-// `report:` draws — as a code to scan, and under it as itself. Being named is
+// `report:` draws - as a code to scan, and under it as itself. Being named is
 // its declaration: the action's script answers it, and nothing else does.
 func (s *Module) checkShown(a *Action) error {
 	if a.Shows == "" {

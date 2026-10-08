@@ -6,13 +6,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Scalar is a yaml value read as text, whatever shape it was written in.
-//
-// Every answer this program carries is a string — it ends up in an environment
-// variable, and there is nothing else it could be. But `default: true` and
-// `default: 8` are how a person writes those, and refusing them would make the
-// files read like a program's memory dump rather than a description of an
-// installer.
+// Scalar is a yaml value read as text, whatever shape it was written in. Every
+// answer ends up in an environment variable, yet `default: true` is how a
+// person writes one.
 type Scalar string
 
 func (s *Scalar) UnmarshalYAML(n *yaml.Node) error {

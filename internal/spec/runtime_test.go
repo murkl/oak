@@ -58,7 +58,7 @@ func TestLoadRuntimeReadsWhatEveryModuleShares(t *testing.T) {
 	}
 }
 
-// The modules folder is the whole of what is on offer — so a module is added by
+// The modules folder is the whole of what is on offer - so a module is added by
 // dropping a folder in it and taken away by deleting one, with no list anywhere
 // to keep in step.
 func TestEveryFolderInTheModulesDirectoryIsOffered(t *testing.T) {
@@ -221,7 +221,7 @@ func TestANameTheProductsShellReadsForAnotherModuleIsNotUnset(t *testing.T) {
 }
 
 // The header's status is the product's for every module that says nothing of
-// its own, and its words are in that module's template — a module's catalog is
+// its own, and its words are in that module's template - a module's catalog is
 // what the line is read through while the module is open.
 func TestAModuleWithoutAStatusOfItsOwnTakesTheProducts(t *testing.T) {
 	dir := writeRuntime(t, testRuntime+"status:\n  check: is_online()\n  every: 5\n  pass: Online\n  fail: Offline\n", "installer")

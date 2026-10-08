@@ -7,22 +7,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// A condition is the whole of what one line of `conditions:` accepts: one
-// variable, one operator, one value.
-//
-//	conditions: DESKTOP_ENABLED == true
-//
-//	conditions:
-//	  - DESKTOP_ENABLED == true
-//	  - GRAPHICS_DRIVER != none
-//
-// Deliberately not an expression language: three tokens cover every guard an
-// installer needs, read as a sentence, and can be checked at load time against
-// the variables actually declared — so a renamed variable is caught when the
-// module is opened rather than by a task that silently never runs.
-//
-// Several are a list, and every one has to hold. There is no `or`: a row that
-// belongs under two unrelated circumstances is two rows.
+// A condition is one line of `conditions:`: one variable, one operator, one
+// value, checked against the declared variables when the module loads. Several
+// must all hold, and there is no `or`: a row for two unrelated cases is two
+// rows.
 type condition struct {
 	name  string
 	equal bool
@@ -43,19 +31,12 @@ func (c *condition) holds(get func(string) string) bool {
 
 // holdsFor is the same question asked about one value rather than about the
 // answers as they stand, which is what lets a condition be reasoned about
-// before anything has been answered — see Spec.implies.
+// before anything has been answered - see Spec.implies.
 func (c *condition) holdsFor(value string) bool { return (value == c.want) == c.equal }
 
-// implies reports whether want necessarily holds wherever every condition in
-// have does.
-//
-// Exact rather than approximate, and it can be: a variable that writes its
-// values out has a domain small enough to decide the whole question over. Under
-// `DESKTOP != none` a two-valued DESKTOP is gnome and nothing else, so a task
-// guarded on `DESKTOP == gnome` runs wherever such a question is asked. Where
-// the domain is open — a name typed into a box — only the same condition said
-// again counts, which errs towards saying nothing rather than towards crying
-// wolf about a module that is fine.
+// implies reports whether want holds wherever every condition in have does,
+// exactly where a variable writes its values out. Over an open domain only the
+// same condition said again counts, erring towards saying nothing.
 func (s *Module) implies(have []*condition, want *condition) bool {
 	v := s.byName[want.name]
 	if v == nil {
@@ -114,14 +95,14 @@ func holdAll(conds []*condition, get func(string) string) bool {
 func (t *Task) Applies(get func(string) string) bool { return holdAll(t.cond, get) }
 
 // Applies reports whether a variable means anything given the answers so far.
-// One that does not is neither asked for nor shown — a graphics driver is not a
+// One that does not is neither asked for nor shown - a graphics driver is not a
 // question on a machine that is not getting a desktop.
 func (v *Variable) Applies(get func(string) string) bool { return holdAll(v.cond, get) }
 
 // Conditions is `conditions:` as it may be written: one line, or a list of them.
 //
 // A scalar and a sequence for the same key is the one piece of yaml flexibility
-// worth having here — the common case is a single guard and writing it as a
+// worth having here - the common case is a single guard and writing it as a
 // one-item list would be ceremony, while the case that needs two must not have
 // to be worked around.
 type Conditions []string

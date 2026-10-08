@@ -2,19 +2,9 @@ package spec
 
 import "strings"
 
-// Expand fills {{VAR}} in a sentence from the answers given.
-//
-// Deliberately not a template language and deliberately not $VAR: this text is
-// read next to shell that uses $VAR for something else entirely — the
-// environment a script sees — and one notation meaning two things in one module
-// is how a warning ends up naming the wrong disk. A name nothing answers is
-// left empty rather than left as its own braces, which would put the machinery
-// on screen at the one moment somebody has to read carefully.
-//
-// Which is also why nothing here may name what nothing answers: an empty name
-// leaves a sentence that still reads as one. The module is held to its own
-// declaration when it loads — see Module.checkText — and a translation to the
-// source it was made from, which --inspect reports.
+// Expand fills {{VAR}} in a sentence from the answers given, a notation apart
+// from the $VAR of the shell beside it. A name nothing answers is left empty,
+// which Module.checkText rules out when the module loads.
 func Expand(s string, get func(string) string) string {
 	if !strings.Contains(s, "{{") {
 		return s

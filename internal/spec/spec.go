@@ -1,12 +1,6 @@
-// Package spec is what a runtime and its modules declare about themselves,
-// read into memory: what the runtime is called and which modules it offers,
-// and for each module what it needs to know and what it does.
-//
-// A module is one yaml and the folders beside it. Everything in it is data. The
-// runtime ships none of its own — without a module there is nothing to run,
-// only a binary that says so and stops. That is the whole point of the split:
-// this package knows the shape of the yaml, and nothing in the program below it
-// knows a single thing about the system being installed.
+// Package spec is what a runtime and its modules declare about themselves, read
+// into memory. It knows the shape of the yaml, so nothing below it knows
+// anything about the system being installed.
 package spec
 
 import (
@@ -19,21 +13,10 @@ import (
 	"github.com/murkl/oak/internal/i18n"
 )
 
-// What a module is made of. Only the declaration has to be there; everything
-// else is found by its own name, so a module turns a part of the program off by
-// leaving the file or folder out rather than by declaring anything.
-//
-// One folder holds one module, so every part of it has the name it has here.
-// Nothing is configured and nothing points at anything: module.yaml is the
-// module, the work is a folder each under tasks/, and what it does outside that
-// work is a folder each under actions/. What its scripts share with each other
-// and with the modules beside it is the product's one shell, oak.sh.
-//
-// The two halves are kept apart because they are answerable to different
-// things: a task is the module's own work, listed and ordered and guarded,
-// while an action runs wherever the module names it — before the work, from a
-// row, to put right what another said no to. Every file inside says which of
-// the two it is, so nothing is read as the other.
+// What a module is made of, each part found by its own name, so a module turns
+// a part off by leaving it out. The work is a folder each under tasks/ and what
+// runs outside it a folder each under actions/, kept apart because a task is
+// listed, ordered and guarded and an action runs wherever it is named.
 const (
 	FileModule = "module.yaml" // the declaration: what the module is, asks, and does
 	DirTasks   = "tasks"       // the work, one folder per task
@@ -50,14 +33,9 @@ const (
 	ScriptExt = ".sh"
 )
 
-// Mark is what a stage folder under tasks/ wears: it stands for a moment of the
-// run rather than for a piece of work, and it holds the folders that are the
-// work.
-//
-// So the two levels can be told apart on sight, in a path and in an error: a
-// folder with the mark is a when, a folder without is a what. It also keeps the
-// one mistake that would otherwise load and do nothing — a task dropped
-// straight into tasks/ — from passing for a stage nobody declared.
+// Mark is what a stage folder under tasks/ wears, so a when and a what tell
+// apart on sight, in a path and in an error. It also keeps a task dropped
+// straight into tasks/ from passing for a stage nobody declared.
 const Mark = "@"
 
 // Stage is the folder one is kept in: the name module.yaml gave it, marked.
@@ -66,21 +44,16 @@ func Stage(name string) string { return Mark + name }
 // marked reports whether a folder name carries it.
 func marked(name string) bool { return strings.HasPrefix(name, Mark) }
 
-// Script is the file a task or an action does its work in, beside its yaml.
-// Always a file, so a failure always has a line to point at and a linter
-// always has something to read. Empty where there is none.
+// Script is the file a task or an action works in, beside its yaml, so a
+// failure has a line and a linter something to read. Empty where there is none.
 type Script string
 
 // Shell is that file as one piece of shell, for the places that only run it.
 func (s Script) Shell() string { return source(string(s)) }
 
-// The two names Oak puts into a script's environment, and the whole of what it
-// puts there. Neither is something a module's data can own: whether a run only
-// pretends to work is how it was started rather than something it was told, and
-// where the answers live is settled by whoever started the program.
-//
-// Everything else a script needs it works out for itself, and what a script is
-// told is every answer under its own name.
+// The two names Oak puts into a script's environment, and all it puts there:
+// how the run was started and where the answers live. Everything else a script
+// is told is an answer under its own name.
 const (
 	DebugVar = "DEBUG"       // true under --debug, absent otherwise
 	ConfVar  = "MODULE_CONF" // the answer file, which is also how a script answers
@@ -111,7 +84,7 @@ type Module struct {
 	Tasks []*Task
 
 	// Actions, in the order their folders sort, and the rules that say where
-	// the module runs them — see Action.
+	// the module runs them - see Action.
 	Actions []*Action
 	Rules   Rules
 
@@ -122,7 +95,7 @@ type Module struct {
 
 	// Warnings is what loaded but says something that can never take effect. A
 	// module that behaves is not a module that refuses to start, so these are
-	// reported — by `--inspect`, and in the log when the module is opened —
+	// reported - by `--inspect`, and in the log when the module is opened -
 	// rather than raised.
 	Warnings []string
 
@@ -147,31 +120,21 @@ type Module struct {
 	// own, or the product's where it declares none. Nil where neither does.
 	Status *Status
 
-	// Language names the variable whose answer also settles the words this
-	// interface is read in — a module that asks where a machine is has asked which
-	// language it speaks, and asking again would be the same question twice. The
-	// answer is matched against the catalogs on offer the way a machine's own
-	// locale is, so de_AT is German without anything having to say so.
-	//
-	// Empty leaves the two apart, and the program asks for a language of its own
-	// on the way in.
+	// Language names the variable whose answer also settles the words the
+	// interface is read in, matched like a machine's locale so de_AT is German.
+	// Empty keeps them apart, and the program asks for a language of its own.
 	Language string
 
 	byName map[string]*Variable
 }
 
-// UI is what a module says about itself: the words that make the frame this
-// program rather than the one beside it. What they all look like is not here —
-// one wordmark and one colour belong to the runtime, not to any module in it.
-// See Runtime.
+// UI is what a module says about itself, the words that make the frame this
+// program rather than the one beside it. Its look belongs to the runtime; see
+// Runtime.
 type UI struct {
-	// Title is what this module is called, and the only name it has: the row
-	// that opens it, the trail across the top of every page once it is open,
-	// and every sentence the interface writes about it.
-	//
-	// One name. The frame carries it on every page, so the rows inside a
-	// module are named after what they do — "Start", "Settings" — rather than
-	// after the module all over again.
+	// Title is the module's one name: the row that opens it, the trail over
+	// every page and every sentence about it. The rows inside are named after
+	// what they do, since the frame already carries the name.
 	Title string
 
 	// Icon stands over the menu's rows, in place of the runtime's: as written,
@@ -199,10 +162,9 @@ func source(path string) string { return "source " + quote(path) }
 // asks what to do with the machine instead of quitting.
 func (s *Module) Leaves() bool { return len(s.Rules.OnLeave) > 0 }
 
-// Preset is one starting point, a row on the one page a machine with no answer
-// file is asked before the real questions: the values choosing it fills in.
-// Nothing else about it survives being chosen — it is a set of answers, not a
-// mode the module stays in. The page itself is the runtime's own.
+// Preset is one starting point on the page a machine with no answer file sees
+// first: the values choosing it fills in, and no mode the module stays in. The
+// page itself is the runtime's.
 type Preset struct {
 	Title       string            `yaml:"title"`
 	Description string            `yaml:"description"`
@@ -220,13 +182,9 @@ func (o *Preset) Fetches() bool { return o.Action != "" }
 func (o *Preset) Label() string { return i18n.T(o.Title) }
 func (o *Preset) Help() string  { return i18n.T(o.Description) }
 
-// Task is one unit of work: a folder under tasks/, holding what it is, the
-// task.sh that does it, and — where there is one — the test.sh that checks the
-// machine afterwards.
-//
-// Which phase it belongs to is the stage folder it lies in, and what it needs
-// from that same stage is all it says about when it runs. Nothing keeps a list
-// of the installation's steps: adding a folder adds a step.
+// Task is one unit of work: a folder under tasks/ with what it is, its task.sh
+// and, where there is one, the test.sh that checks the machine afterwards. Its
+// stage is the folder it lies in, so adding a folder adds a step.
 type Task struct {
 	Title string `yaml:"title"`
 
@@ -238,9 +196,9 @@ type Task struct {
 	// asks it every time, whatever the answer file says.
 	Asks string `yaml:"asks"`
 
-	// Confirm is asked before this one runs, as a yes or no in the frame.
-	// Declining skips it and the run carries on. It comes after `asks`, so the
-	// offer can name what was just chosen.
+	// Confirm is a yes or no in the frame before this task runs; no skips it
+	// and the run carries on. It comes after `asks`, so it can name what was
+	// just chosen.
 	Confirm string `yaml:"confirm"`
 
 	// YesAfter names tasks of this module that run before this one. Where one
@@ -260,7 +218,7 @@ type Task struct {
 	Progress bool `yaml:"progress"`
 
 	// Simulates marks a task that is run under --debug as well, test and all,
-	// because it reads DEBUG and decides for itself what a simulated run does —
+	// because it reads DEBUG and decides for itself what a simulated run does -
 	// one that only reads, say. Every other task is only shown as run.
 	Simulates bool `yaml:"simulates"`
 
@@ -318,12 +276,9 @@ func (t *Task) ReportText(get func(string) string) (headline, body string) {
 	return headline, strings.TrimSpace(body)
 }
 
-// The types a variable is declared as, one of which every variable names. The
-// type is what the frame draws and which keys mean anything for it.
-//
-// Three of them also say when a question is asked, because that is not when the
-// rest are: a password immediately before the run, and a deferred one in the
-// middle of it, by the task that names it under `asks:`.
+// The types a variable is declared as, which say what the frame draws and which
+// keys apply. A password is asked right before the run and a deferred one by
+// the task that names it under `asks:`.
 const (
 	TypeText        = "text"
 	TypeBool        = "bool"
@@ -337,9 +292,8 @@ const (
 // Types is every type there is, in the order the reference lists them.
 var Types = []string{TypeText, TypeBool, TypeList, TypeOpenList, TypePassword, TypeNewPassword, TypeDeferred}
 
-// TypeKeys are the keys only some types take, by type. A key set on a type
-// that does not take it is refused, since nothing would read it. Every other
-// key means the same on each type.
+// TypeKeys are the keys only some types take. One set on a type that does not
+// take it is refused, since nothing would read it.
 var TypeKeys = map[string][]string{
 	TypeText:        {"default", "prefill", "value-from", "pattern"},
 	TypeBool:        {"default", "value-from"},
@@ -352,16 +306,15 @@ var TypeKeys = map[string][]string{
 
 // The two answers a bool variable has. They are written into the answer file
 // and read by scripts as plain shell truth, so they are these words and not
-// yes/no — a script tests `[ "$X" = true ]`.
+// yes/no - a script tests `[ "$X" = true ]`.
 const (
 	BoolTrue  = "true"
 	BoolFalse = "false"
 )
 
-// What a question's list does with the narrowing box before anything is typed
-// into it. collapsed is what a question that says nothing gets: the box waits
-// for /, which costs the page nothing until somebody wants it. open is for the
-// list that would otherwise have to be scrolled through to find a row.
+// What a list does with its narrowing box before anything is typed. collapsed
+// waits for / and costs the page nothing, open is for a list that would
+// otherwise be scrolled through.
 const (
 	FilterOpen      = "open"
 	FilterCollapsed = "collapsed"
@@ -370,7 +323,7 @@ const (
 // Variable is one thing a module needs to know, and everything known
 // about what a valid answer looks like. The rules live here once and are used
 // both when asking and when reading back an answer file somebody edited by
-// hand — a value typed into the file never passed a prompt.
+// hand - a value typed into the file never passed a prompt.
 type Variable struct {
 	Name        string `yaml:"name"`
 	Title       string `yaml:"title"`
@@ -378,40 +331,25 @@ type Variable struct {
 
 	// Group is the heading this row sits under on the settings page. Rows keep
 	// the order they were declared in, so a group is simply the run of rows
-	// that named it — there is nothing to declare up front.
+	// that named it - there is nothing to declare up front.
 	Group string `yaml:"group"`
 
-	// Type is one of Types, and required: what is drawn, and which of the keys
-	// below mean anything.
-	//
-	// A password exists already, on the disk it opens, and is typed once. A
-	// new-password is being chosen and is typed twice: nothing checks it, and a
-	// typo in it is found at the first boot of a system that took twenty
-	// minutes to build.
+	// Type is one of Types, and required. A password exists already and is
+	// typed once; a new-password is chosen and typed twice, since nothing can
+	// check it before the first boot.
 	Type     string `yaml:"type"`
 	Default  Scalar `yaml:"default"`
 	Required bool   `yaml:"required"`
 
-	// Check tries a password before it is taken, with the value under its own
-	// name, on the thing it opens. A non-zero exit refuses it on the page it was
-	// typed on. Every other answer is held to its pattern.
+	// Check tries a password on what it opens before it is taken, refusing it
+	// on its page with a non-zero exit. Every other answer is held to its
+	// pattern.
 	Check string `yaml:"check"`
 
-	// First puts this question before everything else the program does — before
-	// the network page, before the module's own check of the machine, before the
-	// starting point is chosen. For the answer that everything after it is typed
-	// on: a wireless passphrase given on a keyboard nobody chose is not the
-	// passphrase, and there is nothing to be done about that afterwards.
-	//
-	// It is a promise a module should make sparingly. Every question here is a
-	// question asked before the check that says this machine cannot be installed
-	// onto at all.
-	//
-	// A list asked this early carries its narrowing box open from the first
-	// frame and cannot close it, because the key that would open one is typed
-	// on a layout nobody has chosen yet — a box nobody can find the key to open
-	// is no box at all. Nothing declares that: being asked first is the
-	// declaration.
+	// First asks this question before anything else, for the answer everything
+	// after is typed on, such as the keyboard, and should be promised
+	// sparingly. Its list's narrowing box is open from the start, since the key
+	// to open it is typed on a layout nobody chose yet.
 	First bool `yaml:"first"`
 
 	// Where a list's answers come from: written out, or printed one per line by
@@ -419,33 +357,26 @@ type Variable struct {
 	Options     []string `yaml:"options"`
 	OptionsFrom string   `yaml:"options-from"`
 
-	// Filter is what this question's list does with the narrowing box — see
-	// FilterMode. Nothing counts rows for it: a list is thirty long on one
-	// machine and three on the next — the variants of a keyboard layout, the
-	// disks in a case — and a page that changed shape with that would be two
-	// pages nobody can be told apart in advance. It is declared here, once, and
-	// holds wherever the module runs.
+	// Filter is what this list does with its narrowing box (see FilterMode),
+	// declared rather than counted from rows. A list is thirty long on one
+	// machine and three on the next, and a page that changed with it could not
+	// be told in advance.
 	Filter string `yaml:"filter"`
 
-	// Prefill prints a suggested answer — a timezone guessed from the network,
+	// Prefill prints a suggested answer - a timezone guessed from the network,
 	// a keymap read off the live system. Only ever a suggestion: it fills the
 	// box, it does not answer the question.
 	Prefill string `yaml:"prefill"`
 
-	// ValueFrom is shell that prints the value instead of asking for it, for
-	// the question a machine can see the answer to. It is read when the module
-	// opens and whenever an answer changes. Such a variable is never asked,
-	// never on the settings page and never in the answer file: a stored copy
-	// could only disagree with the machine.
+	// ValueFrom is shell that prints the value the machine can see, read when
+	// the module opens and whenever an answer changes. Such a variable is never
+	// asked, shown or stored, since a stored copy could only disagree.
 	ValueFrom string `yaml:"value-from"`
 
-	// Apply puts this answer into effect on the machine the runtime is running
-	// on, rather than on the one being installed. Almost nothing needs it — an
-	// answer is a string a script reads later — but a console keyboard is not a
-	// string: until it is loaded, every answer after it is typed on a layout
-	// nobody chose. It runs when the answer is given, and once at startup for an
-	// answer this run began with — which is asked again where it fails, since
-	// nobody watched it being put in force.
+	// Apply puts this answer into effect on the machine Oak runs on, such as a
+	// console keyboard every later answer is typed on. It runs when the answer
+	// is given and once at startup, asking again where it fails, since nobody
+	// watched it then.
 	Apply string `yaml:"apply"`
 
 	Pattern    string     `yaml:"pattern"`
@@ -538,7 +469,7 @@ func (v *Variable) WhyRefused() string {
 
 // Secret reports whether this answer is never written down: either kind of
 // password. It is asked for immediately before the run that needs it, kept in
-// memory for that run, and forgotten — so it is also the one required variable
+// memory for that run, and forgotten - so it is also the one required variable
 // that does not stop the program from being ready.
 func (v *Variable) Secret() bool { return v.Type == TypePassword || v.Type == TypeNewPassword }
 
@@ -564,7 +495,7 @@ func (v *Variable) FilterMode() string {
 func (v *Variable) Matches(s string) bool { return v.re == nil || v.re.MatchString(s) }
 
 // domain is every answer this question has, or nil where the module left that
-// open — a name typed into a box, a list a command prints. It is what makes a
+// open - a name typed into a box, a list a command prints. It is what makes a
 // guard something that can be reasoned about rather than only evaluated.
 func (v *Variable) domain() []string {
 	switch {
@@ -578,7 +509,7 @@ func (v *Variable) domain() []string {
 
 // ID is the folder this module was read from. It is what the page offering it
 // is keyed on, the word that opens it from the command line, and the name its
-// answers and its log are kept under — one identity, so there is nothing to
+// answers and its log are kept under - one identity, so there is nothing to
 // keep in step.
 func (s *Module) ID() string { return filepath.Base(s.Dir) }
 
@@ -589,7 +520,7 @@ func (s *Module) Var(name string) *Variable { return s.byName[name] }
 func (s *Module) Name() string { return i18n.T(s.UI.Title) }
 
 // Message is one thing a module says: the text, what it is, and the files it
-// was read out of. The last two are all a translator has — the words arrive out
+// was read out of. The last two are all a translator has - the words arrive out
 // of the module they belong to, one sentence at a time.
 type Message struct {
 	Text  string

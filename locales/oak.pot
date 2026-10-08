@@ -59,33 +59,33 @@ msgstr ""
 msgid "There is no terminal to hand over."
 msgstr ""
 
-#: internal/spec/runtime.go:105
+#: internal/spec/runtime.go:86
 #, c-format
 msgid "A %s file has to sit next to this program, in %s."
 msgstr ""
 
-#: internal/spec/runtime.go:184
+#: internal/spec/runtime.go:165
 #, c-format
 msgid "A %s folder with something in it has to sit next to this program, in %s."
 msgstr ""
 
-#: internal/spec/runtime.go:191
+#: internal/spec/runtime.go:172
 msgid "Nothing to run here."
 msgstr ""
 
-#: internal/spec/spec.go:514
+#: internal/spec/spec.go:445
 msgid "This value has the wrong format."
 msgstr ""
 
-#: internal/spec/spec.go:516
+#: internal/spec/spec.go:447
 msgid "This value is required."
 msgstr ""
 
-#: internal/spec/spec.go:526
+#: internal/spec/spec.go:457
 msgid "This answer is not among the ones offered here."
 msgstr ""
 
-#: internal/spec/spec.go:536
+#: internal/spec/spec.go:467
 msgid "This password was not accepted."
 msgstr ""
 
