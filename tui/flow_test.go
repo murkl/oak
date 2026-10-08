@@ -44,6 +44,10 @@ type harness struct {
 	// loop waiting on the messages alone sits out its whole patience for a
 	// command that answered nothing.
 	wake chan struct{}
+
+	// gap, where a test sets it, runs between finding the queue empty and
+	// counting what is out there: where a command's message can still slip in.
+	gap func()
 }
 
 // reallyStart is the last page before the work.
@@ -302,10 +306,19 @@ func (h *harness) drain() {
 		select {
 		case msg = <-h.msgs:
 		default:
-			// Nothing queued. With nothing out there either, this is as
-			// settled as it is going to get.
+			if h.gap != nil {
+				h.gap()
+			}
+			// Nothing queued and nothing out there. A command is counted out
+			// only once its message is queued, so one look more is the last.
 			if h.inflight.Load() == 0 {
-				return
+				select {
+				case msg = <-h.msgs:
+					h.handle(msg)
+					continue
+				default:
+					return
+				}
 			}
 			wait := patience
 			if h.running() {
@@ -336,6 +349,22 @@ func TestTheLoopWakesWhenACommandAnswersNothing(t *testing.T) {
 	h.drain()
 	if waited := time.Since(start); waited > patience/2 {
 		t.Fatalf("the loop waited %v for a command that answered nothing", waited)
+	}
+}
+
+// A command queues its message and is counted out right after, so it can do
+// both in the moment the loop finds the queue empty. That message is still
+// handled before the loop says it has settled, or the next key meets the page
+// before it.
+func TestTheLoopHandlesAMessageThatArrivesAsItSettles(t *testing.T) {
+	h := newHarness(t, nil)
+	h.gap = func() {
+		h.gap = nil
+		h.msgs <- spinMsg{}
+	}
+	h.drain()
+	if n := len(h.msgs); n != 0 {
+		t.Fatalf("the loop settled with %d message(s) still queued", n)
 	}
 }
 
