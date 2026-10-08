@@ -11,21 +11,10 @@ import (
 	"strings"
 )
 
-// The one kind of authoring mistake a module's shape does not rule out on its
-// own.
-//
-// Everywhere else the same fact is written down once: the order comes out of
-// the stages and the needs, the settings page comes out of the variables, the
-// translation template comes out of the module. A guard is the exception — a
-// question says when it is worth asking and a task says when it is worth
-// running, and the two are separate sentences in separate files that are meant
-// to agree. When they drift, everything still loads and everything still runs;
-// the only symptom is a question somebody answered that nothing acted on.
-//
-// So it is checked here instead. Not at load: a module that behaves is not a module
-// that refuses to start, and a released image must never turn a lint into a
-// machine that will not boot. `--inspect` reports it and `make check` runs
-// that, which puts it in front of whoever wrote the guard, before the commit.
+// A guard is the one fact written twice, by a question and by the task that
+// reads it, and when the two drift a question is answered that nothing acts on.
+// `--inspect` reports it rather than the load refusing it, since a released
+// image must never turn a lint into a machine that will not boot.
 
 // Unread is a question asked where nothing reads the answer.
 type Unread struct {
@@ -44,18 +33,10 @@ func (u Unread) String() string {
 	return fmt.Sprintf("%s is asked where %s/%s cannot run: %s", u.Var, DirTasks, u.Task, u.Need)
 }
 
-// Unread lists them, in the order the questions were declared.
-//
-// A question is unread when every task that reads it carries a guard the
-// question does not: turn the desktop extras off and the row is still offered,
-// still answered, and the task that would act on it is not in the run. One task
-// that can run wherever the question is asked is enough for the answer to mean
-// something, so a value several tasks read is only reported when none of them
-// can.
-//
-// Read outside a task — in the product's shell, one of the actions, or the
-// declaration's own shell — and there is nothing to compare against: those run
-// whatever the answers say, so the question is answered by definition.
+// Unread lists the questions every task reading them guards beyond the
+// question's own conditions, in declaration order. One task that can run
+// wherever the question is asked is enough, and a question read outside a task
+// is answered by definition.
 func (s *Module) Unread() ([]Unread, error) {
 	sh, err := s.scan()
 	if err != nil {
@@ -82,7 +63,7 @@ func (s *Module) Unread() ([]Unread, error) {
 // it is asked, and whether every one of them is like that.
 //
 // A condition about the question itself is passed over: a task guarded on the
-// very value being asked for — `AUR_HELPER != none` — is not a task that runs
+// very value being asked for - `AUR_HELPER != none` - is not a task that runs
 // somewhere else, it is the answer being acted on.
 func (s *Module) unreachable(v *Variable, tasks []*Task) (Unread, bool) {
 	var first Unread
@@ -106,7 +87,7 @@ func (s *Module) unreachable(v *Variable, tasks []*Task) (Unread, bool) {
 }
 
 // readers is the tasks that read one variable: the ones whose own files name
-// it, and the ones that consume it by declaring it — a guard, an `asks:`.
+// it, and the ones that consume it by declaring it - a guard, an `asks:`.
 func (s *Module) readers(sh *refs, name string) []*Task {
 	var out []*Task
 	for _, t := range s.Tasks {
@@ -134,8 +115,8 @@ func (s *Module) everywhere() ([]string, error) {
 }
 
 // reads is what a task consumes by declaring it rather than by naming it in
-// shell: a guard is an answer being read — it is what decides whether this task
-// runs at all — and so is the value it stops the run to ask for.
+// shell: a guard is an answer being read - it is what decides whether this task
+// runs at all - and so is the value it stops the run to ask for.
 func (t *Task) reads() []string {
 	out := make([]string, 0, len(t.cond)+1)
 	for _, c := range t.cond {
@@ -230,28 +211,10 @@ func (c *condition) String() string {
 	return strings.Join([]string{c.name, op, c.want}, " ")
 }
 
-// The other direction, and the other half of the same question.
-//
-// Unread is a question nothing reads. Unset is a read nothing answers: a name
-// the module's own shell reaches for that this module does not declare, does
-// not set anywhere itself, and that Oak does not put in the environment either.
-// What the product's shell reads is answered where any module of the product
-// declares it, since it runs for each of them.
-//
-// In shell that is not an error. An unset name is an empty string, the line
-// runs, and what comes out the far end is a path with a hole in it — which is
-// exactly what happens to a module written against an older Oak that used to be
-// handed more than it is now.
-//
-// It is a description rather than a verdict, and it is not a list of mistakes:
-// $HOME and $PATH belong on it and are perfectly sound. Which of the two a name
-// is takes a person a second and takes this program a list of every variable
-// every Unix has ever had, so it says what it found and leaves it there.
-//
-// Only names in capitals are looked at, and what bash sets for itself is left
-// out. A script's own working values are lower case by the convention every
-// shell has kept, and treating either of those as a missing answer would bury
-// the line that matters.
+// Unset lists the capitalised names the module's shell reads that nothing
+// declares, sets or hands over, which in shell are an empty string rather than
+// an error. It describes rather than judges, since $HOME and $PATH belong on
+// it.
 func (s *Module) Unset() ([]string, error) {
 	sh, err := s.scan()
 	if err != nil {
@@ -285,7 +248,7 @@ func (s *Module) Unset() ([]string, error) {
 // reading one of these is reading something that is always there.
 //
 // A closed list out of the bash manual, and short on purpose: what the
-// *environment* holds — HOME, PATH, TERM — is not here, because a module
+// *environment* holds - HOME, PATH, TERM - is not here, because a module
 // reading one of those is a module that expects something of the machine, and
 // that is worth a line.
 var bashOwn = map[string]bool{
@@ -304,8 +267,8 @@ var bashOwn = map[string]bool{
 var shouted = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 
 // A name the module gives itself, which is answered by definition. Two shapes
-// cover it: something put in front of an equals sign — plainly, or after
-// export, local, declare or readonly, which all end in a space — and the two
+// cover it: something put in front of an equals sign - plainly, or after
+// export, local, declare or readonly, which all end in a space - and the two
 // words that bind a name to what they read.
 var (
 	assignment = regexp.MustCompile(`(?:^|[\s;&|("'])([A-Z_][A-Z0-9_]*)\+?=`)

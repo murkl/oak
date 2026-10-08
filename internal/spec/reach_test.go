@@ -98,7 +98,7 @@ func TestAWrittenOutSetOfValuesSettlesTheGuard(t *testing.T) {
 }
 
 func TestATaskGuardedOnTheAnswerItselfReadsIt(t *testing.T) {
-	// `EXTRAS == true` is not a task that runs somewhere else — it is the
+	// `EXTRAS == true` is not a task that runs somewhere else - it is the
 	// answer being acted on, which is the only way a bool ever is read.
 	files := consistent(map[string]string{
 		FileModule:                  widened,

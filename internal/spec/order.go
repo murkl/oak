@@ -5,21 +5,10 @@ import (
 	"strings"
 )
 
-// order settles what runs when inside one stage.
-//
-// Two rules, and no third: a task runs after every task of an earlier stage,
-// and after whatever it named in `needs`. The stages are the run read from top
-// to bottom and are settled by the folders the tasks sit in, so all that is
-// left here is the order across one stage.
-//
-// Two tasks that no `needs` separates are independent. The same module always
-// produces the same list — a run has to be repeatable — but which of the two
-// comes first is not something to build on: it is what `needs` is for, and a
-// folder renamed is a folder renamed and nothing else.
-//
-// Working it out here rather than keeping a list of steps somewhere means the
-// two can never disagree: a folder added is a step added, and its place comes
-// out of what it says about itself.
+// order settles what runs when inside one stage: a task runs after every task
+// of an earlier stage and after what it names in `needs`. Tasks no `needs`
+// separates come in a fixed but meaningless order, which is what `needs` is
+// for.
 func order(tasks []*Task) ([]*Task, error) {
 	waits := make(map[string]map[string]bool, len(tasks))
 	for _, t := range tasks {
@@ -67,13 +56,8 @@ func satisfied(waits map[string]bool, done map[string]bool) bool {
 	return true
 }
 
-// cycle is the ring the tasks that are left are waiting round, named in the
-// order they wait: a → b → c → a. Nothing can run any more, so what is left
-// holds at least one, and following any name into it arrives at it.
-//
-// A list of the ones still waiting would say the same thing and leave whoever
-// reads it to work the ring out by hand, which is the whole of what there is to
-// do about it.
+// cycle is the ring the tasks left are waiting round, named in the order they
+// wait (a → b → c → a), so nobody has to work it out by hand.
 func cycle(tasks []*Task, waits map[string]map[string]bool, done map[string]bool) []string {
 	left := map[string]bool{}
 	for _, t := range tasks {

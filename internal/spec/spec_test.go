@@ -8,12 +8,9 @@ import (
 	"testing"
 )
 
-// module writes a minimal but complete module and returns its path. Each
-// test starts from a working one and breaks exactly the thing it is about, so a
-// failure names the rule that was broken rather than a missing file three rules
-// earlier.
-//
-// A file whose body is empty is left out, which is how a test removes one.
+// module writes a minimal working module and returns its path, so each test
+// breaks only the rule it is about. A file with an empty body is left out,
+// which is how a test removes one.
 func module(t *testing.T, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -336,7 +333,7 @@ func TestAModuleWithoutActionsHasNone(t *testing.T) {
 }
 
 // An action's page is a question like the module's own, held to the same rules
-// and sharing its names — but it is not one of the module's questions: never
+// and sharing its names - but it is not one of the module's questions: never
 // asked on the way in and never on the settings page. The answer its report
 // shows is declared by being named there.
 func TestAnActionsPageIsDeclaredBesideTheModulesOwn(t *testing.T) {
@@ -512,7 +509,7 @@ func TestAModuleConfirmsItsWorkOnlyWhereItSaysSo(t *testing.T) {
 }
 
 // Every one of these is an authoring mistake that must be caught while the module
-// is being opened. The alternative — loading anyway — is a task that
+// is being opened. The alternative - loading anyway - is a task that
 // silently never runs on somebody's machine, which is the failure this whole
 // check exists to prevent.
 func TestLoadRefuses(t *testing.T) {
@@ -1210,7 +1207,7 @@ func TestAStartingPointMayBeFetchedByAnAction(t *testing.T) {
 }
 
 // The first paragraph of a report is its headline, the way the first block of
-// the opening logo is its eyebrow — one idiom, and nothing extra to declare.
+// the opening logo is its eyebrow - one idiom, and nothing extra to declare.
 func TestAReportsFirstParagraphIsItsHeadline(t *testing.T) {
 	dir := module(t, unit("go", "do", "title: Do\nreport: |\n  Installed on {{DISK}}\n\n  And here is what that means.\n"))
 	sp, err := Load(dir)

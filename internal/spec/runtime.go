@@ -15,8 +15,8 @@ import (
 // DirModules the folder beside it that holds them.
 //
 // Both have reserved names because they are what the binary reads to know what
-// it is: everything a run needs before a module has been chosen — the product's
-// name, its wordmark, its one colour — and the modules it offers.
+// it is: everything a run needs before a module has been chosen - the product's
+// name, its wordmark, its one colour - and the modules it offers.
 const (
 	FileRuntime = "oak.yaml"
 	DirModules  = "modules"
@@ -28,25 +28,17 @@ const (
 // carry a copy of. Being there is the declaration.
 const FileRuntimeShell = "oak.sh"
 
-// Runtime is the whole of what a binary and the folders beside it add up to.
-//
-// It is what no module can answer for itself. An installer and a recovery of
-// one product are two programs and one product — the same wordmark on the way
-// in, the same colour on every page, the same name over the question of which
-// of them to open — and a module that declared any of that would be declaring
-// it for its neighbours as well.
-//
-// It is also the whole of what makes this binary *this* product rather than
-// another one. Nothing about any particular operating system is compiled in: a
-// different name, a different colour and a different folder of modules is a
-// different product, out of the same binary.
+// Runtime is what a binary and the folders beside it add up to: what no module
+// can answer for its neighbours, such as the wordmark and the colour. A
+// different oak.yaml and modules make a different product out of the same
+// binary.
 type Runtime struct {
 	// Title is the product, over the page that asks which of its modules to
 	// open. Not translated: it is a name, and the same one in every language.
 	Title string `yaml:"title"`
 
 	// Accent is the one colour everything on screen is built from, #rrggbb, and
-	// Logo the wordmark the interface comes up out of — everything above the
+	// Logo the wordmark the interface comes up out of - everything above the
 	// first blank line a dim eyebrow over it.
 	Accent string `yaml:"accent"`
 	Logo   string `yaml:"logo"`
@@ -55,26 +47,18 @@ type Runtime struct {
 	// accent, in place of the runtime's tick. A module may say its own.
 	Icon string `yaml:"icon"`
 
-	// Version is what this product calls this build of itself, under the
-	// wordmark on the way in and in the corner of every page. It is the product's own and not the binary's: a release of the
-	// modules is what somebody downloads, and which Oak drove it is a dependency
-	// of that rather than its name.
-	//
-	// Left out, no version is shown. Oak's own is what `oak --version` answers
-	// first, and it is never put on screen as though it were the product's.
+	// Version is what the product calls this build of itself, under the
+	// wordmark and in the corner of every page, and none is shown where it is
+	// left out. Oak's own version is what `oak --version` answers first and is
+	// never shown as the product's.
 	Version string `yaml:"version"`
 
 	// Status is the line opposite the name in every module's header, unless a
-	// module says one of its own — see Status.
+	// module says one of its own - see Status.
 	Status *Status `yaml:"status"`
 
-	// Modules is what this runtime offers, in the order it offers them: the
-	// folders in DirModules, by name.
-	//
-	// Read off the filesystem rather than written down here, because a list
-	// beside the folders is a second copy of them that can disagree. Adding a
-	// module is a folder and taking one away is deleting it, and what each of
-	// them is called on the page that offers it is in its own declaration.
+	// Modules is what this runtime offers, in order: the folders in DirModules,
+	// read off the filesystem so no list beside them can disagree.
 	Modules []string `yaml:"-"`
 
 	// Where this was read: the file itself, and the folder its modules sit in.
@@ -88,11 +72,8 @@ type Runtime struct {
 }
 
 // LoadRuntime reads the declaration beside the binary, or in the folder named
-// outright, and finds the modules next to it.
-//
-// Both are required. A binary with no oak.yaml beside it is not a product yet:
-// it has no name, no colours and nothing to offer, and saying so at startup is
-// better than coming up blank.
+// outright, and finds the modules next to it. A binary without oak.yaml is not
+// a product yet, which startup says rather than coming up blank.
 func LoadRuntime(explicit string) (*Runtime, error) {
 	dir, err := root(explicit)
 	if err != nil {
@@ -165,7 +146,7 @@ func (r *Runtime) check() error {
 	return nil
 }
 
-// discover is the modules in a folder, in name order — which is the order they
+// discover is the modules in a folder, in name order - which is the order they
 // are offered in. Every folder in it is one; whether it holds something that
 // loads is decided by loading it, so a broken module is a startup error rather
 // than a row quietly missing from the page.
@@ -194,12 +175,9 @@ func missing(detail string) error {
 // Path is where a module's folder is.
 func (r *Runtime) Path(id string) string { return filepath.Join(r.Dir, DirModules, id) }
 
-// LoadModules reads every module this runtime offers, in the order it offers
-// them.
-//
-// All of them, whichever one a run turns out to be about. A release ships its
-// modules together, so one that will not load is a broken release, and saying
-// so at startup beats a row that fails when somebody chooses it.
+// LoadModules reads every module this runtime offers, in order, whichever a run
+// is about. A module that will not load is a broken release, said at startup
+// rather than when somebody chooses it.
 func (r *Runtime) LoadModules() ([]*Module, error) {
 	out := make([]*Module, 0, len(r.Modules))
 	for _, id := range r.Modules {
@@ -249,17 +227,10 @@ func root(explicit string) (string, error) {
 	return filepath.Abs(dir)
 }
 
-// Status is one thing about the machine the header keeps an eye on while a
-// module is open — whether it is online, most of all. Shell run every so often,
-// and the few words it reads as while that shell says yes and while it says no.
-//
-// It stands opposite the name on the pages where nothing else does: the mark
-// that turns while something runs takes its place, and so does a page's own
-// count. The two marks it is shown with are Oak's, drawn from the same set as
-// every other mark, so a console font that holds the interface holds them too.
-//
-// Declared once in oak.yaml for every module of the product, and in a module's
-// own declaration for that module alone, which replaces the product's outright.
+// Status is one thing about the machine the header watches while a module is
+// open, mostly whether it is online: shell run every so often and the words it
+// reads as for yes and no. A module's own replaces the one oak.yaml declares
+// for the product.
 type Status struct {
 	// Check is a function of oak.sh, or a file, whose exit status is the
 	// answer: zero for yes. Run with the product's shell loaded and the answers

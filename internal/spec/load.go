@@ -30,7 +30,7 @@ func binaryDir() string {
 
 // declaration is a module's yaml as it is written: flat, because every key in
 // it is about the module as a whole and a nesting level would only be there to
-// be typed — but for the subjects with parts of their own: the words of its
+// be typed - but for the subjects with parts of their own: the words of its
 // pages, the rules that run its actions, and the header's status.
 type declaration struct {
 	Title    string `yaml:"title"`
@@ -43,7 +43,7 @@ type declaration struct {
 	// The picture over its menu.
 	Icon string `yaml:"icon"`
 
-	// Where it runs its actions, each a list of their names — see Rules.
+	// Where it runs its actions, each a list of their names - see Rules.
 	Rules Rules `yaml:"rules"`
 
 	Presets   []*Preset   `yaml:"presets"`
@@ -53,7 +53,7 @@ type declaration struct {
 	Status *Status `yaml:"status"`
 }
 
-// Load reads one module folder and checks it over — every reference resolved,
+// Load reads one module folder and checks it over - every reference resolved,
 // every script found, every condition naming a variable that exists, every task
 // in a stage that exists and in an order that can be walked.
 //
@@ -174,20 +174,10 @@ func beside(dir, name string) string {
 	return path
 }
 
-// loadTasks reads tasks/, which is two levels: a folder per stage, marked, and
-// in each of those a folder per task.
-//
-// A task's stage is therefore where it lies rather than a line it writes, so it
-// can never say one thing and sit in another.
-//
-// The task folder's name is its identity — what another task's `needs` in the
-// same stage points at — and no more than that: what runs when is the stage it
-// lies in and the order inside it.
-//
-// A folder under tasks/ without the mark is refused rather than passed over. It
-// is the one mistake that would otherwise load and do nothing at all: a task
-// dropped a level too high runs in no stage, and nothing about a module that
-// starts would say so.
+// loadTasks reads tasks/: a marked folder per stage, a folder per task in it,
+// so a task's stage is where it lies and its name what `needs` points at. An
+// unmarked folder under tasks/ is refused, since a task dropped a level too
+// high would load and never run.
 func loadTasks(dir string, stages []string) ([]*Task, error) {
 	base := filepath.Join(dir, DirTasks)
 	entries, err := os.ReadDir(base)
@@ -282,13 +272,8 @@ func read(path string, into any) error {
 	return nil
 }
 
-// retired is a key a product used to be able to declare, and what to write
-// instead. Each of them was dropped because the same thing was already said
-// somewhere else, so there is always a sentence to point at.
-//
-// It is not a compatibility layer: the file is still refused. It is the
-// refusal saying what to do about itself, which is all a message that stops a
-// build is for.
+// retired is a key a product used to declare, and what to write instead. The
+// file is still refused; the message only says what to do about it.
 var retired = map[string]string{
 	"blind":          "a question asked first opens its filter by itself",
 	"id":             "a starting point is named by its title, and nothing anywhere points at one",
@@ -379,12 +364,8 @@ func (s *Module) check(tasks []*Task, runs map[string]int) error {
 	return s.checkDeferredAsked(tasks)
 }
 
-// checkText holds a sentence to the answers this module has. A {{VAR}} naming
-// none of them is filled in with nothing and leaves a sentence that still reads
-// as one — "everything on will be erased" — at the moment somebody is deciding
-// whether to go ahead. Refused where it is written rather than noticed where it
-// is read, which is too late by then.
-//
+// checkText refuses a {{VAR}} that names no answer of this module, which would
+// read as a whole sentence with a hole in it right where somebody decides.
 // Checked once the variables are known, so a sentence may name one declared
 // after it.
 func (s *Module) checkText(key, text string) error {
@@ -466,15 +447,9 @@ func (s *Module) checkTask(t *Task) error {
 	return nil
 }
 
-// checkNeeds resolves what every task waits for, and says what it found.
-//
-// `needs` orders tasks across one stage; the stages order the rest. So a name
-// belonging to another stage
-// says nothing the stages have not already said, and is dropped with a word
-// about it rather than refused — a module that behaves is not a module that
-// refuses to start. A name belonging to nothing is a different thing entirely:
-// it is a task waiting for something that does not exist, and there is no
-// reading of it that runs.
+// checkNeeds resolves what every task waits for. A name in another stage says
+// nothing the stages do not, so it is dropped with a warning, while a name
+// belonging to nothing is refused.
 func checkNeeds(groups map[string][]*Task) ([]string, error) {
 	elsewhere := map[string]string{}
 	for group, tasks := range groups {
@@ -527,12 +502,10 @@ func (s *Module) checkAsks(t *Task) error {
 	return nil
 }
 
-// checkDeferred holds a question asked mid-run to what the frame can put there.
-//
-// Only a list qualifies. A text box mid-run would be a second way of answering
-// with nothing to check it against on a page nobody navigated to, and a yes or
-// no in front of a task is its `confirm:`. What only the way in or the settings
-// page reads is refused, since neither ever shows it.
+// checkDeferred holds a question asked mid-run to a list, since a text box
+// there has nothing to check it and a yes or no is a task's `confirm:`. What
+// only the way in or the settings page reads is refused, since neither shows
+// it.
 func checkDeferred(v *Variable) error {
 	switch {
 	case v.First:
@@ -559,17 +532,9 @@ func (s *Module) checkDeferredAsked(tasks []*Task) error {
 	return nil
 }
 
-// normalize settles every word the module says into the shape it is both shown in
-// and translated by.
-//
-// Where a line ends in the yaml is not where it ends on screen: a description is
-// written in a block scalar and wrapped by whoever was editing it, to whatever
-// width their editor was that day. Those breaks are undone here, once, so that
-// the text and the key a catalog looks it up by are the same string — and so a
-// translator is handed one line per message instead of somebody's line wrapping
-// to reproduce.
-//
-// A blank line survives, because that is the one break that was meant.
+// normalize undoes the line breaks of a block scalar in every word the module
+// says, so the text shown and the key a catalog looks it up by are the same
+// string. A blank line survives, the one break that was meant.
 func (s *Module) normalize(tasks []*Task) {
 	fields := []*string{&s.UI.Title}
 	for _, o := range s.Presets {
@@ -629,7 +594,7 @@ func (s *Module) checkVars() error {
 }
 
 // checkVar holds one question to the rules every question keeps, settles the
-// shell it names relative to dir — the folder of the yaml it was written in —
+// shell it names relative to dir - the folder of the yaml it was written in -
 // and makes its name the module's.
 func (s *Module) checkVar(v *Variable, dir string) error {
 	switch {
@@ -742,11 +707,10 @@ func (s *Module) conditions(exprs Conditions) ([]*condition, error) {
 // parentheses, so it reads as a call and never as the shell it stands for.
 var call = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\(\)$`)
 
-// shell settles a field that names shell, against dir - the folder of the yaml
-// it was written in. It names either a function of oak.sh, written name(), or a
-// file beside the yaml, written ./file.sh, so the shell is always somewhere a
-// linter reads and a failure has a line. Shell written into the yaml itself is
-// refused. Handed back are what to run and the function it calls, if it does.
+// shell settles a field that names shell against the folder of its yaml: a
+// function of oak.sh written name(), or a file beside the yaml written
+// ./file.sh, so a linter reads it and a failure has a line. It hands back what
+// to run and the function it calls, if any.
 func shell(dir, expr string) (run, fn string, err error) {
 	expr = strings.TrimSpace(expr)
 	if expr == "" {
