@@ -155,7 +155,7 @@ Each rule names actions by their folder. An `-if` runs by itself and answers yes
 | `on-success` | module | Rows under a run that finished |
 
 - A row list opens on **Continue**: an action is chosen on purpose
-- A module with `on-leave` says the machine booted to run it, so leaving becomes a choice. `--kiosk` puts **Reset** where **Exit** is
+- A module with `on-leave` says the machine booted to run it, so leaving becomes a choice. In a `--kiosk`, **Exit** closes the program for whatever keeps it running to start it again, with every answer kept
 - `offer-if` decides which modules a machine is offered: several are asked for under the wordmark, one is opened on the way in, none prints each module's `error` and stops. `--debug` offers everything
 
 ## Questions

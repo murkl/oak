@@ -179,8 +179,8 @@ func (a *app) heading() string {
 }
 
 // leaves reports whether leaving asks about the machine: never before a module
-// is opened, always in a kiosk, where starting over is a way out every module
-// has.
+// is opened, always in a kiosk, where leaving starts the program again and
+// every module has that way out.
 func (a *app) leaves() bool { return a.module != nil && (a.kiosk || a.module.Leaves()) }
 
 // speak puts the interface in a language and keeps it in Oak's own file, since

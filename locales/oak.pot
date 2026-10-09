@@ -106,11 +106,11 @@ msgstr ""
 msgid "Check every step on the machine it was done to"
 msgstr ""
 
-#: internal/store/store.go:194 tui/labels.go:199
+#: internal/store/store.go:194 tui/labels.go:198
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:196 tui/labels.go:200
+#: internal/store/store.go:196 tui/labels.go:199
 msgid "No"
 msgstr ""
 
@@ -362,10 +362,6 @@ msgstr ""
 msgid "Close this program. The machine keeps running."
 msgstr ""
 
-#: tui/labels.go:192
-msgid "Reset"
-msgstr ""
-
-#: tui/labels.go:194
-msgid "Forget every answer and start again from the beginning."
+#: tui/labels.go:193
+msgid "Close this program and start it again from the beginning. Every answer is kept."
 msgstr ""
