@@ -55,7 +55,7 @@ jobs:
       # gcc for the race detector, which is built on cgo.
       - uses: ./.github/actions/arch
         with:
-          packages: go gcc make shellcheck shfmt staticcheck yamllint actionlint zizmor gettext diffutils gitleaks govulncheck
+          packages: go gcc make shellcheck shfmt yamllint actionlint zizmor gettext diffutils gitleaks govulncheck
 
       - run: make check
 
