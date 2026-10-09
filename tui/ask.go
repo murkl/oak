@@ -111,6 +111,9 @@ func (a *ask) Hint() string {
 	if a.loading {
 		return labelHintRunning()
 	}
+	if a.filter.permanent {
+		return labelHintFilterAnswer()
+	}
 	return filterHint(labelHintAnswer(), a.filter)
 }
 
