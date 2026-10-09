@@ -49,6 +49,12 @@ func labelHintFilterPermanent() string {
 	return say("type to filter · ↑↓ move · ⏎ select · esc back")
 }
 
+// labelHintFilterAnswer is that box over a question a run stopped to ask, where
+// esc says what it says over any other question there.
+func labelHintFilterAnswer() string {
+	return say("type to filter · ↑↓ move · ⏎ select · esc quit")
+}
+
 func labelFilterPlaceholder() string { return say("Filter …") }
 func labelNoMatch() string           { return say("No matches") }
 func labelOwnAnswer() string         { return say("An answer of your own") }

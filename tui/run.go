@@ -542,8 +542,11 @@ func (s *runScreen) resultsRow() []item {
 // answerAsk takes the value a task asked for and carries on into whatever else
 // that task declared. There is no way past the question but answering it: the
 // work it belongs to has already started, and esc has nothing behind it to go
-// back to.
+// back to. A box that is always up hands esc on, so here it asks how to leave.
 func (s *runScreen) answerAsk(key tea.KeyMsg) tea.Cmd {
+	if cancels(key) && s.ask.filter.permanent {
+		return leave()
+	}
 	cmd, given := s.ask.Update(key, s.app)
 	if !given {
 		return cmd

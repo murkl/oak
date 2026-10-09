@@ -98,7 +98,7 @@ msgstr ""
 msgid "Answers kept for every module. Can be edited by hand."
 msgstr ""
 
-#: internal/store/prefs.go:70 tui/labels.go:76
+#: internal/store/prefs.go:70 tui/labels.go:82
 msgid "Interface language"
 msgstr ""
 
@@ -106,11 +106,11 @@ msgstr ""
 msgid "Check every step on the machine it was done to"
 msgstr ""
 
-#: internal/store/store.go:194 tui/labels.go:198
+#: internal/store/store.go:194 tui/labels.go:204
 msgid "Yes"
 msgstr ""
 
-#: internal/store/store.go:196 tui/labels.go:199
+#: internal/store/store.go:196 tui/labels.go:205
 msgid "No"
 msgstr ""
 
@@ -219,149 +219,153 @@ msgstr ""
 msgid "type to filter · ↑↓ move · ⏎ select · esc back"
 msgstr ""
 
-#: tui/labels.go:52
+#: tui/labels.go:55
+msgid "type to filter · ↑↓ move · ⏎ select · esc quit"
+msgstr ""
+
+#: tui/labels.go:58
 msgid "Filter …"
 msgstr ""
 
-#: tui/labels.go:53
+#: tui/labels.go:59
 msgid "No matches"
 msgstr ""
 
-#: tui/labels.go:54
+#: tui/labels.go:60
 msgid "An answer of your own"
 msgstr ""
 
-#: tui/labels.go:60
+#: tui/labels.go:66
 msgid "Start"
 msgstr ""
 
-#: tui/labels.go:71
+#: tui/labels.go:77
 msgid "Menu"
 msgstr ""
 
-#: tui/labels.go:74
+#: tui/labels.go:80
 msgid "Confirmation"
 msgstr ""
 
 #. %s is the name of the product being read, as oak.yaml declares it.
-#: tui/labels.go:84
+#: tui/labels.go:90
 #, c-format
 msgid "The language %s is read in. It changes the words on screen and nothing else."
 msgstr ""
 
-#: tui/labels.go:90
+#: tui/labels.go:96
 msgid "What would you like to start?"
 msgstr ""
 
-#: tui/labels.go:96
+#: tui/labels.go:102
 #, c-format
 msgid "%d of %d"
 msgstr ""
 
-#: tui/labels.go:100
+#: tui/labels.go:106
 msgid "Starting point"
 msgstr ""
 
-#: tui/labels.go:102
+#: tui/labels.go:108
 msgid "Choose where to start from. Every answer it fills in can still be changed afterwards."
 msgstr ""
 
 #. the first %d is how many tests passed, the second how many ran.
-#: tui/labels.go:110
+#: tui/labels.go:116
 #, c-format
 msgid "%d of %d tests passed"
 msgstr ""
 
 #. the first %d is how many optional tasks failed, the second how many ran.
-#: tui/labels.go:118
+#: tui/labels.go:124
 #, c-format
 msgid "%d of %d optional tasks failed"
 msgstr ""
 
-#: tui/labels.go:123
+#: tui/labels.go:129
 msgid "Test results"
 msgstr ""
 
-#: tui/labels.go:124
+#: tui/labels.go:130
 msgid "↑↓ move · ⏎ select"
 msgstr ""
 
-#: tui/labels.go:127
+#: tui/labels.go:133
 msgid "Continue"
 msgstr ""
 
-#: tui/labels.go:132
+#: tui/labels.go:138
 msgid "Verify steps"
 msgstr ""
 
-#: tui/labels.go:134
+#: tui/labels.go:140
 msgid "Reads the machine after every task: that what the task did is really done, and done the way it was meant to be. It is what makes a run you can rely on rather than one that only said it worked. Nothing is changed and nothing is stopped. Whatever disagrees is read at the end."
 msgstr ""
 
-#: tui/labels.go:141
+#: tui/labels.go:147
 msgid "Reset all answers"
 msgstr ""
 
-#: tui/labels.go:143
+#: tui/labels.go:149
 msgid "Every answer is forgotten and the file they are kept in is deleted. The module starts again at its first question, and this cannot be undone."
 msgstr ""
 
-#: tui/labels.go:146
+#: tui/labels.go:152
 msgid "Repeat"
 msgstr ""
 
-#: tui/labels.go:147
+#: tui/labels.go:153
 msgid "The entries do not match."
 msgstr ""
 
-#: tui/labels.go:151
+#: tui/labels.go:157
 msgid "Do you really want to start?"
 msgstr ""
 
-#: tui/labels.go:156
+#: tui/labels.go:162
 msgid "Failed"
-msgstr ""
-
-#: tui/labels.go:158
-#, c-format
-msgid "Working · %s"
-msgstr ""
-
-#: tui/labels.go:161
-#, c-format
-msgid "Finished in %s"
 msgstr ""
 
 #: tui/labels.go:164
 #, c-format
+msgid "Working · %s"
+msgstr ""
+
+#: tui/labels.go:167
+#, c-format
+msgid "Finished in %s"
+msgstr ""
+
+#: tui/labels.go:170
+#, c-format
 msgid "The full log is in %s."
 msgstr ""
 
-#: tui/labels.go:172
+#: tui/labels.go:178
 #, c-format
 msgid "It stopped at %s, and nothing after that has run."
 msgstr ""
 
-#: tui/labels.go:175
+#: tui/labels.go:181
 msgid "Cannot continue"
 msgstr ""
 
-#: tui/labels.go:179
+#: tui/labels.go:185
 msgid "Leave"
 msgstr ""
 
-#: tui/labels.go:184
+#: tui/labels.go:190
 msgid "This run continues behind this page. Any choice here stops it."
 msgstr ""
 
-#: tui/labels.go:187
+#: tui/labels.go:193
 msgid "Exit"
 msgstr ""
 
-#: tui/labels.go:188
+#: tui/labels.go:194
 msgid "Close this program. The machine keeps running."
 msgstr ""
 
-#: tui/labels.go:193
+#: tui/labels.go:199
 msgid "Close this program and start it again from the beginning. Every answer is kept."
 msgstr ""

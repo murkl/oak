@@ -2232,6 +2232,38 @@ func TestATaskCanAskForAValueInTheMiddleOfTheRun(t *testing.T) {
 	h.wants("Finished in", "Roll back")
 }
 
+// A box that is up from the first frame hands esc on rather than closing, and
+// the question it sits over has nothing behind it: esc asks how to leave, as it
+// does over every other question in a run, and the hint says so.
+func TestEscOverAQuestionWithItsBoxUpAsksHowToLeave(t *testing.T) {
+	files := leaveTree("true", "true")
+	files[treeFile] = testInstaller + `
+  - name: SNAPSHOT
+    title: Snapshot
+    type: deferred
+    required: true
+    filter: open
+    options-from: ./snapshots.sh
+rules:
+  on-leave: [restart, shutdown]
+`
+	files["snapshots.sh"] = "printf 'one\\ntwo\\n'\n"
+	files["tasks/@finish/d-roll/task.yaml"] = "title: Roll back\nasks: SNAPSHOT\n"
+	files["tasks/@finish/d-roll/task.sh"] = "echo rolled\n"
+	h := newHarness(t, files)
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
+
+	h.askedFor()
+	h.wants("Filter …", "one", "two", "esc quit").refuses("esc back")
+
+	h.esc()
+	h.wants("Restart", "Shut down")
+
+	h.esc()
+	h.wants("Filter …", "one", "two").refuses("Restart")
+}
+
 // A question the run stopped for that turns out to have no answers is a task
 // with nothing to do: this machine has no snapshot to go back to. The step is
 // skipped and the run carries on, because what there is to choose from is read
