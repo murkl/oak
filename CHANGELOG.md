@@ -2,6 +2,22 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before, never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.24.0](https://github.com/murkl/oak/compare/v0.23.0...v0.24.0) (2026-10-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* --kiosk offers Exit, which keeps every answer, where it offered Reset.
+
+### Features
+
+* a kiosk's way out is Exit, which keeps every answer ([#76](https://github.com/murkl/oak/issues/76)) ([93330c4](https://github.com/murkl/oak/commit/93330c44396a4266d649e11770afef1305237427))
+
+
+### Bug Fixes
+
+* esc over a run's question with its filter always open asks how to leave ([#75](https://github.com/murkl/oak/issues/75)) ([4d0e2aa](https://github.com/murkl/oak/commit/4d0e2aa706c9fabbad73ff2b3643ae8c8a135a75))
+
 ## [0.23.0](https://github.com/murkl/oak/compare/v0.22.0...v0.23.0) (2026-10-08)
 
 
