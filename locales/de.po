@@ -103,11 +103,11 @@ msgstr "Sprache der Oberfläche"
 msgid "Check every step on the machine it was done to"
 msgstr "Jeden Schritt auf dem Rechner prüfen, auf dem er ausgeführt wurde"
 
-#: internal/store/store.go:194 tui/labels.go:205
+#: internal/store/store.go:194 tui/labels.go:204
 msgid "Yes"
 msgstr "Ja"
 
-#: internal/store/store.go:196 tui/labels.go:206
+#: internal/store/store.go:196 tui/labels.go:205
 msgid "No"
 msgstr "Nein"
 
@@ -363,10 +363,6 @@ msgstr "Beenden"
 msgid "Close this program. The machine keeps running."
 msgstr "Das Programm schließen. Der Rechner läuft weiter."
 
-#: tui/labels.go:198
-msgid "Reset"
-msgstr "Zurücksetzen"
-
-#: tui/labels.go:200
-msgid "Forget every answer and start again from the beginning."
-msgstr "Alle Antworten vergessen und von vorn beginnen."
+#: tui/labels.go:199
+msgid "Close this program and start it again from the beginning. Every answer is kept."
+msgstr "Das Programm schließen und von vorn starten. Alle Antworten bleiben erhalten."

@@ -193,11 +193,10 @@ func labelLeaveRunning() string {
 func labelConsole() string     { return say("Exit") }
 func labelConsoleHelp() string { return say("Close this program. The machine keeps running.") }
 
-// The row a kiosk has where a console would be: every answer forgotten and the
-// program started again, the way it came up the first time.
-func labelStartOver() string { return say("Reset") }
-func labelStartOverHelp() string {
-	return say("Forget every answer and start again from the beginning.")
+// The same row in a kiosk, which has nothing behind the program and starts it
+// again.
+func labelConsoleKioskHelp() string {
+	return say("Close this program and start it again from the beginning. Every answer is kept.")
 }
 
 // The two answers to a task that asks before it runs. The same two words a bool

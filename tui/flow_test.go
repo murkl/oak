@@ -2563,28 +2563,28 @@ func TestLeavingToTheConsoleClosesOnlyTheProgram(t *testing.T) {
 	}
 }
 
-// A kiosk is a machine with nothing behind the program: leaving it is starting
-// over. The answers are forgotten and the program closes, for whatever keeps it
-// running to start it again.
-func TestAKioskStartsOverWhereAConsoleWouldBe(t *testing.T) {
+// A kiosk is a machine with nothing behind the program: Exit closes it for
+// whatever keeps it running to start it again, and the answers stay for that
+// start to open on.
+func TestAKioskExitsWithEveryAnswerKept(t *testing.T) {
 	mod := loadModule(t, writeModule(t, t.TempDir(), leaveTree("true", "true")))
 
 	h := startAs(t, testRuntime(), openModule(t), "", Opening{Kiosk: true}, mod)
 	h.down().enter().typeIn("moritz").enter().enter()
 	if !h.a.store.Exists() {
-		t.Fatal("the answers were never written, so forgetting them would prove nothing")
+		t.Fatal("the answers were never written, so keeping them would prove nothing")
 	}
 	h.typeIn("q")
-	h.wants("Restart", "Shut down", "Reset").refuses("Exit")
+	h.wants("Restart", "Shut down", "Exit").refuses("Reset")
 
 	h.down().down()
-	h.wants("Forget every answer")
+	h.wants("Every answer is kept").refuses("The machine keeps running")
 	h.enter()
 	if !h.m.quitting {
-		t.Fatal("starting over did not close the program")
+		t.Fatal("Exit did not close the program")
 	}
-	if h.a.store.Exists() {
-		t.Error("starting over kept the answers")
+	if !h.a.store.Exists() {
+		t.Error("Exit forgot the answers")
 	}
 }
 
@@ -2599,7 +2599,7 @@ func TestAKioskAsksEvenWhereTheModuleSaysNothingAboutLeaving(t *testing.T) {
 	if h.m.quitting {
 		t.Fatal("q quit a kiosk instead of asking")
 	}
-	h.wants("Reset").refuses("Restart", "Exit")
+	h.wants("Exit").refuses("Restart")
 }
 
 func TestChoosingRestartRunsTheTreesOwnCommand(t *testing.T) {

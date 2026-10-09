@@ -10,8 +10,8 @@ import (
 )
 
 // leaveScreen is the way out where the module says the machine booted to run
-// it: what to leave it in, and under that closing the interface, or in a kiosk
-// starting over. Drawn over what was happening, it stops nothing until a row is
+// it: what to leave it in, and under that closing the interface, which a kiosk
+// starts again. Drawn over what was happening, it stops nothing until a row is
 // chosen, and under --debug a row that does not simulate itself only closes the
 // program.
 type leaveScreen struct {
@@ -26,12 +26,9 @@ type leaveScreen struct {
 	err   error
 }
 
-// The runtime's own rows. The NUL prefix cannot collide with anything a module
+// The runtime's own row. The NUL prefix cannot collide with anything a module
 // names.
-const (
-	keyConsole   = "\x00console"
-	keyStartOver = "\x00start-over"
-)
+const keyConsole = "\x00console"
 
 func newLeave(a *app, halt func(), running bool) *leaveScreen {
 	s := &leaveScreen{app: a, halt: halt}
@@ -40,13 +37,13 @@ func newLeave(a *app, halt func(), running bool) *leaveScreen {
 		items = append(items, actionRow(act))
 	}
 	// Last, since it only ends the program while the rows above end the
-	// machine's session. A kiosk has nothing to go back to and starts over
-	// instead.
+	// machine's session. A kiosk has nothing behind the program, so whatever
+	// keeps it running starts it again.
+	help := labelConsoleHelp()
 	if a.kiosk {
-		items = append(items, item{title: labelStartOver(), detail: labelStartOverHelp(), key: keyStartOver})
-	} else {
-		items = append(items, item{title: labelConsole(), detail: labelConsoleHelp(), key: keyConsole})
+		help = labelConsoleKioskHelp()
 	}
+	items = append(items, item{title: labelConsole(), detail: help, key: keyConsole})
 	s.picker = newPicker(items)
 	// Said out loud only while there is something to say it about: whoever
 	// reached this page in the middle of a run is owed both halves of it - that
@@ -123,20 +120,9 @@ func (s *leaveScreen) carryOut(key string) tea.Cmd {
 	// running behind this page is put down first - every row ends it.
 	s.halt()
 	// The console is not a command and nothing is waiting for it: the program
-	// closes, and whatever started it is back.
+	// closes, and whatever started it is back. The answer file stays, so a kiosk
+	// started again opens on every answer it had.
 	if key == keyConsole {
-		return quit()
-	}
-	// Starting over is every answer forgotten and the program closed, for
-	// whatever keeps a kiosk running to start it again: a new process is the
-	// one start that owes nothing to the run before it. Answers that will not
-	// go are said the way the settings page says so, while the program is still
-	// standing to say it.
-	if key == keyStartOver {
-		if err := s.app.store.Reset(); err != nil {
-			logging.Error("%s", err)
-			return flashBad(err.Error())
-		}
 		return quit()
 	}
 	act := s.app.action(key)

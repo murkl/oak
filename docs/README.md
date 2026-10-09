@@ -151,7 +151,7 @@ A failed test and a failed `allow-failure` task do not stop the run. They are co
 oak --module=setup     # open that module outright
 oak --language=de      # read it in German, without the welcome page
 oak --debug            # show the run, start nothing
-oak --kiosk            # the machine is only this: leaving starts it over
+oak --kiosk            # the machine is only this: leaving starts it again
 oak --version          # Oak's own release, and the product's build beside it
 oak --inspect          # load the product as a run does, and report
 oak --strings          # a module's translation template
