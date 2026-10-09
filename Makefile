@@ -98,9 +98,10 @@ test:
 vet:
 	go vet ./...
 
-# Dead code and the mistakes vet does not look for.
+# Dead code and the mistakes vet does not look for, at the release go.mod
+# names: a newer Go needs a newer reader of its export data.
 staticcheck:
-	staticcheck ./...
+	go tool staticcheck ./...
 
 # Known vulnerabilities in what this imports. It asks a server, so it stays out
 # of `check`.

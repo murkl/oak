@@ -94,7 +94,7 @@ make locales                   # the template, and every catalog brought up to i
 ```
 
 ```
-sudo pacman -S --needed go gcc make shellcheck shfmt staticcheck yamllint actionlint zizmor gettext govulncheck gitleaks
+sudo pacman -S --needed go gcc make shellcheck shfmt yamllint actionlint zizmor gettext govulncheck gitleaks
 ```
 
 **Note:** _CI installs the same packages and runs the same commands in an Arch container. There is no second definition of green._
