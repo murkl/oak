@@ -165,18 +165,20 @@ func (s *runScreen) status() string {
 	return labelCounter(min(s.at+1, len(s.steps)), len(s.steps))
 }
 
+// Hint names the key that works on what is in front: while a task runs that is
+// esc, which asks how to leave as it does over a question the run stopped for.
 func (s *runScreen) Hint() string {
 	switch {
 	case s.ask != nil:
 		return s.ask.Hint()
 	case s.asking != nil:
 		return labelHintAnswer()
-	case !s.settled:
-		return labelHintRunning()
 	case s.told != nil:
 		return s.told.Hint()
 	case s.after != nil:
 		return labelHintChecks()
+	case !s.done:
+		return labelHintWorking()
 	}
 	return s.app.hintEnd(labelHintClose())
 }
@@ -487,7 +489,7 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 				// The page a run stopped on: everything about the failure is
 				// behind it, and the way on from there is back to the answers.
 				if s.err != nil {
-					return s, push(newFailure(s.stoppedAt(), s.err, s.back).offering(s.app))
+					return s, push(newFailure(s.stoppedAt(), s.err, s.back).offering(s.app).asking())
 				}
 				s.told = nil
 				return s, s.advance()

@@ -36,8 +36,10 @@ type declaration struct {
 	Title    string `yaml:"title"`
 	Language string `yaml:"language"`
 
-	// The phases its work happens in, and whether it waits for a yes first.
+	// The phases its work happens in, what it asks each time it starts, and
+	// whether it waits for a yes first.
 	Stages  []string `yaml:"stages"`
+	Asks    []string `yaml:"asks"`
 	Confirm bool     `yaml:"confirm"`
 
 	// The picture over its menu.
@@ -68,7 +70,7 @@ func Load(dir string) (*Module, error) {
 	}
 	s.UI = UI{Title: head.Title, Icon: head.Icon}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
-	s.Stages, s.Rules, s.Confirm = head.Stages, head.Rules, head.Confirm
+	s.Stages, s.Rules, s.Confirm, s.Asks = head.Stages, head.Rules, head.Confirm, head.Asks
 	if err := head.Status.settle(dir, FileModule); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
@@ -288,7 +290,6 @@ var retired = map[string]string{
 	"start-title":    "the menu's rows are the runtime's own, Start and Setup",
 	"settings-title": "the menu's rows are the runtime's own, Start and Setup",
 	"console":        "the row that leaves to the console is the runtime's own",
-	"confirm":        "a task that needs asking says confirm itself, a module confirm: true, and an action is agreed to by choosing its row",
 	"default":        "a confirm opens on no, and on yes after a task its yes-after names has run",
 	"variables":      "an action has one page: its variable, and a second question is a second action named under its rules: on-failure",
 	"shows":          "a code is drawn by an action, beside its report",
@@ -360,6 +361,9 @@ func (s *Module) check(tasks []*Task, runs map[string]int) error {
 	}
 	if err := s.checkTasks(tasks); err != nil {
 		return err
+	}
+	if err := s.checkModuleAsks(); err != nil {
+		return fmt.Errorf("%s: %w", FileModule, err)
 	}
 	return s.checkDeferredAsked(tasks)
 }
@@ -502,6 +506,26 @@ func (s *Module) checkAsks(t *Task) error {
 	return nil
 }
 
+// checkModuleAsks settles the module's `asks:`, the questions put each time the
+// work is started. Each names a deferred question once, since one the answer
+// file kept would be asked again all the same.
+func (s *Module) checkModuleAsks() error {
+	seen := map[string]bool{}
+	for _, name := range s.Asks {
+		v := s.byName[name]
+		switch {
+		case v == nil:
+			return fmt.Errorf("asks: no such variable: %s", name)
+		case !v.Deferred():
+			return fmt.Errorf("asks: %s is asked on the way in - a question asked as the work starts says type: %s", name, TypeDeferred)
+		case seen[name]:
+			return fmt.Errorf("asks: %s is listed twice", name)
+		}
+		seen[name] = true
+	}
+	return nil
+}
+
 // checkDeferred holds a question asked mid-run to a list, since a text box
 // there has nothing to check it and a yes or no is a task's `confirm:`. What
 // only the way in or the settings page reads is refused, since neither shows
@@ -509,24 +533,30 @@ func (s *Module) checkAsks(t *Task) error {
 func checkDeferred(v *Variable) error {
 	switch {
 	case v.First:
-		return fmt.Errorf("first: a deferred question is asked by its task, mid-run")
+		return fmt.Errorf("first: a deferred question is asked under asks:, never on the way in")
 	case v.Group != "":
 		return fmt.Errorf("group: a deferred question is never on the settings page")
 	}
 	return nil
 }
 
-// checkDeferredAsked refuses a deferred question no task asks, which would be
+// checkDeferredAsked refuses a deferred question nothing asks, which would be
 // asked nowhere at all: not on the way in, not on the settings page, not in
-// the run.
+// the run. The module and a task asking the same one would ask it twice.
 func (s *Module) checkDeferredAsked(tasks []*Task) error {
 	asked := map[string]bool{}
+	for _, name := range s.Asks {
+		asked[name] = true
+	}
 	for _, t := range tasks {
+		if t.Asks != "" && slices.Contains(s.Asks, t.Asks) {
+			return fmt.Errorf("%s: asks: %s is asked by the module as the work starts already", t.where(), t.Asks)
+		}
 		asked[t.Asks] = true
 	}
 	for _, v := range s.Vars {
 		if v.Deferred() && !asked[v.Name] {
-			return fmt.Errorf("%s: %s: type %s is asked by a task under asks:, and no task asks it", FileModule, v.Name, TypeDeferred)
+			return fmt.Errorf("%s: %s: type %s is asked under asks:, by a task or the module, and nothing asks it", FileModule, v.Name, TypeDeferred)
 		}
 	}
 	return nil
@@ -541,7 +571,7 @@ func (s *Module) normalize(tasks []*Task) {
 		fields = append(fields, &o.Title, &o.Description)
 	}
 	for _, a := range s.Actions {
-		fields = append(fields, &a.Title, &a.Description, &a.Error, &a.Report)
+		fields = append(fields, &a.Title, &a.Description, &a.Error, &a.Confirm, &a.Report)
 	}
 	for _, v := range s.Declared() {
 		fields = append(fields, &v.Title, &v.Description, &v.Group, &v.Error)

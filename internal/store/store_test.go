@@ -454,6 +454,48 @@ func TestADerivedAnswerIsNeitherAskedNorShownNorWritten(t *testing.T) {
 	}
 }
 
+// A deferred answer holds for the run it was given for: it is asked each time,
+// never missing, never on the settings page, and never written down or read
+// back - an answer file someone kept from an earlier run included.
+func TestADeferredAnswerIsAskedEachTimeAndNeverWritten(t *testing.T) {
+	s := setup(t, "asks: [DEVICE]\nvariables:\n"+
+		"  - name: DISK\n    type: text\n    title: Disk\n    required: true\n"+
+		"  - name: DEVICE\n    type: deferred\n    title: Device\n    required: true\n    options: [a, b]\n")
+
+	if names := names(s.Missing()); strings.Join(names, ",") != "DISK" {
+		t.Errorf("missing = %v, want just DISK", names)
+	}
+	if names := names(s.Visible()); strings.Join(names, ",") != "DISK" {
+		t.Errorf("visible = %v, want just DISK", names)
+	}
+	if names := names(s.Asked()); strings.Join(names, ",") != "DEVICE" {
+		t.Errorf("asked = %v, want just DEVICE", names)
+	}
+
+	s.Set("DEVICE", "a")
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(s.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "DEVICE") {
+		t.Errorf("the answer file carries a deferred answer:\n%s", raw)
+	}
+
+	if err := os.WriteFile(s.Path(), []byte("DEVICE='b'\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.Set("DEVICE", "")
+	if err := s.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Get("DEVICE"); got != "" {
+		t.Errorf("DEVICE = %q read back from the answer file, want nothing", got)
+	}
+}
+
 // An answer a list no longer offers is turned away like one that breaks a rule,
 // in the module's own words where it wrote any, and stays missing until another
 // is given. The rule knows the value, not the list, so another value is judged

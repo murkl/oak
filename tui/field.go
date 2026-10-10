@@ -146,6 +146,12 @@ func (s *fieldScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		if current == "" || (turned != "" && len(msg.values) > 0) {
 			current = msg.prefill
 		}
+		// A deferred question is a list and nothing else: with nothing on it,
+		// the page says so and only goes back.
+		if len(msg.values) == 0 && s.v.Deferred() {
+			s.problem = s.v.WhyUnoffered()
+			return s, nil
+		}
 		if len(msg.values) == 0 {
 			// Nothing to choose from, so it is a text box.
 			s.typeIn(current)
@@ -299,6 +305,9 @@ func (s *fieldScreen) View(width, height int) string {
 		b.WriteString(accentStyle.Render(spinFrame()))
 	case s.typing:
 		b.WriteString(cursorStyle.Render(glyphs.cursor) + s.input.View())
+	case s.picker == nil:
+		// A deferred list with nothing on it: the problem under it says so.
+		return b.String() + failStyle.Render(truncate(s.problem, width))
 	default:
 		b.WriteString(s.filter.View())
 		b.WriteString(s.picker.View(width, height-s.problemRows()-s.filter.rows()))

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -26,6 +27,12 @@ var (
 	mu   sync.Mutex
 	file *os.File
 	path string
+
+	// The machine's time zone as the link names it, and what it was read as.
+	// A run may set the zone, and Go reads it once at start.
+	localtime = "/etc/localtime"
+	linked    string
+	zone      = time.Local
 )
 
 // Init opens path as the log file, keeping the previous run's log as
@@ -73,7 +80,27 @@ func write(level, msg string) {
 	if file == nil {
 		return
 	}
-	fmt.Fprintf(file, "%s | %s | %s\n", time.Now().Format(stampLayout), level, msg)
+	fmt.Fprintf(file, "%s | %s | %s\n", time.Now().In(local()).Format(stampLayout), level, msg)
+}
+
+// local is the zone /etc/localtime names now, read again only where the link
+// changed. TZ in the environment wins, as it does for Go itself.
+func local() *time.Location {
+	if _, set := os.LookupEnv("TZ"); set {
+		return time.Local
+	}
+	target, err := os.Readlink(localtime)
+	if err != nil || target == linked {
+		return zone
+	}
+	name := target
+	if i := strings.LastIndex(target, "zoneinfo/"); i >= 0 {
+		name = target[i+len("zoneinfo/"):]
+	}
+	if loc, err := time.LoadLocation(name); err == nil {
+		linked, zone = target, loc
+	}
+	return zone
 }
 
 // External returns an io.Writer that logs a script's output, one log line per

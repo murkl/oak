@@ -127,6 +127,7 @@ rules:
 | --- | --- |
 | `title` | **Required.** The module's one name: its row, and the trail over every page |
 | `stages` | **Required.** The phases of the work, in order. Each is a folder `tasks/@<stage>/` |
+| `asks` | Deferred questions put each time **Start** is chosen, before every password, in this order |
 | `confirm` | `true` asks whether to start, after every password, before the work. Default `false` |
 | `icon` | Its own icon, in place of the product's, see [`oak.yaml`](#oakyaml) |
 | `language` | A variable whose answer also sets the interface language: `de_DE` is German |
@@ -138,7 +139,8 @@ rules:
 ### The Menu
 
 - Its rows are **Start** and **Setup** in every module and every language. **Setup** opens every answer
-- With `confirm: true` the last page before the work asks whether to start. It opens on No, and No goes back to the menu with every password forgotten
+- **Start** asks what the module names under `asks`, then every password, then, with `confirm: true`, whether to start. That last page opens on No, and No goes back to the menu with every password forgotten
+- While the work runs, `esc` asks how to leave, and the footer says so
 
 ### Rules
 
@@ -150,7 +152,7 @@ Each rule names actions by their folder. An `-if` runs by itself and answers yes
 | `start-if` | module | Before the work. The first no stands a page in front of everything and is asked again every few seconds |
 | `on-settings` | module | Rows at the top of the settings page |
 | `on-leave` | module | Rows on the page every way out arrives at, above Oak's own **Exit** |
-| `on-failure` | module | Rows under a run that failed |
+| `on-failure` | module | Rows under a run that failed. They stay on the page however long the failure is, and leaving for the menu asks first, opening on No |
 | `on-failure` | action | The first of them this machine offers, opened where this action says no |
 | `on-success` | module | Rows under a run that finished |
 
@@ -185,7 +187,7 @@ Every question names its type, and the type decides how it is drawn and which ke
 | `open-list` | A list, and a row for an answer of one's own | `options` or `options-from`, `default`, `prefill`, `pattern`, `filter` |
 | `password` | A password that exists already, typed once | `check` |
 | `new-password` | A password being chosen, typed twice | |
-| `deferred` | A list, asked mid-run by the task that names it under `asks` | `options` or `options-from`, `filter` |
+| `deferred` | A list, asked mid-run by the task that names it under `asks`, or each time the work starts by the module's `asks`. Never stored | `options` or `options-from`, `filter` |
 
 | Key | Description |
 | --- | --- |
@@ -228,7 +230,7 @@ conditions:
 
 ### Placeholders
 
-`{{VAR}}` is filled in from the answers in a task's `confirm` and `report`, and an action's `error` and `report`. A name the module does not declare is refused at startup, and a translation that drops or adds one fails `--inspect`.
+`{{VAR}}` is filled in from the answers in a task's `confirm` and `report`, and an action's `error`, `confirm` and `report`. A name the module does not declare is refused at startup, and a translation that drops or adds one fails `--inspect`.
 
 ## Tasks
 
@@ -265,7 +267,7 @@ A `test.sh` beside `task.sh` runs right after the task, on the machine it worked
 - A failed test does not stop the run
 - Every page the run stops on counts them: `38 of 40 tests passed`
 - Where a test or an `allow-failure` task failed, the finished run offers **Test results**: the list, each row opening the file, the line, the command and what it said
-- **Verify steps** in the settings turns tests off for every module. It is kept in `oak.conf`
+- **Verify steps** in the settings turns tests off for every module. It is kept in `oak.conf`, and a module without a `test.sh` does not show it
 
 ## Presets
 
@@ -309,16 +311,17 @@ variables:
 | `error` | What a no means. **Required** under `offer-if` and `start-if` |
 | `rules` | `offer-if` and `on-failure`, the same keys as a module's, see [Rules](#rules) |
 | `variables` | Its questions before it runs, a page each: questions without `first`, `group` or `value-from` |
-| `report`, `shows` | Its one page after it ran, and an answer drawn there as a code |
-| `tty` | Its one page is the terminal itself |
+| `confirm` | A yes or no after its questions and before its work, opening on No. No goes back. For a second consent: the row agreed to looking, this to what was found |
+| `report`, `shows` | Its page after it ran, and an answer drawn there as a code |
+| `tty` | Its page is the terminal itself, and it has no other |
 | `simulates` | Run under `--debug` too |
 
-- **One kind of page at most:** its questions, a report or the terminal. A flow of several kinds is several actions, chained by `on-failure`
+- **Its pages:** its questions and a report around the work, or the terminal alone. A flow of more is several actions, chained by `on-failure`
 - Run by itself, under an `-if`, an action is a question and has no page
 - Its answer belongs to the session: never stored, never on the settings page
 - `tty: true` hands the script the terminal outright, with a process group of its own
 
-**Note:** _Refused at startup: an unknown name, an action nothing names, an action opened on its own failure, a ring of actions, a second kind of page, a page on an action run by itself, a check without `error`, a question under `on-leave`, and a rule only a module places: `start-if`, `on-settings`, `on-leave`, `on-success`._
+**Note:** _Refused at startup: an unknown name, an action nothing names, an action opened on its own failure, a ring of actions, a page beside the terminal, a page or a `confirm` on an action run by itself, a check without `error`, a question or a `confirm` under `on-leave`, and a rule only a module places: `start-if`, `on-settings`, `on-leave`, `on-success`._
 
 ## What a Script Receives
 
@@ -349,8 +352,8 @@ Beside wherever the program was started, never inside a module:
 | File | Description |
 | --- | --- |
 | `oak.conf` | Oak's own: `OAK_LANG` and `OAK_VALIDATE` |
-| `<module>.conf` | Every answer as `KEY='value'`, editable by hand. No password, no derived answer, no action's answer |
-| `<module>.log` | Oak's progress and everything every script printed |
+| `<module>.conf` | Every answer as `KEY='value'`, editable by hand. No password, no derived or deferred answer, no action's answer |
+| `<module>.log` | Oak's progress and everything every script printed, stamped in the machine's time zone as it stands at that line |
 
 The last row of the settings page deletes the answer file, after a question that opens on No. The log stays.
 

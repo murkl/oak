@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // One line, as anything reading the log has to be able to split it.
@@ -119,4 +120,36 @@ func TestWritingWithNoLogOpenIsHarmless(t *testing.T) {
 
 	Info("nowhere to go")
 	External().Write([]byte("nor this\n"))
+}
+
+// The stamps follow the machine's time zone as the run sets it, not the one the
+// program started in.
+func TestTheStampFollowsTheMachinesZone(t *testing.T) {
+	t.Setenv("TZ", "")
+	os.Unsetenv("TZ")
+	link := filepath.Join(t.TempDir(), "localtime")
+	old := localtime
+	localtime = link
+	t.Cleanup(func() { localtime, linked, zone = old, "", time.Local })
+
+	p := open(t)
+	for _, name := range []string{"Asia/Tokyo", "America/New_York"} {
+		want, err := time.LoadLocation(name)
+		if err != nil {
+			t.Skipf("no zone data for %s: %v", name, err)
+		}
+		os.Remove(link)
+		if err := os.Symlink("../usr/share/zoneinfo/"+name, link); err != nil {
+			t.Fatal(err)
+		}
+		Info("in %s", name)
+		got := read(t, p)
+		stamp, err := time.ParseInLocation(stampLayout, strings.SplitN(got[len(got)-1], " | ", 2)[0], want)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d := time.Since(stamp); d < -2*time.Second || d > 2*time.Second {
+			t.Errorf("the line in %s is stamped %s, %s off", name, stamp, d)
+		}
+	}
 }
