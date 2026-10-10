@@ -11,9 +11,9 @@ import (
 )
 
 // Action is something a module does outside its run: a folder under actions/
-// whose action.sh says yes by exiting 0, run wherever a rule names it. It has
-// one kind of page at most, so a flow of several kinds is several actions, each
-// opened on the failure of the one before.
+// whose action.sh says yes by exiting 0, run wherever a rule names it. Its pages
+// are its questions and its report around the work, or the terminal, so a flow
+// of more is several actions, each opened on the failure of the one before.
 type Action struct {
 	Title       string
 	Description string
@@ -35,7 +35,7 @@ type Action struct {
 	// their answers are handed to its script and kept for this session only.
 	Vars []*Variable
 
-	// Report is its one page after it has run, and Shows the answer drawn
+	// Report is its page after it has run, and Shows the answer drawn
 	// there as a code. The script writes that answer into the answer file, and
 	// being named here is its whole declaration.
 	Report string
@@ -330,19 +330,14 @@ func (s *Module) checkActions(runs map[string]int) error {
 
 // checkAction refuses what an action cannot mean, given how it is run.
 func (s *Module) checkAction(a *Action, how int) error {
-	pages := 0
-	for _, has := range []bool{len(a.Vars) > 0, a.Reports(), a.TTY} {
-		if has {
-			pages++
-		}
-	}
+	pages := len(a.Vars) > 0 || a.Reports()
 	r := a.Rules
 	switch {
 	case a.Title == "":
 		return fmt.Errorf("title is required")
-	case pages > 1:
-		return fmt.Errorf("an action has one kind of page: variables, report or tty - a second kind is a second action, named under rules: on-failure")
-	case how != opened && (pages > 0 || a.Confirms()):
+	case a.TTY && pages:
+		return fmt.Errorf("an action with tty has the terminal for its page - questions or a report are a second action, named under rules: on-failure")
+	case how != opened && (pages || a.TTY || a.Confirms()):
 		return fmt.Errorf("it runs by itself where it is named, so it has no page")
 	case how == gating && a.Error == "":
 		return fmt.Errorf("error: it runs by itself in front of the work, and a no there is read as this sentence")

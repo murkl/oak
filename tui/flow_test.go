@@ -1583,6 +1583,25 @@ func TestAnActionAsksBeforeItsWork(t *testing.T) {
 	}
 }
 
+// Its questions come before the work and its report after it, and once read
+// the report goes back past every page the action stood on.
+func TestAnActionAsksThenReports(t *testing.T) {
+	tree := map[string]string{
+		treeFile:                   testInstaller + "rules:\n  on-settings: [sign]\n",
+		"actions/sign/action.yaml": "title: Sign it\nvariables:\n  - name: KEY\n    type: password\n    title: Key password\n    required: true\nconfirm: Sign with that key?\nreport: Signed\n",
+		"actions/sign/action.sh":   "[ \"$KEY\" = secret ]\n",
+	}
+	h := toAction(intoHub(newHarness(t, tree)), "Sign it")
+	h.enter()
+	h.wants("Key password")
+	h.typeIn("secret").enter()
+	h.wants("Sign with that key?")
+	h.up().enter()
+	h.wants("Signed")
+	h.enter()
+	h.wants("Sign it", "Reset all answers")
+}
+
 // A list that only suggests offers one more row, under its answers, for an
 // answer of one's own - and that row opens a box.
 func TestAnOpenListOffersAnAnswerOfOnesOwn(t *testing.T) {

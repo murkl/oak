@@ -312,16 +312,16 @@ variables:
 | `rules` | `offer-if` and `on-failure`, the same keys as a module's, see [Rules](#rules) |
 | `variables` | Its questions before it runs, a page each: questions without `first`, `group` or `value-from` |
 | `confirm` | A yes or no after its questions and before its work, opening on No. No goes back. For a second consent: the row agreed to looking, this to what was found |
-| `report`, `shows` | Its one page after it ran, and an answer drawn there as a code |
-| `tty` | Its one page is the terminal itself |
+| `report`, `shows` | Its page after it ran, and an answer drawn there as a code |
+| `tty` | Its page is the terminal itself, and it has no other |
 | `simulates` | Run under `--debug` too |
 
-- **One kind of page at most:** its questions, a report or the terminal. A flow of several kinds is several actions, chained by `on-failure`
+- **Its pages:** its questions and a report around the work, or the terminal alone. A flow of more is several actions, chained by `on-failure`
 - Run by itself, under an `-if`, an action is a question and has no page
 - Its answer belongs to the session: never stored, never on the settings page
 - `tty: true` hands the script the terminal outright, with a process group of its own
 
-**Note:** _Refused at startup: an unknown name, an action nothing names, an action opened on its own failure, a ring of actions, a second kind of page, a page or a `confirm` on an action run by itself, a check without `error`, a question or a `confirm` under `on-leave`, and a rule only a module places: `start-if`, `on-settings`, `on-leave`, `on-success`._
+**Note:** _Refused at startup: an unknown name, an action nothing names, an action opened on its own failure, a ring of actions, a page beside the terminal, a page or a `confirm` on an action run by itself, a check without `error`, a question or a `confirm` under `on-leave`, and a rule only a module places: `start-if`, `on-settings`, `on-leave`, `on-success`._
 
 ## What a Script Receives
 
