@@ -93,6 +93,11 @@ type Module struct {
 	// module.
 	Confirm bool
 
+	// Asks names deferred questions put every time the work is started, before
+	// any password: a choice that only holds for this one run, such as the
+	// device about to be written.
+	Asks []string
+
 	// Warnings is what loaded but says something that can never take effect. A
 	// module that behaves is not a module that refuses to start, so these are
 	// reported - by `--inspect`, and in the log when the module is opened -
@@ -406,9 +411,10 @@ func (v *Variable) typedKeys() []string {
 }
 
 // Deferred reports whether this value is one the opening run of questions has
-// no business asking: a task asks it mid-run, under `asks:`. A snapshot to go
-// back to cannot be chosen, or shown on a settings page, while the disk holding
-// it is still locked.
+// no business asking: a task asks it mid-run, or the module as the work is
+// started, both under `asks:`. A snapshot to go back to cannot be chosen, or
+// shown on a settings page, while the disk holding it is still locked. Its
+// answer holds for one run, so it is never written down.
 func (v *Variable) Deferred() bool { return v.Type == TypeDeferred }
 
 // Derived reports whether this value is read off the machine rather than asked
@@ -581,6 +587,7 @@ func (s *Module) Messages() []Message {
 		add(file, "an action: its row, and the heading over its page", a.Title)
 		add(file, "an action: what it does, under its row", a.Description)
 		add(file, "an action: what a no from it means", a.Error)
+		add(file, "asked before the action does its work", a.Confirm)
 		add(file, "read once the action is done, and held on until somebody has", a.Report)
 		for _, v := range a.Vars {
 			add(file, v.Name+": a page of the action", v.Title)

@@ -11,13 +11,13 @@ import (
 
 // renderFailure draws every failure one way: first where, the module, unit,
 // file and line, command and exit code, in fixed rows, then what the tool said
-// on its way out. Nothing is folded away or has to be pressed for.
-func renderFailure(err error, width int) string {
-	var b strings.Builder
+// on its way out. Nothing is folded away or has to be pressed for. Where rows
+// is above zero and it all would not fit, what the tool said loses its front:
+// its last lines are where it says why it stopped.
+func renderFailure(err error, width, rows int) string {
 	f, ok := err.(*exec.Failure)
 	if !ok {
-		b.WriteString(failStyle.Render(wrapped(err.Error(), width)))
-		return b.String() + logNote(width)
+		return fitted(nil, wrap(err.Error(), bodyWidth(width)), logNote(width), rows)
 	}
 
 	// The label column is as wide as the widest label plus a gap, so the values
@@ -28,6 +28,7 @@ func renderFailure(err error, width int) string {
 	for _, kv := range fields {
 		labelW = max(labelW, len(kv.Label))
 	}
+	head := make([]string, 0, len(fields))
 	for _, kv := range fields {
 		label := mutedStyle.Render(kv.Label + strings.Repeat(" ", labelW-len(kv.Label)))
 		room := width - labelW - gapM
@@ -35,14 +36,44 @@ func renderFailure(err error, width int) string {
 		if kv.Path {
 			value = truncateStart(kv.Value, room)
 		}
-		b.WriteString(label + field(strings.Repeat(" ", gapM)) + softStyle.Render(value) + "\n")
+		head = append(head, label+field(strings.Repeat(" ", gapM))+softStyle.Render(value))
 	}
 	// What the script itself said, which is the whole of what this page shows
 	// of its output - the rest is in the log, and the line under it says where.
+	var said []string
 	if msg := strings.TrimSpace(f.Stderr); msg != "" {
-		b.WriteString("\n" + failStyle.Render(wrapped(msg, width)) + "\n")
+		said = wrap(msg, bodyWidth(width))
 	}
-	return b.String() + logNote(width)
+	return fitted(head, said, logNote(width), rows)
+}
+
+// fitted lays a failure out in its three blocks, a blank line between each,
+// and cuts the front of the middle one to rows where there is a limit.
+func fitted(head, said []string, note string, rows int) string {
+	// Under the fields the blocks stand a blank line apart; a failure that is
+	// only a sentence has the note straight under it.
+	gap := 0
+	if len(head) > 0 {
+		gap = 1
+	}
+	notes := strings.Count(note, "\n")
+	if rows > 0 && len(said) > 0 {
+		room := rows - len(head) - notes - 2*gap
+		switch {
+		case room < 2:
+			said = nil
+		case room < len(said):
+			said = append([]string{glyphs.spell.Replace("…")}, said[len(said)-room+1:]...)
+		}
+	}
+	var b strings.Builder
+	for _, line := range head {
+		b.WriteString(line + "\n")
+	}
+	if len(said) > 0 {
+		b.WriteString(strings.Repeat("\n", gap) + failStyle.Render(strings.Join(said, "\n")) + strings.Repeat("\n", gap))
+	}
+	return b.String() + note
 }
 
 // refusal is a sentence saying no, under the mark that says so: the first line
@@ -107,9 +138,4 @@ func hardWrap(s string, width int) []string {
 		out = append(out, line)
 	}
 	return out
-}
-
-// wrapped is body text at the reading width, joined back into one block.
-func wrapped(s string, width int) string {
-	return strings.Join(wrap(s, bodyWidth(width)), "\n")
 }

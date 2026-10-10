@@ -110,6 +110,18 @@ func (s *Store) Upfront() []*spec.Variable {
 	return out
 }
 
+// Asked lists the questions the module puts each time the work is started, in
+// the order it names them, where they mean something given the answers so far.
+func (s *Store) Asked() []*spec.Variable {
+	var out []*spec.Variable
+	for _, name := range s.mod.Asks {
+		if v := s.mod.Var(name); v != nil && v.Applies(s.Get) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 // Secrets lists the variables that have to be typed before a run and are never
 // kept - in declaration order, so a folder decides what is asked first.
 func (s *Store) Secrets() []*spec.Variable {

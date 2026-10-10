@@ -1554,6 +1554,35 @@ func TestAFailureOpensTheFirstFallbackTheMachineHas(t *testing.T) {
 	h.wants("The second one asks").refuses("The first one asks")
 }
 
+// An action that looked first and found something asks before it acts on it:
+// opening on No, which goes back without running, and Yes runs it.
+func TestAnActionAsksBeforeItsWork(t *testing.T) {
+	ran := filepath.Join(t.TempDir(), "ran")
+	tree := map[string]string{
+		treeFile:                      testInstaller + "rules:\n  on-settings: [check]\n",
+		"actions/check/action.yaml":   "title: Look for an update\nrules:\n  on-failure: [install]\n",
+		"actions/check/action.sh":     "exit 1\n",
+		"actions/install/action.yaml": "title: Install the update\nconfirm: Install the update over {{USER}}'s system?\nreport: Installed\n",
+		"actions/install/action.sh":   "touch " + ran + "\n",
+	}
+	h := toAction(intoHub(newHarness(t, tree)), "Look for an update")
+	h.enter()
+	h.wants("Install the update over moritz's system?", "Yes", "No")
+	h.enter()
+	h.refuses("Install the update over")
+	if _, err := os.Stat(ran); err == nil {
+		t.Fatal("No ran the action")
+	}
+
+	h.enter()
+	h.wants("Install the update over moritz's system?")
+	h.up().enter()
+	h.wants("Installed")
+	if _, err := os.Stat(ran); err != nil {
+		t.Fatalf("Yes did not run the action: %v", err)
+	}
+}
+
 // A list that only suggests offers one more row, under its answers, for an
 // answer of one's own - and that row opens a box.
 func TestAnOpenListOffersAnAnswerOfOnesOwn(t *testing.T) {
@@ -2125,8 +2154,10 @@ func TestAFailedTaskStopsTheRunAndSaysWhereItBroke(t *testing.T) {
 
 	h.enter().wants("Second", "Module", "Task", "Script", "Command", "Exit code", "not/here")
 
-	// And from there back to the answers, which is where a wrong one is fixed.
-	h.enter().wants("Setup")
+	// And from there back to the answers, which is where a wrong one is fixed,
+	// once that is said: the page is the only account of the failure.
+	h.enter().wants("Back to the menu", "Yes", "No")
+	h.up().enter().wants("Setup")
 }
 
 // A task may ask before it runs, which is how a module offers something
@@ -2230,6 +2261,66 @@ func TestATaskCanAskForAValueInTheMiddleOfTheRun(t *testing.T) {
 	h.yes()
 	h.ran()
 	h.wants("Finished in", "Roll back")
+}
+
+// A choice that holds for one run, such as the device about to be written, is
+// asked every time the work is started, before any password, and nowhere else:
+// not on the settings page and not in the answer file.
+func TestTheModuleAsksEachTimeTheWorkStarts(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: strings.Replace(testInstaller, "confirm: true\n", "confirm: true\nasks: [DEVICE]\n", 1) + `
+  - name: DEVICE
+    title: Device
+    description: The one to write.
+    type: deferred
+    required: true
+    options-from: disks()
+`,
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.down().enter().refuses("Device").esc()
+
+	h.up().enter()
+	h.wants("Device", "The one to write.", "/dev/sda", "/dev/sdb").refuses("Password", reallyStart)
+	h.down().enter()
+	h.wants("Password")
+	if got := h.a.store.Get("DEVICE"); got != "/dev/sdb" {
+		t.Errorf("DEVICE = %q, want /dev/sdb", got)
+	}
+
+	// Back out to the menu and start again: asked again, on the answer just given.
+	h.esc().esc()
+	h.enter()
+	h.wants("Device").enter()
+	h.typeIn("x").enter().typeIn("x").enter().yes()
+	h.ran()
+	raw, err := os.ReadFile(h.a.store.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "DEVICE") {
+		t.Errorf("the answer file keeps the device:\n%s", raw)
+	}
+}
+
+// With nothing to choose from, the question says so and goes nowhere but back.
+func TestAQuestionAsTheWorkStartsWithNothingToChooseGoesBack(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile: strings.Replace(testInstaller, "confirm: true\n", "confirm: true\nasks: [DEVICE]\n", 1) + `
+  - name: DEVICE
+    title: Device
+    type: deferred
+    required: true
+    error: Plug a device in.
+    options-from: ./none.sh
+`,
+		"none.sh": "true\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter()
+	h.wants("Device", "Plug a device in.")
+	h.enter().wants("Device", "Plug a device in.").refuses("Password")
+	h.esc().wants("Start", "Setup")
 }
 
 // A box that is up from the first frame hands esc on rather than closing, and
@@ -2429,14 +2520,35 @@ func TestAFailedRunOffersTheModulesActionsForIt(t *testing.T) {
 }
 
 // The rows open on the one that leaves: an action is chosen on purpose, and an
-// enter meant for the page before runs nothing.
+// enter meant for the page before runs nothing. Leaving asks first, opening on
+// No, since the menu offers nothing about the failure.
 func TestTheRowsUnderAFailedRunOpenOnContinue(t *testing.T) {
 	h := failedRun(t)
 	h.enter()
+	h.wants("Back to the menu", "Yes", "No").refuses("The log is online")
+	h.enter()
+	h.wants("Exit code", "Share the log", "Continue")
+	h.enter().up().enter()
 	h.wants("Setup").refuses("The log is online")
 	if got := h.a.store.Get("LOG_URL"); got != "" {
 		t.Errorf("LOG_URL = %q, want nothing: the action was never chosen", got)
 	}
+}
+
+// However much the tool said, the rows stay on the page: what it said gives up
+// its front, where its last lines say why it stopped.
+func TestTheRowsUnderAFailedRunOutlastALongFailure(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		treeFile:                        testInstaller + "rules:\n  on-failure: [share-log]\n",
+		"actions/share-log/action.yaml": "title: Share the log\n",
+		"actions/share-log/action.sh":   "true\n",
+		"tasks/@go/a-first/task.sh":     "for i in $(seq 60); do echo \"line $i\" >&2; done\nexit 1\n",
+	})
+	h.down().enter().typeIn("moritz").enter().enter()
+	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
+	h.ran().enter()
+	h.send(tea.WindowSizeMsg{Width: 80, Height: 24})
+	h.wants("Exit code", "line 60", "Share the log", "Continue").refuses("line 1\n", "line 2 ")
 }
 
 // finishedRun is a module whose run works, and which names an action for a run
@@ -2654,7 +2766,8 @@ func TestAskingToLeaveDuringARunDoesNotStopIt(t *testing.T) {
 	h := newHarness(t, files)
 	h.down().enter().typeIn("moritz").enter().enter()
 	h.enter().typeIn("x").enter().typeIn("x").enter().yes()
-	h.wants("Working · 00:0")
+	// The footer names the one key that works while it runs.
+	h.wants("Working · 00:0", "esc quit").refuses("working …")
 
 	h.esc()
 	h.wants("Restart", "Shut down", "continues behind this page")

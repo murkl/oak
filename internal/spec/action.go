@@ -27,6 +27,10 @@ type Action struct {
 	// the work, the reason a module is not offered, the headline over a failure.
 	Error string
 
+	// Confirm is a yes or no after its questions and before its work, opening
+	// on No; no goes back. {{VAR}} is filled in from the answers.
+	Confirm string
+
 	// Vars is its questions before it runs, a page each, like the module's own:
 	// their answers are handed to its script and kept for this session only.
 	Vars []*Variable
@@ -57,6 +61,7 @@ type actionDeclaration struct {
 	Description string      `yaml:"description"`
 	Rules       Rules       `yaml:"rules"`
 	Error       string      `yaml:"error"`
+	Confirm     string      `yaml:"confirm"`
 	Variables   []*Variable `yaml:"variables"`
 	Report      string      `yaml:"report"`
 	Shows       string      `yaml:"shows"`
@@ -107,6 +112,14 @@ func (a *Action) Help() string  { return i18n.T(a.Description) }
 // in. Empty where it says nothing about it.
 func (a *Action) Refusal(get func(string) string) string {
 	return strings.TrimSpace(Expand(i18n.T(a.Error), get))
+}
+
+// Confirms reports whether it asks before its work.
+func (a *Action) Confirms() bool { return a.Confirm != "" }
+
+// Question is that yes or no, translated and with the answers filled in.
+func (a *Action) Question(get func(string) string) string {
+	return strings.TrimSpace(Expand(i18n.T(a.Confirm), get))
 }
 
 // Reports reports whether it stops on a page of its own once it has run.
@@ -196,7 +209,7 @@ func loadAction(where string) (*Action, error) {
 	}
 	return &Action{
 		Title: d.Title, Description: d.Description,
-		Rules: d.Rules, Error: d.Error, Vars: d.Variables,
+		Rules: d.Rules, Error: d.Error, Confirm: d.Confirm, Vars: d.Variables,
 		Report: d.Report, Shows: d.Shows, TTY: d.TTY, Simulates: d.Simulates,
 		work: work, id: filepath.Base(where), dir: where,
 	}, nil
@@ -295,7 +308,7 @@ func (s *Module) checkActions(runs map[string]int) error {
 			return fmt.Errorf("%s: %w", where(a), err)
 		}
 	}
-	if slices.ContainsFunc(s.Named(s.Rules.OnLeave), func(a *Action) bool { return len(a.Vars) > 0 }) {
+	if slices.ContainsFunc(s.Named(s.Rules.OnLeave), func(a *Action) bool { return len(a.Vars) > 0 || a.Confirms() }) {
 		return fmt.Errorf("%s: rules: on-leave: a way out asks nothing, it only goes", FileModule)
 	}
 	if ring := s.circle(); ring != "" {
@@ -329,7 +342,7 @@ func (s *Module) checkAction(a *Action, how int) error {
 		return fmt.Errorf("title is required")
 	case pages > 1:
 		return fmt.Errorf("an action has one kind of page: variables, report or tty - a second kind is a second action, named under rules: on-failure")
-	case how != opened && pages > 0:
+	case how != opened && (pages > 0 || a.Confirms()):
 		return fmt.Errorf("it runs by itself where it is named, so it has no page")
 	case how == gating && a.Error == "":
 		return fmt.Errorf("error: it runs by itself in front of the work, and a no there is read as this sentence")
@@ -357,6 +370,9 @@ func (s *Module) checkAction(a *Action, how int) error {
 		return err
 	}
 	if err := s.checkText("error", a.Error); err != nil {
+		return err
+	}
+	if err := s.checkText("confirm", a.Confirm); err != nil {
 		return err
 	}
 	return s.checkText("report", a.Report)

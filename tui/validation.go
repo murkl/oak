@@ -87,6 +87,10 @@ type failureScreen struct {
 	// for a run that failed - see offering. Nil everywhere else.
 	app    *app
 	picker *picker
+
+	// sure is whether leaving asks first: the page a run stopped on is the
+	// only one offering what to do about it.
+	sure bool
 }
 
 func newFailure(title string, err error, done func() tea.Cmd) *failureScreen {
@@ -113,6 +117,20 @@ func (s *failureScreen) hinted(hint func() string) *failureScreen {
 func (s *failureScreen) offering(a *app) *failureScreen {
 	s.app, s.picker = a, a.offers(a.module.Rules.OnFailure)
 	return s
+}
+
+// asking makes leaving this page a question that opens on No.
+func (s *failureScreen) asking() *failureScreen {
+	s.sure = true
+	return s
+}
+
+// leave goes where the page leads, asked first where it says so.
+func (s *failureScreen) leave() tea.Cmd {
+	if !s.sure {
+		return s.done()
+	}
+	return push(newYesNo(labelBackToMenu(), labelBackToMenuHelp(), s.done))
 }
 
 // offers is the rows a place names that this machine has, after the runtime's
@@ -157,7 +175,7 @@ func (s *failureScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	}
 	if s.picker == nil {
 		if confirms(key) {
-			return s, s.done()
+			return s, s.leave()
 		}
 		return s, nil
 	}
@@ -169,19 +187,25 @@ func (s *failureScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 		return s, s.app.openAction(act)
 	}
 	if s.picker.selected() == keyGoOn {
-		return s, s.done()
+		return s, s.leave()
 	}
 	return s, nil
 }
 
 // View is the report, and under it the rows where there are any. Only their
 // names: the report is what this page is for, and the room a sentence under
-// the rows would take is the room its last lines need.
+// the rows would take is the room its last lines need. The rows always fit,
+// and the report gives up the front of what the tool said for them.
 func (s *failureScreen) View(width, height int) string {
-	report := renderFailure(s.err, width)
+	head := ""
 	if s.said != "" {
-		report = refusal(s.said, width) + "\n\n" + report
+		head = refusal(s.said, width) + "\n\n"
 	}
+	room := height - strings.Count(head, "\n")
+	if s.picker != nil {
+		room -= s.picker.height(width) + 1
+	}
+	report := head + renderFailure(s.err, width, room)
 	if s.picker == nil {
 		return report
 	}

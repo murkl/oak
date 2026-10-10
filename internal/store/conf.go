@@ -30,7 +30,7 @@ func (s *Store) Load() error {
 			continue
 		}
 		v := s.mod.Var(name)
-		if v == nil || v.Secret() {
+		if v == nil || v.Secret() || v.Deferred() {
 			continue
 		}
 		s.val[name] = value
@@ -48,14 +48,14 @@ func (s *Store) Exists() bool {
 
 // Save writes every answer worth keeping in declaration order, each with its
 // description as a trailing comment, so the file reads like the questions.
-// Secrets, derived answers and an option's page are left out: none of them is
-// an answer the next run should read back.
+// Secrets, derived and deferred answers and an option's page are left out: none
+// of them is an answer the next run should read back.
 func (s *Store) Save() error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", i18n.T("Answers for %s. Can be edited by hand.", s.mod.Name()))
 	group := ""
 	for _, v := range s.mod.Vars {
-		if v.Secret() || v.Derived() {
+		if v.Secret() || v.Derived() || v.Deferred() {
 			continue
 		}
 		if v.Group != group {

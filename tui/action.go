@@ -119,6 +119,11 @@ func (a *app) firstPage(act *spec.Action, depth int, then func() tea.Cmd) screen
 // before, and its work once none is left.
 func (a *app) page(act *spec.Action, i, depth int, then func() tea.Cmd) screen {
 	i = a.question(act, i)
+	if i == len(act.Vars) && act.Confirms() {
+		return newYesNo(act.Label(), act.Question(a.store.Get), func() tea.Cmd {
+			return push(&actionScreen{app: a, act: act, depth: depth + 2, then: then})
+		})
+	}
 	if i == len(act.Vars) {
 		return &actionScreen{app: a, act: act, depth: depth + 1, then: then}
 	}

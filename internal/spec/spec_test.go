@@ -418,7 +418,9 @@ func TestAnActionRefusesWhatCannotTakeEffect(t *testing.T) {
 		{"an action still saying variable", row("title: O\nvariable:\n  name: X\n  type: text\n  title: X\n"), "variable is not a key here - an action's questions are variables:"},
 		{"a code with no report to stand on", row("title: O\nshows: X\n"), "there is no report for it to appear on"},
 		{"a script written into the yaml", row("title: O\nscript: echo hi\n"), "an action in the action.sh beside it"},
-		{"a yes or no before it runs", row("title: O\nconfirm: Sure?\n"), "an action is agreed to by choosing its row"},
+		{"a required action that asks yes or no", required("title: O\nconfirm: Sure?\n"), "it runs by itself where it is named, so it has no page"},
+		{"a way out that asks yes or no", units(map[string]string{FileModule: head("rules:\n  on-leave: [o]\n")}, action("o", "title: O\nconfirm: Sure?\n")), "a way out asks nothing"},
+		{"a yes or no naming no answer", row("title: O\nconfirm: Write {{NOPE}}?\n"), "confirm: {{NOPE}} is not a variable of this module"},
 		{"a fail naming no answer", row("title: O\nerror: Nothing on {{NOPE}}.\n"), "{{NOPE}} is not a variable of this module"},
 		{"an options folder from an older Oak", map[string]string{"options/wlan/option.yaml": "title: W\n"}, "an option is an action now"},
 	}
@@ -816,7 +818,7 @@ func TestLoadRefuses(t *testing.T) {
 		{
 			name:  "a deferred question no task asks, which would be asked nowhere",
 			files: map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    options: [a, b]\n")},
-			want:  "PICK: type deferred is asked by a task under asks:, and no task asks it",
+			want:  "PICK: type deferred is asked under asks:, by a task or the module, and nothing asks it",
 		},
 		{
 			name: "a deferred question asked first",
@@ -824,7 +826,30 @@ func TestLoadRefuses(t *testing.T) {
 				map[string]string{FileModule: head("variables:\n  - name: PICK\n    title: P\n    type: deferred\n    first: true\n    options: [a, b]\n")},
 				unit("go", "do", "title: Do\nasks: PICK\n"),
 			),
-			want: "first: a deferred question is asked by its task, mid-run",
+			want: "first: a deferred question is asked under asks:, never on the way in",
+		},
+		{
+			name:  "the module asking a variable nobody declared as the work starts",
+			files: map[string]string{FileModule: head("asks: [NOPE]\n")},
+			want:  "asks: no such variable: NOPE",
+		},
+		{
+			name:  "the module asking a question of the way in as the work starts",
+			files: map[string]string{FileModule: head("asks: [DISK]\nvariables:\n  - name: DISK\n    type: text\n    title: D\n")},
+			want:  "asks: DISK is asked on the way in - a question asked as the work starts says type: deferred",
+		},
+		{
+			name:  "the module asking one question twice as the work starts",
+			files: map[string]string{FileModule: head("asks: [PICK, PICK]\nvariables:\n  - name: PICK\n    title: P\n    type: deferred\n    options: [a, b]\n")},
+			want:  "asks: PICK is listed twice",
+		},
+		{
+			name: "a task asking what the module asks as the work starts, which would ask it twice",
+			files: units(
+				map[string]string{FileModule: head("asks: [PICK]\nvariables:\n  - name: PICK\n    title: P\n    type: deferred\n    options: [a, b]\n")},
+				unit("go", "do", "title: Do\nasks: PICK\n"),
+			),
+			want: "asks: PICK is asked by the module as the work starts already",
 		},
 		{
 			name: "a deferred question in a group, which no settings page ever shows",
@@ -1187,6 +1212,27 @@ func TestADeferredQuestionIsLeftForItsTask(t *testing.T) {
 	}
 	if sp.Var("DISK").Deferred() {
 		t.Error("an ordinary question was deferred")
+	}
+}
+
+// The module asks what holds for one run as the work starts, in the order it
+// names them.
+func TestAModuleAsksAsTheWorkStarts(t *testing.T) {
+	dir := module(t, map[string]string{
+		FileModule: head(`asks: [DEVICE]
+variables:
+  - name: DEVICE
+    title: Device
+    type: deferred
+    options: [a, b]
+`),
+	})
+	sp, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(sp.Asks, []string{"DEVICE"}) {
+		t.Errorf("asks = %v, want [DEVICE]", sp.Asks)
 	}
 }
 

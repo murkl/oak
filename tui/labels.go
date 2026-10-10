@@ -25,6 +25,10 @@ func labelHintBack() string     { return say("⏎ back") }
 func labelHintClose() string    { return say("⏎ close") }
 func labelHintQuit() string     { return say("⏎ quit") }
 
+// labelHintWorking is the hint while a run works: nothing but the way out
+// means anything until it is done.
+func labelHintWorking() string { return say("esc quit") }
+
 // labelHintAnswer is the hint for a question a run stopped to ask. It is the
 // one list in the program with nothing behind it - the task waiting on the
 // answer has already started - so esc there says what q says on the menu.
@@ -179,6 +183,13 @@ func labelRunStopped(step string) string {
 }
 
 func labelCannotContinue() string { return say("Cannot continue") }
+
+// The question before a failed run's page is left for the menu, which offers
+// nothing about the failure any more.
+func labelBackToMenu() string { return say("Back to the menu") }
+func labelBackToMenuHelp() string {
+	return say("Leave this failure for the menu? What this page offers is not offered there again. The log stays.")
+}
 
 // The way out, on a machine where leaving is not quitting a program but
 // deciding what happens to the machine - see leave.go.

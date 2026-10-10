@@ -66,15 +66,19 @@ func (s *confirmScreen) View(width, height int) string {
 	return head + "\n\n" + s.picker.View(width, max(height-used, 1))
 }
 
-// startInstall is the way into the work: the secrets to type first, then the
-// confirmation where declared, or the run. A secret is asked here because it is
-// never written down, typed once, used and forgotten.
+// startInstall is the way into the work: what the module asks each time, the
+// secrets to type, then the confirmation where declared, or the run. Both kinds
+// of question are asked here because neither is written down: each holds for
+// this one run.
 func startInstall(a *app, next int) screen {
-	secrets := a.store.Secrets()
-	if next < len(secrets) {
-		return newSecret(a, secrets[next], func() tea.Cmd {
-			return push(startInstall(a, next+1))
-		}).under(labelMenu())
+	asked := append(a.store.Asked(), a.store.Secrets()...)
+	if next < len(asked) {
+		v := asked[next]
+		then := func() tea.Cmd { return push(startInstall(a, next+1)) }
+		if v.Secret() {
+			return newSecret(a, v, then).under(labelMenu())
+		}
+		return newField(a, v, then).under(labelMenu())
 	}
 	if a.module.Confirm {
 		return newConfirm(a)

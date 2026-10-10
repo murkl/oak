@@ -147,7 +147,8 @@ func (s *leaveScreen) View(width, height int) string {
 	var b strings.Builder
 	if s.err != nil {
 		head := failStyle.Render(glyphs.fail) + field(" ") + boldStyle.Render(labelRunFailed())
-		b.WriteString(head + "\n\n" + renderFailure(s.err, width) + "\n\n")
+		room := height - 2 - 1 - s.picker.height(width)
+		b.WriteString(head + "\n\n" + renderFailure(s.err, width, room) + "\n\n")
 		height -= strings.Count(b.String(), "\n")
 	}
 	return b.String() + withDetail(s.picker, width, height)
