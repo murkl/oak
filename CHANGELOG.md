@@ -2,6 +2,22 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before, never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.25.0](https://github.com/murkl/oak/compare/v0.24.0...v0.25.0) (2026-10-10)
+
+
+### Features
+
+* a module asks deferred questions each time the work starts, and never stores a deferred answer ([3aa9f37](https://github.com/murkl/oak/commit/3aa9f377405f8a63c7e7ce3c28d753146e3e5f5c))
+* an action may ask its questions and still report ([3aa9f37](https://github.com/murkl/oak/commit/3aa9f377405f8a63c7e7ce3c28d753146e3e5f5c))
+* an action may ask yes or no before its work ([3aa9f37](https://github.com/murkl/oak/commit/3aa9f377405f8a63c7e7ce3c28d753146e3e5f5c))
+
+
+### Bug Fixes
+
+* log lines follow the machine's time zone as the run sets it ([3aa9f37](https://github.com/murkl/oak/commit/3aa9f377405f8a63c7e7ce3c28d753146e3e5f5c))
+* the footer names esc while a run works ([3aa9f37](https://github.com/murkl/oak/commit/3aa9f377405f8a63c7e7ce3c28d753146e3e5f5c))
+* the rows under a failed run stay on the page, and leaving it for the menu asks first ([3aa9f37](https://github.com/murkl/oak/commit/3aa9f377405f8a63c7e7ce3c28d753146e3e5f5c))
+
 ## [0.24.0](https://github.com/murkl/oak/compare/v0.23.0...v0.24.0) (2026-10-09)
 
 
