@@ -17,11 +17,10 @@ flowchart LR
 
 1. **Branch off `main`.** Name it after what it does: `feat/wireless-settings`, `fix/fuzzy-catalog`. Nothing reads the name
 2. **Open a pull request right away**, as a draft while it is not done. A branch is checked through its pull request, never on its own, and a draft gets the same run
-3. **Squash merge**, or switch on auto-merge. `main` takes the pull request once `Ready` and `Title` have passed, as one commit under its title, and deletes the branch
+3. **Squash merge**, or switch on auto-merge. `main` takes the pull request once `Check` and `Title` have passed, as one commit under its title, and deletes the branch
 
 - The commits inside the branch are yours to shape. Only the title reaches `main`
 - A draft cannot be merged. Marking it ready starts nothing, since it changes no code
-- A pull request that changes nothing but `CHANGELOG.md` or the release manifest starts no run and is never merged: both are the release pull request's
 
 ## The Title
 
@@ -53,16 +52,14 @@ END_COMMIT_OVERRIDE
 Nothing is typed and nothing is tagged by hand.
 
 1. **Every merge that releases something** opens or updates the pull request `chore(main): release 0.6.0`. It writes that version's section of **[CHANGELOG.md](../CHANGELOG.md)**
-2. **Merging it is the release.** The run on `main` tags `v0.6.0`, builds `oak-linux-amd64` at that tag, hangs it on the release page and publishes it
+2. **Merging it is the release.** It starts no run of its own, so an admin merges it past the checks: `gh pr merge <number> --squash --admin`. The run on `main` tags `v0.6.0`, checks and builds `oak-linux-amd64` as that version, hangs it on the release page and publishes it
 
 - Merges collect in the release pull request until it is merged. When to release is a decision, not a schedule
-- The binary answers `--version` with its tag, without the `v`, on the `runtime:` line. The last step before the download link refuses one that answers anything else, and `make build && make version-check TAG=v0.5.0` asks the same of a tag already out
-- Every other build answers the next release as a pre-release: `0.7.0-dev`, as the open release pull request names it, or the next patch where none is open
+- The version lives in `.release-please-manifest.json` alone. The binary answers it on the `runtime:` line of `--version`, and `make build` refuses a binary that answers anything else
+- Every other build answers a pre-release of the next patch: `0.6.1-dev`. `make build VERSION=0.7.0` builds any other
 - The changelog is never edited by hand
 
-**Note:** _The page stays a draft until the binary hangs on it, so every link to the latest release points at the one before until then. A run that fails on the way leaves a draft: re-run its failed jobs._
-
-**Note:** _The release pull request starts no run. The release run that wrote it reports `Ready` and `Title` on it, and its merge is checked on `main` before the tag exists. See **[ci.yml](../.github/workflows/ci.yml)**._
+**Note:** _The page stays a draft until the binary hangs on it. A run that fails on the way leaves a draft: re-run its failed jobs._
 
 **Note:** _What each number promises a product is written down once, in the **[README](README.md#1-get-oak)**._
 
@@ -71,12 +68,11 @@ Nothing is typed and nothing is tagged by hand.
 | Job | When | Does |
 | --- | --- | --- |
 | `Title` | a pull request opened, pushed to or edited | Reads the title |
-| `Check` | a pull request, `main`, on demand | `make check` with the tests under the race detector, `make vuln`, and the binary answering for itself |
-| `Ready` | a pull request | Every job it needed has passed |
+| `Check` | a pull request, a release, on demand | `make check` with the tests under the race detector, and `make vuln` |
 | `Release` | a push to `main` | The release pull request, or once that is merged, the tag and the draft page |
-| `Publish` | a release | Builds `oak-linux-amd64` at that tag, hangs it on the page and publishes it |
+| `Publish` | a release | Hangs the binary `Check` built on the page, signed, and publishes it |
 
-**Note:** _The binary is built once the tag exists, because the version it answers to is that tag. Same sources the checks ran on, one commit and one version further on._
+**Note:** _A merge into `main` runs `Release` alone: its pull request has passed `Check` already._
 
 ## Doing the Work
 
@@ -89,7 +85,6 @@ make run ARGS=--debug          # ...without touching anything
 make inspect                   # loads the example the way a run does
 make build                     # bin/oak-linux-amd64, the file a release publishes
 make vuln                      # known vulnerabilities in what this imports
-make version-check TAG=v0.5.0  # would that tag be allowed to release this?
 make locales                   # the template, and every catalog brought up to it
 ```
 
@@ -119,12 +114,11 @@ make locales   # in the same change as anything added, reworded or deleted on sc
 
 ## Pictures in the Docs
 
-Every image under `docs/` is generated, so none outlives the interface it shows.
+Every image under `docs/` is generated, so none outlives the interface it shows. CI never renders them: they are run by hand and committed with the change.
 
 ```
-make screenshots   # after any visible change to a page
-make banner        # after the screenshots, the wordmark or the accent changed
-make docs          # both, in that order
+docs/screenshots.sh   # after any visible change to a page
+docs/banner.sh        # after the screenshots, the wordmark or the accent changed
 ```
 
 - They need `chromium`, `imagemagick`, `python-pyte` and `python-yaml`, none of which a build or `make check` needs
@@ -141,9 +135,9 @@ make github
 
 | File | Says |
 | --- | --- |
-| `repository.json` | Squash merges only, under the pull request's title alone; auto-merge on; a merged branch is deleted |
-| `ruleset.json` | `main` takes nothing but a pull request, squashed, once `Ready` and `Title` have passed; no force push, no deletion. The only protection: a classic one is removed |
+| `repository.json` | Squash merges only, under the pull request's title alone; auto-merge allowed; a merged branch is deleted |
+| `ruleset.json` | `main` takes nothing but a pull request once `Check` and `Title` have passed; an admin may merge one past them, which the release pull request needs. No force push, no deletion |
 | `actions.json` | A workflow's token reads unless it says otherwise, and may open the release pull request |
 | `code-scanning.json` | CodeQL's default setup for Go, on pull requests, on `main` and weekly. The workflows are zizmor's, in `make check` |
 
-Run it again after changing one of them. Every call sets the whole state, so a second run changes nothing. The script is the same in every project released this way, and so is every file but `code-scanning.json`.
+Run it again after changing one of them. The script is the same in every project released this way; `ruleset.json` names each project's checks, and `code-scanning.json` is optional.

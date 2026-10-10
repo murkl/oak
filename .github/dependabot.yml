@@ -1,13 +1,7 @@
-# Dependencies and actions, kept current without anybody remembering to.
-#
-# Every pull request here is titled the way title.yml demands of any other, or
-# it could never be merged: `build(deps): bump …` for what the binary is built
-# from, `ci: bump …` for what the workflows run on.
+# One pull request a week per ecosystem, titled as title.yml demands. A release
+# is taken after a week: a compromised one is usually pulled by then.
 
 version: 2
-
-# A week before any release is taken: a compromised one is usually pulled again
-# within days, and one taken the hour it appears is the one that gets in.
 
 updates:
   - package-ecosystem: gomod
@@ -17,11 +11,12 @@ updates:
     cooldown:
       default-days: 7
     commit-message:
-      prefix: "build"
+      prefix: build
       include: scope
+    groups:
+      gomod:
+        patterns: ["*"]
 
-  # The workflows, and the composite action they all run on. Dependabot reads
-  # one folder per entry, and an action outside .github/workflows is its own.
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -29,13 +24,7 @@ updates:
     cooldown:
       default-days: 7
     commit-message:
-      prefix: "ci"
-
-  - package-ecosystem: github-actions
-    directory: /.github/actions/arch
-    schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
-    commit-message:
-      prefix: "ci"
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]

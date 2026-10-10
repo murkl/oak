@@ -1,197 +1,126 @@
-# One workflow, and a commit is under exactly one run of it. Which job runs
-# when is the table in docs/CONTRIBUTING.md.
+# Pull requests are checked, main releases. Which job runs when is the table in
+# docs/CONTRIBUTING.md.
 
 name: CI
 
 on:
-  # Other branches are checked through their pull request.
+  pull_request:
   push:
     branches: [main]
-  # Not the release pull request, which touches nothing but these two: it
-  # starts no run, and the release job below reports its checks instead.
-  pull_request:
-    paths-ignore:
-      - CHANGELOG.md
-      - .release-please-manifest.json
   workflow_dispatch:
 
 permissions: {}
 
-# -o pipefail on every step.
 defaults:
   run:
     shell: bash
 
-# A newer push replaces the run of the one before, except on main, which
-# releases, and a run started by hand.
+# A new push replaces a pull request's run; main queues, so no release is cut
+# short.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.ref_name != 'main' }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Runners and actions are pinned and raised by Dependabot. The container is
-# not: every job upgrades it to today's Arch first, which is what Oak is
-# checked against.
 jobs:
-  # `make check` is the whole gate, so what holds at a desk holds here. The
-  # vulnerability scan asks a server and stays out of it.
-  check:
-    name: Check
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    container: archlinux:latest # zizmor: ignore[unpinned-images] - upgraded below
-    permissions:
-      contents: read
-    steps:
-      # Without git, actions/checkout falls back to a tarball with no tags to
-      # describe a version from.
-      - name: Make the checkout a repository
-        run: pacman -Syu --needed --noconfirm git
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      # gcc for the race detector, which is built on cgo.
-      - uses: ./.github/actions/arch
-        with:
-          packages: go gcc make shellcheck shfmt yamllint actionlint zizmor gettext diffutils gitleaks govulncheck
-
-      - run: make check
-
-      - run: make vuln
-
-      - name: The binary says what it is
-        run: bin/oak-linux-amd64 --version
-
-  # The one check main requires of a pull request, so a job added above is
-  # required the moment it is listed here.
-  ready:
-    name: Ready
-    needs: check
-    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Every job this pull request needed came out well
-        env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          for result in $RESULTS; do
-            case "$result" in
-            success | skipped) ;;
-            *)
-              echo "::error::a job this pull request needs ended as ${result}"
-              exit 1
-              ;;
-            esac
-          done
-
-  # The version out of the commits since the last release. An ordinary merge
-  # updates the release pull request, and merging that one writes the tag and
-  # a draft release page.
+  # The release pull request, or once that is merged, the tag and a draft page.
   release:
     name: Release
-    needs: check
-    if: github.event_name == 'push' && github.ref_name == 'main'
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write # the tag and the release page
+      contents: write # the release branch, the tag and the page
       pull-requests: write # the release pull request
-      statuses: write # the two checks it is cleared by
     outputs:
-      created: ${{ steps.please.outputs.release_created }}
+      version: ${{ steps.please.outputs.version }}
       tag: ${{ steps.please.outputs.tag_name }}
-      notes: ${{ steps.please.outputs.body }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: please
 
-      # The release pull request starts no run, so this reports the two checks
-      # main asks of it; its merge is checked on main. Read off the branch, not
-      # the pull request, which follows a few seconds later, and the label off
-      # the list, since a search lags the label this run has just set.
-      - name: The release pull request is cleared to merge
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          gh pr list --state open --json headRefName,labels \
-            --jq '.[] | select(any(.labels[]; .name == "autorelease: pending")) | .headRefName' |
-            while read -r branch; do
-              sha="$(gh api "repos/${GH_REPO}/git/ref/heads/${branch}" --jq .object.sha)"
-              for check in Ready Title; do
-                gh api --silent "repos/${GH_REPO}/statuses/${sha}" -f state=success -f context="$check" \
-                  -f description="Release pull request - checked on main once merged"
-              done
-            done
-
-  # Built at the tag, because the version the binary answers to is that tag.
-  # The draft page is made public last, once the file hangs on it.
-  publish:
-    name: Publish
+  # `make check` on today's Arch, as at a desk. On main only for a release: the
+  # pull request checked everything else.
+  check:
+    name: Check
     needs: release
-    if: needs.release.outputs.created == 'true'
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.release.outputs.version != '') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     container: archlinux:latest # zizmor: ignore[unpinned-images] - upgraded below
     permissions:
-      contents: write # the asset and the page it hangs on
-      id-token: write # the provenance below is signed
-      attestations: write # and stored beside the release
+      contents: read
     env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-      TAG: ${{ needs.release.outputs.tag }}
+      RELEASE: ${{ needs.release.outputs.version }}
     steps:
-      - name: Make the checkout a repository
-        run: pacman -Syu --needed --noconfirm git
+      # Restored everywhere, saved on main only: a pull request's cache serves
+      # no other pull request.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ github.job }}-${{ github.run_id }}
+          restore-keys: ${{ github.job }}-
+
+      # gcc for the race detector. The checkout is the runner's user's, and git
+      # refuses it to root, which go build's VCS stamp asks.
+      - run: |
+          pacman -Syu --needed --noconfirm git pacman-contrib go gcc make shellcheck shfmt \
+            yamllint actionlint zizmor gettext diffutils gitleaks govulncheck
+          paccache -rk1
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.tag }}
-          fetch-depth: 0
           persist-credentials: false
 
-      - uses: ./.github/actions/arch
+      - run: make check ${RELEASE:+VERSION="$RELEASE"}
+
+      - run: make vuln
+
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref == 'refs/heads/main'
         with:
-          packages: go make github-cli
+          path: |
+            /var/cache/pacman/pkg
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ github.job }}-${{ github.run_id }}
 
-      - run: make build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: env.RELEASE != ''
+        with:
+          name: oak
+          path: bin/oak-linux-amd64
+          if-no-files-found: error
+          retention-days: 1
 
-      - name: The binary answers to the tag
-        run: make version-check TAG="$TAG"
+  # The binary the check built, signed and hung on the draft, which goes public
+  # last.
+  publish:
+    name: Publish
+    needs: [release, check]
+    if: needs.release.outputs.version != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # the asset and the page
+      id-token: write # signs the provenance
+      attestations: write # stores it
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: oak
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: bin/oak-linux-amd64
+          subject-path: oak-linux-amd64
 
-      # Written whole rather than appended, so a repeated run leaves the page
-      # saying the same thing.
-      - name: Publish the release
+      - run: |
+          gh release upload "$TAG" oak-linux-amd64 --clobber
+          gh release edit "$TAG" --draft=false --latest
         env:
-          NOTES: ${{ needs.release.outputs.notes }}
-        run: |
-          [ -n "$NOTES" ] || {
-            echo "::error::${TAG} was released with nothing written under it"
-            exit 1
-          }
-
-          notes="$(mktemp)"
-          printf '%s\n' "$NOTES" >"$notes"
-          cat >>"$notes" <<FOOTER
-
-          ---
-
-          \`\`\`
-          curl -LO https://github.com/${GH_REPO}/releases/download/${TAG}/oak-linux-amd64
-          gh attestation verify oak-linux-amd64 -R ${GH_REPO}
-          install -m755 oak-linux-amd64 oak
-          \`\`\`
-
-          The middle line reads the provenance this run signed: which repository the file came out of, and which run built it. Without \`gh\`, GitHub prints this download's SHA-256 beside it on this page, which says only that the file arrived whole.
-          FOOTER
-
-          gh release upload "$TAG" bin/oak-linux-amd64 --clobber
-          gh release edit "$TAG" --notes-file "$notes" --draft=false --latest
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.release.outputs.tag }}

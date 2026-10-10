@@ -7,26 +7,12 @@ APP     := oak
 PKG     := .
 BIN_DIR := bin
 
-# The last release: the newest tag up to this commit, without its `v`.
-RELEASED := $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),0.0.0)
+# The last release, as release-please keeps it.
+RELEASED := $(shell sed -n 's/.*"\.":[[:space:]]*"\([^"]*\)".*/\1/p' .release-please-manifest.json)
 
-# The next release: the one the open release pull request raises to, as origin
-# was last fetched, or the smallest after the last. A release branch no newer
-# than the last release is one already merged.
-RELEASE_BRANCH := origin/release-please--branches--main
-PENDING := $(shell git show $(RELEASE_BRANCH):.release-please-manifest.json 2>/dev/null | sed -n 's/.*"\.":[[:space:]]*"\([^"]*\)".*/\1/p')
-NEXT    := $(shell printf '%s\n' '$(RELEASED)' '$(PENDING)' | sort -V | tail -n1)
-ifeq ($(NEXT),$(RELEASED))
-NEXT := $(shell echo '$(RELEASED)' | awk -F. '{ print $$1 "." $$2 "." $$3 + 1 }')
-endif
-
-# What `oak --version` answers on its `runtime:` line: the tag on this commit,
-# or the next release as a pre-release of it. Never a release's own number on
-# anything else.
-VERSION := $(or $(shell git describe --tags --exact-match 2>/dev/null | sed 's/^v//'),$(NEXT)-dev)
-
-# What a release is called. CI hands in the tag its release run wrote.
-TAG ?= v$(VERSION)
+# What `oak --version` answers on its `runtime:` line: the release its run hands
+# in as `VERSION=`, otherwise a pre-release of the next patch.
+VERSION := $(shell echo '$(RELEASED)' | awk -F. '{ print $$1 "." $$2 "." $$3 + 1 "-dev" }')
 
 # One binary for the one platform an installer runs on. A stable name keeps
 # download links working; the version lives inside the file.
@@ -41,9 +27,9 @@ EXAMPLE := example
 MODULE  ?=
 ARGS    ?=
 
-# The example's shell: sourced, never executed, so its dialect is in the
-# .shellcheckrc beside it.
-SCRIPTS := $(shell find $(EXAMPLE) -name '*.sh')
+# Bash: the example's, sourced with its dialect in the .shellcheckrc beside it,
+# and the helpers in docs/.
+SCRIPTS := $(shell find $(EXAMPLE) -name '*.sh') $(wildcard docs/*.sh)
 
 # POSIX sh, executed rather than sourced.
 POSIX_SCRIPTS := .github/settings.sh
@@ -52,28 +38,21 @@ POSIX_SCRIPTS := .github/settings.sh
 POT      := locales/$(APP).pot
 CATALOGS := $(wildcard locales/*.po)
 
-# The pictures in docs/, generated so they cannot drift: the screenshots by
-# driving the example with --debug, the banner out of two of them. Which pages
-# is docs/screenshots.yaml. They need chromium, imagemagick, python-pyte and
-# python-yaml, so they stay out of `check`.
-BANNER_CARDS   := docs/screenshots/report.png docs/screenshots/run.png
-BANNER_TAGLINE := Build your own Arch Linux distribution. The installer is already written.
-BANNER_CELL    := 17
-
-.PHONY: all build example run inspect lint tidy tidy-check test vet staticcheck vuln secrets-check fmt fmt-check locales locales-check tag-check version-check check github screenshots banner docs clean
+.PHONY: all build example run inspect lint tidy tidy-check test vet staticcheck vuln secrets-check fmt fmt-check locales locales-check check github clean
 
 all: build
 
 # What ships, built on the way through `check`, so the file checked is the file
-# published.
+# published. Read back, since -X sets nothing once the variable is renamed.
 build:
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		go build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o $(BIN) $(PKG)
+	@said="$$(./$(BIN) --version | sed -n 's/^runtime: //p')"; [ "$$said" = '$(VERSION)' ] \
+		|| { echo "$(BIN) answers '$$said', not $(VERSION)" >&2; exit 1; }
 
-# Straight from source, into the example, for this machine: a pre-release even
-# on a tag.
+# Straight from source, into the example, for this machine.
 example:
-	go build -ldflags="-X main.version=$(NEXT)-dev" -o $(EXAMPLE)/$(APP) $(PKG)
+	go build -ldflags="-X main.version=$(VERSION)" -o $(EXAMPLE)/$(APP) $(PKG)
 
 run: example
 	cd $(EXAMPLE) && ./$(APP) $(if $(MODULE),--module=$(MODULE)) $(ARGS)
@@ -143,30 +122,13 @@ fmt-check:
 	shfmt -d $(SCRIPTS)
 	shfmt -d -ln posix -i 4 $(POSIX_SCRIPTS)
 
-# zizmor runs offline, so a finding is about a change here. What it leaves
-# alone is .github/zizmor.yml.
+# zizmor runs offline, so a finding is about a change here.
 lint:
 	shellcheck -x $(SCRIPTS)
 	shellcheck -s sh -S style $(POSIX_SCRIPTS)
 	yamllint .
 	actionlint
 	zizmor --offline --persona auditor .github
-
-# A release tag and nothing else, so a tag and its binary are held to one rule.
-tag-check:
-	@[[ "$(TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] \
-		|| { echo "not a release tag: '$(TAG)' — a release is vMAJOR.MINOR.PATCH" >&2; exit 1; }
-
-# A tag may only release a binary that answers to it: a moved tag or a clone too
-# shallow to describe one would publish a version the file disagrees with.
-#
-#   make version-check                                against what build wrote
-#   make version-check TAG=v0.1.0 BIN=dist/oak-...    a published tag against what ships under it
-version-check: tag-check
-	@said="$$(./$(BIN) --version | sed -n 's/^runtime: //p')"; \
-	[ "$$said" = "$(TAG:v%=%)" ] \
-		|| { echo "$(BIN) answers '$$said' — the tag says '$(TAG)'" >&2; exit 1; }
-	@echo "$(BIN) is $(TAG)"
 
 # What has to pass before anything is committed.
 check: fmt-check tidy-check vet staticcheck secrets-check locales-check lint test build inspect
@@ -177,22 +139,6 @@ github:
 	.github/settings.sh
 
 # No install target: the binary looks for its oak.yaml beside itself.
-
-screenshots: example
-	python3 docs/screenshots.py --product $(EXAMPLE)
-
-banner:
-	python3 docs/banner.py \
-		--product $(EXAMPLE)/oak.yaml \
-		--logo docs/logo.svg \
-		$(foreach c,$(BANNER_CARDS),--card $(c)) \
-		--tagline "$(BANNER_TAGLINE)" \
-		--cell $(BANNER_CELL)
-
-# The banner collages the screenshots, so it comes after them.
-docs:
-	$(MAKE) screenshots
-	$(MAKE) banner
 
 clean:
 	rm -rf $(BIN_DIR) $(EXAMPLE)/$(APP)
