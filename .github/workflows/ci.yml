@@ -63,11 +63,13 @@ jobs:
           key: ${{ github.job }}-${{ github.run_id }}
           restore-keys: ${{ github.job }}-
 
-      # gcc for the race detector.
+      # gcc for the race detector. The checkout is the runner's user's, and git
+      # refuses it to root, which go build's VCS stamp asks.
       - run: |
           pacman -Syu --needed --noconfirm git pacman-contrib go gcc make shellcheck shfmt \
             yamllint actionlint zizmor gettext diffutils gitleaks govulncheck
           paccache -rk1
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
