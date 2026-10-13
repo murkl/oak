@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -53,6 +54,9 @@ type declaration struct {
 
 	// The header's line for this module, in place of the product's.
 	Status *Status `yaml:"status"`
+
+	// What its scripts mean by stopping themselves - see Errors.
+	Errors Errors `yaml:"errors"`
 }
 
 // Load reads one module folder and checks it over - every reference resolved,
@@ -71,6 +75,7 @@ func Load(dir string) (*Module, error) {
 	s.UI = UI{Title: head.Title, Icon: head.Icon}
 	s.Presets, s.Vars, s.Language = head.Presets, head.Variables, head.Language
 	s.Stages, s.Rules, s.Confirm, s.Asks = head.Stages, head.Rules, head.Confirm, head.Asks
+	s.Errors = head.Errors
 	if err := head.Status.settle(dir, FileModule); err != nil {
 		return nil, fmt.Errorf("%s: %w", FileModule, err)
 	}
@@ -356,6 +361,9 @@ func (s *Module) check(tasks []*Task, runs map[string]int) error {
 	if err := s.checkPresets(); err != nil {
 		return fmt.Errorf("%s: %w", FileModule, err)
 	}
+	if err := s.checkErrors(s.Errors); err != nil {
+		return fmt.Errorf("%s: %w", FileModule, err)
+	}
 	if err := s.checkActions(runs); err != nil {
 		return err
 	}
@@ -376,6 +384,25 @@ func (s *Module) checkText(key, text string) error {
 	for _, name := range Names(text) {
 		if s.byName[name] == nil {
 			return fmt.Errorf("%s: {{%s}} is not a variable of this module", key, name)
+		}
+	}
+	return nil
+}
+
+// checkErrors holds each status to the ones a script can choose, and its words
+// to the variables they name. A sentence for a status no script can exit with
+// would never be read.
+func (s *Module) checkErrors(e Errors) error {
+	for _, code := range e.codes() {
+		key := "errors: " + strconv.Itoa(code)
+		switch {
+		case code < FirstError || code > LastError:
+			return fmt.Errorf("%s: a script chooses a status from %d to %d - 0 is no error, and bash spends the ones above on a command it cannot run or find and on signals", key, FirstError, LastError)
+		case strings.TrimSpace(e[code]) == "":
+			return fmt.Errorf("%s: says nothing", key)
+		}
+		if err := s.checkText(key, e[code]); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -441,6 +468,9 @@ func (s *Module) checkTask(t *Task) error {
 		return err
 	}
 	if err := s.checkText("report", t.Report); err != nil {
+		return err
+	}
+	if err := s.checkErrors(t.Errors); err != nil {
 		return err
 	}
 	cond, err := s.conditions(t.Conditions)
@@ -581,6 +611,18 @@ func (s *Module) normalize(tasks []*Task) {
 	}
 	for _, f := range fields {
 		*f = reflow(*f)
+	}
+	sets := []Errors{s.Errors}
+	for _, a := range s.Actions {
+		sets = append(sets, a.Errors)
+	}
+	for _, t := range tasks {
+		sets = append(sets, t.Errors)
+	}
+	for _, e := range sets {
+		for code, text := range e {
+			e[code] = reflow(text)
+		}
 	}
 }
 

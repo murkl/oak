@@ -135,6 +135,7 @@ rules:
 | `status` | Its own header line, in place of the product's |
 | `presets` | See [Presets](#presets) |
 | `variables` | See [Questions](#questions) |
+| `errors` | What a status means that any of its scripts stops itself with, see [Stopping on Purpose](#stopping-on-purpose) |
 
 ### The Menu
 
@@ -152,7 +153,7 @@ Each rule names actions by their folder. An `-if` runs by itself and answers yes
 | `start-if` | module | Before the work. The first no stands a page in front of everything and is asked again every few seconds |
 | `on-settings` | module | Rows at the top of the settings page |
 | `on-leave` | module | Rows on the page every way out arrives at, above Oak's own **Exit** |
-| `on-failure` | module | Rows under a run that failed. They stay on the page however long the failure is, and leaving for the menu asks first, opening on No |
+| `on-failure` | module | Rows under a run that failed. They stay on the page however long the failure is, and leaving for the menu asks first, opening on No. None under a run [stopped on purpose](#stopping-on-purpose) |
 | `on-failure` | action | The first of them this machine offers, opened where this action says no |
 | `on-success` | module | Rows under a run that finished |
 
@@ -230,7 +231,7 @@ conditions:
 
 ### Placeholders
 
-`{{VAR}}` is filled in from the answers in a task's `confirm` and `report`, and an action's `error`, `confirm` and `report`. A name the module does not declare is refused at startup, and a translation that drops or adds one fails `--inspect`.
+`{{VAR}}` is filled in from the answers in a task's `confirm` and `report`, an action's `error`, `confirm` and `report`, and every `errors`. A name the module does not declare is refused at startup, and a translation that drops or adds one fails `--inspect`.
 
 ## Tasks
 
@@ -255,6 +256,7 @@ conditions:
 | `progress` | `true`: the last line it printed is shown under it while it runs |
 | `simulates` | `true`: run under `--debug` too, reading `DEBUG` itself |
 | `allow-failure` | `true`: its failure does not stop the run |
+| `errors` | What a status means that its `task.sh` stops itself with, see [Stopping on Purpose](#stopping-on-purpose) |
 
 - A task runs after every task of an earlier stage, and within its stage after its `needs`
 - A `needs` into another stage is dropped with a warning. An unknown name and a cycle are refused
@@ -315,13 +317,14 @@ variables:
 | `report`, `shows` | Its page after it ran, and an answer drawn there as a code |
 | `tty` | Its page is the terminal itself, and it has no other |
 | `simulates` | Run under `--debug` too |
+| `errors` | What a status means that its `action.sh` stops itself with, see [Stopping on Purpose](#stopping-on-purpose). Opened, never run by itself, and without `tty` |
 
 - **Its pages:** its questions and a report around the work, or the terminal alone. A flow of more is several actions, chained by `on-failure`
 - Run by itself, under an `-if`, an action is a question and has no page
 - Its answer belongs to the session: never stored, never on the settings page
 - `tty: true` hands the script the terminal outright, with a process group of its own
 
-**Note:** _Refused at startup: an unknown name, an action nothing names, an action opened on its own failure, a ring of actions, a page beside the terminal, a page or a `confirm` on an action run by itself, a check without `error`, a question or a `confirm` under `on-leave`, and a rule only a module places: `start-if`, `on-settings`, `on-leave`, `on-success`._
+**Note:** _Refused at startup: an unknown name, an action nothing names, an action opened on its own failure, a ring of actions, a page beside the terminal, a page, a `confirm` or `errors` on an action run by itself, `errors` beside `tty`, a check without `error`, a question or a `confirm` under `on-leave`, and a rule only a module places: `start-if`, `on-settings`, `on-leave`, `on-success`._
 
 ## What a Script Receives
 
@@ -340,6 +343,26 @@ Scripts run with `oak.sh` loaded and an `ERR` trap: no shebang, no `set -e`, no 
 - A `test.sh` also changes nothing
 
 A failure names the module, the unit, the file, the line, the command, the exit code and what the tool said.
+
+### Stopping on Purpose
+
+What a script sees coming, it stops on itself, with a status of its own. The yaml says what that status means:
+
+```yaml
+errors:
+  3: |
+    No internet connection
+
+    Connect this machine and choose Start again.
+```
+
+`exit 3` stops the run on these words, the first paragraph as the headline. Nothing technical stands beside them and no `on-failure` row under them: the words say what to do. Every other failure is reported where the script broke, for whoever changes it.
+
+- A task or an action declares them for its own script, the module for every script it has. The unit's own words come first
+- A status from 1 to 125: bash spends 126 and up on a command it cannot run or find and on signals
+- Only `exit` counts, in the script or in a function it calls. A failed command, a `return` or last line that hands back a status, and an `exit` inside `$(…)` or `( … )` are where it broke, whatever the status
+- A status no yaml puts into words is a failure like any other
+- An action stopped this way opens nothing under its `on-failure`
 
 ### Simulating
 

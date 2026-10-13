@@ -4,10 +4,12 @@
 package spec
 
 import (
+	"maps"
 	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/murkl/oak/internal/i18n"
@@ -125,6 +127,10 @@ type Module struct {
 	// own, or the product's where it declares none. Nil where neither does.
 	Status *Status
 
+	// Errors is what any of its scripts means by stopping itself, where the
+	// task or action has no words of its own for that status - see Errors.
+	Errors Errors
+
 	// Language names the variable whose answer also settles the words the
 	// interface is read in, matched like a machine's locale so de_AT is German.
 	// Empty keeps them apart, and the program asks for a language of its own.
@@ -232,6 +238,9 @@ type Task struct {
 	// read the way a failed test is.
 	AllowFailure bool `yaml:"allow-failure"`
 
+	// Errors is what its task.sh means by stopping itself - see Errors.
+	Errors Errors `yaml:"errors"`
+
 	id    string
 	stage string
 	dir   string
@@ -279,6 +288,42 @@ func (t *Task) ReportText(get func(string) string) (headline, body string) {
 	text := strings.TrimSpace(Expand(i18n.T(t.Report), get))
 	headline, body, _ = strings.Cut(text, "\n\n")
 	return headline, strings.TrimSpace(body)
+}
+
+// Errors is what a script means where it stops itself on purpose, by the status
+// it exits with: `exit 3` is told the words under 3, the first paragraph the
+// headline. It is the one failure read as a sentence. Any other is reported
+// where the script broke, since only whoever changes the script can do
+// anything about it.
+type Errors map[int]string
+
+// The statuses a script may stop itself with: above 0, and below what bash
+// spends on a command it cannot run (126) or find (127) and on a signal (128
+// on).
+const (
+	FirstError = 1
+	LastError  = 125
+)
+
+// codes is every status it has words for, lowest first, so a catalog lists
+// them in the same order every time.
+func (e Errors) codes() []int { return slices.Sorted(maps.Keys(e)) }
+
+// Told is what a script of this module means by stopping itself with code,
+// translated and with the answers filled in: the headline, then the rest. The
+// task's or action's own words where they have some, else the module's; ok is
+// false where neither has any for that status.
+func (s *Module) Told(own Errors, code int, get func(string) string) (headline, body string, ok bool) {
+	text, found := own[code]
+	if !found {
+		text, found = s.Errors[code]
+	}
+	if !found {
+		return "", "", false
+	}
+	text = strings.TrimSpace(Expand(i18n.T(text), get))
+	headline, body, _ = strings.Cut(text, "\n\n")
+	return headline, strings.TrimSpace(body), true
 }
 
 // The types a variable is declared as, which say what the frame draws and which
@@ -572,6 +617,9 @@ func (s *Module) Messages() []Message {
 		add(decl, v.Name+": the heading its row sits under", v.Group)
 		add(decl, v.Name+": what a wrong answer is told", v.Error)
 	}
+	for _, code := range s.Errors.codes() {
+		add(decl, "told where a script stops itself with exit "+strconv.Itoa(code)+" and its own yaml has no words for it", s.Errors[code])
+	}
 	if st := s.Status; st != nil {
 		add(st.file, "the header's status, while its check says yes", st.Pass)
 		add(st.file, "the header's status, while its check says no", st.Fail)
@@ -581,6 +629,9 @@ func (s *Module) Messages() []Message {
 		add(file, "the step, as the run lists it", t.Title)
 		add(file, "asked before the step runs", t.Confirm)
 		add(file, "read once the step is done, and held on until somebody has", t.Report)
+		for _, code := range t.Errors.codes() {
+			add(file, "told where the step stops itself with exit "+strconv.Itoa(code), t.Errors[code])
+		}
 	}
 	for _, a := range s.Actions {
 		file := path.Join(DirActions, a.ID(), FileAction)
@@ -589,6 +640,9 @@ func (s *Module) Messages() []Message {
 		add(file, "an action: what a no from it means", a.Error)
 		add(file, "asked before the action does its work", a.Confirm)
 		add(file, "read once the action is done, and held on until somebody has", a.Report)
+		for _, code := range a.Errors.codes() {
+			add(file, "told where the action stops itself with exit "+strconv.Itoa(code), a.Errors[code])
+		}
 		for _, v := range a.Vars {
 			add(file, v.Name+": a page of the action", v.Title)
 			add(file, v.Name+": what it means", v.Description)

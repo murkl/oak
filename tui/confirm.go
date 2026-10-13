@@ -78,7 +78,7 @@ func startInstall(a *app, next int) screen {
 		if v.Secret() {
 			return newSecret(a, v, then).under(labelMenu())
 		}
-		return newField(a, v, then).under(labelMenu())
+		return newField(a, v, then).rooted(labelMenu())
 	}
 	if a.module.Confirm {
 		return newConfirm(a)

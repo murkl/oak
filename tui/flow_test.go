@@ -2301,6 +2301,8 @@ func TestTheModuleAsksEachTimeTheWorkStarts(t *testing.T) {
 
 	h.up().enter()
 	h.wants("Device", "The one to write.", "/dev/sda", "/dev/sdb").refuses("Password", reallyStart)
+	// Under the menu once, like the passwords after it.
+	h.wants(labelMenu() + " " + glyphs.crumb + " Device").refuses(labelMenu() + " " + glyphs.crumb + " " + labelMenu())
 	h.down().enter()
 	h.wants("Password")
 	if got := h.a.store.Get("DEVICE"); got != "/dev/sdb" {
