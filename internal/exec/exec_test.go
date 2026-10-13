@@ -477,3 +477,29 @@ func TestLatestFollowsALineThatHasNotEndedYet(t *testing.T) {
 		t.Fatalf("latest line is %q, want the bar drawn so far", got)
 	}
 }
+
+// A status a script stops itself with is one it chose, and the only failure a
+// module may put into words. A command that failed, a last line that handed
+// its status back and a status from a subshell are each where it broke.
+func TestOnlyAnExitTheScriptChoseIsDeliberate(t *testing.T) {
+	for _, c := range []struct {
+		script string
+		want   bool
+	}{
+		{"echo offline >&2\nexit 3\n", true},
+		{"stop() { exit 4; }\nstop\necho never\n", true},
+		{"ls /definitely/not/here\n", false},
+		{"return 3\n", false},
+		{"false\n", false},
+		{"(exit 3)\necho never\n", false},
+		{"x=\"$(exit 3)\"\necho never\n", false},
+	} {
+		f, ok := run(t, c.script).Err().(*Failure)
+		if !ok {
+			t.Fatalf("%q: no *Failure", c.script)
+		}
+		if f.Deliberate != c.want {
+			t.Errorf("%q: deliberate = %v, want %v", c.script, f.Deliberate, c.want)
+		}
+	}
+}

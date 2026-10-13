@@ -48,6 +48,9 @@ type Action struct {
 	// Simulates runs it under --debug as well, for one that reads DEBUG itself.
 	Simulates bool
 
+	// Errors is what its action.sh means by stopping itself - see Errors.
+	Errors Errors
+
 	work  Script
 	shown *Variable
 	id    string
@@ -67,6 +70,7 @@ type actionDeclaration struct {
 	Shows       string      `yaml:"shows"`
 	TTY         bool        `yaml:"tty"`
 	Simulates   bool        `yaml:"simulates"`
+	Errors      Errors      `yaml:"errors"`
 }
 
 // Rules is where actions run, under `rules:` in module.yaml and action.yaml
@@ -210,7 +214,7 @@ func loadAction(where string) (*Action, error) {
 	return &Action{
 		Title: d.Title, Description: d.Description,
 		Rules: d.Rules, Error: d.Error, Confirm: d.Confirm, Vars: d.Variables,
-		Report: d.Report, Shows: d.Shows, TTY: d.TTY, Simulates: d.Simulates,
+		Report: d.Report, Shows: d.Shows, TTY: d.TTY, Simulates: d.Simulates, Errors: d.Errors,
 		work: work, id: filepath.Base(where), dir: where,
 	}, nil
 }
@@ -337,6 +341,10 @@ func (s *Module) checkAction(a *Action, how int) error {
 		return fmt.Errorf("title is required")
 	case a.TTY && pages:
 		return fmt.Errorf("an action with tty has the terminal for its page - questions or a report are a second action, named under rules: on-failure")
+	case a.TTY && len(a.Errors) > 0:
+		return fmt.Errorf("errors: an action with tty runs without the trap that tells a status it chose from a command that failed")
+	case how != opened && len(a.Errors) > 0:
+		return fmt.Errorf("errors: it runs by itself where it is named, and its no is read as error")
 	case how != opened && (pages || a.TTY || a.Confirms()):
 		return fmt.Errorf("it runs by itself where it is named, so it has no page")
 	case how == gating && a.Error == "":
@@ -368,6 +376,9 @@ func (s *Module) checkAction(a *Action, how int) error {
 		return err
 	}
 	if err := s.checkText("confirm", a.Confirm); err != nil {
+		return err
+	}
+	if err := s.checkErrors(a.Errors); err != nil {
 		return err
 	}
 	return s.checkText("report", a.Report)

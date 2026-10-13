@@ -19,36 +19,36 @@ msgstr "Deutsch"
 #. belongs to, the step itself, the script and line it was in, what ran, and
 #. what it returned. Each is one column of a narrow table, so short wins
 #. over exact.
-#: internal/exec/failure.go:60
+#: internal/exec/failure.go:66
 msgid "Module"
 msgstr "Modul"
 
-#: internal/exec/failure.go:62
+#: internal/exec/failure.go:68
 msgid "Action"
 msgstr "Aktion"
 
-#: internal/exec/failure.go:64
+#: internal/exec/failure.go:70
 msgid "Task"
 msgstr "Aufgabe"
 
-#: internal/exec/failure.go:73
+#: internal/exec/failure.go:79
 msgid "Script"
 msgstr "Skript"
 
-#: internal/exec/failure.go:75
+#: internal/exec/failure.go:81
 msgid "Command"
 msgstr "Befehl"
 
-#: internal/exec/failure.go:77
+#: internal/exec/failure.go:83
 msgid "Exit code"
 msgstr "Exit-Code"
 
-#: internal/exec/failure.go:85
+#: internal/exec/failure.go:91
 #, c-format
 msgid "%s failed"
 msgstr "%s fehlgeschlagen"
 
-#: internal/exec/failure.go:90
+#: internal/exec/failure.go:96
 msgid "Error"
 msgstr "Fehler"
 
@@ -70,19 +70,19 @@ msgstr "Ein %s-Ordner mit Inhalt muss neben diesem Programm liegen, in %s."
 msgid "Nothing to run here."
 msgstr "Hier gibt es nichts auszuführen."
 
-#: internal/spec/spec.go:451
+#: internal/spec/spec.go:496
 msgid "This value has the wrong format."
 msgstr "Dieser Wert hat das falsche Format."
 
-#: internal/spec/spec.go:453
+#: internal/spec/spec.go:498
 msgid "This value is required."
 msgstr "Dieser Wert wird benötigt."
 
-#: internal/spec/spec.go:463
+#: internal/spec/spec.go:508
 msgid "This answer is not among the ones offered here."
 msgstr "Diese Antwort gehört nicht zu den hier angebotenen."
 
-#: internal/spec/spec.go:473
+#: internal/spec/spec.go:518
 msgid "This password was not accepted."
 msgstr "Dieses Passwort wurde nicht angenommen."
 

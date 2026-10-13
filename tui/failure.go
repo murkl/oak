@@ -5,6 +5,7 @@ import (
 
 	"github.com/murkl/oak/internal/exec"
 	"github.com/murkl/oak/internal/logging"
+	"github.com/murkl/oak/internal/spec"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -15,6 +16,9 @@ import (
 // is above zero and it all would not fit, what the tool said loses its front:
 // its last lines are where it says why it stopped.
 func renderFailure(err error, width, rows int) string {
+	if k, ok := err.(*known); ok {
+		return k.view(width)
+	}
 	f, ok := err.(*exec.Failure)
 	if !ok {
 		return fitted(nil, wrap(err.Error(), bodyWidth(width)), logNote(width), rows)
@@ -74,6 +78,45 @@ func fitted(head, said []string, note string, rows int) string {
 		b.WriteString(strings.Repeat("\n", gap) + failStyle.Render(strings.Join(said, "\n")) + strings.Repeat("\n", gap))
 	}
 	return b.String() + note
+}
+
+// known is a failure the module saw coming: a script that stopped itself with a
+// status the module has words for. It reads as those words alone. What broke
+// stays in the log, for whoever is helping, and nothing is offered about it:
+// the words say what to do.
+type known struct {
+	cause          error
+	headline, body string
+}
+
+func (k *known) Error() string { return k.cause.Error() }
+func (k *known) Unwrap() error { return k.cause }
+
+// view is its words, the headline under the mark that says no.
+func (k *known) view(width int) string {
+	out := refusal(k.headline, width)
+	if k.body != "" {
+		out += "\n\n" + paragraph(k.body, width)
+	}
+	return out
+}
+
+// page is its words as the page a run or an action stops on.
+func (k *known) page() *report { return newReport(k.headline, k.body, "").stop() }
+
+// told is a failure in the module's words, where its script stopped itself with
+// a status they cover - own first, then the module's - and err as it was
+// everywhere else.
+func (a *app) told(err error, own spec.Errors) error {
+	f, ok := err.(*exec.Failure)
+	if !ok || !f.Deliberate {
+		return err
+	}
+	headline, body, ok := a.module.Told(own, f.Code, a.store.Get)
+	if !ok {
+		return err
+	}
+	return &known{cause: err, headline: headline, body: body}
 }
 
 // refusal is a sentence saying no, under the mark that says so: the first line

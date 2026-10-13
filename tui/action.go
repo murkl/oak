@@ -185,7 +185,13 @@ func (s *actionScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	// worked or not.
 	s.app.store.Forget()
 	if ran.err != nil {
-		logging.Error("%s", ran.err)
+		err := s.app.told(ran.err, s.act.Errors)
+		logging.Error("%s", err)
+		// Its own words stop it there: a status it chose is not the no that
+		// what it opens on failure would put right.
+		if k, ok := err.(*known); ok {
+			return s, replace(&toldScreen{page: k.page(), done: pop})
+		}
 		if fb := s.app.fallback(s.act); fb != nil {
 			return s, replace(s.app.firstPage(fb, s.depth-1, s.then))
 		}

@@ -71,9 +71,13 @@ func (s *fieldScreen) counted(at, of int) *fieldScreen {
 
 // opening marks this question as one of the few asked before the run proper,
 // which is where it is put in the breadcrumb rather than how it is asked.
-func (s *fieldScreen) opening() *fieldScreen {
+func (s *fieldScreen) opening() *fieldScreen { return s.rooted(labelOpening()) }
+
+// rooted stands this question under a heading and starts the trail over there:
+// it is one of a row asked one after another, never one inside the other.
+func (s *fieldScreen) rooted(head string) *fieldScreen {
 	s.root = true
-	return s.under(labelOpening())
+	return s.under(head)
 }
 
 // under stands this question under a heading: the opening, or the action whose

@@ -383,7 +383,10 @@ func (s *runScreen) fell(err error) tea.Cmd {
 func (s *runScreen) finish(err error) tea.Cmd {
 	s.took = time.Since(s.started)
 	s.done, s.err, s.session, s.asking, s.ask = true, err, nil, nil, nil
-	if err != nil {
+	if k, ok := err.(*known); ok {
+		logging.Error("%s", err)
+		s.told = k.page()
+	} else if err != nil {
 		logging.Error("%s", err)
 		s.told = newReport(s.failed(), labelRunStopped(s.stoppedAt()), "").stop()
 	} else {
@@ -421,7 +424,7 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case stepDoneMsg:
 		if msg.err != nil {
-			return s, s.fell(msg.err)
+			return s, s.fell(s.app.told(msg.err, s.steps[s.at].Errors))
 		}
 		s.state[s.at] = ran
 		if s.steps[s.at].AllowFailure {
@@ -488,6 +491,11 @@ func (s *runScreen) Update(msg tea.Msg) (screen, tea.Cmd) {
 			if answers(msg) {
 				// The page a run stopped on: everything about the failure is
 				// behind it, and the way on from there is back to the answers.
+				// Where the module said it in its own words there is nothing
+				// behind it.
+				if _, ok := s.err.(*known); ok {
+					return s, s.back()
+				}
 				if s.err != nil {
 					return s, push(newFailure(s.stoppedAt(), s.err, s.back).offering(s.app).asking())
 				}

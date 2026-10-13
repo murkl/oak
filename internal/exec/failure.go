@@ -32,6 +32,12 @@ type Failure struct {
 	Code    int
 	Command string // the command that failed
 	Stderr  string
+
+	// Deliberate is a script that stopped itself with `exit`: no command failed
+	// and its last line did not hand back the status, so the status is one it
+	// chose and may have words for. Never set where the trap is not there to
+	// tell the two apart, as for a script handed the terminal.
+	Deliberate bool
 }
 
 // Field is one row of a failure report: what it is, and what it says. Path
@@ -169,6 +175,8 @@ func (r Runner) failure(step Step, err error, report, said string) error {
 		// Nothing tripped the trap, so the script answered with a status of its
 		// own. There is no line to name, but there is still the file it is in.
 		f = &Failure{Code: exitCode(err), Script: short(step.Script.File)}
+		_, ran := exited(err)
+		f.Deliberate = ran && f.Code > 0
 	}
 	f.Module, f.Unit, f.Action, f.Stderr = r.Module, step.Name, step.Action, said
 	return f

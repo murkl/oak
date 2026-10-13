@@ -21,6 +21,7 @@ You write the questions in YAML and the steps in shell. Oak turns them into an i
 - **One YAML per module.** Questions, stages, rules
 - **A task pipeline.** A task is a folder. Its stage and its `needs` are the order
 - **Error reports you did not write.** Module, task, file, line, command, exit code
+- **Plain words for what you saw coming.** `exit 3`, and the YAML says what it means
 - **Tests beside the steps.** Read the machine after each task, counted at the end and listed under **Test results**
 - **Answers that survive.** Written down as plain shell as they are given
 - **Modular.** An installer and a recovery from one binary, a third is a folder
@@ -144,6 +145,8 @@ The run stops and says where: module, task, file, line, command, what the tool s
 </p>
 
 A failed test and a failed `allow-failure` task do not stop the run. They are counted, and the finished run lists them under **Test results**.
+
+What a script sees coming it stops on itself, with a status the YAML puts into words: no internet, a stick pulled out. The run stops on those words alone. **[➜ Stopping on Purpose](REFERENCE.md#stopping-on-purpose)**
 
 ## The Command Line
 
