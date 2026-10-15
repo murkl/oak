@@ -2,6 +2,13 @@
 
 What each release changed, newest first. Written by the run that publishes it, out of what landed on `main` since the release before, never by hand. The version is what `oak --version` answers and what a product pins itself to; what moves which number is the promise in the **[README](docs/README.md#1-get-oak)**.
 
+## [0.26.1](https://github.com/murkl/oak/compare/v0.26.0...v0.26.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* a line a progress bar redraws is logged as it ends, not frame by frame ([#84](https://github.com/murkl/oak/issues/84)) ([620ed2c](https://github.com/murkl/oak/commit/620ed2cf282d5fba994328d25fa19b6cb601259e))
+
 ## [0.26.0](https://github.com/murkl/oak/compare/v0.25.0...v0.26.0) (2026-10-13)
 
 
