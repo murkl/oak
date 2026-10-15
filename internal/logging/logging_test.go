@@ -80,6 +80,30 @@ func TestScriptOutputIsSplitIntoLines(t *testing.T) {
 	}
 }
 
+// A progress bar redraws its line with a carriage return: the log keeps what it
+// last showed, not every frame, and a "\r\n" split across two writes still ends
+// one line.
+func TestARedrawnLineIsLoggedAsItEnds(t *testing.T) {
+	p := open(t)
+	w := External()
+	w.Write([]byte("fetching\n\r##   10.0%"))
+	w.Write([]byte("\r#### 20.0%\r"))
+	w.Write([]byte("\r######100.0%\r"))
+	w.Write([]byte("\nnext\r\r"))
+	w.Write([]byte("\n"))
+
+	got := read(t, p)
+	want := []string{"fetching", "######100.0%", "next"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d lines, want %d: %q", len(got), len(want), got)
+	}
+	for i, w := range want {
+		if m := line.FindStringSubmatch(got[i]); m == nil || m[2] != w {
+			t.Errorf("line %d is %q, want %s", i, got[i], w)
+		}
+	}
+}
+
 // A line with no newline behind it yet is not a line.
 func TestAPartialLineIsHeldBack(t *testing.T) {
 	p := open(t)
