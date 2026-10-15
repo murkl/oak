@@ -104,7 +104,8 @@ func local() *time.Location {
 }
 
 // External returns an io.Writer that logs a script's output, one log line per
-// text line, at externalLevel.
+// text line, at externalLevel. A carriage return redraws a line in place, as a
+// progress bar does, so a line is logged as it was last drawn.
 func External() io.Writer { return &lineWriter{level: externalLevel} }
 
 type lineWriter struct {
@@ -119,10 +120,19 @@ func (w *lineWriter) Write(p []byte) (int, error) {
 		if i < 0 {
 			break
 		}
-		if line := bytes.TrimRight(w.buf[:i], "\r"); len(line) > 0 {
+		line := bytes.TrimRight(w.buf[:i], "\r")
+		if j := bytes.LastIndexByte(line, '\r'); j >= 0 {
+			line = line[j+1:]
+		}
+		if len(line) > 0 {
 			write(w.level, string(line))
 		}
 		w.buf = w.buf[i+1:]
+	}
+	// Earlier drawings of the unfinished line go now, so a long bar is not held
+	// in memory. Carriage returns at the very end draw nothing yet.
+	if j := bytes.LastIndexByte(bytes.TrimRight(w.buf, "\r"), '\r'); j >= 0 {
+		w.buf = w.buf[j+1:]
 	}
 	return len(p), nil
 }
