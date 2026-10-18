@@ -140,4 +140,4 @@ make github
 | `actions.json` | A workflow's token reads unless it says otherwise, and may open the release pull request |
 | `code-scanning.json` | CodeQL's default setup for Go, on pull requests, on `main` and weekly. The workflows are zizmor's, in `make check` |
 
-Run it again after changing one of them. The script is the same in every project released this way; `ruleset.json` names each project's checks, and `code-scanning.json` is optional.
+Run it again after changing one of them. The script also turns on Dependabot alerts and private vulnerability reporting. It is the same in every project released this way; `ruleset.json` names each project's checks, and `code-scanning.json` and `topics.json` are optional.
